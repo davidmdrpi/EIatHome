@@ -67,6 +67,16 @@ class PublishedDataTests(unittest.TestCase):
         entries = json.loads(MANIFEST.read_text())['slices']
         self.assertEqual(len(load_slices(MANIFEST)), len(entries))
 
+    def test_long_window_manifest_integrity(self):
+        # The 49-frame slices from the 6-second product, published for this track only.
+        manifest = ROOT / 'tracks/llm/data/slices/index.json'
+        entries = json.loads(manifest.read_text())['slices']
+        records = load_slices(manifest)
+        self.assertEqual(len(records), len(entries))
+        for record in records:
+            self.assertEqual(len(record['frames']), record['entry']['shape'][0])
+            self.assertEqual(record['entry']['source']['product'], '6_sec_integration')
+
 
 class SignalDataTests(SignalFixture):
     def test_session_rounding_and_reported_counts(self):

@@ -53,7 +53,8 @@ To work on the Live Lab itself, see [`web/README.md`](web/README.md).
 
 **Train a transformer on the signal data:** the new [SETI signal language-model track](tracks/llm/README.md)
 trains a configurable decoder-only transformer from spectrogram tokens, with shuffled and
-Markov controls, checkpoints and signal continuation. The published data supports a labelled
+Markov controls, checkpoints and signal continuation. It can use absolute or rotary position
+embeddings, and it has its own 49-frame slices of the same scans. The published data supports a labelled
 within-session smoke test; independent train/validation/test evaluation needs three sessions.
 
 ```bash
@@ -297,6 +298,7 @@ EIatHome/
 │   └── vendor/  # TensorFlow.js, pinned and vendored
 ├── tools/       # extract_slices.py and other data tools
 ├── tracks/
+│   ├── llm/     # signal-token transformer (Python), with its 49-frame slices
 │   ├── rnn/     # Track A notebooks (hello_voyager.ipynb)
 │   └── tokens/  # Track B notebooks (planned)
 ├── docs/        # experiment protocol and design notes
@@ -339,6 +341,7 @@ EIatHome/
 - [ ] Add slices of a public SETI signal of interest as a second real-data preset
 - [x] Collect submitted result cards automatically, retry any a run missed, and show replication status per slice dataset
 - [x] Train and save causal signal-token transformers in Python, with train-only tokenization and surrogate controls
+- [x] 49-frame slices from the 6-second product, rotary positions and offset training windows, scored on windows that start mid-scan ([issue #7](https://github.com/davidmdrpi/EIatHome/issues/7))
 - [ ] Public volunteer pilot
 - [ ] Heavier work units on BOINC, if needed (for example via [BOINC Central](https://boinc.berkeley.edu/central/scientist.php))
 
