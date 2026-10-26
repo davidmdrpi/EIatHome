@@ -7,6 +7,7 @@ import { extname, join, normalize } from 'node:path';
 import { after, before, test } from 'node:test';
 import { fileURLToPath } from 'node:url';
 
+import { matchedSize, parameterCount } from '../web/js/models.js';
 import { lineSlice, writeSliceFolder } from './fixtures.mjs';
 
 const { chromium } = createRequire(import.meta.url)('playwright');
@@ -88,6 +89,19 @@ test('HTML in slice metadata is displayed literally, never run', async () => {
   assert.equal(await page.textContent('#probe tbody td:first-child'), '<b>carrier</b>');
   assert.equal(await page.locator('#probe img, #probe td b').count(), 0);
   assert.equal(await page.evaluate(() => window.__pwned), undefined);
+  assert.deepEqual(errors, []);
+  await page.close();
+});
+
+test('every Track A model trains, at the parameter count the size matching promises', async () => {
+  const { page, errors } = await openLab();
+  for (const arch of ['gru', 'lstm', 'attention']) {
+    await page.selectOption('#arch', arch);
+    await train(page, 'tone');
+    const expected = parameterCount(arch, matchedSize(arch, 32)).toLocaleString('en-US');
+    assert.match(await page.textContent('#lab-status'), new RegExp(`${expected} parameters`), arch);
+    assert.ok(Number.isFinite(Number(await page.textContent('#gains tbody tr.current td:nth-child(4)'))), `${arch} reports a gain`);
+  }
   assert.deepEqual(errors, []);
   await page.close();
 });

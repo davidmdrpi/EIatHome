@@ -8,6 +8,7 @@ import { deriveSeed, makeRng } from './rng.js';
 import { C, DEFAULT_FOFF_HZ, DEFAULT_TSAMP_S, FAMILIES, T, driftToHzPerS, makeSnippet, normalise, shuffleFrames } from './signals.js';
 import { canonicalOrder, datasetId, sha256Hex } from './slices.js';
 import { voyagerPools } from './splits.js';
+import { matchedSize } from './models.js';
 import { APP_VERSION, RESULT_CARD_VERSION, ROSETTA_CORPUS, workUnitConfig } from './workunits.js';
 
 const tf = globalThis.tf;
@@ -115,22 +116,113 @@ function concatSets(sets) {
 
 // ---------- model ----------
 
-function buildModel(hidden, seed) {
+// A learned position embedding, added to each time step (attention has no built-in order).
+class PositionEmbedding extends tf.layers.Layer {
+  static className = 'EIatHomePositionEmbedding';
+
+  constructor(config) {
+    super(config);
+    this.maxLength = config.maxLength;
+    this.seed = config.seed;
+  }
+
+  build(inputShape) {
+    const width = inputShape[inputShape.length - 1];
+    this.table = this.addWeight('table', [this.maxLength, width], 'float32', tf.initializers.randomNormal({ stddev: 0.02, seed: this.seed }));
+    this.built = true;
+  }
+
+  call(inputs) {
+    return tf.tidy(() => {
+      const x = Array.isArray(inputs) ? inputs[0] : inputs;
+      return x.add(this.table.read().slice([0, 0], [x.shape[1], -1]));
+    });
+  }
+
+  computeOutputShape(inputShape) {
+    return inputShape;
+  }
+
+  getConfig() {
+    return { ...super.getConfig(), maxLength: this.maxLength, seed: this.seed };
+  }
+}
+
+// Single-head causal self-attention: each time step attends only to itself and earlier steps.
+class CausalSelfAttention extends tf.layers.Layer {
+  static className = 'EIatHomeCausalSelfAttention';
+
+  constructor(config) {
+    super(config);
+    this.seed = config.seed;
+  }
+
+  build(inputShape) {
+    const d = inputShape[inputShape.length - 1];
+    for (const [i, name] of ['q', 'k', 'v', 'o'].entries()) {
+      this[`w${name}`] = this.addWeight(`w${name}`, [d, d], 'float32', tf.initializers.glorotUniform({ seed: this.seed + i }));
+      this[`b${name}`] = this.addWeight(`b${name}`, [d], 'float32', tf.initializers.zeros());
+    }
+    this.built = true;
+  }
+
+  call(inputs) {
+    return tf.tidy(() => {
+      const x = Array.isArray(inputs) ? inputs[0] : inputs;
+      const [, steps, d] = x.shape;
+      const flat = x.reshape([-1, d]);
+      const project = (w, b) => flat.matMul(w.read()).add(b.read()).reshape([-1, steps, d]);
+      const q = project(this.wq, this.bq);
+      const k = project(this.wk, this.bk);
+      const v = project(this.wv, this.bv);
+      const future = tf.sub(1, tf.linalg.bandPart(tf.ones([steps, steps]), -1, 0)); // 1 above the diagonal
+      const scores = tf.matMul(q, k, false, true).div(Math.sqrt(d)).add(future.mul(-1e9));
+      const mixed = tf.matMul(tf.softmax(scores, -1), v).reshape([-1, d]);
+      return mixed.matMul(this.wo.read()).add(this.bo.read()).reshape([-1, steps, d]);
+    });
+  }
+
+  computeOutputShape(inputShape) {
+    return inputShape;
+  }
+
+  getConfig() {
+    return { ...super.getConfig(), seed: this.seed };
+  }
+}
+
+// One pre-norm transformer block: attention then a feed-forward layer, each with a residual.
+function attentionStates(input, width, seed) {
+  const glorot = (i) => tf.initializers.glorotUniform({ seed: seed + i });
+  let h = tf.layers.dense({ units: width, kernelInitializer: glorot(10) }).apply(input);
+  h = new PositionEmbedding({ maxLength: T, seed: seed + 11 }).apply(h);
+  const attended = new CausalSelfAttention({ seed: seed + 12 }).apply(tf.layers.layerNormalization().apply(h));
+  h = tf.layers.add().apply([h, attended]);
+  const expanded = tf.layers.dense({ units: 2 * width, activation: 'relu', kernelInitializer: glorot(20) }).apply(tf.layers.layerNormalization().apply(h));
+  const projected = tf.layers.dense({ units: width, kernelInitializer: glorot(21) }).apply(expanded);
+  return tf.layers.add().apply([h, projected]);
+}
+
+// arch: 'gru' | 'lstm' | 'attention'. size: hidden units, or model width for attention.
+function buildModel(arch, size, seed) {
   const input = tf.input({ shape: [null, C] });
-  const states = tf.layers
-    .gru({
-      units: hidden,
-      returnSequences: true,
-      kernelInitializer: tf.initializers.glorotUniform({ seed }),
-      recurrentInitializer: tf.initializers.orthogonal({ seed: seed + 1 }),
-    })
-    .apply(input);
+  const recurrent = {
+    units: size,
+    returnSequences: true,
+    kernelInitializer: tf.initializers.glorotUniform({ seed }),
+    recurrentInitializer: tf.initializers.orthogonal({ seed: seed + 1 }),
+  };
+  let states;
+  if (arch === 'gru') states = tf.layers.gru(recurrent).apply(input);
+  else if (arch === 'lstm') states = tf.layers.lstm(recurrent).apply(input);
+  else if (arch === 'attention') states = attentionStates(input, size, seed);
+  else throw new Error(`Unknown architecture "${arch}"`);
   const prediction = tf.layers
     .dense({ units: C, kernelInitializer: tf.initializers.glorotUniform({ seed: seed + 2 }) })
     .apply(states);
   const predictor = tf.model({ inputs: input, outputs: prediction });
   const encoder = tf.model({ inputs: input, outputs: states });
-  return { predictor, encoder, parameters: predictor.countParams() };
+  return { predictor, encoder, parameters: predictor.countParams(), arch, stateSize: size };
 }
 
 // Predictions of frames 1..T-1 from frames 0..T-2, as one flat array (n x (T-1) x C).
@@ -341,7 +433,8 @@ function fitProbe(states, n, dim, targets) {
 // Breakthrough Listen's high-resolution product. Voyager readouts use each slice's own units.
 const SYNTHETIC_UNITS = { foffHz: DEFAULT_FOFF_HZ, tsamp: DEFAULT_TSAMP_S };
 
-async function probeDrift(model, trainSet, evalSets, hidden) {
+async function probeDrift(model, trainSet, evalSets) {
+  const hidden = model.stateSize;
   const units = SYNTHETIC_UNITS;
   const toneIdx = trainSet.families.map((f, i) => (f === 'tone' ? i : -1)).filter((i) => i >= 0).slice(0, 600);
   if (toneIdx.length < 20 || !evalSets.tone) return null;
@@ -392,6 +485,8 @@ async function probeDrift(model, trainSet, evalSets, hidden) {
 
 async function train(config, onEpoch, inputs) {
   const { target, hidden, epochs, nTrain, batch, lr, seed, mixNoise, shuffle } = config;
+  // Work units have no `arch`: they are GRU-only by spec. Other models get the GRU's parameter budget.
+  const arch = config.arch ?? 'gru';
   const available = familiesAvailable(inputs);
   if (!available.includes(target)) throw new Error(`"${target}" isn't available. Load Voyager slices first.`);
   const pools = slicePools(target, inputs);
@@ -419,7 +514,7 @@ async function train(config, onEpoch, inputs) {
     shuffledSets[family] = { set: shuffled, floor: mse(shuffled, baselines.mean(shuffled, mean)) };
   }
 
-  const model = buildModel(hidden, seed % 100000);
+  const model = buildModel(arch, matchedSize(arch, hidden), seed % 100000);
   const optimizer = tf.train.adam(lr);
   const order = makeRng(deriveSeed(seed, 'order'));
   const batchBuffer = new Float32Array(batch * STEP);
@@ -428,7 +523,7 @@ async function train(config, onEpoch, inputs) {
 
   try {
     // Control: how much drift a probe can read from the same GRU before any training.
-    const untrainedProbe = await probeDrift(model, trainSet, evalSets, hidden);
+    const untrainedProbe = await probeDrift(model, trainSet, evalSets);
     for (let epoch = 1; epoch <= epochs && !stopRequested; epoch++) {
       const started = performance.now();
       const perm = order.permutation(trainSet.n);
@@ -461,8 +556,8 @@ async function train(config, onEpoch, inputs) {
       await onEpoch({ epoch, epochs, loss: lossSum / seen, ms, gains: familyGains, shuffledGains, reconstruction, model, evalSets, previousComponents, setComponents: (c) => (previousComponents = c) });
       await pause();
     }
-    const probe = stopRequested ? null : await probeDrift(model, trainSet, evalSets, hidden);
-    return { history, probe, untrainedProbe, reconstruction, parameters: model.parameters, stopped: stopRequested, available };
+    const probe = stopRequested ? null : await probeDrift(model, trainSet, evalSets);
+    return { history, probe, untrainedProbe, reconstruction, parameters: model.parameters, arch, stateSize: model.stateSize, stopped: stopRequested, available };
   } finally {
     model.predictor.dispose();
     optimizer.dispose();
@@ -492,13 +587,15 @@ async function liveTrain(config) {
     const residual = actual.map((v, i) => v - predicted[i]);
 
     const states = await finalStates(model.encoder, mapAll.x, mapAll.n);
-    const { points, components } = pca2(states, mapAll.n, config.hidden, state.previousComponents);
+    const { points, components } = pca2(states, mapAll.n, model.stateSize, state.previousComponents);
     state.setComponents(components);
 
     post({
       type: 'epoch',
       epoch: state.epoch,
       epochs: state.epochs,
+      arch: state.model.arch,
+      parameters: state.model.parameters,
       loss: state.loss,
       ms: state.ms,
       gains: state.gains,
@@ -515,6 +612,8 @@ async function liveTrain(config) {
     untrainedProbe: result.untrainedProbe,
     reconstruction: result.reconstruction,
     parameters: result.parameters,
+    arch: result.arch,
+    stateSize: result.stateSize,
     stopped: result.stopped,
   });
 }

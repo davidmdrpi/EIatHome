@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
+import { matchedSize, parameterCount } from '../web/js/models.js';
 import { deriveSeed, makeRng } from '../web/js/rng.js';
 import { T, makeSnippet, normalise, rosettaSymbols } from '../web/js/signals.js';
 import { canonicalOrder, datasetId, parseSlice } from '../web/js/slices.js';
@@ -153,6 +154,17 @@ test('held-out cross-entropy finds the structure in English text', () => {
   assert.ok(ce[1] < ce[0] - 0.5, `one token of context helps: ${ce.map((b) => b.toFixed(2))}`);
   const markov = heldOutCrossEntropy(markovSurrogate(text, 16, makeRng(2)), 16).map((r) => r.bits);
   assert.ok(ce[3] < markov[3] - 0.2, 'text has structure longer than pairs; a Markov-1 copy does not');
+});
+
+test('LSTM and attention are sized to within 3% of the GRU parameter count', () => {
+  for (const hidden of [16, 32, 64, 128]) {
+    const target = parameterCount('gru', hidden);
+    for (const arch of ['lstm', 'attention']) {
+      const ratio = parameterCount(arch, matchedSize(arch, hidden)) / target;
+      assert.ok(Math.abs(ratio - 1) < 0.03, `${arch} at GRU size ${hidden}: ${ratio.toFixed(3)}`);
+    }
+  }
+  assert.equal(parameterCount('gru', 32), 11424, 'matches what TensorFlow.js reports for the default GRU');
 });
 
 test('the work-unit Rosetta corpus is pinned by its hash', () => {

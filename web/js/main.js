@@ -1,3 +1,4 @@
+import { architectureLabel } from './models.js';
 import { fmt, heatmap, lineChart, scatterPanel } from './plots.js';
 import { deriveSeed, makeRng } from './rng.js';
 import { forWorkers, loadPublishedSlices, loadSliceFiles } from './slices.js';
@@ -126,7 +127,7 @@ function onEngineMessage(msg) {
     case 'epoch':
       state.losses.push([msg.epoch, msg.loss]);
       state.lastEpoch = msg;
-      labStatus(`Epoch ${msg.epoch} of ${msg.epochs} · ${Math.round(msg.ms)} ms per epoch on ${BACKEND_NAMES[msg.backend] ?? msg.backend}`);
+      labStatus(`${architectureLabel(msg.arch)}, ${msg.parameters.toLocaleString()} parameters · epoch ${msg.epoch} of ${msg.epochs} · ${Math.round(msg.ms)} ms per epoch on ${BACKEND_NAMES[msg.backend] ?? msg.backend}`);
       renderLab();
       break;
     case 'trained':
@@ -136,9 +137,9 @@ function onEngineMessage(msg) {
       if (msg.stopped) labStatus('Stopped.');
       else if (msg.reconstruction)
         labStatus(
-          `Done. ${msg.parameters.toLocaleString()} parameters. ${msg.reconstruction} So the Voyager score measures how well the model reconstructs data it trained on, not how well it generalizes.`,
+          `Done: ${architectureLabel(msg.arch)}, ${msg.parameters.toLocaleString()} parameters. ${msg.reconstruction} So the Voyager score measures how well the model reconstructs data it trained on, not how well it generalizes.`,
         );
-      else labStatus(`Done. ${msg.parameters.toLocaleString()} parameters. Compare the GRU column with the baselines, then try another signal.`);
+      else labStatus(`Done: ${architectureLabel(msg.arch)}, ${msg.parameters.toLocaleString()} parameters. Compare it with the baselines, then try another signal or model.`);
       renderProbe();
       break;
     case 'wu-progress':
@@ -258,6 +259,7 @@ function renderLab() {
     }),
   );
   $('gains-note').hidden = !e.reconstruction;
+  $('gains-model').textContent = architectureLabel(e.arch);
   renderMap();
 }
 
@@ -309,13 +311,13 @@ function renderProbe() {
     element('h3', 'Drift probe'),
     element(
       'p',
-      `A linear model reads drift rate from the GRU’s hidden state, trained on synthetic tones only. On held-out tones: R² = ${fmt(p.r2)}, mean error ${fmt(p.maeHzPerS, 3)} Hz/s.`,
+      `A linear model reads drift rate from the model’s hidden state, trained on synthetic tones only. On held-out tones: R² = ${fmt(p.r2)}, mean error ${fmt(p.maeHzPerS, 3)} Hz/s.`,
       'small',
     ),
   ];
   if (u) {
     parts.push(
-      element('p', `Control: the same GRU before training (same architecture and seed) gives R² = ${fmt(u.r2)}, mean error ${fmt(u.maeHzPerS, 3)} Hz/s. The difference is what training added.`, 'small'),
+      element('p', `Control: the same model before training (same architecture and seed) gives R² = ${fmt(u.r2)}, mean error ${fmt(u.maeHzPerS, 3)} Hz/s. The difference is what training added.`, 'small'),
     );
   }
   if (p.voyager) {
@@ -335,6 +337,7 @@ function renderProbe() {
 function startTraining() {
   const config = {
     target: state.family,
+    arch: $('arch').value,
     hidden: Number($('hidden').value),
     epochs: Math.min(60, Math.max(1, Number($('epochs').value) || 15)),
     nTrain: Number($('ntrain').value),
