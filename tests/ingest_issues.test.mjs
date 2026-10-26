@@ -22,6 +22,11 @@ const args = process.argv.slice(2);
 const opt = (name) => args[args.indexOf(name) + 1];
 const view = (i, upper) => ({ ...i, state: upper ? i.state.toUpperCase() : i.state, labels: i.labels.map((name) => ({ name })) });
 const [a, b] = args;
+// Failure injection: state.fail lists commands ('issue comment', 'workflow', ...) to fail.
+if ((state.fail ?? []).includes(a === 'issue' ? 'issue ' + b : a)) {
+  console.error('fake gh: injected failure of ' + args.join(' '));
+  process.exit(1);
+}
 if (a === 'label') {
 } else if (a === 'api') {
   process.stdout.write(JSON.stringify(view(state.issues[b.split('/').pop()])));
@@ -92,7 +97,8 @@ async function setup() {
       chmodSync(hook, 0o755);
     } else rmSync(hook);
   };
-  return { dir, work, origin, issue, load, ingest, recorded, rejectPushes };
+  const failGh = (...commands) => writeFileSync(statePath, JSON.stringify({ ...load(), fail: commands }));
+  return { dir, work, origin, issue, load, ingest, recorded, rejectPushes, failGh };
 }
 
 test('result issues are recorded once, and cancelled or failed ones are retried', async () => {
@@ -148,4 +154,40 @@ test('the ingestion driver refuses to run outside CI, where it would reset a wor
   const run = spawnSync(process.execPath, [join(ROOT, 'tools', 'ingest_issues.mjs'), '--pending'], { cwd: ROOT, env: { ...process.env, GITHUB_ACTIONS: '' }, encoding: 'utf8' });
   assert.equal(run.status, 1);
   assert.match(run.stderr, /only runs in CI/);
+});
+
+test('a card saved before a later step failed is still published and announced by the next run', async () => {
+  const t = await setup();
+  const commentsOn = (n) => t.load().comments.filter(([number]) => number === n);
+  try {
+    // The issue reply fails after the card reached main.
+    await t.issue(20, 'alice', 'Work unit result: unit 4', await makeCard(4));
+    t.failGh('issue comment');
+    assert.equal(t.ingest('20').status, 1);
+    assert.deepEqual(t.recorded(), [20]);
+    assert.deepEqual(t.load().issues[20].labels, [], 'not settled, so the next run comes back to it');
+
+    // Requesting the Pages deploy fails after the card reached main.
+    await t.issue(21, 'bob', 'Work unit result: unit 5', await makeCard(5));
+    t.failGh('workflow');
+    assert.equal(t.ingest('21').status, 1);
+    assert.deepEqual(t.recorded(), [20, 21]);
+    assert.deepEqual([t.load().issues[21].labels, commentsOn(21).length], [[], 0], 'not announced before a deploy was requested');
+    const deploysBefore = t.load().deploys;
+
+    // Once gh works again, the scheduled run publishes both and settles them.
+    t.failGh();
+    const retry = t.ingest('--pending');
+    assert.equal(retry.status, 0, retry.stderr);
+    const s = t.load();
+    assert.ok(s.deploys > deploysBefore, 'the retry requests a deploy although it added no new card');
+    for (const [n, unit] of [[20, 4], [21, 5]]) {
+      assert.deepEqual([s.issues[n].state, s.issues[n].labels], ['closed', ['work-unit']]);
+      assert.equal(commentsOn(n).length, 1);
+      assert.match(commentsOn(n)[0][1], new RegExp(`Unit ${unit} .* is recorded[\\s\\S]*1 run\\(s\\) from 1 volunteer`));
+    }
+    assert.deepEqual(t.recorded(), [20, 21], 'nothing is stored twice');
+  } finally {
+    rmSync(t.dir, { recursive: true, force: true });
+  }
 });

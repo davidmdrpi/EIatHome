@@ -7,7 +7,8 @@ name: Ingest work-unit results
 #
 # Runs are serialized so their commits to the results file can't compete. A run that's
 # cancelled anyway (the queue holds at most 100) or fails leaves its issue unlabelled or
-# labelled work-unit-pending, and the scheduled run records it.
+# labelled work-unit-pending, and the scheduled run records it, or, if the card was already
+# stored, requests the Live Lab deploy and settles the issue.
 
 on:
   issues:

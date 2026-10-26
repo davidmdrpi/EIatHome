@@ -92,7 +92,9 @@ test('the ingestion script records valid cards once and explains rejections', as
   assert.equal(first.status, 'status=accepted');
   assert.match(first.comment, /1 run\(s\) from 1 volunteer/);
 
-  assert.equal(ingest(dir, await issueWith(10, 'alice', 4)).status, 'status=duplicate', 'same issue');
+  const again = ingest(dir, await issueWith(10, 'alice', 4));
+  assert.equal(again.status, 'status=recorded', 'same issue: stored by an earlier run');
+  assert.match(again.comment, /Unit 4 .* is recorded[\s\S]*1 run\(s\) from 1 volunteer/);
   assert.equal(ingest(dir, await issueWith(11, 'mallory', 4)).status, 'status=duplicate', 'identical card copied by someone else');
   assert.match(ingest(dir, await issueWith(12, 'alice', 4, 0, '2026-10-27T00:00:00.000Z')).comment, /already submitted unit 4/);
 

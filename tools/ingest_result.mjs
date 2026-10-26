@@ -3,6 +3,9 @@
 // appends it to web/data/community_results.json. Run for each issue by tools/ingest_issues.mjs,
 // which commits the result and replies on the issue.
 //
+// Statuses: accepted (appended), recorded (this issue's card was stored by an earlier run that
+// didn't finish), duplicate, rejected, error. The comment for accepted and recorded is the same.
+//
 // Usage: node tools/ingest_result.mjs <event.json> <comment.md> [results.json] [slices folder]
 //
 // The issue text is untrusted: this script only parses it as JSON and validates it. Nothing
@@ -47,10 +50,22 @@ function finish(status, comment) {
   console.log(JSON.stringify({ status }));
 }
 
+// What the volunteer is told once their card is stored: the unit's replication status on the
+// card's own dataset (runs on other datasets, such as slices published earlier, are separate).
+function storedMessage(card, results) {
+  const unit = summarize(results).units.find((u) => u.spec === card.spec && u.unit === card.unit && u.dataset_id === cardDataset(card));
+  return `Thanks for running a work unit! Unit ${card.unit} (\`${card.spec}\`, ${card.backend}) is recorded and will appear in the Live Lab's community results shortly.\n\nThis unit now has ${unit.runs} run(s) from ${unit.volunteers.length} volunteer(s). ${STATUS_TEXT[unit.status]}`;
+}
+
 async function main() {
   const { issue } = JSON.parse(readFileSync(eventPath, 'utf8'));
   const login = String(issue.user?.login ?? '');
   const record = (card) => ({ issue: issue.number, submitted_by: login, submitted_at: issue.created_at, card_sha256: createHash('sha256').update(JSON.stringify(card)).digest('hex'), card });
+
+  // Checked first: the stored card stays valid even if the published slices changed since.
+  const store = loadResults();
+  const stored = store.results.find((r) => r.issue === issue.number);
+  if (stored) return finish('recorded', storedMessage(stored.card, store.results));
 
   let card;
   try {
@@ -63,10 +78,8 @@ async function main() {
     return finish('rejected', `Thanks for running a work unit! This card couldn't be recorded because it doesn't match its spec:\n\n${errors.map((e) => `- ${e}`).join('\n')}\n\nRe-run the unit in the current [Live Lab](https://davidmdrpi.github.io/EIatHome/) and submit the new card.`);
   }
 
-  const store = loadResults();
   const entry = record(card);
   const sameDataset = (r) => cardDataset(r.card) === cardDataset(card);
-  if (store.results.some((r) => r.issue === issue.number)) return finish('duplicate', 'This issue has already been recorded.');
   const copy = store.results.find((r) => r.card_sha256 === entry.card_sha256);
   if (copy) return finish('duplicate', `An identical card was already recorded from #${copy.issue}, so this one wasn't counted again.`);
   const again = store.results.find((r) => r.submitted_by === login && r.card.spec === card.spec && r.card.unit === card.unit && sameDataset(r));
@@ -76,12 +89,7 @@ async function main() {
   store.results.sort((a, b) => a.issue - b.issue);
   writeFileSync(resultsPath, `${JSON.stringify(store, null, 2)}\n`);
 
-  // Runs on other datasets (for example, slices published before the current ones) are separate groups.
-  const unit = summarize(store.results).units.find((u) => u.spec === card.spec && u.unit === card.unit && u.dataset_id === cardDataset(card));
-  finish(
-    'accepted',
-    `Thanks for running a work unit! Unit ${card.unit} (\`${card.spec}\`, ${card.backend}) is recorded and will appear in the Live Lab's community results shortly.\n\nThis unit now has ${unit.runs} run(s) from ${unit.volunteers.length} volunteer(s). ${STATUS_TEXT[unit.status]}`,
-  );
+  finish('accepted', storedMessage(card, store.results));
 }
 
 main().catch((err) => {

@@ -10,6 +10,8 @@
 // --pending is the retry path. It picks up issues whose run was cancelled (a full concurrency
 // queue), failed, or never started, and issues labelled work-unit-pending because saving failed.
 // Issues already labelled work-unit or work-unit-rejected are skipped, so re-running is safe.
+// An issue is labelled work-unit only after its card is on main and a Pages deploy was
+// requested, so a run that fails after the push leaves the publication to the next run.
 //
 // The issue text is untrusted. It is only written to a file for ingest_result.mjs to parse as
 // JSON. gh and git run without a shell, with issue numbers and fixed strings as arguments.
@@ -95,6 +97,36 @@ function label(issue, add) {
   gh(...args);
 }
 
+// Replies, labels and (once recorded) closes the issue. Returns false if it still needs a retry.
+function settle({ issue, status, comment }, published) {
+  const file = join(work, `reply-${issue.number}.md`);
+  if (status === 'accepted' || status === 'recorded') {
+    if (!published) return false; // left open and unlabelled: the next run requests the deploy again
+    reply(issue, file, comment);
+    label(issue, LABELS.recorded[0]);
+    gh('issue', 'close', String(issue.number), '--repo', repo, '--reason', 'completed');
+    return true;
+  }
+  if (status === 'duplicate') {
+    reply(issue, file, comment);
+    label(issue, LABELS.recorded[0]);
+    gh('issue', 'close', String(issue.number), '--repo', repo, '--reason', 'completed');
+    return true;
+  }
+  if (status === 'rejected') {
+    reply(issue, file, comment);
+    label(issue, LABELS.rejected[0]);
+    return true;
+  }
+  // Valid but not saved, or the script failed: retried by the next --pending run. Say so once.
+  if (!labelsOf(issue).includes(LABELS.pending[0])) {
+    const why = status === 'unsaved' ? 'The card is valid, but saving it failed.' : comment;
+    reply(issue, file, `${why}\n\nIt will be retried automatically, so there's no need to submit it again.`);
+    label(issue, LABELS.pending[0]);
+  }
+  return false;
+}
+
 async function main() {
   if (process.env.GITHUB_ACTIONS !== 'true') throw new Error('This resets the working tree to origin/main, so it only runs in CI (GITHUB_ACTIONS=true).');
   if (!repo) throw new Error('Set GITHUB_REPOSITORY (owner/name).');
@@ -102,39 +134,47 @@ async function main() {
   const numbers = args.includes('--pending') ? pendingIssues() : args.filter((a) => /^\d+$/.test(a)).map(Number);
   for (const [name, color, description] of Object.values(LABELS)) gh('label', 'create', name, '--repo', repo, '--color', color, '--description', description, '--force');
 
-  let saved = 0;
   let failed = 0;
+  const outcomes = [];
   for (const number of [...new Set(numbers)].sort((a, b) => a - b)) {
-    const issue = JSON.parse(gh('api', `repos/${repo}/issues/${number}`));
-    if (!isOpenResult(issue) || isSettled(issue)) {
-      console.log(`#${number}: skipped (not an open, unrecorded result issue)`);
-      continue;
-    }
-    const { status, comment } = ingestAndSave(issue);
-    console.log(`#${number}: ${status}`);
-    const file = join(work, `reply-${number}.md`);
-    if (status === 'accepted' || status === 'duplicate') {
-      reply(issue, file, comment);
-      label(issue, LABELS.recorded[0]);
-      gh('issue', 'close', String(number), '--repo', repo, '--reason', 'completed');
-      if (status === 'accepted') saved++;
-    } else if (status === 'rejected') {
-      reply(issue, file, comment);
-      label(issue, LABELS.rejected[0]);
-    } else {
-      // Valid but not saved, or the script failed: retried by the next --pending run. Say so once.
-      failed++;
-      if (!labelsOf(issue).includes(LABELS.pending[0])) {
-        const why = status === 'unsaved' ? 'The card is valid, but saving it failed.' : comment.trim();
-        reply(issue, file, `${why}\n\nIt will be retried automatically, so there's no need to submit it again.`);
-        label(issue, LABELS.pending[0]);
+    try {
+      const issue = JSON.parse(gh('api', `repos/${repo}/issues/${number}`));
+      if (!isOpenResult(issue) || isSettled(issue)) {
+        console.log(`#${number}: skipped (not an open, unrecorded result issue)`);
+        continue;
       }
+      const outcome = ingestAndSave(issue);
+      console.log(`#${number}: ${outcome.status}`);
+      outcomes.push({ issue, ...outcome });
+    } catch (err) {
+      failed++;
+      console.error(`#${number}: ${err.message}`);
     }
   }
-  // Pushes made with the workflow token don't trigger other workflows, so redeploy here.
-  if (saved) gh('workflow', 'run', 'pages.yml', '--repo', repo, '--ref', 'main');
+
+  // A stored card is only announced, and its issue settled, after a Pages deploy was requested
+  // with the card on main. Until then the issue stays open and unlabelled, so whichever run
+  // comes next finds the card already stored ("recorded") and requests the deploy again.
+  // (Pushes made with the workflow token don't trigger other workflows, hence the request.)
+  let published = false;
+  if (outcomes.some((o) => o.status === 'accepted' || o.status === 'recorded')) {
+    try {
+      gh('workflow', 'run', 'pages.yml', '--repo', repo, '--ref', 'main');
+      published = true;
+    } catch (err) {
+      console.error(`Couldn't start the Pages deploy (${err.message}). The next run requests it again.`);
+    }
+  }
+  for (const outcome of outcomes) {
+    try {
+      if (!settle(outcome, published)) failed++;
+    } catch (err) {
+      failed++;
+      console.error(`#${outcome.issue.number}: ${err.message}`);
+    }
+  }
   if (failed) {
-    console.error(`${failed} issue(s) couldn't be recorded and will be retried.`);
+    console.error(`${failed} issue(s) aren't finished and will be retried.`);
     process.exitCode = 1;
   }
 }

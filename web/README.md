@@ -96,7 +96,7 @@ labels it:
 
 | Label | Meaning |
 |---|---|
-| `work-unit` | Recorded (or a duplicate); the issue is closed |
+| `work-unit` | Recorded and a Live Lab deploy requested (or a duplicate); the issue is closed |
 | `work-unit-rejected` | The card doesn't match its spec; the issue stays open |
 | `work-unit-pending` | The card couldn't be saved yet; the next run retries it |
 
@@ -107,6 +107,10 @@ Things to know as a maintainer:
   missed is recorded by the next scheduled run, which processes every open result issue
   without a `work-unit` or `work-unit-rejected` label. Run the workflow by hand to catch up
   sooner.
+- A card is announced, and its issue labelled and closed, only after it's on `main` and a
+  Pages deploy was requested. If a run fails after the push (the deploy request or the reply),
+  the issue stays open and unlabelled, and the next run finds the card already stored,
+  requests the deploy again and settles the issue.
 - The issue text is untrusted. The scripts only parse it as JSON and validate it. Nothing
   from the issue reaches a shell command, and replies never repeat strings from the card.
 - The workflow needs to push to `main`. If you add branch protection, allow GitHub Actions
