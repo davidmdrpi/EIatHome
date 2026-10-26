@@ -39,4 +39,11 @@ def energy(windows):
     return ((windows ** 2).sum(axis=(1, 2)) - count) / np.sqrt(2 * count)
 
 
+# Recorded with every report, so scores can be traced to the method that produced them. A
+# learned detector sets its own (model, checkpoint hash, training data).
+dedoppler.config = {"drift_trials": "-4 to 4 channels per frame, 4 / frames apart (as tools/extract_slices.py)",
+                    "tracks": "straight, rounded to whole channels, never wrapping",
+                    "score": "best track sum / sqrt(frames)"}
+energy.config = {"score": "(sum of squares - frames * channels) / sqrt(2 * frames * channels)"}
+
 DETECTORS = {"dedoppler": dedoppler, "energy": energy}

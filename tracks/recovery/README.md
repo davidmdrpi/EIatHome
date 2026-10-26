@@ -18,8 +18,13 @@ python -m tracks.recovery.run --cache data/recovery --seed 0 --output runs/recov
 The first command reads coarse channel 6 of the three off-source 6-second scans over HTTPS. It
 writes 4,096 windows per scan to `data/recovery/` (git-ignored) and checks them against
 [backgrounds.json](backgrounds.json), which records each window's position and each scan's
-SHA-256. The second command writes `report.json` (thresholds, false alarms, recovery, paired
-outcomes), `key.json` (every injection and every score) and `report.md`.
+SHA-256. The second command writes three files:
+
+- `report.json`: thresholds, false alarms, recovery and paired outcomes, together with the
+  design, each detector's configuration, a fingerprint of this package's code and its git
+  revision;
+- `key.json`: every injection and every score;
+- `report.md`.
 
 ## How it works
 
@@ -55,7 +60,30 @@ outcomes), `key.json` (every injection and every score) and `report.md`.
    - each injection's paired outcome under the two detectors.
 
 A learned detector is any function from a stack of windows to scores. Add it to `DETECTORS`
-and it's compared at the same thresholds and on the same injections.
+and it gets the same treatment as the baselines:
+
+- thresholds from the calibration scan;
+- the same injections;
+- paired outcomes against every other detector.
+
+Give it a `config` dict naming the model, checkpoint hash and training data. Reports record it
+next to the code fingerprint, so scores from different revisions or volunteers aren't pooled
+by mistake.
+
+## Benchmark protocol
+
+The test scan's injections are a benchmark. They measure a finished method; they're not for
+tuning one.
+
+- **Development:** develop and select learned detectors on the train scan (0012) only, with
+  their own injection seeds. Split that scan into a fitting part and a development part if
+  model selection needs one.
+- **Evaluation:** score each selected configuration once on the test scan, and report it with
+  its configuration and code fingerprint.
+- **Changes after scoring:** a method changed after seeing test-scan results is a new method.
+  Its test-scan score goes next to the earlier one, not in place of it.
+
+A second observing session (milestone 4) will give a test that no development has seen at all.
 
 ## Tests
 
@@ -73,5 +101,9 @@ They use synthetic Gaussian backgrounds, so they need only `numpy`. They cover:
   tone at its strength, and the energy score is standardized.
 - **Thresholds:** they hold their false-alarm rate on fresh noise, and come from the
   calibration scan only.
+- **More detectors:** adding a third detector keeps every pairing, and leaves the existing
+  pair's outcomes unchanged.
+- **Provenance:** reports record the code fingerprint, the git revision and each detector's
+  configuration.
 - **End to end:** an evaluation reproduces the baselines' known behaviour, and the background
   manifest check rejects altered windows.

@@ -1,6 +1,7 @@
 """tracks/recovery: injections, blinded dealing, detectors and calibrated scoring, on synthetic
 backgrounds (no download needed)."""
 
+import hashlib
 import json
 from pathlib import Path
 import tempfile
@@ -11,7 +12,7 @@ import numpy as np
 from tracks.recovery import background
 from tracks.recovery.detectors import dedoppler, drift_trials, energy
 from tracks.recovery.inject import DECOYS, KINDS, SIGNALS, STRENGTHS, deal, design, draw, render
-from tracks.recovery.run import evaluate, threshold, wilson
+from tracks.recovery.run import code_identity, evaluate, threshold, wilson
 
 FRAMES, CHANNELS = 49, 64
 
@@ -194,7 +195,7 @@ class ScoringTests(unittest.TestCase):
         self.assertEqual(dd["pulse"]["28"]["fraction"], 0.0, "a pulse has no track")
         self.assertEqual(en["pulse"]["28"]["fraction"], 1.0)
         self.assertIn("stationary", DECOYS)
-        paired = report["paired"]["0.01"]["tone"]["10"]
+        paired = report["paired"]["0.01"]["dedoppler vs energy"]["tone"]["10"]
         self.assertEqual(sum(paired.values()), 12)
         self.assertEqual(paired["both"] + paired["dedoppler only"], dd["tone"]["10"]["flagged"])
         # The key joins back: rescoring each blind window by id gives the stored score.
@@ -202,6 +203,47 @@ class ScoringTests(unittest.TestCase):
         i = ids.index(next(w for w in ids if key[w]["kind"] == "tone" and key[w]["strength"] == 10))
         window = test[key[ids[i]]["background"]] + render(key[ids[i]], FRAMES, CHANNELS)
         self.assertAlmostEqual(dedoppler(window[None])[0], blinded["scores"]["dedoppler"][i], places=4)
+
+
+    def test_every_pair_of_detectors_is_compared_when_more_are_added(self):
+        # The route to learned detectors: add one to the baselines. No pairing may be lost.
+        def brightest(windows):
+            return np.asarray(windows).max(axis=(1, 2))
+        brightest.config = {"score": "brightest pixel"}
+
+        calibration, test = noise(600, 8), noise(600, 9)
+        two, _ = evaluate(calibration, test, seed=1, per_cell=4)
+        three, _ = evaluate(calibration, test, seed=1, per_cell=4,
+                            detectors={"dedoppler": dedoppler, "energy": energy, "brightest": brightest})
+        for label in ("0.01", "0.001"):
+            pairs = three["paired"][label]
+            self.assertEqual(set(pairs), {"dedoppler vs energy", "dedoppler vs brightest", "energy vs brightest"})
+            self.assertEqual(pairs["dedoppler vs energy"], two["paired"][label]["dedoppler vs energy"])
+            for name, kinds in pairs.items():
+                first, second = name.split(" vs ")
+                for kind in KINDS:
+                    for s in STRENGTHS:
+                        cell = kinds[kind][f"{s:g}"]
+                        self.assertEqual(sum(cell.values()), 4, f"{name} {kind} {s}")
+                        flagged = three["recovery"][first][label][kind][f"{s:g}"]["flagged"]
+                        self.assertEqual(cell["both"] + cell[f"{first} only"], flagged)
+                        flagged = three["recovery"][second][label][kind][f"{s:g}"]["flagged"]
+                        self.assertEqual(cell["both"] + cell[f"{second} only"], flagged)
+        self.assertEqual(three["detectors"]["brightest"]["score"], "brightest pixel")
+
+    def test_reports_record_the_code_and_each_detector(self):
+        report, _ = evaluate(noise(300, 10), noise(300, 11), seed=0, per_cell=2)
+        package = Path(__file__).resolve().parents[1] / "tracks" / "recovery"
+        expected = hashlib.sha256(b"".join(f.read_bytes() for f in sorted(package.glob("*.py")))).hexdigest()
+        self.assertEqual(report["code"]["sha256"], expected)
+        self.assertEqual(report["code"], code_identity())
+        if report["code"]["git"] is not None:
+            self.assertRegex(report["code"]["git"]["revision"], r"^[0-9a-f]{40}$")
+        self.assertEqual(report["detectors"]["dedoppler"]["function"], "tracks.recovery.detectors.dedoppler")
+        self.assertIn("never wrapping", report["detectors"]["dedoppler"]["tracks"])
+        self.assertIn("score", report["detectors"]["energy"])
+        self.assertEqual(report["design"]["strengths"], list(STRENGTHS))
+        self.assertEqual(report["design"]["window"], [FRAMES, CHANNELS])
 
 
 class BackgroundTests(unittest.TestCase):

@@ -5,23 +5,25 @@ rate. Signals are then dealt blind into the test scan's windows (with signal-fre
 among them), the detectors score the blind windows, and only then are the scores joined to
 the key. Reported per detector and false-alarm rate: the false alarms measured on the test
 scan, recovery for each signal class and strength, how often each decoy is flagged, and the
-paired outcome of the two detectors on every injection.
+paired outcome of every two detectors on every injection.
 
 All windows come from one observing session and one receiver; every result says so.
 """
 
 import argparse
 import hashlib
+from itertools import combinations
 import json
 import math
 from pathlib import Path
 import platform
+import subprocess
 
 import numpy as np
 
 from . import background
 from .detectors import DETECTORS
-from .inject import DECOYS, KINDS, SIGNALS, STRENGTHS, deal, design
+from .inject import DECOYS, KINDS, MARGIN, MAX_DRIFT, SIGNALS, STRENGTHS, deal, design
 
 ROOT = Path(__file__).resolve().parents[2]
 FALSE_ALARM_RATES = (0.01, 0.001)
@@ -50,6 +52,24 @@ def rate(flags):
     return {"flagged": k, "windows": n, "fraction": k / n if n else None, "interval": wilson(k, n)}
 
 
+def code_identity():
+    """What produced the scores: a fingerprint of this package's source and, in a git checkout,
+    the revision and whether this package had uncommitted changes."""
+    package = Path(__file__).parent
+    digest = hashlib.sha256(b"".join(f.read_bytes() for f in sorted(package.glob("*.py")))).hexdigest()
+    git = None
+    try:
+        run = lambda *a: subprocess.run(["git", *a], cwd=package, capture_output=True, text=True, check=True).stdout
+        git = {"revision": run("rev-parse", "HEAD").strip(), "uncommitted_changes": bool(run("status", "--porcelain", "--", ".").strip())}
+    except (OSError, subprocess.CalledProcessError):
+        pass  # not a git checkout: the fingerprint still identifies the code
+    return {"sha256": digest, "git": git}
+
+
+def describe(detect):
+    return {"function": f"{detect.__module__}.{detect.__qualname__}", **getattr(detect, "config", {})}
+
+
 def evaluate(calibration, test, seed, per_cell=PER_CELL, detectors=DETECTORS, rates=FALSE_ALARM_RATES):
     """The full blinded comparison on these background windows. Returns the report."""
     cells = design(per_cell, len(test))
@@ -75,16 +95,20 @@ def evaluate(calibration, test, seed, per_cell=PER_CELL, detectors=DETECTORS, ra
             report["recovery"].setdefault(name, {})[label] = {
                 kind: {f"{s:g}": rate(flags[name][(kinds == kind) & (strengths == s)]) for s in STRENGTHS}
                 for kind in KINDS}
-        names = list(detectors)
-        if len(names) == 2:  # each injection's outcome under both detectors
-            a, b = (flags[n] for n in names)
-            outcomes = {"both": a & b, f"{names[0]} only": a & ~b, f"{names[1]} only": ~a & b, "neither": ~a & ~b}
-            report["paired"][label] = {
+        report["paired"][label] = {}
+        for first, second in combinations(detectors, 2):  # each injection's outcome under both
+            a, b = flags[first], flags[second]
+            outcomes = {"both": a & b, f"{first} only": a & ~b, f"{second} only": ~a & b, "neither": ~a & ~b}
+            report["paired"][label][f"{first} vs {second}"] = {
                 kind: {f"{s:g}": {o: int(np.sum(m[(kinds == kind) & (strengths == s)])) for o, m in outcomes.items()}
                        for s in STRENGTHS}
                 for kind in KINDS}
     report["windows"] = {"calibration": int(len(calibration)), "test": int(len(test)),
                          "test_signal_free": int(np.sum(kinds == "none")), "per_cell": per_cell}
+    report["design"] = {"kinds": list(KINDS), "strengths": list(STRENGTHS), "per_cell": per_cell,
+                        "max_drift": MAX_DRIFT, "margin": MARGIN, "window": list(test.shape[1:])}
+    report["detectors"] = {name: describe(detect) for name, detect in detectors.items()}
+    report["code"] = code_identity()
     report["key_sha256"] = hashlib.sha256(json.dumps([key[i] for i in ids], sort_keys=True).encode()).hexdigest()
     return report, {"ids": ids, "key": key, "scores": {n: s.tolist() for n, s in scores.items()}}
 

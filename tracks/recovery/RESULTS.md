@@ -78,7 +78,8 @@ At a 0.1% false-alarm rate:
 | pulse (decoy) | de-Doppler | 0% | 0% | 0% | 0% | 0% | 1% |
 | pulse (decoy) | energy | 1% | 0% | 1% | 17% | 85% | 100% |
 
-Paired outcomes over all 2,160 signal injections (the decoys excluded):
+Paired outcomes over all 2,160 signal injections (the decoys excluded; `dedoppler vs energy` in
+the report):
 
 | False-alarm rate | Both | De-Doppler only | Energy only | Neither |
 |---|---:|---:|---:|---:|
@@ -122,4 +123,5 @@ Paired outcomes over all 2,160 signal injections (the decoys excluded):
 
 Environment: Python 3.13.17, NumPy 2.5.4. Background hashes are in
 [backgrounds.json](backgrounds.json). Key fingerprint: `3edd308a156144bc` (the first 16 hex
-digits of `key_sha256` in the report).
+digits of `key_sha256` in the report). Code fingerprint: `1f1660b93691a94f` (`code.sha256` in the
+report). Rerunning with that code reproduces the first run's tables exactly.
