@@ -1,0 +1,105 @@
+import assert from 'node:assert/strict';
+import { spawnSync } from 'node:child_process';
+import { mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import { test } from 'node:test';
+
+import { extractCard, summarize, validateCard } from '../web/js/community.js';
+import { makeCard } from './fixtures.mjs';
+
+test('a card produced by the spec validates', async () => {
+  assert.deepEqual(validateCard(await makeCard(7)), []);
+});
+
+test('cards that would not replicate are rejected', async () => {
+  const tampered = await makeCard(7);
+  tampered.config.epochs = 50;
+  assert.match(validateCard(tampered).join(' '), /config/);
+
+  const otherText = await makeCard(7);
+  otherText.inputs.rosetta_corpus.sha256 = '0'.repeat(64);
+  assert.match(validateCard(otherText).join(' '), /Rosetta corpus/);
+
+  const privateSlices = await makeCard(7);
+  privateSlices.inputs.voyager = { dataset_id: 'abc', slices: [] };
+  privateSlices.families = [...privateSlices.families, 'voyager'];
+  assert.match(validateCard(privateSlices, { publishedDatasetId: null }).join(' '), /publishes none/);
+  assert.match(validateCard(privateSlices, { publishedDatasetId: 'def' }).join(' '), /aren't the ones/);
+
+  const brokenMetric = await makeCard(7);
+  brokenMetric.metrics.prediction_gain.tone.gru = 'high';
+  assert.match(validateCard(brokenMetric).join(' '), /prediction_gain\.tone/);
+
+  const oldFormat = await makeCard(7);
+  oldFormat.version = 1;
+  assert.match(validateCard(oldFormat).join(' '), /version/);
+});
+
+test('result cards are read from the first json block of an issue', async () => {
+  const card = await makeCard(3);
+  assert.deepEqual(extractCard(`Result card.\n\n\`\`\`json\n${JSON.stringify(card)}\n\`\`\`\n`), card);
+  assert.throws(() => extractCard('no card here'), /No ```json block/);
+  assert.throws(() => extractCard('```json\n{not json}\n```'), /isn't valid JSON/);
+  assert.throws(() => extractCard(`\`\`\`json\n"${'x'.repeat(20000)}"\n\`\`\``), /larger than/);
+});
+
+test('replication counts volunteers whose runs agree', async () => {
+  const run = async (issue, by, unit, shift = 0) => ({ issue, submitted_by: by, card: await makeCard(unit, { shift }) });
+  const { units, leaderboard } = summarize([
+    await run(1, 'alice', 4),
+    await run(2, 'bob', 4, 0.01), // within tolerance
+    await run(3, 'alice', 4, 0.5), // alice again: only her first run counts
+    await run(4, 'carol', 5),
+    await run(5, 'dave', 5, 0.1), // disagrees with carol
+    await run(6, 'erin', 6),
+  ]);
+  const status = Object.fromEntries(units.map((u) => [u.unit, u.status]));
+  assert.deepEqual(status, { 4: 'replicated', 5: 'disagree', 6: 'single' });
+  assert.equal(units.find((u) => u.unit === 4).volunteers.length, 2);
+  assert.deepEqual(leaderboard.find((p) => p.volunteer === 'alice'), { volunteer: 'alice', units: 1, replicated: 1 });
+});
+
+function ingest(dir, issue) {
+  const event = join(dir, `event-${issue.number}.json`);
+  const comment = join(dir, 'comment.md');
+  const output = join(dir, 'output.txt');
+  writeFileSync(event, JSON.stringify({ issue }));
+  writeFileSync(output, '');
+  const run = spawnSync(process.execPath, ['tools/ingest_result.mjs', event, comment, join(dir, 'results.json'), 'web/data/slices'], {
+    env: { ...process.env, GITHUB_OUTPUT: output },
+    encoding: 'utf8',
+  });
+  return { code: run.status, status: readFileSync(output, 'utf8').trim(), comment: readFileSync(comment, 'utf8') };
+}
+
+const issueWith = async (number, login, unit, shift = 0, started) => ({
+  number,
+  user: { login },
+  created_at: '2026-10-26T01:00:00Z',
+  body: `Result card from the EI@Home Live Lab.\n\n\`\`\`json\n${JSON.stringify(await makeCard(unit, { shift, started }), null, 2)}\n\`\`\`\n`,
+});
+
+test('the ingestion script records valid cards once and explains rejections', async () => {
+  const dir = mkdtempSync(join(tmpdir(), 'eiathome-ingest-'));
+  const first = ingest(dir, await issueWith(10, 'alice', 4));
+  assert.equal(first.status, 'status=accepted');
+  assert.match(first.comment, /1 run\(s\) from 1 volunteer/);
+
+  assert.equal(ingest(dir, await issueWith(10, 'alice', 4)).status, 'status=duplicate', 'same issue');
+  assert.equal(ingest(dir, await issueWith(11, 'mallory', 4)).status, 'status=duplicate', 'identical card copied by someone else');
+  assert.match(ingest(dir, await issueWith(12, 'alice', 4, 0, '2026-10-27T00:00:00.000Z')).comment, /already submitted unit 4/);
+
+  const second = ingest(dir, await issueWith(13, 'bob', 4, 0.01, '2026-10-27T00:00:00.000Z'));
+  assert.equal(second.status, 'status=accepted');
+  assert.match(second.comment, /replicated/);
+
+  const bad = await issueWith(14, 'carol', 4);
+  bad.body = bad.body.replace('"epochs": 12', '"epochs": 99');
+  const rejected = ingest(dir, bad);
+  assert.equal(rejected.status, 'status=rejected');
+  assert.match(rejected.comment, /config/);
+
+  const stored = JSON.parse(readFileSync(join(dir, 'results.json'), 'utf8'));
+  assert.deepEqual(stored.results.map((r) => [r.issue, r.submitted_by]), [[10, 'alice'], [13, 'bob']]);
+});

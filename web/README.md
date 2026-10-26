@@ -79,3 +79,20 @@ manifest, a file or browser storage into `innerHTML`.
 `.github/workflows/pages.yml` deploys this folder to GitHub Pages on every push to `main`
 that touches `web/`. Enable it once in the repository's **Settings → Pages → Build and
 deployment → Source: GitHub Actions**.
+
+## Community results
+
+`.github/workflows/ingest-results.yml` runs when an issue titled `Work unit result: …` is
+opened. `tools/ingest_result.mjs` validates the card with `js/community.js` and appends it to
+`data/community_results.json`. The workflow then commits that file to `main`, starts the Pages
+deploy (pushes made with the workflow token don't trigger other workflows), replies on the
+issue, and labels it `work-unit` (closed) or `work-unit-rejected` (left open).
+
+Things to know as a maintainer:
+
+- The issue text is untrusted. The script only parses it as JSON and validates it. Nothing
+  from the issue reaches a shell command, and replies never repeat strings from the card.
+- The workflow needs to push to `main`. If you add branch protection, allow GitHub Actions
+  to push, or ingestion will reply that saving failed.
+- Anyone can open an issue, so the stored results are claims. The page only calls a unit
+  replicated when different volunteers agree.

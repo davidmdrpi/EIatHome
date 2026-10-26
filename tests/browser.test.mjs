@@ -7,8 +7,9 @@ import { extname, join, normalize } from 'node:path';
 import { after, before, test } from 'node:test';
 import { fileURLToPath } from 'node:url';
 
+import { validateCard } from '../web/js/community.js';
 import { matchedSize, parameterCount } from '../web/js/models.js';
-import { lineSlice, writeSliceFolder } from './fixtures.mjs';
+import { lineSlice, makeCard, writeSliceFolder } from './fixtures.mjs';
 
 const { chromium } = createRequire(import.meta.url)('playwright');
 const WEB = fileURLToPath(new URL('../web/', import.meta.url));
@@ -18,10 +19,16 @@ const ATTACK = '<img src=x onerror="window.__pwned=1">';
 let server;
 let browser;
 let base;
+const overrides = new Map(); // path -> body, to serve fixture data in place of the real file
 
 before(async () => {
   server = createServer(async (req, res) => {
     const path = normalize(decodeURIComponent(new URL(req.url, 'http://x').pathname)).replace(/^(\.\.[/\\])+/, '');
+    if (overrides.has(path)) {
+      res.writeHead(200, { 'content-type': 'application/json' });
+      res.end(overrides.get(path));
+      return;
+    }
     const file = join(WEB, path.endsWith('/') ? `${path}index.html` : path);
     try {
       const body = await readFile(file);
@@ -168,4 +175,33 @@ test('work units evaluate the frozen corpus, whatever custom text is set', async
   assert.ok(Number.isFinite(before.metrics.drift_probe.untrained_r2_synthetic), 'reports the untrained-GRU control');
   assert.deepEqual(errors, []);
   await page.close();
+});
+
+test('a card from a real work unit passes the checks the ingestion workflow runs', async () => {
+  const { page, errors } = await openLab();
+  const card = await runUnit(page, 2);
+  assert.deepEqual(validateCard(card, { publishedDatasetId: null }), []);
+  assert.deepEqual(errors, []);
+  await page.close();
+});
+
+test('community results are summarized, with volunteer names shown as text', async () => {
+  const run = async (issue, by, unit, shift = 0) => ({ issue, submitted_by: by, submitted_at: '2026-10-26T01:00:00Z', card: await makeCard(unit, { shift }) });
+  const results = [await run(21, 'alice', 4), await run(22, 'bob', 4, 0.01), await run(23, '<b>eve</b>', 5)];
+  overrides.set('/data/community_results.json', JSON.stringify({ format: 'eiathome-community-results', version: 1, results }));
+  try {
+    const { page, errors } = await openLab();
+    await page.click('.tabs button[data-tab="units"]');
+    await page.waitForFunction(() => !document.getElementById('community-tables').hidden, null, { timeout: 10000 });
+    assert.match(await page.textContent('#community-status'), /3 result cards for 2 units from 3 volunteers\. 1 of 2 units replicated/);
+    const units = await page.$$eval('#community-units tbody tr', (trs) => trs.map((tr) => [...tr.cells].map((td) => td.textContent)));
+    assert.deepEqual(units.map((u) => [u[0], u[6]]), [['4', 'Replicated'], ['5', 'One volunteer so far']]);
+    const names = await page.$$eval('#community-volunteers tbody tr td:first-child', (tds) => tds.map((td) => td.textContent));
+    assert.ok(names.includes('<b>eve</b>'));
+    assert.equal(await page.locator('#community-volunteers b').count(), 0);
+    assert.deepEqual(errors, []);
+    await page.close();
+  } finally {
+    overrides.clear();
+  }
 });

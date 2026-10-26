@@ -1,3 +1,4 @@
+import { summarize } from './community.js';
 import { architectureLabel } from './models.js';
 import { fmt, heatmap, lineChart, scatterPanel } from './plots.js';
 import { deriveSeed, makeRng } from './rng.js';
@@ -564,6 +565,69 @@ function download(name, data) {
   setTimeout(() => URL.revokeObjectURL(url), 1000);
 }
 
+// ---------- community results ----------
+
+const STATUS_LABELS = { single: 'One volunteer so far', replicated: 'Replicated', disagree: 'Runs disagree' };
+const GITHUB_LOGIN = /^[A-Za-z0-9](?:[A-Za-z0-9-]{0,38})$/;
+
+function link(text, href) {
+  const a = element('a', text);
+  a.href = href;
+  a.target = '_blank';
+  a.rel = 'noopener';
+  return a;
+}
+
+function volunteerCell(login) {
+  const td = document.createElement('td');
+  td.append(GITHUB_LOGIN.test(login) ? link(login, `https://github.com/${login}`) : document.createTextNode(login));
+  return td;
+}
+
+async function loadCommunity() {
+  const status = $('community-status');
+  let store;
+  try {
+    const response = await fetch('data/community_results.json', { cache: 'no-cache' });
+    if (!response.ok) throw new Error(String(response.status));
+    store = await response.json();
+  } catch {
+    status.textContent = "Couldn't load community results.";
+    return;
+  }
+  const results = Array.isArray(store.results) ? store.results : [];
+  if (!results.length) {
+    status.textContent = 'No community results yet. Run a unit and submit its card to be the first.';
+    return;
+  }
+  const { units, leaderboard } = summarize(results);
+  const replicated = units.filter((u) => u.status === 'replicated').length;
+  status.textContent = `${results.length} result cards for ${units.length} units from ${leaderboard.length} volunteers. ${replicated} of ${units.length} units replicated.`;
+
+  fillTable($('community-units'), ['Unit', 'Hidden', 'Data', 'Runs', 'Volunteers', 'Backends', 'Status', 'Issues'], []);
+  $('community-units').tBodies[0].append(
+    ...units.map((u) => {
+      const tr = makeRow([u.unit, u.hidden, u.voyager ? 'with Voyager' : 'synthetic only', u.runs, u.volunteers.length, u.backends.map((b) => BACKEND_NAMES[b] ?? b).join(', '), STATUS_LABELS[u.status]]);
+      const issues = document.createElement('td');
+      u.issues.filter(Number.isInteger).forEach((n, i) => {
+        if (i) issues.append(', ');
+        issues.append(link(`#${n}`, `${REPO}/issues/${n}`));
+      });
+      tr.append(issues);
+      return tr;
+    }),
+  );
+  fillTable($('community-volunteers'), ['Volunteer', 'Units run', 'Units replicated'], []);
+  $('community-volunteers').tBodies[0].append(
+    ...leaderboard.map((p) => {
+      const tr = document.createElement('tr');
+      tr.append(volunteerCell(p.volunteer), ...makeRow([p.units, p.replicated]).children);
+      return tr;
+    }),
+  );
+  $('community-tables').hidden = false;
+}
+
 // ---------- data ----------
 
 function setSlices(slices, source) {
@@ -745,6 +809,7 @@ function init() {
 
   renderPreview();
   analyzeTokens();
+  loadCommunity();
   loadPublishedSlices()
     .then((slices) => setSlices(slices, 'site'))
     .catch((err) => {

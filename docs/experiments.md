@@ -304,6 +304,20 @@ use different floating-point paths, so compare across backends within a toleranc
 **Trust:** a submitted card is a claim, not a verified result. Replication by an independent
 volunteer, on the same spec and unit, is what confirms it.
 
+**Collection:** "Submit as a GitHub issue" opens a pre-filled issue. A GitHub Action
+(`.github/workflows/ingest-results.yml`) then checks the card against its spec:
+
+- the configuration must equal the spec's configuration for that unit;
+- the Rosetta corpus must be the pinned one;
+- any Voyager data must be the slices the site publishes;
+- every metric must be a number.
+
+The Action rejects duplicates: the same issue, an identical card, or the same volunteer
+re-submitting the same unit. It appends a valid card to `web/data/community_results.json` and
+redeploys the Live Lab. The Work units tab shows each unit's status. A unit is **replicated**
+when runs from at least two volunteers agree within 0.02 on every metric, and marked **runs
+disagree** when they don't. Each volunteer's first run of a unit is the one compared.
+
 ### 9.2 BOINC work units (later, if needed)
 
 For heavier jobs such as raw voltages or long sweeps:

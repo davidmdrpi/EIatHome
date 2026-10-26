@@ -51,3 +51,31 @@ export function writeSliceFolder(slices) {
   writeFileSync(join(dir, 'index.json'), JSON.stringify(manifest));
   return [join(dir, 'index.json'), ...paths];
 }
+
+// A result card that passes validation for `unit`; `shift` nudges every metric.
+export async function makeCard(unit, { backend = 'wasm', shift = 0, started = '2026-10-26T00:00:00.000Z' } = {}) {
+  const { workUnitConfig, ROSETTA_CORPUS, RESULT_CARD_VERSION, SPEC, APP_VERSION } = await import('../web/js/workunits.js');
+  const families = ['tone', 'pulsed', 'sweep', 'rosetta', 'randfsk', 'noise'];
+  const gain = (base) => ({ persistence: -0.5 + shift, linear: 0.2 + shift, gru: base + shift });
+  return {
+    format: 'eiathome-result',
+    version: RESULT_CARD_VERSION,
+    spec: SPEC,
+    unit,
+    config: workUnitConfig(unit),
+    app: APP_VERSION,
+    tfjs: '4.22.0',
+    backend,
+    parameters: 11424,
+    families,
+    inputs: { rosetta_corpus: { id: ROSETTA_CORPUS.id, sha256: ROSETTA_CORPUS.sha256 }, voyager: null },
+    started,
+    seconds: 20.4,
+    metrics: {
+      prediction_gain: Object.fromEntries(families.map((f) => [f, gain(f === 'tone' ? 0.4 : 0)])),
+      gru_gain_frames_shuffled: Object.fromEntries(families.map((f) => [f, -0.1 + shift])),
+      final_train_loss: 0.72 + shift,
+      drift_probe: { r2_synthetic: 0.76 + shift, mae_hz_per_s_synthetic: 0.12, untrained_r2_synthetic: 0.2, untrained_mae_hz_per_s_synthetic: 0.3 },
+    },
+  };
+}

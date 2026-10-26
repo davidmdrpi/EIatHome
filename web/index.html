@@ -193,6 +193,18 @@
           <button id="wu-clear" type="button">Clear</button>
         </div>
       </div>
+
+      <div class="panel">
+        <h2>Community results</h2>
+        <p class="muted small">Result cards submitted as GitHub issues are checked against their spec automatically and collected here. A unit counts as <b>replicated</b> when runs from at least two volunteers agree within 0.02 on every metric. A card is a claim until someone else replicates it.</p>
+        <p id="community-status" class="status" role="status"></p>
+        <div id="community-tables" hidden>
+          <h3>Units</h3>
+          <div class="table-wrap"><table id="community-units"></table></div>
+          <h3>Volunteers</h3>
+          <div class="table-wrap"><table id="community-volunteers"></table></div>
+        </div>
+      </div>
     </section>
 
     <!-- ================= Data ================= -->
