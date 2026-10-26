@@ -155,6 +155,37 @@ test('the published slices load at startup, and the gains table says whether eac
   await page.close();
 });
 
+test('Track B finds held-out structure in Voyager data but not in off-source noise', async () => {
+  const { page, errors } = await openLab();
+  await waitForPublished(page);
+  const entropyTable = async (label) => {
+    await page.waitForFunction((l) => document.getElementById('tb-status').textContent.startsWith(l), label, { timeout: 120000 });
+    const rows = await page.$$eval('#tb-entropy-table tbody tr', (trs) => trs.map((tr) => [...tr.cells].map((td) => td.textContent)));
+    return Object.fromEntries(rows.map(([name, ...cells]) => [name, cells.slice(0, 4).map(Number)]));
+  };
+
+  await page.click('#families button[data-family="voyager"]');
+  const voyager = await entropyTable('Voyager');
+  assert.match(await page.textContent('#tb-status'), /whole scans .* 45 test tokens scored/);
+  assert.ok(voyager.real[3] < voyager.real[0] - 1, `context predicts Voyager's next token: ${voyager.real}`);
+  assert.ok(voyager.shuffled[3] > voyager.shuffled[0] - 0.25, `but not once its order is shuffled: ${voyager.shuffled}`);
+  const control = voyager['Off-source (control)'];
+  assert.ok(control[3] > control[0], `what Voyager's model learned doesn't transfer to off-source noise: ${control}`);
+
+  await page.click('#tb-lm');
+  await page.waitForFunction(() => /^Done/.test(document.getElementById('tb-lm-status').textContent), null, { timeout: 240000 });
+  const lm = await page.$$eval('#tb-lm-table tbody tr', (trs) => trs.map((tr) => [...tr.cells].map((td) => td.textContent)));
+  const controlRow = lm.find(([name]) => name === 'Off-source (control)');
+  assert.ok(controlRow && Number.isFinite(Number(controlRow[1])), 'the token model is also scored on the control');
+  assert.equal(controlRow[5], 'real model');
+
+  await page.click('#families button[data-family="offsource"]');
+  const offsource = await entropyTable('Off-source');
+  assert.ok(offsource.real[3] > offsource.real[0] - 0.25, `no held-out structure in off-source noise: ${offsource.real}`);
+  assert.deepEqual(errors, []);
+  await page.close();
+});
+
 test('token-model training can be stopped, and the controls come back', async () => {
   const { page, errors } = await openLab();
   await page.click('#families button[data-family="rosetta"]');
@@ -183,6 +214,11 @@ test('training on the only Voyager observation is labelled as reconstruction', a
   assert.match(await page.textContent('#gains tbody tr.current td:first-child'), /not held out/);
   assert.equal(await page.isVisible('#gains-note'), true);
   assert.match(await page.textContent('#lab-status'), /reconstructs data it trained on/);
+
+  // One scan can't be split for Track B, and the previous family's tokens must not be reused.
+  await page.waitForFunction(() => /at least 3 scans/.test(document.getElementById('tb-status').textContent), null, { timeout: 30000 });
+  await page.click('#tb-lm');
+  assert.equal(await page.textContent('#tb-lm-status'), 'Analyze tokens first.');
   assert.deepEqual(errors, []);
   await page.close();
 });

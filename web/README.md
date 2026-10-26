@@ -22,7 +22,7 @@ browsers don't run module workers from `file://` URLs.
 | `index.html`, `css/app.css` | Page structure and theme tokens (light and dark have separate, validated chart colours) |
 | `js/main.js` | UI: tabs, signal switcher, rendering, work units, slice loading |
 | `js/engine.worker.js` | Track A engine (module worker): builds snippets, trains the GRU with TensorFlow.js, computes baselines, gains, the hidden-state PCA and the drift probe |
-| `js/trackb.worker.js`, `js/trackb.js` | Track B: k-means tokenizer, conditional entropy, mutual information, Zipf, compression, and the shuffled and Markov-1 surrogates |
+| `js/trackb.worker.js`, `js/trackb.js` | Track B: splits each family into training, validation and test segments, fits the k-means tokenizer and the shuffled and Markov-1 surrogates on the training split only, and measures held-out cross-entropy, conditional entropy, mutual information, Zipf and compression without crossing a segment boundary |
 | `js/signals.js` | Signal families (two real-data ones, Voyager 1 and off-source, and the synthetic controls) and the Rosetta text; snippet normalization |
 | `js/slices.js` | Loads real-data micro-slices (`data/slices/`) or user-dropped files, verifies their SHA-256 and computes the dataset identity |
 | `js/splits.js` | Groups a real family's slices into observing sessions and keeps training and evaluation on different sessions |
@@ -51,6 +51,8 @@ npm test
 `tests/unit.test.mjs` checks the data layer in Node: slice hash verification, dataset identity,
 that each real family samples only its own slices, session splits (including renamed copies and
 missing start times), order independence of the sampled inputs, and the pinned work-unit corpus.
+For Track B it checks that the tokenizer and surrogates never see the test split, that no
+statistic crosses a segment boundary, and that real data holds out whole scans or sessions.
 `tests/community.test.mjs` checks card validation, replication summaries and the ingestion
 script, and `tests/ingest_issues.test.mjs` runs the ingestion driver against a local git
 remote and a fake `gh`. `tests/browser.test.mjs` serves this folder and drives the Live Lab in
@@ -60,6 +62,8 @@ headless Chromium. It checks that:
 - the published slices load, and a run on one session is labelled as reconstruction;
 - reordering a manifest and renaming its files gives identical work-unit results;
 - work units give identical metrics whatever custom text is set;
+- Track B finds held-out structure in Voyager data but not in off-source noise, and scores the
+  other real family as a control;
 - token-model training can be stopped, and the controls come back.
 
 CI runs both on every pull request.
@@ -72,8 +76,10 @@ manifest, a file or browser storage into `innerHTML`.
 - **Add a signal family:** add an entry to `FAMILIES` and a generator to `GENERATORS` in
   `js/signals.js`. It appears in the switcher, the gains table, the hidden-state map and
   Track B automatically.
-- **Add a Track B metric:** write it in `js/trackb.js`, compute it for every stream in
-  `js/trackb.worker.js`, and plot it in `renderTrackB()` in `js/main.js`.
+- **Add a Track B metric:** write it in `js/trackb.js` so that it takes an array of token
+  segments and never looks across their boundaries, compute it for every stream in
+  `analyzeSplits()`, and plot it in `renderTrackB()` in `js/main.js`. Anything fitted (like a
+  codebook or a surrogate) must use the training split only.
 - **Add a work-unit spec:** add a new versioned config in `js/workunits.js`. Never change an
   existing spec, because published result cards refer to it. Make a `v1` instead.
 - **Publish real data:** see `data/slices/README.md`. A new real family also needs an entry

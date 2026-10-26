@@ -327,6 +327,7 @@ EIatHome/
 **Phase 3: Track B (tokens)**
 - [ ] VQ-VAE and FSQ tokenizers with a vocabulary-size sweep
 - [x] Linguistic metrics with null models: held-out cross-entropy, mutual information, Zipf and compressibility (Live Lab, k-means tokens)
+- [x] Live Lab Track B on honest splits: tokenizer and surrogates fitted on training data only, whole-scan holdout for real data, and an other-family control
 - [x] Tiny causal language model on token streams, scored held out against surrogates, with sampled continuations (Live Lab)
 
 **Phase 4: Volunteers**

@@ -5,8 +5,8 @@ import { matchedSize, parameterCount } from '../web/js/models.js';
 import { deriveSeed, makeRng } from '../web/js/rng.js';
 import { T, makeSnippet, normalise, rosettaSymbols } from '../web/js/signals.js';
 import { canonicalOrder, datasetId, parseSlice } from '../web/js/slices.js';
-import { sessionPools } from '../web/js/splits.js';
-import { conditionalEntropies, heldOutCrossEntropy, markovSurrogate, shuffleSurrogate } from '../web/js/trackb.js';
+import { holdoutSplits, sessionPools } from '../web/js/splits.js';
+import { analyzeSplits, conditionalEntropies, fitMarkov, heldOutCrossEntropy, mutualInformation, sampleMarkov, shuffleWithin, targetCount } from '../web/js/trackb.js';
 import { ROSETTA_CORPUS, workUnitConfig } from '../web/js/workunits.js';
 import { entry, lineSlice, publishedSlices, sha256, sliceBytes } from './fixtures.mjs';
 
@@ -169,21 +169,85 @@ test('Rosetta training and evaluation windows come from different parts of the t
   }
 });
 
+// The Rosetta symbols as one continuous stream, split 70/10/20 in order.
+const textSplits = (tokens) => ({ train: [tokens.subarray(0, 1434)], validation: [tokens.subarray(1434, 1638)], test: [tokens.subarray(1638)] });
+const eachSplit = (splits, fn) => Object.fromEntries(Object.entries(splits).map(([name, segments]) => [name, fn(segments)]));
+
 test('held-out cross-entropy does not collapse for shuffled tokens', () => {
-  const text = Uint16Array.from(rosettaSymbols().subarray(0, 2048));
-  const shuffled = shuffleSurrogate(text, makeRng(1));
+  const rng = makeRng(1);
+  const shuffled = eachSplit(textSplits(Uint16Array.from(rosettaSymbols().subarray(0, 2048))), (segments) => shuffleWithin(segments, rng));
   const ce = heldOutCrossEntropy(shuffled, 16).map((r) => r.bits);
   for (const bits of ce.slice(1)) assert.ok(bits >= ce[0] - 0.05, `shuffled stays flat: ${ce.map((b) => b.toFixed(2))}`);
-  const plugIn = conditionalEntropies(shuffled, 16).map((r) => r.h);
+  const plugIn = conditionalEntropies(Object.values(shuffled).flat(), 16).map((r) => r.h);
   assert.ok(plugIn[3] < plugIn[0] - 1, 'the plug-in estimate does collapse here, which is why it is no longer the headline');
 });
 
 test('held-out cross-entropy finds the structure in English text', () => {
-  const text = Uint16Array.from(rosettaSymbols().subarray(0, 2048));
+  const text = textSplits(Uint16Array.from(rosettaSymbols().subarray(0, 2048)));
   const ce = heldOutCrossEntropy(text, 16).map((r) => r.bits);
   assert.ok(ce[1] < ce[0] - 0.5, `one token of context helps: ${ce.map((b) => b.toFixed(2))}`);
-  const markov = heldOutCrossEntropy(markovSurrogate(text, 16, makeRng(2)), 16).map((r) => r.bits);
+  const chain = fitMarkov(text.train, 16);
+  const rng = makeRng(2);
+  const markov = heldOutCrossEntropy(eachSplit(text, (segments) => sampleMarkov(chain, segments.map((t) => t.length), rng)), 16).map((r) => r.bits);
   assert.ok(ce[3] < markov[3] - 0.2, 'text has structure longer than pairs; a Markov-1 copy does not');
+});
+
+test('Track B fits its tokenizer and surrogates on the training split only', async () => {
+  const frames = (seed, count) => {
+    const rng = makeRng(seed);
+    return Array.from({ length: count }, () => Float32Array.from({ length: 16 * 8 }, () => rng.gauss()));
+  };
+  const run = (test) => analyzeSplits({ train: frames(1, 20), validation: frames(2, 5), test }, { k: 6, dim: 8, rng: makeRng(9) });
+  const a = await run(frames(3, 5));
+  const b = await run(frames(4, 5).map((f) => f.map((v) => v * 3 + 1))); // different test data
+  assert.deepEqual(b.centroids, a.centroids, 'test frames never reach the codebook');
+  for (const stream of ['real', 'shuffled', 'markov']) {
+    for (const split of ['train', 'validation']) assert.deepEqual(b.streams[stream][split], a.streams[stream][split], `${stream} ${split}`);
+  }
+  assert.notDeepEqual(b.streams.real.test, a.streams.real.test);
+});
+
+test('statistics never look across a segment boundary, and each target is scored once', () => {
+  const pairs = Array.from({ length: 50 }, () => Uint16Array.of(0, 1));
+  assert.equal(mutualInformation(pairs, 2, 1), 0, 'within each segment, 0 is always followed by 1');
+  assert.ok(mutualInformation([Uint16Array.from(pairs.flatMap((p) => [...p]))], 2, 1) > 0.9, 'joined into one stream, 1 -> 0 pairs would appear');
+
+  const segments = (n, length) => Array.from({ length: n }, (_, i) => Uint16Array.from({ length }, (_, j) => (i + j) % 5));
+  const splits = { train: segments(12, 16), validation: segments(3, 16), test: [...segments(2, 16), Uint16Array.of(3), segments(1, 7)[0]] };
+  const expected = 2 * 15 + 0 + 6;
+  assert.equal(targetCount(splits.test), expected);
+  for (const row of heldOutCrossEntropy(splits, 5)) assert.equal(row.targets, expected, `context ${row.context}`);
+});
+
+test('the shuffled surrogate keeps each segment’s tokens', () => {
+  const segments = [Uint16Array.of(1, 2, 3, 4, 5, 6), Uint16Array.of(7, 7, 8)];
+  const shuffled = shuffleWithin(segments, makeRng(3));
+  shuffled.forEach((s, i) => assert.deepEqual([...s].sort(), [...segments[i]].sort()));
+});
+
+test('real-data token statistics hold out whole scans, or whole sessions once there are three', async () => {
+  const scan = (id, tstart, seed, family = 'voyager') => [{ id, family, group: family === 'voyager' ? 'carrier' : 'carrier window', tstart }, lineSlice(2.4, seed)];
+  const minutes = (m) => m / 1440;
+  const oneSession = await load([
+    scan('s1', DAY_1, 1), scan('s1-off', DAY_1 + minutes(5), 2, 'offsource'),
+    scan('s2', DAY_1 + minutes(10), 3), scan('s3', DAY_1 + minutes(20), 4),
+  ]);
+  const byScan = holdoutSplits(oneSession, 'voyager');
+  assert.equal(byScan.unit, 'scan');
+  assert.equal(byScan.independent, false);
+  assert.deepEqual(['train', 'validation', 'test'].map((n) => byScan[n].map((s) => s.id)), [['s1'], ['s2'], ['s3']]);
+
+  const copy = await parseSlice(entry({ id: 's3-copy', tstart: DAY_1 + minutes(15) }), lineSlice(2.4, 4)); // same bytes as s3
+  const withCopy = holdoutSplits([...oneSession, copy], 'voyager');
+  const where = (id) => ['train', 'validation', 'test'].filter((n) => withCopy[n].some((s) => s.id === id || s.sha256 === oneSession[3].sha256));
+  assert.deepEqual(where('s3'), ['test'], 'a copy stays in its original’s split and isn’t counted twice');
+  assert.equal(withCopy.test.length, 1);
+
+  const sessions = holdoutSplits(await load([scan('a', DAY_1, 1), scan('b', DAY_3, 2), scan('c', DAY_6, 3)]), 'voyager');
+  assert.deepEqual([sessions.unit, sessions.independent], ['session', true]);
+
+  assert.match(holdoutSplits(await load([scan('a', DAY_1, 1), scan('b', DAY_1 + minutes(10), 2)]), 'voyager').error, /at least 3 scans/);
+  assert.match(holdoutSplits(await load([scan('a', null, 1), scan('b', DAY_3, 2), scan('c', DAY_6, 3)]), 'voyager').error, /no start time/);
 });
 
 test('LSTM and attention are sized to within 3% of the GRU parameter count', () => {

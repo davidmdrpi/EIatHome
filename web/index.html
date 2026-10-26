@@ -99,7 +99,8 @@
 
         <div class="panel wide">
           <h2>5. Track B: radio tokens</h2>
-          <p class="muted">A k-means tokenizer turns each frame into one of <i>K</i> “radio tokens”. Then we ask whether the token stream behaves like a language, compared with surrogates: <b>shuffled</b> (same tokens, random order) and <b>Markov-1</b> (same pair statistics, nothing longer).</p>
+          <p class="muted">A k-means tokenizer turns each frame into one of <i>K</i> “radio tokens”. Then we ask whether the token stream behaves like a language, compared with surrogates: <b>shuffled</b> (each snippet’s tokens in random order) and <b>Markov-1</b> (same pair statistics, nothing longer).</p>
+          <p class="muted small">The frames are split into training, validation and test parts before anything is fitted: the tokenizer and both surrogates learn from the training part only, and every held-out score uses the test part. No statistic looks across the boundary of a snippet, slice or split. Real data uses one fixed window per slice and holds out whole scans, or whole sessions once there are three.</p>
           <div class="controls">
             <label class="field"><span>Tokens (K)</span>
               <select id="k"><option>8</option><option selected>16</option><option>32</option></select></label>
@@ -114,7 +115,7 @@
               <figcaption>Held-out cross-entropy of the next token (bits)</figcaption>
               <canvas id="tb-entropy" data-height="190" aria-label="Held-out cross-entropy by context length"></canvas>
               <div class="table-wrap"><table id="tb-entropy-table"></table></div>
-              <p class="muted small">A smoothed n-gram model fitted on the first 80% of the tokens and scored on the last 20%. Lower means the context predicts the next token. A shuffled stream should stay flat.</p>
+              <p class="muted small">A smoothed n-gram model fitted on the training split (its smoothing chosen on the validation split) and scored on the test split. Lower means the context predicts the next token. The gap between real and shuffled is what order adds: shuffling keeps each snippet’s tokens, so it can still dip a little when snippets differ in content. For real data, a control row scores the other real family with this family’s tokenizer and model.</p>
               <details class="small">
                 <summary>Plug-in estimates (biased when there are more contexts than tokens)</summary>
                 <div class="table-wrap"><table id="tb-plugin-table"></table></div>
@@ -138,13 +139,13 @@
           <p id="tb-notes" class="muted small"></p>
 
           <h3>Does it speak back? A token language model</h3>
-          <p class="muted small">A small causal GRU (16-dimensional token embeddings, 32 hidden units) learns to predict the next radio token. It trains for 10 epochs on the first 80% of each stream and is scored on the last 20%, like the n-gram model above. Then it continues the real stream from a 16-token prompt. Each token is drawn as its k-means centroid frame.</p>
+          <p class="muted small">A small causal GRU (16-dimensional token embeddings, 32 hidden units) learns to predict the next radio token, on the same splits as the n-gram model above: it trains on the training split for up to 10 epochs, keeps the epoch that does best on the validation split, and is scored once on the test split. Then it continues the first test segment from its first half (at most 16 tokens). Each token is drawn as its k-means centroid frame.</p>
           <div class="buttons"><button id="tb-lm" type="button">Train token model</button><button id="tb-lm-stop" type="button" disabled>Stop</button></div>
           <p id="tb-lm-status" class="status" role="status" aria-live="polite"></p>
           <div class="table-wrap"><table id="tb-lm-table"></table></div>
           <div class="pair" id="tb-lm-sample" hidden>
-            <figure><figcaption>The real stream’s next 32 tokens</figcaption><canvas id="tb-lm-real" data-height="210" aria-label="Real continuation"></canvas></figure>
-            <figure><figcaption>The model’s continuation (sampled)</figcaption><canvas id="tb-lm-generated" data-height="210" aria-label="Model continuation"></canvas></figure>
+            <figure><figcaption id="tb-lm-real-caption">The real next tokens</figcaption><canvas id="tb-lm-real" data-height="210" aria-label="Real continuation"></canvas></figure>
+            <figure><figcaption id="tb-lm-generated-caption">The model’s continuation (sampled)</figcaption><canvas id="tb-lm-generated" data-height="210" aria-label="Model continuation"></canvas></figure>
           </div>
         </div>
       </div>
