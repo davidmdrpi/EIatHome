@@ -3,6 +3,7 @@
 
 import { deriveSeed, makeRng } from './rng.js';
 import { C, T, makeSnippet, normalise, rosettaStream } from './signals.js';
+import { canonicalOrder } from './slices.js';
 import {
   compressedBitsPerToken,
   conditionalEntropies,
@@ -18,7 +19,7 @@ let slices = [];
 
 self.onmessage = async ({ data: msg }) => {
   if (msg.type === 'slices') {
-    slices = msg.slices;
+    slices = canonicalOrder(msg.slices); // sampling must not depend on manifest order
     return;
   }
   if (msg.type !== 'analyze') return;

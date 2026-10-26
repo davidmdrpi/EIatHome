@@ -136,7 +136,7 @@ function onEngineMessage(msg) {
       if (msg.stopped) labStatus('Stopped.');
       else if (msg.reconstruction)
         labStatus(
-          `Done. ${msg.parameters.toLocaleString()} parameters. Only one Voyager observation is loaded, so the Voyager score measures how well the model reconstructs data it trained on, not how well it generalizes.`,
+          `Done. ${msg.parameters.toLocaleString()} parameters. ${msg.reconstruction} So the Voyager score measures how well the model reconstructs data it trained on, not how well it generalizes.`,
         );
       else labStatus(`Done. ${msg.parameters.toLocaleString()} parameters. Compare the GRU column with the baselines, then try another signal.`);
       renderProbe();
@@ -509,11 +509,11 @@ function setSlices(slices, source) {
   if (slices.length) {
     fillTable(
       $('slice-table'),
-      ['Slice', 'Signal', 'Observation', 'Size', 'Drift (Hz/s)', 'SNR', 'SHA-256 (verified)'],
+      ['Slice', 'Signal', 'Scan start (MJD)', 'Size', 'Drift (Hz/s)', 'SNR', 'SHA-256 (verified)'],
       slices.map((s) => [
         s.id,
         s.group,
-        s.observation,
+        Number.isFinite(s.startMjd) ? s.startMjd.toFixed(5) : 'unknown',
         `${T} × ${s.width}`,
         fmt(driftToHzPerS(s.driftChannelsPerStep, s.foffHz, s.tsamp), 3),
         fmt(Number(s.source?.snr), 1),

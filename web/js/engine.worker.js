@@ -6,7 +6,7 @@ import '../vendor/tfjs/tf-backend-webgpu.min.js';
 import '../vendor/tfjs/tf-backend-wasm.min.js';
 import { deriveSeed, makeRng } from './rng.js';
 import { C, DEFAULT_FOFF_HZ, DEFAULT_TSAMP_S, FAMILIES, T, driftToHzPerS, makeSnippet, normalise, shuffleFrames } from './signals.js';
-import { datasetId, sha256Hex } from './slices.js';
+import { canonicalOrder, datasetId, sha256Hex } from './slices.js';
 import { voyagerPools } from './splits.js';
 import { APP_VERSION, RESULT_CARD_VERSION, ROSETTA_CORPUS, workUnitConfig } from './workunits.js';
 
@@ -75,9 +75,7 @@ async function useBackend(preferred) {
 // Everything a run reads, captured when it starts, so messages that arrive mid-run (new
 // slices, new text) can't change its inputs.
 function snapshotInputs({ text = rosettaText } = {}) {
-  const runSlices = slices.slice();
-  const units = runSlices.length ? { foffHz: runSlices[0].foffHz, tsamp: runSlices[0].tsamp } : { foffHz: DEFAULT_FOFF_HZ, tsamp: DEFAULT_TSAMP_S };
-  return { slices: runSlices, text, units };
+  return { slices: canonicalOrder(slices), text };
 }
 
 function familiesAvailable(inputs) {
@@ -85,7 +83,7 @@ function familiesAvailable(inputs) {
 }
 
 // Which Voyager slices each split may use. Only training on Voyager needs separate
-// observations; otherwise every slice is unseen evaluation data.
+// observing sessions; otherwise every slice is unseen evaluation data.
 function slicePools(target, inputs) {
   if (target === 'voyager') return voyagerPools(inputs.slices);
   return { train: inputs.slices, eval: inputs.slices, heldOut: null };
@@ -339,7 +337,12 @@ function fitProbe(states, n, dim, targets) {
   };
 }
 
-async function probeDrift(model, trainSet, evalSets, hidden, units) {
+// Synthetic drift rates are defined in channels per step; they're reported in Hz/s assuming
+// Breakthrough Listen's high-resolution product. Voyager readouts use each slice's own units.
+const SYNTHETIC_UNITS = { foffHz: DEFAULT_FOFF_HZ, tsamp: DEFAULT_TSAMP_S };
+
+async function probeDrift(model, trainSet, evalSets, hidden) {
+  const units = SYNTHETIC_UNITS;
   const toneIdx = trainSet.families.map((f, i) => (f === 'tone' ? i : -1)).filter((i) => i >= 0).slice(0, 600);
   if (toneIdx.length < 20 || !evalSets.tone) return null;
   const x = new Float32Array(toneIdx.length * STEP);
@@ -372,8 +375,8 @@ async function probeDrift(model, trainSet, evalSets, hidden, units) {
     const byGroup = {};
     v.labels.forEach((label, i) => {
       const g = (byGroup[label.group] ??= { measured: [], readouts: [] });
-      g.measured.push(driftToHzPerS(label.drift, units.foffHz, units.tsamp));
-      g.readouts.push(driftToHzPerS(probe(states, i), units.foffHz, units.tsamp));
+      g.measured.push(driftToHzPerS(label.drift, label.foffHz, label.tsamp));
+      g.readouts.push(driftToHzPerS(probe(states, i), label.foffHz, label.tsamp));
     });
     const average = (values) => values.reduce((a, b) => a + b, 0) / values.length;
     result.voyager = Object.entries(byGroup).map(([group, { measured, readouts }]) => {
@@ -393,8 +396,8 @@ async function train(config, onEpoch, inputs) {
   if (!available.includes(target)) throw new Error(`"${target}" isn't available. Load Voyager slices first.`);
   const pools = slicePools(target, inputs);
   const context = (region) => ({ region, text: inputs.text, slices: region === 'train' ? pools.train : pools.eval });
-  // Training on the only loaded observation: Voyager scores measure reconstruction.
-  const reconstruction = pools.heldOut === false;
+  // Nothing independent to hold out: Voyager scores measure reconstruction. Holds the reason.
+  const reconstruction = pools.heldOut === false ? pools.reason : null;
 
   const trainRng = makeRng(deriveSeed(seed, 'train'));
   const parts = [buildSet(target, mixNoise && target !== 'noise' ? nTrain / 2 : nTrain, trainRng, { ...context('train'), shuffle })];
@@ -425,7 +428,7 @@ async function train(config, onEpoch, inputs) {
 
   try {
     // Control: how much drift a probe can read from the same GRU before any training.
-    const untrainedProbe = await probeDrift(model, trainSet, evalSets, hidden, inputs.units);
+    const untrainedProbe = await probeDrift(model, trainSet, evalSets, hidden);
     for (let epoch = 1; epoch <= epochs && !stopRequested; epoch++) {
       const started = performance.now();
       const perm = order.permutation(trainSet.n);
@@ -458,7 +461,7 @@ async function train(config, onEpoch, inputs) {
       await onEpoch({ epoch, epochs, loss: lossSum / seen, ms, gains: familyGains, shuffledGains, reconstruction, model, evalSets, previousComponents, setComponents: (c) => (previousComponents = c) });
       await pause();
     }
-    const probe = stopRequested ? null : await probeDrift(model, trainSet, evalSets, hidden, inputs.units);
+    const probe = stopRequested ? null : await probeDrift(model, trainSet, evalSets, hidden);
     return { history, probe, untrainedProbe, reconstruction, parameters: model.parameters, stopped: stopRequested, available };
   } finally {
     model.predictor.dispose();
@@ -531,7 +534,7 @@ async function runWorkUnit(unit) {
   const inputRecord = {
     rosetta_corpus: { id: ROSETTA_CORPUS.id, sha256: corpusSha256 },
     voyager: inputs.slices.length
-      ? { dataset_id: await datasetId(inputs.slices), slices: inputs.slices.map((s) => ({ id: s.id, sha256: s.sha256, observation: s.observation })) }
+      ? { dataset_id: await datasetId(inputs.slices), slices: inputs.slices.map((s) => ({ id: s.id, sha256: s.sha256, start_mjd: Number.isFinite(s.startMjd) ? s.startMjd : null })) }
       : null,
   };
   let last = null;

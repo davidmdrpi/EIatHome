@@ -3,7 +3,7 @@ import { test } from 'node:test';
 
 import { deriveSeed, makeRng } from '../web/js/rng.js';
 import { T, makeSnippet, normalise, rosettaSymbols } from '../web/js/signals.js';
-import { datasetId, parseSlice } from '../web/js/slices.js';
+import { canonicalOrder, datasetId, parseSlice } from '../web/js/slices.js';
 import { voyagerPools } from '../web/js/splits.js';
 import { ROSETTA_CORPUS, workUnitConfig } from '../web/js/workunits.js';
 import { entry, lineSlice, sha256, sliceBytes } from './fixtures.mjs';
@@ -36,36 +36,92 @@ test('dataset identity covers the bytes and the metadata that changes results', 
 
 const snippetKey = (x) => Array.from(x, (v) => v.toFixed(5)).join(',');
 
-function voyagerKeys(pool, region, seedLabel, n) {
+function voyagerSamples(pool, region, seedLabel, n) {
   const rng = makeRng(deriveSeed(0, seedLabel));
-  const keys = [];
-  for (let i = 0; i < n; i++) keys.push(snippetKey(normalise(makeSnippet('voyager', rng, { region, slices: pool }).raw)));
-  return keys;
+  const samples = [];
+  for (let i = 0; i < n; i++) {
+    const { raw, label } = makeSnippet('voyager', rng, { region, slices: pool });
+    samples.push(`${label.slice}|${label.group}|${label.drift}|${snippetKey(normalise(raw))}`);
+  }
+  return samples;
 }
+const snippetsOf = (samples) => samples.map((s) => s.split('|').pop());
 
-test('Voyager training and evaluation use different observations when there are several', async () => {
-  const slices = await Promise.all(
-    [
-      ['a1', 'obs-a.h5', 1],
-      ['a2', 'obs-a.h5', 2],
-      ['b1', 'obs-b.h5', 3],
-      ['c1', 'obs-c.h5', 4],
-    ].map(([id, file, seed]) => parseSlice(entry({ id, observationFile: file }), lineSlice(2.4, seed))),
-  );
+const load = (specs) => Promise.all(specs.map(([meta, bytes]) => parseSlice(entry(meta), bytes)));
+const DAY_1 = 57650.78;
+const DAY_3 = 57652.9;
+const DAY_6 = 57655.4;
+
+test('Voyager training and evaluation use different sessions when there are several', async () => {
+  const slices = await load([
+    [{ id: 'a1', tstart: DAY_1 }, lineSlice(2.4, 1)],
+    [{ id: 'a2', tstart: DAY_1 }, lineSlice(2.4, 2)],
+    [{ id: 'b1', tstart: DAY_3 }, lineSlice(2.4, 3)],
+    [{ id: 'c1', tstart: DAY_6 }, lineSlice(2.4, 4)],
+  ]);
   const pools = voyagerPools(slices);
   assert.equal(pools.heldOut, true);
-  const trainObs = new Set(pools.train.map((s) => s.observation));
-  for (const s of pools.eval) assert.ok(!trainObs.has(s.observation), 'no observation is in both splits');
+  assert.equal(pools.sessions, 3);
+  const trainStarts = new Set(pools.train.map((s) => s.startMjd));
+  for (const s of pools.eval) assert.ok(!trainStarts.has(s.startMjd), 'no session is in both splits');
 
-  const train = new Set(voyagerKeys(pools.train, 'train', 'train', 400));
-  const overlap = voyagerKeys(pools.eval, 'eval', 'eval-voyager', 48).filter((k) => train.has(k)).length;
+  const train = new Set(snippetsOf(voyagerSamples(pools.train, 'train', 'train', 400)));
+  const overlap = snippetsOf(voyagerSamples(pools.eval, 'eval', 'eval-voyager', 48)).filter((k) => train.has(k)).length;
   assert.equal(overlap, 0, 'no evaluation snippet is identical to a training snippet');
 });
 
-test('with one observation, Voyager evaluation is flagged as not held out', async () => {
-  const one = await parseSlice(entry({ id: 'a' }), lineSlice(2.4));
-  const pools = voyagerPools([one]);
+test('a renamed copy of the same scan is never treated as held out', async () => {
+  const bytes = lineSlice(2.4, 1);
+  const slices = await load([
+    [{ id: 'original', observationFile: 'original.h5' }, bytes],
+    [{ id: 'copy', observationFile: 'renamed-copy.h5' }, bytes],
+  ]);
+  const pools = voyagerPools(slices);
   assert.equal(pools.heldOut, false);
+  assert.match(pools.reason, /one observing session/);
+});
+
+test('identical bytes stay on one side of the split even when start times disagree', async () => {
+  const copied = lineSlice(2.4, 1);
+  const slices = await load([
+    [{ id: 'scan', tstart: DAY_1 }, copied],
+    [{ id: 'copy-with-edited-time', tstart: DAY_6 }, copied],
+    [{ id: 'other', tstart: DAY_3 }, lineSlice(2.4, 2)],
+  ]);
+  const pools = voyagerPools(slices);
+  assert.equal(pools.heldOut, true);
+  const trainHashes = new Set(pools.train.map((s) => s.sha256));
+  for (const s of pools.eval) assert.ok(!trainHashes.has(s.sha256), 'no slice content is in both splits');
+});
+
+test('scans from the same session stay together', async () => {
+  const slices = await load([
+    [{ id: 'on-1', tstart: DAY_1 }, lineSlice(2.4, 1)],
+    [{ id: 'on-2', tstart: DAY_1 + 10 / 1440 }, lineSlice(2.4, 2)], // ten minutes later
+  ]);
+  assert.equal(voyagerPools(slices).heldOut, false);
+});
+
+test('a slice without a start time means nothing is held out', async () => {
+  const slices = await load([
+    [{ id: 'dated', tstart: DAY_1 }, lineSlice(2.4, 1)],
+    [{ id: 'undated', tstart: null }, lineSlice(2.4, 2)],
+  ]);
+  const pools = voyagerPools(slices);
+  assert.equal(pools.heldOut, false);
+  assert.match(pools.reason, /no start time/);
+});
+
+test('manifest order changes neither the sampled inputs nor the dataset id', async () => {
+  const [a, b] = await load([
+    [{ id: 'a', tstart: DAY_1 }, lineSlice(2.4, 1)],
+    [{ id: 'b', tstart: DAY_3 }, lineSlice(2.6, 2)],
+  ]);
+  const forward = voyagerSamples(canonicalOrder([a, b]), 'eval', 'eval-voyager', 48);
+  const reversed = voyagerSamples(canonicalOrder([b, a]), 'eval', 'eval-voyager', 48);
+  assert.deepEqual(reversed, forward, 'same slices, labels and windows at every index');
+  assert.equal(await datasetId([b, a]), await datasetId([a, b]));
+  assert.deepEqual(voyagerPools(canonicalOrder([b, a])), voyagerPools(canonicalOrder([a, b])));
 });
 
 test('Rosetta training and evaluation windows come from different parts of the text', () => {

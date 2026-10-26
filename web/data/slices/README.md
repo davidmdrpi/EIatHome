@@ -26,9 +26,12 @@ keep the `source` metadata in `index.json` so every slice credits the observatio
   noise-sigma units after bandpass flattening.
 - The Live Lab computes each file's SHA-256 when it loads it and rejects the slice if the
   manifest's `sha256` doesn't match. Result cards record the computed digest.
-- Slices with the same `source.file` and `source.tstart_mjd` count as one observation. When
-  the Live Lab trains on Voyager, it evaluates on other observations; with only one, it labels
-  the score as reconstruction rather than a held-out result.
+- Keep `source.tstart_mjd` (the scan's start time). When the Live Lab trains on Voyager, it
+  evaluates on other observing sessions: scans that started within 12 hours of each other
+  count as one session, and identical files always count as one, whatever they're named. With
+  one session, or a slice without a start time, it labels the score as reconstruction rather
+  than a held-out result.
+- Manifest order doesn't matter: slices are sorted by content hash before any sampling.
 
 Anyone can also drop a manifest plus its `.bin` files into the Live Lab's Data tab to try
 slices locally without publishing them.

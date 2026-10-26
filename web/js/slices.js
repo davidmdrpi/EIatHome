@@ -41,27 +41,34 @@ export async function parseSlice(entry, buffer) {
     foffHz: Number(source.foff_hz),
     tsamp: Number(source.tsamp_s),
     sha256,
-    // Slices from the same file and start time come from the same observation.
-    observation: `${source.file ?? 'unknown'}@${source.tstart_mjd ?? 'unknown'}`,
+    // When the scan started. Unlike a file name, this survives renaming and re-exporting,
+    // so it's what the train/evaluation split uses (see splits.js). NaN if unknown.
+    startMjd: source.tstart_mjd == null ? NaN : Number(source.tstart_mjd),
     source,
   };
 }
 
+const compare = (a, b) => (a < b ? -1 : a > b ? 1 : 0);
+
+// The one order every run uses, whatever order the manifest listed: by content, then id,
+// then signal. Sampling indexes into this order, so reordering a manifest can't change results.
+export function canonicalOrder(slices) {
+  return [...slices].sort((a, b) => compare(a.sha256, b.sha256) || compare(a.id, b.id) || compare(a.group, b.group));
+}
+
 // One identity for a set of slices: their computed hashes plus the metadata that changes
-// results (resolution and drift labels), in a canonical order.
+// results (start time, resolution, drift labels), in canonical order.
 export async function datasetId(slices) {
-  const canonical = slices
-    .map((s) => ({
-      id: s.id,
-      group: s.group,
-      observation: s.observation,
-      shape: [T, s.width],
-      sha256: s.sha256,
-      drift_channels_per_step: s.driftChannelsPerStep,
-      foff_hz: s.foffHz,
-      tsamp_s: s.tsamp,
-    }))
-    .sort((a, b) => (a.id < b.id ? -1 : a.id > b.id ? 1 : 0));
+  const canonical = canonicalOrder(slices).map((s) => ({
+    id: s.id,
+    group: s.group,
+    start_mjd: Number.isFinite(s.startMjd) ? s.startMjd : null,
+    shape: [T, s.width],
+    sha256: s.sha256,
+    drift_channels_per_step: s.driftChannelsPerStep,
+    foff_hz: s.foffHz,
+    tsamp_s: s.tsamp,
+  }));
   return sha256Hex(new TextEncoder().encode(JSON.stringify(canonical)));
 }
 
@@ -71,13 +78,14 @@ export async function loadPublishedSlices() {
   if (!response.ok) return [];
   const manifest = await response.json();
   const base = new URL(MANIFEST_URL, document.baseURI);
-  return Promise.all(
+  const slices = await Promise.all(
     manifest.slices.map(async (entry) => {
       const bin = await fetch(new URL(entry.file, base));
       if (!bin.ok) throw new Error(`Couldn't fetch ${entry.file}`);
       return parseSlice(entry, await bin.arrayBuffer());
     }),
   );
+  return canonicalOrder(slices);
 }
 
 // Load slices from files the user picked or dropped: one index.json plus its .bin files.
@@ -87,7 +95,7 @@ export async function loadSliceFiles(fileList) {
   if (!manifestFile) throw new Error('Include the index.json manifest along with the .bin files.');
   const manifest = JSON.parse(await manifestFile.text());
   if (manifest.format !== 'eiathome-slices') throw new Error(`${manifestFile.name} isn't an EI@Home slice manifest.`);
-  return Promise.all(
+  const slices = await Promise.all(
     manifest.slices.map(async (entry) => {
       const name = String(entry.file).split('/').pop();
       const file = files.find((f) => f.name === name);
@@ -95,11 +103,12 @@ export async function loadSliceFiles(fileList) {
       return parseSlice(entry, await file.arrayBuffer());
     }),
   );
+  return canonicalOrder(slices);
 }
 
 // What workers need (typed arrays are copied by postMessage).
 export const forWorkers = (slices) =>
-  slices.map(({ id, group, width, data, driftChannelsPerStep, foffHz, tsamp, sha256, observation }) => ({
+  canonicalOrder(slices).map(({ id, group, width, data, driftChannelsPerStep, foffHz, tsamp, sha256, startMjd }) => ({
     id,
     group,
     width,
@@ -108,5 +117,5 @@ export const forWorkers = (slices) =>
     foffHz,
     tsamp,
     sha256,
-    observation,
+    startMjd,
   }));

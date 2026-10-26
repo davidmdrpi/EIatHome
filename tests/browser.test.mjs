@@ -106,6 +106,24 @@ test('training on the only Voyager observation is labelled as reconstruction', a
   await page.close();
 });
 
+test('reordering the manifest (and renaming its files) changes neither inputs nor results', async () => {
+  const slices = [
+    { meta: { id: 'v-a', group: 'carrier', tstart: 57650.78 }, bytes: lineSlice(2.4, 1) },
+    { meta: { id: 'v-b', group: 'sideband', tstart: 57652.9 }, bytes: lineSlice(2.6, 2) },
+  ];
+  const cards = [];
+  for (const order of [slices, [...slices].reverse()]) {
+    const { page, errors } = await openLab();
+    await loadSlices(page, order); // files are named by position, so reversing also renames them
+    cards.push(await runUnit(page, 0));
+    assert.deepEqual(errors, []);
+    await page.close();
+  }
+  assert.ok(cards[0].inputs.voyager.dataset_id);
+  assert.deepEqual(cards[1].inputs.voyager, cards[0].inputs.voyager);
+  assert.deepEqual(cards[1].metrics, cards[0].metrics);
+});
+
 test('work units evaluate the frozen corpus, whatever custom text is set', async () => {
   const { page, errors } = await openLab();
   const before = await runUnit(page, 0);

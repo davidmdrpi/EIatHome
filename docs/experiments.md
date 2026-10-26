@@ -271,19 +271,31 @@ full configuration, app and TensorFlow.js versions, compute backend, parameter c
 metrics, and an `inputs` block:
 
 - `rosetta_corpus`: the corpus id and the SHA-256 of the text actually used;
-- `voyager`: `null`, or a `dataset_id` plus each slice's id, SHA-256 and observation. Slice
-  hashes are computed from the loaded bytes, and a slice whose manifest digest doesn't match is
-  rejected. The `dataset_id` hashes the slice hashes together with the metadata that changes
-  results (shape, channel width, time step, drift labels).
+- `voyager`: `null`, or a `dataset_id` plus each slice's id, SHA-256 and scan start time.
+  Slice hashes are computed from the loaded bytes, and a slice whose manifest digest doesn't
+  match is rejected. The `dataset_id` hashes the slice hashes together with the metadata that
+  changes results (start time, shape, channel width, time step, drift labels).
+
+Every run puts the loaded slices in one canonical order (by content hash, then id) before
+sampling, and the `dataset_id` uses the same order. Reordering a manifest, or renaming its
+files, therefore changes neither the inputs nor the results.
 
 The card contains nothing about the volunteer or their machine beyond the backend name.
 Volunteers download it or submit it as a pre-filled GitHub issue.
 
 **Training on real data in the Live Lab:** when the Live Lab trains on Voyager, it evaluates
-on observations it didn't train on (about 30% of the loaded observations). With only one
-observation loaded, there is nothing independent to hold out: the Voyager row is then labelled
-"not held out", because the score measures reconstruction of the training data, not
-generalization.
+on observing sessions it didn't train on (about 30% of the loaded sessions). Sessions come from
+the data, never from file names:
+
+- slices whose scans started within 12 hours of each other, directly or through a chain of
+  scans, form one session;
+- slices with identical bytes always share a session, even if their metadata disagrees;
+- if any slice has no start time, independence can't be established.
+
+When there's only one session, or a start time is missing, nothing independent can be held out.
+The Voyager row is then labelled "not held out", because the score measures reconstruction of
+the training data, not generalization. The split trusts the manifest's start times, so it can't
+detect a copy whose bytes and start time were both deliberately altered.
 
 **Determinism:** in our tests, the same unit on the same backend (WebAssembly) gave identical
 metrics across repeat runs and fresh tabs. Different backends (WebGPU, WebGL, WebAssembly)
