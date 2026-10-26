@@ -624,9 +624,13 @@ async function liveTrain(config) {
 
 // ---------- Track B: token language model ----------
 
-const TOKEN_WINDOW = 32; // tokens per training example
-const TOKEN_SCORED = 16; // only the last 16 positions of each test window are scored
+// Token streams arrive split into training, validation and test segments (see trackb.js).
+// Examples never cross a segment boundary.
+const TOKEN_WINDOW = 32; // input tokens per example
+const TRAIN_STRIDE = 8; // a training window starts every 8 tokens of a segment
+const SCORE_STRIDE = 16; // after its first window, a long segment is scored 16 new targets at a time
 const TOKEN_EPOCHS = 10;
+const MIN_EXAMPLES_PER_EPOCH = 160; // a small split (real slices) repeats its windows within an epoch
 
 // A small causal model over radio tokens: embedding -> GRU -> next-token logits. The
 // embedding is a bias-free dense layer on one-hot tokens: the same parameters as an embedding
@@ -652,72 +656,90 @@ function buildTokenModel(k, seed) {
 // Integer tokens (shape [batch, time]) as float one-hot vectors ([batch, time, k]).
 const oneHot = (tokens, shape, k) => tf.tidy(() => tf.oneHot(tf.tensor2d(tokens, shape, 'int32'), k).cast('float32'));
 
-function windowBatch(stream, starts, length) {
-  const x = new Int32Array(starts.length * length);
-  const y = new Int32Array(starts.length * length);
-  starts.forEach((start, b) => {
-    for (let t = 0; t < length; t++) {
-      x[b * length + t] = stream[start + t];
-      y[b * length + t] = stream[start + t + 1];
+// Examples from segments: input tokens, next-token targets and a weight per target (0 for
+// padding). With scoreOnce, a target an earlier window already scored also gets weight 0, so
+// every target after the first token of a segment counts exactly once.
+function segmentWindows(segments, stride, scoreOnce) {
+  const examples = [];
+  for (const tokens of segments) {
+    let covered = 0; // targets 1..covered are already in an example
+    for (let start = 0; start < tokens.length - 1; start += stride) {
+      const length = Math.min(TOKEN_WINDOW, tokens.length - 1 - start);
+      const x = new Int32Array(TOKEN_WINDOW);
+      const y = new Int32Array(TOKEN_WINDOW);
+      const w = new Float32Array(TOKEN_WINDOW);
+      for (let j = 0; j < length; j++) {
+        x[j] = tokens[start + j];
+        y[j] = tokens[start + j + 1];
+        w[j] = !scoreOnce || start + j + 1 > covered ? 1 : 0;
+      }
+      examples.push({ x, y, w });
+      covered = start + length;
+      if (covered >= tokens.length - 1) break;
     }
-  });
-  return { x, y };
+  }
+  return examples;
 }
 
-// Mean cross-entropy in bits over the scored positions of test windows.
-async function heldOutBits(model, test, k) {
-  const starts = [];
-  for (let i = 0; i + TOKEN_WINDOW + 1 <= test.length; i += TOKEN_SCORED) starts.push(i);
-  const { x, y } = windowBatch(test, starts, TOKEN_WINDOW);
-  const out = tf.tidy(() => {
-    const logits = model.apply(oneHot(x, [starts.length, TOKEN_WINDOW], k));
-    const logp = tf.logSoftmax(logits.slice([0, TOKEN_WINDOW - TOKEN_SCORED, 0], [-1, -1, -1]));
-    const target = tf.oneHot(tf.tensor2d(y, [starts.length, TOKEN_WINDOW], 'int32').slice([0, TOKEN_WINDOW - TOKEN_SCORED], [-1, -1]), k);
-    return logp.mul(target.cast('float32')).sum(-1).mean().neg().div(Math.LN2);
+function exampleTensors(examples, k) {
+  const n = examples.length;
+  const x = new Int32Array(n * TOKEN_WINDOW);
+  const y = new Int32Array(n * TOKEN_WINDOW);
+  const w = new Float32Array(n * TOKEN_WINDOW);
+  examples.forEach((e, i) => {
+    x.set(e.x, i * TOKEN_WINDOW);
+    y.set(e.y, i * TOKEN_WINDOW);
+    w.set(e.w, i * TOKEN_WINDOW);
   });
-  const bits = (await out.data())[0];
-  out.dispose();
-  return bits;
+  const shape = [n, TOKEN_WINDOW];
+  return { inputs: oneHot(x, shape, k), targets: oneHot(y, shape, k), weights: tf.tensor2d(w, shape), count: w.reduce((a, b) => a + b, 0) };
 }
 
-// Trains on the first 80% of the stream with early stopping: the last tenth of that part is a
-// validation set, and the weights from the best validation epoch are kept. The model is then
-// scored once on the final 20%, which it never saw.
-async function trainTokenModel(name, stream, k, seed, progress) {
-  const split = Math.floor(stream.length * 0.8);
-  const valSplit = Math.floor(split * 0.9);
-  const train = stream.subarray(0, valSplit);
-  const validation = stream.subarray(valSplit, split);
-  const test = stream.subarray(split);
+// Mean cross-entropy in bits over every target of the segments, each counted once.
+async function heldOutBits(model, segments, k) {
+  const examples = segmentWindows(segments, SCORE_STRIDE, true);
+  let nats = 0;
+  let targets = 0;
+  for (let b = 0; b < examples.length; b += 64) {
+    const { inputs, targets: onehot, weights, count } = exampleTensors(examples.slice(b, b + 64), k);
+    const loss = tf.tidy(() => tf.logSoftmax(model.apply(inputs)).mul(onehot).sum(-1).mul(weights).sum().neg());
+    nats += (await loss.data())[0];
+    targets += count;
+    tf.dispose([inputs, onehot, weights, loss]);
+  }
+  return { bits: targets ? nats / targets / Math.LN2 : NaN, targets };
+}
+
+// Trains on the training split with early stopping: the weights from the best validation
+// epoch are kept. The model is then scored once on the test split, which it never saw.
+async function trainTokenModel(name, splits, k, seed, progress) {
   const model = buildTokenModel(k, seed);
   const optimizer = tf.train.adam(1e-2);
   const rng = makeRng(deriveSeed(seed, `token-order-${name}`));
-  const starts = [];
-  for (let i = 0; i + TOKEN_WINDOW + 1 <= train.length; i += 8) starts.push(i);
+  const examples = segmentWindows(splits.train, TRAIN_STRIDE, false);
+  const passes = Math.max(1, Math.ceil(MIN_EXAMPLES_PER_EPOCH / examples.length));
   let best = { bits: Infinity, epoch: 0, weights: null };
   try {
     for (let epoch = 1; epoch <= TOKEN_EPOCHS && !stopRequested; epoch++) {
-      const order = rng.permutation(starts.length).map((i) => starts[i]);
+      const order = Array.from({ length: passes }, () => rng.permutation(examples.length)).flat();
       for (let b = 0; b < order.length && !stopRequested; b += 32) {
-        const batchStarts = order.slice(b, b + 32);
-        const { x, y } = windowBatch(train, batchStarts, TOKEN_WINDOW);
-        const inputs = oneHot(x, [batchStarts.length, TOKEN_WINDOW], k);
-        const targets = oneHot(y, [batchStarts.length, TOKEN_WINDOW], k);
-        const cost = optimizer.minimize(() => tf.losses.softmaxCrossEntropy(targets, model.apply(inputs)), true);
+        const { inputs, targets, weights } = exampleTensors(order.slice(b, b + 32).map((i) => examples[i]), k);
+        const cost = optimizer.minimize(() => tf.losses.softmaxCrossEntropy(targets, model.apply(inputs), weights), true);
         await cost.data();
-        tf.dispose([cost, inputs, targets]);
+        tf.dispose([cost, inputs, targets, weights]);
       }
       if (stopRequested) break;
-      const valBits = await heldOutBits(model, validation, k);
-      if (valBits < best.bits) {
+      const { bits: validationBits } = await heldOutBits(model, splits.validation, k);
+      if (validationBits < best.bits) {
         tf.dispose(best.weights ?? []);
-        best = { bits: valBits, epoch, weights: model.getWeights().map((w) => w.clone()) };
+        best = { bits: validationBits, epoch, weights: model.getWeights().map((w) => w.clone()) };
       }
       progress(name, epoch);
       await pause();
     }
     if (best.weights) model.setWeights(best.weights);
-    return { model, bits: stopRequested ? NaN : await heldOutBits(model, test, k), bestEpoch: best.epoch, test, optimizer };
+    const test = stopRequested ? { bits: NaN, targets: 0 } : await heldOutBits(model, splits.test, k);
+    return { model, ...test, bestEpoch: best.epoch, optimizer };
   } catch (err) {
     model.dispose();
     optimizer.dispose();
@@ -751,32 +773,40 @@ async function sampleTokens(model, prompt, n, k, rng) {
   return tokens.slice(prompt.length);
 }
 
-async function runTokenModels({ id, k, streams, centroids, seed }) {
+async function runTokenModels({ id, k, splits, control, centroids, seed }) {
   const results = {};
+  let controlResult = null;
   let sample = null;
   for (const name of ['real', 'shuffled', 'markov']) {
-    const { model, bits, bestEpoch, test, optimizer } = await trainTokenModel(name, Uint16Array.from(streams[name]), k, seed % 100000, (stream, epoch) =>
+    const { model, bits, targets, bestEpoch, optimizer } = await trainTokenModel(name, splits[name], k, seed % 100000, (stream, epoch) =>
       post({ type: 'token-lm-progress', id, stream, epoch, epochs: TOKEN_EPOCHS }),
     );
     try {
       if (stopRequested) break;
-      results[name] = { bits, bestEpoch };
+      results[name] = { bits, targets, bestEpoch };
       if (name === 'real') {
-        const prompt = test.subarray(0, 16);
-        const generated = await sampleTokens(model, prompt, 32, k, makeRng(deriveSeed(seed, 'token-sample')));
-        const frames = (tokens) => {
-          const out = new Float32Array(tokens.length * C);
-          tokens.forEach((token, i) => out.set(centroids.subarray(token * C, (token + 1) * C), i * C));
-          return out;
-        };
-        sample = { real: frames(Array.from(test.subarray(16, 48))), generated: frames(generated), rows: 32 };
+        // Control: the real model on another family's frames, tokenized with this family's codebook.
+        if (control?.length) controlResult = await heldOutBits(model, control, k);
+        // Continue the first test segment from its first half (at most 16 tokens), next to the real continuation.
+        const segment = splits.real.test.find((s) => s.length >= 2);
+        if (segment) {
+          const promptLength = Math.min(16, Math.floor(segment.length / 2));
+          const count = Math.min(32, segment.length - promptLength);
+          const generated = await sampleTokens(model, segment.subarray(0, promptLength), count, k, makeRng(deriveSeed(seed, 'token-sample')));
+          const frames = (tokens) => {
+            const out = new Float32Array(tokens.length * C);
+            tokens.forEach((token, i) => out.set(centroids.subarray(token * C, (token + 1) * C), i * C));
+            return out;
+          };
+          sample = { real: frames(Array.from(segment.subarray(promptLength, promptLength + count))), generated: frames(generated), rows: count };
+        }
       }
     } finally {
       model.dispose();
       optimizer.dispose();
     }
   }
-  post({ type: 'token-lm-result', id, stopped: stopRequested, results, sample, epochs: TOKEN_EPOCHS });
+  post({ type: 'token-lm-result', id, stopped: stopRequested, results, control: controlResult, sample, epochs: TOKEN_EPOCHS });
 }
 
 const round = (v, digits = 4) => (Number.isFinite(v) ? Number(v.toFixed(digits)) : null);

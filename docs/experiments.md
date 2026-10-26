@@ -153,7 +153,7 @@ A **snippet** is the unit of data for both tracks.
 | ID | Metric | Notes |
 |---|---|---|
 | M1 | Zipf rank-frequency | Fit with `powerlaw`. Compare power-law, lognormal and exponential fits by likelihood ratio, and report exponents with confidence intervals |
-| M2 | Block entropy `H_n` and conditional entropy `h_n = H_n − H_(n−1)` | Drops in `h_n` with `n` indicate rules and redundancy. Plug-in estimates collapse when contexts outnumber tokens (`K^n` large), even with bias correction, so the Live Lab reports the held-out cross-entropy of a smoothed n-gram model instead: fitted on the first 80% of tokens and scored on the rest |
+| M2 | Block entropy `H_n` and conditional entropy `h_n = H_n − H_(n−1)` | Drops in `h_n` with `n` indicate rules and redundancy. Plug-in estimates collapse when contexts outnumber tokens (`K^n` large), even with bias correction, so the Live Lab reports the held-out cross-entropy of a smoothed n-gram model instead: fitted on the training split, its smoothing chosen on the validation split, and scored on the test split (see 4.4) |
 | M3 | Mutual information `I(d)` between tokens `d` apart | Compare exponential and power-law fits. Power-law decay suggests hierarchical structure ([Lin & Tegmark](https://arxiv.org/abs/1606.06737)) |
 | M4 | Compressibility | Compressed bits per token (zstd, xz) compared with surrogates |
 | M5 | Repeated motifs | Repeated n-grams beyond what a Markov-`k` surrogate predicts; longest repeated substring |
@@ -172,6 +172,35 @@ A **snippet** is the unit of data for both tracks.
 
 S1 makes a key point: a shuffled stream has exactly the same Zipf plot as the original, so Zipf
 alone says nothing about order or grammar.
+
+### 4.4 Held-out evaluation in the Live Lab
+
+Track B splits each family's frames into training, validation and test parts **before fitting
+anything**, as the Python signal-language-model track does:
+
+- **Synthetic signals:** independent snippets, drawn separately for each split (70/10/20).
+- **Rosetta:** the text in order: about 70% for training, 10% for validation and 20% for
+  testing, cut between snippets, so the test split is text the tokenizer never saw. (Each snippet
+  is normalized on its own, so a cut inside one would let test frames shape validation frames.)
+- **Real data:** one fixed central window per slice (no shifted copies), holding out whole
+  scans, or whole sessions once a family has three. Copies stay in one split and count once.
+  Within one session this is a within-session holdout, and the Live Lab labels it so.
+
+The k-means tokenizer is fitted on training frames only. S1 shuffles the tokens within each
+segment (snippet, slice or split), so it isolates order: it keeps each segment's tokens and can
+still dip a little when segments differ in content. S2 is a Markov-1 chain with add-one smoothing
+fitted to training transitions only. The n-gram model and the token model learn from the same
+data, the training split; the validation split only chooses the n-gram's smoothing and the token
+model's epoch. No statistic, n-gram context, token-model window or compressed block crosses a
+segment boundary, and every target after a segment's first token is scored once.
+
+For real data, a **control** row encodes the other real family with this family's tokenizer and
+scores it with this family's n-gram and token models. On the 2020 Voyager cadence, context
+predicts Voyager's held-out tokens (3.72 → 2.03 bits) but not off-source tokens (2.89 → 3.03),
+and Voyager's model gets worse with context on off-source frames (3.19 → 3.95). Before this protocol, shifted
+copies of the same few windows on both sides of the split made off-source noise look structured
+(3.90 → 3.22 bits). Each real-data test split has only 45 scored tokens, so small differences are
+noise.
 
 ## 5. Controls
 

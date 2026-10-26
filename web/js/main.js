@@ -398,6 +398,12 @@ function onTrackB(msg) {
   if (msg.type === 'error') {
     $('tb-status').textContent = msg.message;
     $('tb-status').classList.add('error');
+    // Never leave another family's analysis behind for the token model to train on.
+    state.trackb = null;
+    state.tokenLm = null;
+    for (const id of ['tb-tiles', 'tb-entropy-table', 'tb-plugin-table']) $(id).replaceChildren();
+    $('tb-notes').textContent = '';
+    renderTokenModel();
     return;
   }
   state.trackb = msg;
@@ -405,7 +411,10 @@ function onTrackB(msg) {
     state.tokenLm = null; // the token model belongs to the previous token stream
     if (state.running !== 'tokens') $('tb-lm-status').textContent = '';
   }
-  $('tb-status').textContent = `${familyById[msg.family].label}: ${msg.nTokens.toLocaleString()} tokens, ${msg.used} of ${msg.k} token types used. First tokens: ${msg.preview.map((t) => t.toString(36)).join(' ')}`;
+  $('tb-status').textContent =
+    `${familyById[msg.family].label}: ${msg.nTokens.toLocaleString()} tokens, ${msg.used} of ${msg.k} token types used. ` +
+    `Held out: ${msg.evaluation.description}; ${msg.sizes.test.targets.toLocaleString()} test tokens scored. ` +
+    `First training tokens: ${msg.preview.map((t) => t.toString(36)).join(' ')}`;
   renderTrackB();
 }
 
@@ -439,11 +448,9 @@ function renderTrackB() {
   }));
   legend($('tb-entropy'), entropySeries);
   lineChart($('tb-entropy'), entropySeries, { xLabel: 'tokens of context', yLabel: 'bits per token (held out)', markers: true, yMin: 0 });
-  fillTable(
-    $('tb-entropy-table'),
-    ['Context', ...r.crossEntropy.real.map((e) => e.context)],
-    STREAMS.map((s) => [s.name, ...r.crossEntropy[s.id].map((e) => fmt(e.bits))]),
-  );
+  const rows = STREAMS.map((s) => [s.name, ...r.crossEntropy[s.id].map((e) => fmt(e.bits)), r.sizes.test.targets.toLocaleString()]);
+  if (r.control) rows.push([controlName(r), ...r.control.crossEntropy.map((e) => fmt(e.bits)), r.control.targets.toLocaleString()]);
+  fillTable($('tb-entropy-table'), ['Context', ...r.crossEntropy.real.map((e) => e.context), 'Tokens scored'], rows);
   fillTable(
     $('tb-plugin-table'),
     ['Context', ...r.entropy.real.map((e) => e.n - 1)],
@@ -466,6 +473,9 @@ function renderTrackB() {
 
 const STREAM_NAMES = Object.fromEntries(STREAMS.map((s) => [s.id, s.name]));
 
+// The other real family's frames, tokenized and scored with this family's models.
+const controlName = (r) => `${familyById[r.control.family].label} (control)`;
+
 function startTokenModel() {
   if (state.running) return;
   if (!state.trackb) {
@@ -479,7 +489,7 @@ function startTokenModel() {
   $('tb-lm-status').classList.remove('error');
   $('tb-lm-status').textContent = 'Starting…';
   setRunning('tokens');
-  engine.postMessage({ type: 'token-lm', k: r.k, streams: r.streams, centroids: r.centroids, seed: Number($('seed').value) || 0 });
+  engine.postMessage({ type: 'token-lm', k: r.k, splits: r.streams, control: r.control?.segments ?? null, centroids: r.centroids, seed: Number($('seed').value) || 0 });
 }
 
 function renderTokenModel() {
@@ -491,19 +501,22 @@ function renderTokenModel() {
     $('tb-lm-table').replaceChildren();
     return;
   }
-  fillTable(
-    $('tb-lm-table'),
-    ['Stream (held out, bits per token)', 'Token GRU', 'n-gram, 3 tokens of context', 'No context', 'Best epoch'],
-    STREAMS.filter((s) => m.results[s.id]).map((s) => [
-      s.name,
-      fmt(m.results[s.id].bits),
-      fmt(r.crossEntropy[s.id][3].bits),
-      fmt(r.crossEntropy[s.id][0].bits),
-      `${m.results[s.id].bestEpoch} of ${m.epochs}`,
-    ]),
-  );
+  const tableRows = STREAMS.filter((s) => m.results[s.id]).map((s) => [
+    s.name,
+    fmt(m.results[s.id].bits),
+    fmt(r.crossEntropy[s.id][3].bits),
+    fmt(r.crossEntropy[s.id][0].bits),
+    m.results[s.id].targets.toLocaleString(),
+    `${m.results[s.id].bestEpoch} of ${m.epochs}`,
+  ]);
+  if (m.control && r.control) {
+    tableRows.push([controlName(r), fmt(m.control.bits), fmt(r.control.crossEntropy[3].bits), fmt(r.control.crossEntropy[0].bits), m.control.targets.toLocaleString(), 'real model']);
+  }
+  fillTable($('tb-lm-table'), ['Stream (held out, bits per token)', 'Token GRU', 'n-gram, 3 tokens of context', 'No context', 'Tokens scored', 'Best epoch'], tableRows);
   if (m.sample) {
     const { real, generated, rows } = m.sample;
+    $('tb-lm-real-caption').textContent = `The real next ${rows} tokens`;
+    $('tb-lm-generated-caption').textContent = `The model’s ${rows}-token continuation (sampled)`;
     const top = Math.max(3, ...real, ...generated);
     const options = { range: [-1, top], label: 'power (asinh)', rowLabel: 'token', firstRow: 1 };
     heatmap($('tb-lm-real'), real, rows, C, options);

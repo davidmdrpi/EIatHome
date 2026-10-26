@@ -1,21 +1,14 @@
 // Track B worker: tokenizes a family's frames with k-means and measures language-like
 // statistics against surrogates. Pure JavaScript, so it runs while the engine trains.
+// The frames are split into training, validation and test segments before anything is fitted
+// (see trackb-splits.js and trackb.js).
 
 import { deriveSeed, makeRng } from './rng.js';
-import { C, T, familyById, makeSnippet, normalise, rosettaStream } from './signals.js';
+import { C, T, familyById } from './signals.js';
 import { canonicalOrder } from './slices.js';
-import {
-  compressedBitsPerToken,
-  conditionalEntropies,
-  heldOutCrossEntropy,
-  kmeans,
-  markovSurrogate,
-  mutualInformation,
-  rankFrequency,
-  shuffleSurrogate,
-} from './trackb.js';
+import { analyzeSplits } from './trackb.js';
+import { realSplits, rosettaSplits, syntheticSplits } from './trackb-splits.js';
 
-const MAX_LAG = 24;
 let slices = [];
 
 self.onmessage = async ({ data: msg }) => {
@@ -32,63 +25,49 @@ self.onmessage = async ({ data: msg }) => {
 };
 
 async function analyze({ family, k, nFrames, seed, text }) {
-  const rng = makeRng(deriveSeed(seed, `trackb-${family}`));
   const nSnippets = Math.ceil(nFrames / T);
   const notes = [];
-  let snippets;
+  let frameSplits;
+  let control = [];
+  let controlFamily = null;
+  let evaluation;
   if (family === 'rosetta') {
-    const stream = rosettaStream(rng, nSnippets, text);
-    snippets = stream.snippets;
-    if (stream.wrapped) notes.push('The text is shorter than the stream, so it repeats. Repeats add artificial structure: use a longer text or fewer frames.');
+    const r = rosettaSplits(nSnippets, seed, text);
+    frameSplits = r.frameSplits;
+    evaluation = { unit: 'text', description: 'the text in order, about 70% for training, 10% for validation and 20% for testing, cut between snippets' };
+    if (r.wrapped) notes.push('The text is shorter than the stream, so it repeats and the test split contains training text. Use a longer text or fewer frames.');
+  } else if (familyById[family].real) {
+    const r = realSplits(slices, family);
+    ({ frameSplits, control, controlFamily } = r);
+    const { unit, units, independent } = r.split;
+    evaluation = {
+      unit,
+      independent,
+      description: independent
+        ? `whole observing sessions (${units} sessions)`
+        : `whole scans (${units} scans, all from one observing session)`,
+    };
+    notes.push(`Real data: one fixed window per slice, holding out whole ${unit}s.`);
+    if (!independent) notes.push('The scans share an observing session, so this is a within-session holdout. It doesn’t show that structure carries over to other sessions.');
   } else {
-    snippets = Array.from({ length: nSnippets }, () => makeSnippet(family, rng, { slices, region: 'eval' }).raw);
-    if (familyById[family].real) {
-      const count = slices.filter((s) => s.family === family).length;
-      notes.push(`Only ${count} ${familyById[family].label} slices are loaded, so these snippets are shifted views of the same few windows.`);
-    }
+    frameSplits = syntheticSplits(family, nSnippets, seed);
+    evaluation = { unit: 'snippet', description: 'independent snippets drawn separately for each split' };
+    notes.push('Snippets are independent, so structure can only span 16 tokens.');
   }
-  if (family !== 'rosetta') notes.push('Snippets are independent, so structure can only span 16 tokens.');
 
-  const n = nSnippets * T;
-  const frames = new Float32Array(n * C);
-  snippets.forEach((raw, i) => frames.set(normalise(raw), i * T * C));
-  const { labels: tokens, centroids } = kmeans(frames, n, C, k, rng);
-
-  const streams = {
-    real: tokens,
-    shuffled: shuffleSurrogate(tokens, rng),
-    markov: markovSurrogate(tokens, k, rng),
-  };
-  const entropy = {};
-  const crossEntropy = {};
-  const compression = {};
-  for (const [name, stream] of Object.entries(streams)) {
-    entropy[name] = conditionalEntropies(stream, k);
-    crossEntropy[name] = heldOutCrossEntropy(stream, k);
-    compression[name] = await compressedBitsPerToken(stream);
+  const rng = makeRng(deriveSeed(seed, `trackb-${family}`));
+  const result = await analyzeSplits(frameSplits, { k, dim: C, rng, control });
+  if (result.sizes.test.targets < 200) notes.push(`Only ${result.sizes.test.targets} test tokens are scored, so treat small differences as noise.`);
+  if (result.control) {
+    result.control.family = controlFamily;
+    notes.push(`The ${familyById[controlFamily].label} row scores that family’s frames with this family’s tokenizer and models, as a control.`);
   }
-  const lags = Array.from({ length: MAX_LAG }, (_, i) => i + 1);
   return {
     family,
     k,
-    nTokens: n,
-    used: new Set(tokens).size,
-    preview: Array.from(tokens.subarray(0, 48)),
+    ...result,
+    evaluation,
+    preview: Array.from(result.streams.real.train.flatMap((s) => [...s]).slice(0, 48)),
     notes,
-    entropy,
-    crossEntropy,
-    compression,
-    // For the token language model: the three streams and what each token looks like.
-    streams,
-    centroids,
-    zipf: {
-      unigram: { real: rankFrequency(streams.real, 1, k), shuffled: rankFrequency(streams.shuffled, 1, k) },
-      bigram: { real: rankFrequency(streams.real, 2, k), shuffled: rankFrequency(streams.shuffled, 2, k) },
-    },
-    mi: {
-      lags,
-      real: lags.map((d) => mutualInformation(streams.real, k, d)),
-      shuffled: lags.map((d) => mutualInformation(streams.shuffled, k, d)),
-    },
   };
 }

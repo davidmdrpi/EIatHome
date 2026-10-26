@@ -14,10 +14,16 @@
 // not generalization, and the Live Lab says so.
 
 export const SESSION_GAP_DAYS = 0.5;
+// Scans: slices cut from the same scan share its start time exactly.
+export const SCAN_GAP_DAYS = 1e-8;
 
-// Group slices into sessions. Returns one array of slices per session, in a canonical order
-// (earliest start first), so the result doesn't depend on the order slices were listed.
-export function sessions(slices) {
+// Group slices into observing sessions. Returns one array of slices per session, in a
+// canonical order (earliest start first), so the result doesn't depend on the order slices
+// were listed.
+export const sessions = (slices) => groups(slices, SESSION_GAP_DAYS);
+
+// Slices whose start times chain within gapDays, or whose bytes are identical, form a group.
+export function groups(slices, gapDays) {
   const parent = slices.map((_, i) => i);
   const find = (i) => (parent[i] === i ? i : (parent[i] = find(parent[i])));
   const join = (a, b) => {
@@ -27,7 +33,7 @@ export function sessions(slices) {
 
   const byTime = slices.map((s, i) => [s.startMjd, i]).sort((a, b) => a[0] - b[0]);
   for (let k = 1; k < byTime.length; k++) {
-    if (byTime[k][0] - byTime[k - 1][0] <= SESSION_GAP_DAYS) join(byTime[k - 1][1], byTime[k][1]);
+    if (byTime[k][0] - byTime[k - 1][0] <= gapDays) join(byTime[k - 1][1], byTime[k][1]);
   }
   const firstWithHash = new Map();
   slices.forEach((s, i) => {
@@ -60,5 +66,37 @@ export function sessionPools(slices, evalFraction = 0.3) {
     eval: slices.filter((s) => evalSet.has(s)),
     heldOut: true,
     sessions: groups.length,
+  };
+}
+
+// Train/validation/test slices of one real family for held-out token statistics (Track B).
+// Whole sessions are held out when the family has at least three; otherwise whole scans, which
+// share an observing session (a within-session holdout, labelled as such). Units are found
+// from every real slice, so another family's scan can link two sessions. Chronological 60/20/20
+// split, with at least one unit in each part; a copy never counts twice.
+export function holdoutSplits(slices, family) {
+  const own = slices.filter((s) => s.family === family);
+  if (own.some((s) => !Number.isFinite(s.startMjd))) return { error: 'A slice has no start time, so whole scans can’t be held out.' };
+  const dated = slices.filter((s) => Number.isFinite(s.startMjd));
+  const unitsOf = (gap) => groups(dated, gap).map((g) => g.filter((s) => s.family === family)).filter((g) => g.length);
+  let unit = 'session';
+  let units = unitsOf(SESSION_GAP_DAYS);
+  if (units.length < 3) {
+    unit = 'scan';
+    units = unitsOf(SCAN_GAP_DAYS);
+  }
+  if (units.length < 3) return { error: `Held-out statistics need slices from at least 3 scans; ${units.length} loaded.` };
+  const nEval = Math.max(1, Math.round(units.length * 0.2));
+  const unique = (part) => {
+    const seen = new Set();
+    return part.flat().filter((s) => !seen.has(s.sha256) && seen.add(s.sha256));
+  };
+  return {
+    unit,
+    independent: unit === 'session',
+    units: units.length,
+    train: unique(units.slice(0, -2 * nEval)),
+    validation: unique(units.slice(-2 * nEval, -nEval)),
+    test: unique(units.slice(-nEval)),
   };
 }
