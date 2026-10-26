@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 // Validates a work-unit result card submitted as a GitHub issue and, if it's valid and new,
-// appends it to web/data/community_results.json. Run by .github/workflows/ingest-results.yml.
+// appends it to web/data/community_results.json. Run for each issue by tools/ingest_issues.mjs,
+// which commits the result and replies on the issue.
 //
 // Usage: node tools/ingest_result.mjs <event.json> <comment.md> [results.json] [slices folder]
 //
@@ -11,8 +12,8 @@ import { createHash } from 'node:crypto';
 import { appendFileSync, existsSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 
-import { AGREEMENT_TOLERANCE, RESULTS_FORMAT, extractCard, summarize, validateCard } from '../web/js/community.js';
-import { datasetId, parseSlice } from '../web/js/slices.js';
+import { AGREEMENT_TOLERANCE, RESULTS_FORMAT, cardDataset, extractCard, summarize, validateCard } from '../web/js/community.js';
+import { describeDataset, parseSlice } from '../web/js/slices.js';
 
 const [eventPath, commentPath, resultsPath = 'web/data/community_results.json', slicesDir = 'web/data/slices'] = process.argv.slice(2);
 
@@ -21,13 +22,12 @@ const readArrayBuffer = (path) => {
   return bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength);
 };
 
-async function publishedDatasetId() {
+async function publishedDataset() {
   const manifestPath = join(slicesDir, 'index.json');
   if (!existsSync(manifestPath)) return null;
   const manifest = JSON.parse(readFileSync(manifestPath, 'utf8'));
-  if (!manifest.slices?.length) return null;
-  const slices = await Promise.all(manifest.slices.map((entry) => parseSlice(entry, readArrayBuffer(join(slicesDir, entry.file)))));
-  return datasetId(slices);
+  const slices = await Promise.all((manifest.slices ?? []).map((entry) => parseSlice(entry, readArrayBuffer(join(slicesDir, entry.file)))));
+  return describeDataset(slices);
 }
 
 function loadResults() {
@@ -58,14 +58,14 @@ async function main() {
   } catch (err) {
     return finish('rejected', `Thanks for running a work unit! This issue couldn't be recorded: ${err.message}\n\nUse **Submit as a GitHub issue** in the Live Lab's Work units tab, which fills in the card for you.`);
   }
-  const errors = validateCard(card, { publishedDatasetId: await publishedDatasetId() });
+  const errors = validateCard(card, { published: await publishedDataset() });
   if (errors.length) {
     return finish('rejected', `Thanks for running a work unit! This card couldn't be recorded because it doesn't match its spec:\n\n${errors.map((e) => `- ${e}`).join('\n')}\n\nRe-run the unit in the current [Live Lab](https://davidmdrpi.github.io/EIatHome/) and submit the new card.`);
   }
 
   const store = loadResults();
   const entry = record(card);
-  const sameDataset = (r) => (r.card.inputs?.voyager?.dataset_id ?? null) === (card.inputs?.voyager?.dataset_id ?? null);
+  const sameDataset = (r) => cardDataset(r.card) === cardDataset(card);
   if (store.results.some((r) => r.issue === issue.number)) return finish('duplicate', 'This issue has already been recorded.');
   const copy = store.results.find((r) => r.card_sha256 === entry.card_sha256);
   if (copy) return finish('duplicate', `An identical card was already recorded from #${copy.issue}, so this one wasn't counted again.`);
@@ -76,7 +76,8 @@ async function main() {
   store.results.sort((a, b) => a.issue - b.issue);
   writeFileSync(resultsPath, `${JSON.stringify(store, null, 2)}\n`);
 
-  const unit = summarize(store.results).units.find((u) => u.spec === card.spec && u.unit === card.unit && u.voyager === (card.inputs?.voyager != null));
+  // Runs on other datasets (for example, slices published before the current ones) are separate groups.
+  const unit = summarize(store.results).units.find((u) => u.spec === card.spec && u.unit === card.unit && u.dataset_id === cardDataset(card));
   finish(
     'accepted',
     `Thanks for running a work unit! Unit ${card.unit} (\`${card.spec}\`, ${card.backend}) is recorded and will appear in the Live Lab's community results shortly.\n\nThis unit now has ${unit.runs} run(s) from ${unit.volunteers.length} volunteer(s). ${STATUS_TEXT[unit.status]}`,
@@ -84,6 +85,6 @@ async function main() {
 }
 
 main().catch((err) => {
-  finish('error', `Something went wrong while recording this card (${err.message}). A maintainer will take a look.`);
+  finish('error', `Something went wrong while recording this card (${err.message}).`);
   process.exitCode = 1;
 });

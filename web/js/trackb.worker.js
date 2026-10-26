@@ -2,7 +2,7 @@
 // statistics against surrogates. Pure JavaScript, so it runs while the engine trains.
 
 import { deriveSeed, makeRng } from './rng.js';
-import { C, T, makeSnippet, normalise, rosettaStream } from './signals.js';
+import { C, T, familyById, makeSnippet, normalise, rosettaStream } from './signals.js';
 import { canonicalOrder } from './slices.js';
 import {
   compressedBitsPerToken,
@@ -42,7 +42,10 @@ async function analyze({ family, k, nFrames, seed, text }) {
     if (stream.wrapped) notes.push('The text is shorter than the stream, so it repeats. Repeats add artificial structure: use a longer text or fewer frames.');
   } else {
     snippets = Array.from({ length: nSnippets }, () => makeSnippet(family, rng, { slices, region: 'eval' }).raw);
-    if (family === 'voyager') notes.push(`Only ${slices.length} real signals are loaded, so these snippets are shifted views of the same few signals.`);
+    if (familyById[family].real) {
+      const count = slices.filter((s) => s.family === family).length;
+      notes.push(`Only ${count} ${familyById[family].label} slices are loaded, so these snippets are shifted views of the same few windows.`);
+    }
   }
   if (family !== 'rosetta') notes.push('Snippets are independent, so structure can only span 16 tokens.');
 

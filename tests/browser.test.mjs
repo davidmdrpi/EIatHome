@@ -9,7 +9,8 @@ import { fileURLToPath } from 'node:url';
 
 import { validateCard } from '../web/js/community.js';
 import { matchedSize, parameterCount } from '../web/js/models.js';
-import { datasetId } from '../web/js/slices.js';
+import { RESULT_CARD_VERSION } from '../web/js/workunits.js';
+import { describeDataset } from '../web/js/slices.js';
 import { sessions } from '../web/js/splits.js';
 import { lineSlice, makeCard, publishedSlices, writeSliceFolder } from './fixtures.mjs';
 
@@ -130,17 +131,44 @@ test('the token language model finds the structure in Rosetta text but not in sh
   await page.close();
 });
 
-test('the published Voyager slices load at startup, and the gains table says whether they were held out', async () => {
+const waitForPublished = (page) =>
+  page.waitForFunction(() => /loaded from this site/.test(document.getElementById('slice-status').textContent), null, { timeout: 30000 });
+
+test('the published slices load at startup, and the gains table says whether each real family was held out', async () => {
   const published = await publishedSlices();
   const { page, errors } = await openLab();
-  await page.waitForFunction(() => /loaded from this site/.test(document.getElementById('slice-status').textContent), null, { timeout: 30000 });
+  await waitForPublished(page);
   assert.equal(await page.locator('#slice-table tbody tr').count(), published.length);
-  assert.equal(await page.isDisabled('#families button[data-family="voyager"]'), false);
 
-  await train(page, 'voyager');
-  const label = await page.textContent('#gains tbody tr.current td:first-child');
-  if (sessions(published).length < 2) assert.match(label, /not held out/);
-  else assert.doesNotMatch(label, /not held out/);
+  for (const family of ['voyager', 'offsource']) {
+    const own = published.filter((s) => s.family === family);
+    assert.ok(own.length, `${family} slices are published`);
+    assert.equal(await page.isDisabled(`#families button[data-family="${family}"]`), false);
+    await train(page, family);
+    const label = await page.textContent('#gains tbody tr.current td:first-child');
+    if (sessions(own).length < 2) assert.match(label, /not held out/);
+    else assert.doesNotMatch(label, /not held out/);
+    const rows = await page.$$eval('#gains tbody tr td:first-child', (tds) => tds.map((td) => td.textContent));
+    assert.ok(rows.some((r) => r.startsWith('Voyager 1')) && rows.some((r) => r.startsWith('Off-source')), 'both real families are evaluated');
+  }
+  assert.deepEqual(errors, []);
+  await page.close();
+});
+
+test('token-model training can be stopped, and the controls come back', async () => {
+  const { page, errors } = await openLab();
+  await page.click('#families button[data-family="rosetta"]');
+  await page.waitForFunction(() => document.getElementById('tb-status').textContent.startsWith('Rosetta'), null, { timeout: 60000 });
+  await page.click('#tb-lm');
+  await page.waitForFunction(() => /^Training on/.test(document.getElementById('tb-lm-status').textContent), null, { timeout: 60000 });
+  assert.equal(await page.isDisabled('#tb-lm-stop'), false, 'Stop is available while the token model trains');
+  assert.equal(await page.isDisabled('#train'), true);
+
+  await page.click('#tb-lm-stop');
+  await page.waitForFunction(() => document.getElementById('tb-lm-status').textContent === 'Stopped.', null, { timeout: 60000 });
+  for (const id of ['#train', '#wu-run', '#tb-lm', '#backend']) assert.equal(await page.isDisabled(id), false, `${id} is enabled again`);
+  for (const id of ['#tb-lm-stop', '#stop', '#wu-stop']) assert.equal(await page.isDisabled(id), true, `${id} is disabled again`);
+  assert.equal(await page.isVisible('#tb-lm-sample'), false, 'a stopped run shows no results');
   assert.deepEqual(errors, []);
   await page.close();
 });
@@ -172,8 +200,8 @@ test('reordering the manifest (and renaming its files) changes neither inputs no
     assert.deepEqual(errors, []);
     await page.close();
   }
-  assert.ok(cards[0].inputs.voyager.dataset_id);
-  assert.deepEqual(cards[1].inputs.voyager, cards[0].inputs.voyager);
+  assert.ok(cards[0].inputs.slices.dataset_id);
+  assert.deepEqual(cards[1].inputs.slices, cards[0].inputs.slices);
   assert.deepEqual(cards[1].metrics, cards[0].metrics);
 });
 
@@ -186,7 +214,7 @@ test('work units evaluate the frozen corpus, whatever custom text is set', async
   await page.click('#rosetta-apply');
   const afterCustomText = await runUnit(page, 0);
 
-  assert.equal(before.version, 2);
+  assert.equal(before.version, RESULT_CARD_VERSION);
   assert.deepEqual(before.inputs.rosetta_corpus, afterCustomText.inputs.rosetta_corpus);
   assert.deepEqual(before.metrics, afterCustomText.metrics);
   assert.ok(Number.isFinite(before.metrics.drift_probe.untrained_r2_synthetic), 'reports the untrained-GRU control');
@@ -196,11 +224,12 @@ test('work units evaluate the frozen corpus, whatever custom text is set', async
 
 test('a card from a real work unit passes the checks the ingestion workflow runs', async () => {
   const { page, errors } = await openLab();
-  await page.waitForFunction(() => /loaded from this site/.test(document.getElementById('slice-status').textContent), null, { timeout: 30000 });
+  await waitForPublished(page);
   const card = await runUnit(page, 2);
-  const publishedDatasetId = await datasetId(await publishedSlices());
-  assert.equal(card.inputs.voyager.dataset_id, publishedDatasetId);
-  assert.deepEqual(validateCard(card, { publishedDatasetId }), []);
+  const published = await describeDataset(await publishedSlices());
+  assert.equal(card.inputs.slices.dataset_id, published.datasetId);
+  assert.ok(published.families.every((f) => card.families.includes(f)), 'the card covers every published family');
+  assert.deepEqual(validateCard(card, { published }), []);
   assert.deepEqual(errors, []);
   await page.close();
 });

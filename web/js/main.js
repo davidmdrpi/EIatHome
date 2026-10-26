@@ -139,7 +139,7 @@ function onEngineMessage(msg) {
       if (msg.stopped) labStatus('Stopped.');
       else if (msg.reconstruction)
         labStatus(
-          `Done: ${architectureLabel(msg.arch)}, ${msg.parameters.toLocaleString()} parameters. ${msg.reconstruction} So the Voyager score measures how well the model reconstructs data it trained on, not how well it generalizes.`,
+          `Done: ${architectureLabel(msg.arch)}, ${msg.parameters.toLocaleString()} parameters. ${msg.reconstruction} So the ${familyById[state.trainedFamily].label} score measures how well the model reconstructs data it trained on, not how well it generalizes.`,
         );
       else labStatus(`Done: ${architectureLabel(msg.arch)}, ${msg.parameters.toLocaleString()} parameters. Compare it with the baselines, then try another signal or model.`);
       renderProbe();
@@ -183,12 +183,14 @@ function setRunning(mode) {
   $('tb-lm').disabled = busy;
   $('stop').disabled = mode !== 'lab';
   $('wu-stop').disabled = mode !== 'unit';
+  $('tb-lm-stop').disabled = mode !== 'tokens';
   $('backend').disabled = busy;
 }
 
 // ---------- Live Lab ----------
 
-const voyagerAvailable = () => state.slices.length > 0;
+// Real families need loaded slices of their own.
+const familyAvailable = (id) => !familyById[id].real || state.slices.some((s) => s.family === id);
 
 function renderFamilies() {
   const box = $('families');
@@ -200,9 +202,9 @@ function renderFamilies() {
       b.textContent = f.label;
       b.dataset.family = f.id;
       b.setAttribute('aria-checked', String(f.id === state.family));
-      if (f.id === 'voyager' && !voyagerAvailable()) {
+      if (!familyAvailable(f.id)) {
         b.disabled = true;
-        b.title = 'No Voyager slices loaded yet. See the Data tab.';
+        b.title = `No ${f.label} slices loaded yet. See the Data tab.`;
       }
       b.onclick = () => selectFamily(f.id);
       return b;
@@ -376,7 +378,7 @@ function startTraining() {
 // ---------- Track B ----------
 
 function analyzeTokens() {
-  if (state.family === 'voyager' && !voyagerAvailable()) return;
+  if (!familyAvailable(state.family)) return;
   const id = ++analyzeId;
   $('tb-status').textContent = 'Tokenizing…';
   $('tb-status').classList.remove('error');
@@ -608,7 +610,10 @@ async function loadCommunity() {
   fillTable($('community-units'), ['Unit', 'Hidden', 'Data', 'Runs', 'Volunteers', 'Backends', 'Status', 'Issues'], []);
   $('community-units').tBodies[0].append(
     ...units.map((u) => {
-      const tr = makeRow([u.unit, u.hidden, u.voyager ? 'with Voyager' : 'synthetic only', u.runs, u.volunteers.length, u.backends.map((b) => BACKEND_NAMES[b] ?? b).join(', '), STATUS_LABELS[u.status]]);
+      // Runs on different slice datasets are separate groups: name the dataset by its id's first characters.
+      const data = u.dataset_id ? `slices ${u.dataset_id.slice(0, 8)}` : 'synthetic only';
+      const tr = makeRow([u.unit, u.hidden, data, u.runs, u.volunteers.length, u.backends.map((b) => BACKEND_NAMES[b] ?? b).join(', '), STATUS_LABELS[u.status]]);
+      if (u.dataset_id) tr.cells[2].title = `Dataset ${u.dataset_id}`;
       const issues = document.createElement('td');
       u.issues.filter(Number.isInteger).forEach((n, i) => {
         if (i) issues.append(', ');
@@ -637,21 +642,26 @@ function setSlices(slices, source) {
   state.slices = slices;
   state.sliceSource = source;
   broadcast({ type: 'slices', slices: forWorkers(slices) });
-  renderFamilies();
+  if (familyAvailable(state.family)) renderFamilies();
+  else selectFamily('tone');
   const status = $('slice-status');
   if (!slices.length) {
-    status.textContent = 'No Voyager slices are published with this site yet. Maintainers create them with tools/extract_slices.py; you can also drop slice files below.';
+    status.textContent = 'No real-data slices are published with this site yet. Maintainers create them with tools/extract_slices.py; you can also drop slice files below.';
   } else {
+    const real = FAMILIES.filter((f) => f.real && familyAvailable(f.id));
+    const counts = real.map((f) => `${slices.filter((s) => s.family === f.id).length} ${f.label}`).join(', ');
     const files = new Set(slices.map((s) => s.source?.file ?? 'unknown file'));
     const origin = files.size === 1 ? `source: ${[...files][0]}` : `from ${files.size} scans`;
-    status.textContent = `${slices.length} Voyager slices loaded ${source === 'site' ? 'from this site' : 'from your files'} (${origin}). The Voyager button is now enabled.`;
+    const buttons = real.map((f) => f.label).join(' and ');
+    status.textContent = `${slices.length} slices loaded ${source === 'site' ? 'from this site' : 'from your files'} (${counts}; ${origin}). The ${buttons} ${real.length > 1 ? 'buttons are' : 'button is'} now enabled.`;
   }
   if (slices.length) {
     fillTable(
       $('slice-table'),
-      ['Slice', 'Signal', 'Scan start (MJD)', 'Size', 'Drift (Hz/s)', 'SNR', 'SHA-256 (verified)'],
+      ['Slice', 'Family', 'Signal or window', 'Scan start (MJD)', 'Size', 'Drift (Hz/s)', 'Peak SNR', 'SHA-256 (verified)'],
       slices.map((s) => [
         s.id,
+        familyById[s.family].label,
         s.group,
         Number.isFinite(s.startMjd) ? s.startMjd.toFixed(5) : 'unknown',
         `${T} × ${s.width}`,
@@ -737,6 +747,10 @@ function init() {
   };
   $('analyze').onclick = analyzeTokens;
   $('tb-lm').onclick = startTokenModel;
+  $('tb-lm-stop').onclick = () => {
+    $('tb-lm-status').textContent = 'Stopping…';
+    engine.postMessage({ type: 'stop' });
+  };
   $('k').onchange = analyzeTokens;
   $('nframes').onchange = analyzeTokens;
 

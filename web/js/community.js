@@ -1,7 +1,7 @@
 // Community results: validation of submitted result cards, and replication summaries.
 // Used by tools/ingest_result.mjs (in a GitHub Action) and by the Live Lab's Work units tab.
 
-import { FAMILIES } from './signals.js';
+import { FAMILIES, REAL_FAMILIES } from './signals.js';
 import { MAX_UNIT, RESULT_CARD_VERSION, ROSETTA_CORPUS, SPEC, workUnitConfig } from './workunits.js';
 
 export const RESULTS_FORMAT = 'eiathome-community-results';
@@ -25,9 +25,14 @@ export function extractCard(body) {
   }
 }
 
+// The dataset a card used: its slices' dataset id, or null for synthetic data only. Runs of a
+// unit are compared only within one dataset.
+export const cardDataset = (card) => card?.inputs?.slices?.dataset_id ?? null;
+
 // Checks a card against its spec. Returns a list of problems (empty means valid).
-// publishedDatasetId: the dataset id of the slices this site publishes, or null if none.
-export function validateCard(card, { publishedDatasetId = null } = {}) {
+// published: the slices this site publishes, as { datasetId, families } (see describeDataset
+// in slices.js), or null if none.
+export function validateCard(card, { published = null } = {}) {
   const errors = [];
   const fail = (message) => errors.push(message);
   if (!card || typeof card !== 'object' || Array.isArray(card)) return ['The card is not a JSON object.'];
@@ -39,10 +44,11 @@ export function validateCard(card, { publishedDatasetId = null } = {}) {
 
   const corpus = card.inputs?.rosetta_corpus;
   if (corpus?.id !== ROSETTA_CORPUS.id || corpus?.sha256 !== ROSETTA_CORPUS.sha256) fail("The Rosetta corpus doesn't match the spec.");
-  const voyager = card.inputs?.voyager;
-  if (voyager != null) {
-    if (!publishedDatasetId) fail('The card used Voyager slices, but this site publishes none, so nobody could replicate it.');
-    else if (voyager.dataset_id !== publishedDatasetId) fail("The card used Voyager slices that aren't the ones this site publishes, so nobody could replicate it.");
+  const slices = card.inputs?.slices;
+  const usedPublished = slices != null && published != null && slices.dataset_id === published.datasetId;
+  if (slices != null) {
+    if (!published) fail('The card used real-data slices, but this site publishes none, so nobody could replicate it.');
+    else if (!usedPublished) fail("The card used real-data slices that aren't the ones this site publishes, so nobody could replicate it.");
   }
 
   if (!BACKENDS.includes(card.backend)) fail(`\`backend\` must be one of ${BACKENDS.join(', ')}.`);
@@ -53,7 +59,7 @@ export function validateCard(card, { publishedDatasetId = null } = {}) {
   if (typeof card.started !== 'string' || Number.isNaN(Date.parse(card.started))) fail('`started` must be a date.');
 
   const families = card.families;
-  const expected = FAMILY_IDS.filter((f) => f !== 'voyager' || voyager != null);
+  const expected = FAMILY_IDS.filter((f) => !REAL_FAMILIES.includes(f) || (usedPublished && published.families.includes(f)));
   if (!Array.isArray(families) || families.length !== expected.length || !expected.every((f) => families.includes(f))) {
     fail(`\`families\` must be exactly: ${expected.join(', ')}.`);
   }
@@ -98,7 +104,7 @@ export function agree(a, b, tolerance = AGREEMENT_TOLERANCE) {
 export function summarize(results) {
   const byUnit = new Map();
   for (const r of results) {
-    const key = `${r.card.spec}#${r.card.unit}|${r.card.inputs?.voyager?.dataset_id ?? 'synthetic'}`;
+    const key = `${r.card.spec}#${r.card.unit}|${cardDataset(r.card) ?? 'synthetic'}`;
     if (!byUnit.has(key)) byUnit.set(key, []);
     byUnit.get(key).push(r);
   }
@@ -113,7 +119,7 @@ export function summarize(results) {
       spec,
       unit,
       hidden: config.hidden,
-      voyager: runs[0].card.inputs?.voyager != null,
+      dataset_id: cardDataset(runs[0].card),
       runs: runs.length,
       volunteers,
       backends: [...new Set(runs.map((r) => r.card.backend))].sort(),
@@ -121,7 +127,7 @@ export function summarize(results) {
       issues: runs.map((r) => r.issue),
     };
   });
-  units.sort((a, b) => a.unit - b.unit || Number(a.voyager) - Number(b.voyager));
+  units.sort((a, b) => a.unit - b.unit || (a.dataset_id ?? '').localeCompare(b.dataset_id ?? ''));
 
   const people = new Map();
   for (const u of units) {

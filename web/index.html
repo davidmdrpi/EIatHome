@@ -87,7 +87,7 @@
               <tbody></tbody>
             </table>
           </div>
-          <p id="gains-note" class="muted small" hidden>No independent Voyager data could be held out, so the Voyager row is scored on the same observing session the model trained on. It measures reconstruction, not generalization. To get a held-out score, load slices from more than one session (scans that started more than 12 hours apart), each with a start time.</p>
+          <p id="gains-note" class="muted small" hidden>No independent real data could be held out, so the row of the family the model trained on is scored on the same observing session it trained on. It measures reconstruction, not generalization. To get a held-out score, load slices from more than one session (scans that started more than 12 hours apart), each with a start time.</p>
           <div id="probe" class="probe" hidden></div>
         </div>
 
@@ -139,7 +139,7 @@
 
           <h3>Does it speak back? A token language model</h3>
           <p class="muted small">A small causal GRU (16-dimensional token embeddings, 32 hidden units) learns to predict the next radio token. It trains for 10 epochs on the first 80% of each stream and is scored on the last 20%, like the n-gram model above. Then it continues the real stream from a 16-token prompt. Each token is drawn as its k-means centroid frame.</p>
-          <div class="buttons"><button id="tb-lm" type="button">Train token model</button></div>
+          <div class="buttons"><button id="tb-lm" type="button">Train token model</button><button id="tb-lm-stop" type="button" disabled>Stop</button></div>
           <p id="tb-lm-status" class="status" role="status" aria-live="polite"></p>
           <div class="table-wrap"><table id="tb-lm-table"></table></div>
           <div class="pair" id="tb-lm-sample" hidden>
@@ -155,7 +155,7 @@
       <div class="panel">
         <h2>Volunteer compute in a tab</h2>
         <p>A work unit is one small, complete experiment, fully determined by its number: it builds the same snippets, trains the same model and reports the same metrics on any machine. Run one, and you get a small <b>result card</b>. Nothing leaves your browser unless you choose to submit it.</p>
-        <p class="muted small">Spec <code id="wu-spec"></code>: train a GRU on noise and synthetic drifting tones only (like the Hello, Voyager notebook), then test it on every signal, including Voyager if loaded. The hidden size cycles through 16, 32 and 64 with the unit number.</p>
+        <p class="muted small">Spec <code id="wu-spec"></code>: train a GRU on noise and synthetic drifting tones only (like the Hello, Voyager notebook), then test it on every signal, including the real-data families if their slices are loaded. The hidden size cycles through 16, 32 and 64 with the unit number.</p>
         <div class="controls">
           <label class="field"><span>Unit number</span><input id="wu-number" type="number" min="0" max="9999" value="0"></label>
           <div class="buttons">
@@ -210,9 +210,10 @@
     <!-- ================= Data ================= -->
     <section id="tab-data" class="tab" role="tabpanel" hidden>
       <div class="panel">
-        <h2>Real data: Voyager 1 micro-slices</h2>
+        <h2>Real data: Voyager 1 and off-source micro-slices</h2>
         <p id="slice-status" role="status">Checking for published slices…</p>
         <p>Instead of multi-gigabyte HDF5 files, the Live Lab uses <b>micro-slices</b>: 16 time steps × 256 channels around each signal, about 16 KB each. They’re cut from the Breakthrough Listen observation by <code>tools/extract_slices.py</code> and published in <code>web/data/slices/</code>.</p>
+        <p>The <b>off-source</b> slices come from the same on/off cadence with the telescope pointed 1° away from Voyager, cut where Voyager’s signals would have drifted to by then. They’re real receiver noise and interference with nothing in the beam: if a model scores as well on them as on Voyager, it isn’t learning the signal.</p>
         <div id="drop" class="drop" tabindex="0">
           <p><b>Drop slice files here</b>: an <code>index.json</code> manifest plus its <code>.bin</code> files.</p>
           <label class="button">Choose files<input id="slice-files" type="file" multiple accept=".json,.bin" hidden></label>
@@ -242,7 +243,7 @@
         <p>A tokenizer turns frames into discrete tokens, and we measure entropy, mutual information, compressibility and Zipf statistics against surrogates. The Rosetta control (real English text sent as FSK) checks that the pipeline can find language when it is there. A Zipf-like curve on its own proves nothing.</p>
         <h3>Honest limits</h3>
         <ul>
-          <li>Voyager is a positive control, not a candidate: we know exactly what it is.</li>
+          <li>Voyager is a positive control, not a candidate: we know exactly what it is. The off-source scans are its negative control.</li>
           <li>Synthetic signals are simple. Real signals differ, and that difference is worth investigating before concluding anything.</li>
           <li>Different compute backends give slightly different numbers. Replication compares results within a tolerance.</li>
         </ul>

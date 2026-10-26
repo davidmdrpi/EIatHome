@@ -6,7 +6,8 @@ import { join } from 'node:path';
 import { test } from 'node:test';
 
 import { extractCard, summarize, validateCard } from '../web/js/community.js';
-import { makeCard } from './fixtures.mjs';
+import { describeDataset } from '../web/js/slices.js';
+import { makeCard, publishedSlices } from './fixtures.mjs';
 
 test('a card produced by the spec validates', async () => {
   assert.deepEqual(validateCard(await makeCard(7)), []);
@@ -21,11 +22,9 @@ test('cards that would not replicate are rejected', async () => {
   otherText.inputs.rosetta_corpus.sha256 = '0'.repeat(64);
   assert.match(validateCard(otherText).join(' '), /Rosetta corpus/);
 
-  const privateSlices = await makeCard(7);
-  privateSlices.inputs.voyager = { dataset_id: 'abc', slices: [] };
-  privateSlices.families = [...privateSlices.families, 'voyager'];
-  assert.match(validateCard(privateSlices, { publishedDatasetId: null }).join(' '), /publishes none/);
-  assert.match(validateCard(privateSlices, { publishedDatasetId: 'def' }).join(' '), /aren't the ones/);
+  const privateSlices = await makeCard(7, { dataset: { datasetId: 'abc', families: ['voyager'] } });
+  assert.match(validateCard(privateSlices, { published: null }).join(' '), /publishes none/);
+  assert.match(validateCard(privateSlices, { published: { datasetId: 'def', families: ['voyager'] } }).join(' '), /aren't the ones/);
 
   const brokenMetric = await makeCard(7);
   brokenMetric.metrics.prediction_gain.tone.gru = 'high';
@@ -34,6 +33,13 @@ test('cards that would not replicate are rejected', async () => {
   const oldFormat = await makeCard(7);
   oldFormat.version = 1;
   assert.match(validateCard(oldFormat).join(' '), /version/);
+});
+
+test('a card on the published slices must cover each of their families', async () => {
+  const published = { datasetId: 'abc', families: ['voyager', 'offsource'] };
+  assert.deepEqual(validateCard(await makeCard(7, { dataset: published }), { published }), []);
+  const missing = await makeCard(7, { dataset: { datasetId: 'abc', families: ['voyager'] } });
+  assert.match(validateCard(missing, { published }).join(' '), /families.*offsource/);
 });
 
 test('result cards are read from the first json block of an issue', async () => {
@@ -73,11 +79,11 @@ function ingest(dir, issue) {
   return { code: run.status, status: readFileSync(output, 'utf8').trim(), comment: readFileSync(comment, 'utf8') };
 }
 
-const issueWith = async (number, login, unit, shift = 0, started) => ({
+const issueWith = async (number, login, unit, shift = 0, started, dataset) => ({
   number,
   user: { login },
   created_at: '2026-10-26T01:00:00Z',
-  body: `Result card from the EI@Home Live Lab.\n\n\`\`\`json\n${JSON.stringify(await makeCard(unit, { shift, started }), null, 2)}\n\`\`\`\n`,
+  body: `Result card from the EI@Home Live Lab.\n\n\`\`\`json\n${JSON.stringify(await makeCard(unit, { shift, started, dataset }), null, 2)}\n\`\`\`\n`,
 });
 
 test('the ingestion script records valid cards once and explains rejections', async () => {
@@ -102,4 +108,20 @@ test('the ingestion script records valid cards once and explains rejections', as
 
   const stored = JSON.parse(readFileSync(join(dir, 'results.json'), 'utf8'));
   assert.deepEqual(stored.results.map((r) => [r.issue, r.submitted_by]), [[10, 'alice'], [13, 'bob']]);
+});
+
+test('the reply describes the accepted card’s own dataset, not an older one for the same unit', async () => {
+  const dir = mkdtempSync(join(tmpdir(), 'eiathome-ingest-'));
+  const older = { datasetId: '0'.repeat(64), families: ['voyager'] };
+  const stored = async (issue, by, shift) => ({ issue, submitted_by: by, submitted_at: '2026-10-01T00:00:00Z', card_sha256: String(issue), card: await makeCard(4, { shift, dataset: older }) });
+  writeFileSync(join(dir, 'results.json'), JSON.stringify({ format: 'eiathome-community-results', version: 1, results: [await stored(1, 'alice', 0), await stored(2, 'bob', 0.01)] }));
+
+  const current = await describeDataset(await publishedSlices());
+  const reply = ingest(dir, await issueWith(30, 'carol', 4, 0, undefined, current));
+  assert.equal(reply.status, 'status=accepted');
+  assert.match(reply.comment, /1 run\(s\) from 1 volunteer/);
+  assert.match(reply.comment, /first run of this unit/);
+
+  const units = summarize(JSON.parse(readFileSync(join(dir, 'results.json'), 'utf8')).results).units;
+  assert.deepEqual(units.map((u) => [u.dataset_id, u.runs, u.status]), [[older.datasetId, 2, 'replicated'], [current.datasetId, 1, 'single']]);
 });

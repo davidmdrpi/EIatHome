@@ -25,9 +25,10 @@ It's meant to be a fun, hackable open-source project:
 > today. It trains GRU, LSTM and causal-attention models on signals in your browser, measures
 > how language-like their radio tokens are, trains a token language model, and runs
 > reproducible work units whose results are collected and checked for replication
-> automatically. Real Voyager 1 slices from a 2020 Green Bank observation are published, but
-> they all come from one observing session, so Voyager scores are reconstruction, not held out,
-> until a second session is added. Not yet: that second session, the full notebook run on the
+> automatically. Real Voyager 1 slices from a 2020 Green Bank observation are published, with
+> off-source slices from the same cadence as a real-noise control. They all come from one
+> observing session, so a score on the real family a model trained on is reconstruction, not
+> held out, until a second session is added. Not yet: that second session, the full notebook run on the
 > real observation, and VQ-VAE tokenizers. The experiment protocol is in
 > [`docs/experiments.md`](docs/experiments.md).
 
@@ -321,9 +322,10 @@ EIatHome/
 - [x] Browser Live Lab with Track A training, Track B token metrics and `track-a/v0` work units
 - [x] Enable GitHub Pages
 - [x] Publish real Voyager micro-slices (one 2020 session: 3 on-source scans, 9 slices)
+- [x] Publish off-source control slices from the same cadence (3 off-source scans, 9 slices), as a real-data family in the Live Lab
 - [ ] Add a second Voyager session, so Voyager scores are held out ([how](web/data/slices/README.md#adding-slices))
 - [ ] Add slices of a public SETI signal of interest as a second real-data preset
-- [x] Collect submitted result cards automatically and show replication status
+- [x] Collect submitted result cards automatically, retry any a run missed, and show replication status per slice dataset
 - [ ] Public volunteer pilot
 - [ ] Heavier work units on BOINC, if needed (for example via [BOINC Central](https://boinc.berkeley.edu/central/scientist.php))
 

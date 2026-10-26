@@ -42,10 +42,10 @@ export async function publishedSlices() {
   return canonicalOrder(slices);
 }
 
-export function entry({ id, group = 'carrier', file = `${id}.bin`, digest, observationFile = 'obs-a.h5', tstart = 57650.78, drift = 2.4 }) {
+export function entry({ id, family = 'voyager', group = 'carrier', file = `${id}.bin`, digest, observationFile = 'obs-a.h5', tstart = 57650.78, drift = 2.4 }) {
   return {
     id,
-    family: 'voyager',
+    family,
     group,
     file,
     dtype: 'float32-le',
@@ -70,10 +70,11 @@ export function writeSliceFolder(slices) {
   return [join(dir, 'index.json'), ...paths];
 }
 
-// A result card that passes validation for `unit`; `shift` nudges every metric.
-export async function makeCard(unit, { backend = 'wasm', shift = 0, started = '2026-10-26T00:00:00.000Z' } = {}) {
+// A result card that passes validation for `unit`; `shift` nudges every metric. With
+// `dataset` ({ datasetId, families }, see describeDataset), the card used those slices.
+export async function makeCard(unit, { backend = 'wasm', shift = 0, started = '2026-10-26T00:00:00.000Z', dataset = null } = {}) {
   const { workUnitConfig, ROSETTA_CORPUS, RESULT_CARD_VERSION, SPEC, APP_VERSION } = await import('../web/js/workunits.js');
-  const families = ['tone', 'pulsed', 'sweep', 'rosetta', 'randfsk', 'noise'];
+  const families = [...(dataset?.families ?? []), 'tone', 'pulsed', 'sweep', 'rosetta', 'randfsk', 'noise'];
   const gain = (base) => ({ persistence: -0.5 + shift, linear: 0.2 + shift, gru: base + shift });
   return {
     format: 'eiathome-result',
@@ -86,7 +87,7 @@ export async function makeCard(unit, { backend = 'wasm', shift = 0, started = '2
     backend,
     parameters: 11424,
     families,
-    inputs: { rosetta_corpus: { id: ROSETTA_CORPUS.id, sha256: ROSETTA_CORPUS.sha256 }, voyager: null },
+    inputs: { rosetta_corpus: { id: ROSETTA_CORPUS.id, sha256: ROSETTA_CORPUS.sha256 }, slices: dataset ? { dataset_id: dataset.datasetId, slices: [] } : null },
     started,
     seconds: 20.4,
     metrics: {

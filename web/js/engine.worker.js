@@ -5,9 +5,9 @@ import '../vendor/tfjs/tf.min.js';
 import '../vendor/tfjs/tf-backend-webgpu.min.js';
 import '../vendor/tfjs/tf-backend-wasm.min.js';
 import { deriveSeed, makeRng } from './rng.js';
-import { C, DEFAULT_FOFF_HZ, DEFAULT_TSAMP_S, FAMILIES, T, driftToHzPerS, makeSnippet, normalise, shuffleFrames } from './signals.js';
+import { C, DEFAULT_FOFF_HZ, DEFAULT_TSAMP_S, FAMILIES, REAL_FAMILIES, T, driftToHzPerS, makeSnippet, normalise, shuffleFrames } from './signals.js';
 import { canonicalOrder, datasetId, sha256Hex } from './slices.js';
-import { voyagerPools } from './splits.js';
+import { sessionPools } from './splits.js';
 import { matchedSize } from './models.js';
 import { APP_VERSION, RESULT_CARD_VERSION, ROSETTA_CORPUS, workUnitConfig } from './workunits.js';
 
@@ -80,15 +80,18 @@ function snapshotInputs({ text = rosettaText } = {}) {
   return { slices: canonicalOrder(slices), text };
 }
 
+// Real families need slices of their own; synthetic ones are always available.
 function familiesAvailable(inputs) {
-  return FAMILIES.filter((f) => f.id !== 'voyager' || inputs.slices.length).map((f) => f.id);
+  return FAMILIES.filter((f) => !f.real || inputs.slices.some((s) => s.family === f.id)).map((f) => f.id);
 }
 
-// Which Voyager slices each split may use. Only training on Voyager needs separate
-// observing sessions; otherwise every slice is unseen evaluation data.
+// Which slices each split may use. Only the real family being trained on needs separate
+// observing sessions; slices of any other family are unseen evaluation data.
 function slicePools(target, inputs) {
-  if (target === 'voyager') return voyagerPools(inputs.slices);
-  return { train: inputs.slices, eval: inputs.slices, heldOut: null };
+  if (!REAL_FAMILIES.includes(target)) return { train: inputs.slices, eval: inputs.slices, heldOut: null };
+  const others = inputs.slices.filter((s) => s.family !== target);
+  const pools = sessionPools(inputs.slices.filter((s) => s.family === target));
+  return { ...pools, train: pools.train.concat(others), eval: pools.eval.concat(others) };
 }
 
 function buildSet(family, n, rng, { region, shuffle = false, slices: pool, text }) {
@@ -489,10 +492,10 @@ async function train(config, onEpoch, inputs) {
   // Work units have no `arch`: they are GRU-only by spec. Other models get the GRU's parameter budget.
   const arch = config.arch ?? 'gru';
   const available = familiesAvailable(inputs);
-  if (!available.includes(target)) throw new Error(`"${target}" isn't available. Load Voyager slices first.`);
+  if (!available.includes(target)) throw new Error(`"${target}" isn't available. Load its slices first (see the Data tab).`);
   const pools = slicePools(target, inputs);
   const context = (region) => ({ region, text: inputs.text, slices: region === 'train' ? pools.train : pools.eval });
-  // Nothing independent to hold out: Voyager scores measure reconstruction. Holds the reason.
+  // Nothing independent to hold out: the target's scores measure reconstruction. Holds the reason.
   const reconstruction = pools.heldOut === false ? pools.reason : null;
 
   const trainRng = makeRng(deriveSeed(seed, 'train'));
@@ -790,8 +793,11 @@ async function runWorkUnit(unit) {
   }
   const inputRecord = {
     rosetta_corpus: { id: ROSETTA_CORPUS.id, sha256: corpusSha256 },
-    voyager: inputs.slices.length
-      ? { dataset_id: await datasetId(inputs.slices), slices: inputs.slices.map((s) => ({ id: s.id, sha256: s.sha256, start_mjd: Number.isFinite(s.startMjd) ? s.startMjd : null })) }
+    slices: inputs.slices.length
+      ? {
+          dataset_id: await datasetId(inputs.slices),
+          slices: inputs.slices.map((s) => ({ id: s.id, family: s.family, sha256: s.sha256, start_mjd: Number.isFinite(s.startMjd) ? s.startMjd : null })),
+        }
       : null,
   };
   let last = null;

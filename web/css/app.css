@@ -95,6 +95,11 @@
   box-sizing: border-box;
 }
 
+/* `hidden` must win over class rules that set display (such as .pair). */
+[hidden] {
+  display: none !important;
+}
+
 body {
   margin: 0;
   background: var(--page);

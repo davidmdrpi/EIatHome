@@ -1,13 +1,20 @@
 name: Ingest work-unit results
 
 # Volunteers submit result cards from the Live Lab as issues titled "Work unit result: ...".
-# This validates the card, appends it to web/data/community_results.json on main, redeploys
-# the Live Lab, and replies on the issue. The issue text is untrusted: it is only read by
-# tools/ingest_result.mjs as JSON, never interpolated into a shell command.
+# tools/ingest_issues.mjs validates each card, appends it to web/data/community_results.json on
+# main, redeploys the Live Lab, and replies on the issue. The issue text is untrusted: it is only
+# read by tools/ingest_result.mjs as JSON, never interpolated into a shell command.
+#
+# Runs are serialized so their commits to the results file can't compete. A run that's
+# cancelled anyway (the queue holds at most 100) or fails leaves its issue unlabelled or
+# labelled work-unit-pending, and the scheduled run records it.
 
 on:
   issues:
     types: [opened]
+  schedule:
+    - cron: "41 */6 * * *" # retry anything a cancelled or failed run missed
+  workflow_dispatch:
 
 permissions:
   contents: write
@@ -17,10 +24,11 @@ permissions:
 concurrency:
   group: ingest-results
   cancel-in-progress: false
+  queue: max # keep every waiting run, not just the newest one
 
 jobs:
   ingest:
-    if: startsWith(github.event.issue.title, 'Work unit result:')
+    if: github.event_name != 'issues' || startsWith(github.event.issue.title, 'Work unit result:')
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -29,48 +37,15 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 22
-      - id: ingest
-        run: node tools/ingest_result.mjs "$GITHUB_EVENT_PATH" "$RUNNER_TEMP/comment.md"
-      - name: Commit the result to main
-        id: commit
-        if: steps.ingest.outputs.status == 'accepted'
+      - name: Record result issues
         env:
+          GH_TOKEN: ${{ github.token }}
           ISSUE: ${{ github.event.issue.number }}
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add web/data/community_results.json
-          git commit -m "Add work-unit result from #$ISSUE"
-          for attempt in 1 2 3; do
-            git push origin HEAD:main && exit 0
-            git pull --rebase origin main
-          done
-          exit 1
-      - name: Redeploy the Live Lab
-        # Pushes made with the workflow token don't trigger other workflows, so start it here.
-        if: steps.ingest.outputs.status == 'accepted'
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: gh workflow run pages.yml --ref main
-      - name: Reply on the issue
-        if: always() && steps.ingest.outputs.status != ''
-        env:
-          GH_TOKEN: ${{ github.token }}
-          ISSUE: ${{ github.event.issue.number }}
-          STATUS: ${{ steps.ingest.outputs.status }}
-          COMMIT: ${{ steps.commit.outcome }}
-        run: |
-          if [ "$STATUS" = accepted ] && [ "$COMMIT" != success ]; then
-            STATUS=error
-            echo "Thanks for running a work unit! The card is valid, but saving it failed. A maintainer will retry." > "$RUNNER_TEMP/comment.md"
+          if [ -n "$ISSUE" ]; then
+            node tools/ingest_issues.mjs "$ISSUE"
+          else
+            node tools/ingest_issues.mjs --pending
           fi
-          gh label create work-unit --color 1D76DB --description "Work-unit result card" --force
-          gh label create work-unit-rejected --color D93F0B --description "Result card that could not be recorded" --force
-          gh issue comment "$ISSUE" --body-file "$RUNNER_TEMP/comment.md"
-          case "$STATUS" in
-            accepted|duplicate)
-              gh issue edit "$ISSUE" --add-label work-unit
-              gh issue close "$ISSUE" --reason completed ;;
-            *)
-              gh issue edit "$ISSUE" --add-label work-unit-rejected ;;
-          esac
