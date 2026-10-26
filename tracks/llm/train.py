@@ -3,15 +3,15 @@
 import argparse
 import json
 import math
-import os
 from pathlib import Path
 import platform
 
 import numpy as np
 import torch
 
-from .data import SPLITS, Tokenizer, digest, load_slices, markov_probabilities, split_records, surrogate
-from .model import evaluate, fit, generate
+from .data import SPLITS, Tokenizer, digest, load_slices, markov_probabilities, split_records, split_sizes, surrogate, unique_records
+from .model import evaluate, fit, generate, validate_config
+from .runtime import atomic_output, require_new_output, training_runtime
 
 ROOT = Path(__file__).resolve().parents[2]
 
@@ -27,28 +27,33 @@ def baseline_scores(train, test, k):
 
 
 def run(args):
+    require_new_output(args.output)
+    config = dict(vocab_size=args.vocab_size, context=args.context, width=args.width,
+                  layers=args.layers, heads=args.heads, dropout=args.dropout)
+    validate_config(**config)
     if min(args.epochs, args.batch_size, args.patience, args.threads) < 1:
         raise ValueError("Epochs, batch size, patience and threads must be positive")
     if not math.isfinite(args.lr) or args.lr <= 0:
         raise ValueError("Learning rate must be finite and positive")
     if args.device == "cuda" and not torch.cuda.is_available():
         raise ValueError("CUDA requested but unavailable; use --device cpu")
-    # Set before any CUDA operation; deterministic runs may fail explicitly on unsupported ops.
-    os.environ.setdefault("CUBLAS_WORKSPACE_CONFIG", ":4096:8")
-    torch.set_num_threads(args.threads)
-    torch.use_deterministic_algorithms(True)
+    with training_runtime(args.threads, args.device), atomic_output(args.output) as output:
+        return _run(args, config, output)
+
+
+def _run(args, config, output):
     records = load_slices(args.manifest)
     partitions, independent = split_records(records, args.family, args.allow_within_session)
+    if args.context > max(len(r["frames"]) - 1 for r in partitions["train"]):
+        raise ValueError("Context exceeds the longest training sequence's next-token span; reduce --context")
     tokenizer = Tokenizer.fit([r["frames"] for r in partitions["train"]], args.vocab_size, args.seed)
     streams = {name: [tokenizer.encode(r["frames"]) for r in partitions[name]] for name in SPLITS}
     probabilities = markov_probabilities(streams["train"], args.vocab_size)
-    config = dict(vocab_size=args.vocab_size, context=args.context, width=args.width,
-                  layers=args.layers, heads=args.heads, dropout=args.dropout)
     provenance = {name: [r["entry"] for r in partitions[name]] for name in SPLITS}
     identity = [{"sha256": r["sha256"], "entry": r["entry"]} for r in records]
     dataset_sha = digest(json.dumps(identity, sort_keys=True).encode())
     code_sha = digest(b"".join((Path(__file__).parent / name).read_bytes()
-                               for name in ("data.py", "model.py", "train.py")))
+                               for name in ("data.py", "model.py", "train.py", "runtime.py")))
     report = {
         "format": "eiathome-signal-lm", "version": 1,
         "evaluation": "independent_sessions" if independent else "within_session_scan_holdout",
@@ -57,7 +62,8 @@ def run(args):
                        if independent else "Smoke test only: scans share an observing session. "
                        "Not evidence of generalization across sessions or of language/intelligence."),
         "dataset_sha256": dataset_sha, "code_sha256": code_sha,
-        "splits": provenance,
+        "splits": provenance, "split_unit": "session" if independent else "scan",
+        "split_sizes": split_sizes(records, partitions, independent),
         "training": {k: str(v) if isinstance(v, Path) else v for k, v in vars(args).items()},
         "versions": {"python": platform.python_version(), "numpy": np.__version__, "torch": str(torch.__version__)},
         "model": config, "variants": {},
@@ -65,8 +71,6 @@ def run(args):
                       "sha256": digest(json.dumps(tokenizer.state(), sort_keys=True).encode())},
     }
     print(report["evaluation"] + ": " + report["limitation"], flush=True)
-    # Never replace another run's checkpoints or provenance silently.
-    args.output.mkdir(parents=True, exist_ok=False)
     for variant in ("real", "shuffled", "markov"):
         # Separate deterministic randomness for each split; never shuffle across partitions.
         data = {name: surrogate(streams[name], variant, args.seed + 1000 + i, probabilities)
@@ -78,7 +82,7 @@ def run(args):
         score.update(baseline_scores(data["train"], data["test"], args.vocab_size))
         result = {"test": score, "best_epoch": best_epoch, "history": history}
         if variant == "real":
-            controls = [r for r in records if r["entry"]["family"] != args.family]
+            controls = unique_records(r for r in records if r["entry"]["family"] != args.family)
             if controls:
                 control_tokens = [tokenizer.encode(r["frames"]) for r in controls]
                 result["other_family_control"] = {
@@ -90,9 +94,10 @@ def run(args):
                 }
             # Qualitative continuation from a training prompt; never represented as a forecast.
             prompt = data["train"][0][:min(8, args.context)].tolist()
-            tokens = generate(model, prompt, count=32, seed=args.seed)
-            result["sample"] = {"prompt_source": "train", "prompt": prompt, "generated": tokens}
-            np.save(args.output / "generated_frames.npy", tokenizer.decode(tokens), allow_pickle=False)
+            tokens = generate(model, prompt, seed=args.seed)
+            result["sample"] = {"prompt_source": "train", "prompt": prompt, "generated": tokens,
+                                "limit": "Stops at the trained context without sliding positional embeddings."}
+            np.save(output / "generated_frames.npy", tokenizer.decode(tokens), allow_pickle=False)
         report["variants"][variant] = result
         report["parameters"] = sum(p.numel() for p in model.parameters())
         checkpoint = {
@@ -102,9 +107,9 @@ def run(args):
             "code_sha256": code_sha, "splits": provenance,
             "evaluation": report["evaluation"], "best_epoch": best_epoch,
         }
-        torch.save(checkpoint, args.output / f"{variant}.pt")
+        torch.save(checkpoint, output / f"{variant}.pt")
         print(f"{variant}: {score['bits_per_token']:.4f} bits/token, best epoch {best_epoch}", flush=True)
-    (args.output / "report.json").write_text(json.dumps(report, indent=2, allow_nan=False) + "\n")
+    (output / "report.json").write_text(json.dumps(report, indent=2, allow_nan=False) + "\n")
     return report
 
 
@@ -135,7 +140,7 @@ def main():
     args = p.parse_args()
     try:
         run(args)
-    except (ValueError, FileExistsError) as exc:
+    except (ValueError, OSError, RuntimeError) as exc:
         p.error(str(exc))
 
 

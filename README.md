@@ -57,6 +57,7 @@ Markov controls, checkpoints and signal continuation. The published data support
 within-session smoke test; independent train/validation/test evaluation needs three sessions.
 
 ```bash
+python -m pip install 'torch>=2.6,<3' --index-url https://download.pytorch.org/whl/cpu
 python -m pip install -r tracks/llm/requirements.txt
 python -m tracks.llm.train --allow-within-session --output runs/voyager-smoke
 ```

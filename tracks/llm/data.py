@@ -8,19 +8,30 @@ import numpy as np
 
 CHANNELS = 64
 SPLITS = ("train", "validation", "test")
+SESSION_GAP_DAYS = 0.5  # as in web/js/splits.js and tools/extract_slices.py
+SCAN_GAP_DAYS = 1e-8
 
 
 def digest(value):
     return hashlib.sha256(value).hexdigest()
 
 
-def load_slices(manifest_path):
+def load_slices(manifest_path, slice_id=None):
+    """Training validates all observations; sampling verifies only the selected payload.
+
+    Sampling needs no session/family metadata because it performs no train/test split.
+    """
     path = Path(manifest_path)
     manifest = json.loads(path.read_text())
     if manifest.get("format") != "eiathome-slices" or manifest.get("version") != 1:
         raise ValueError("Expected an eiathome-slices version 1 manifest")
+    entries = manifest["slices"]
+    if slice_id is not None:
+        entries = [entry for entry in entries if entry.get("id") == slice_id]
+        if len(entries) != 1:
+            raise ValueError("--slice-id must match exactly one manifest entry")
     records = []
-    for entry in manifest["slices"]:
+    for entry in entries:
         file = (path.parent / entry["file"]).resolve()
         if not file.is_relative_to(path.parent.resolve()):
             raise ValueError("Slice paths must stay inside the manifest directory")
@@ -38,26 +49,27 @@ def load_slices(manifest_path):
         if not np.isfinite(raw).all():
             raise ValueError("Non-finite signal samples")
         start = entry.get("source", {}).get("tstart_mjd")
-        if not isinstance(start, (int, float)) or not np.isfinite(start):
+        valid_start = isinstance(start, (int, float)) and np.isfinite(start)
+        if slice_id is None and not valid_start:
             raise ValueError("Every slice needs a finite source.tstart_mjd for splitting")
-        if entry.get("family") not in ("voyager", "offsource"):
+        if slice_id is None and entry.get("family") not in ("voyager", "offsource"):
             raise ValueError("Unknown real-data family")
         first = (shape[1] - CHANNELS) // 2
         frames = raw[:, first:first + CHANNELS].copy()
-        records.append({"entry": entry, "sha256": sha, "start": float(start),
+        records.append({"entry": entry, "sha256": sha, "start": float(start) if valid_start else None,
                         "frames": frames, "frame_hash": digest(frames.tobytes())})
     if not records:
         raise ValueError("The manifest contains no slices")
     families_by_hash = {}
     for record in records:
-        previous = families_by_hash.setdefault(record["frame_hash"], record["entry"]["family"])
-        if previous != record["entry"]["family"]:
+        previous = families_by_hash.setdefault(record["frame_hash"], record["entry"].get("family"))
+        if previous != record["entry"].get("family"):
             raise ValueError("Identical signal windows cannot be both signal and off-source controls")
     return sorted(records, key=lambda r: (r["start"], r["sha256"], r["entry"]["id"]))
 
 
 def groups(records, gap_days):
-    """Transitive time/hash components, including copies with inconsistent timestamps."""
+    """O(n log n) time/hash components, including copies with inconsistent timestamps."""
     parent = list(range(len(records)))
 
     def root(i):
@@ -66,43 +78,62 @@ def groups(records, gap_days):
             i = parent[i]
         return i
 
-    for i, a in enumerate(records):
-        for j in range(i):
-            b = records[j]
-            if (abs(a["start"] - b["start"]) <= gap_days
-                    or a["sha256"] == b["sha256"] or a["frame_hash"] == b["frame_hash"]):
-                parent[root(i)] = root(j)
+    by_sha, by_frame = {}, {}
+    previous = None
+    for i in sorted(range(len(records)), key=lambda i: records[i]["start"]):
+        record = records[i]
+        if previous is not None and record["start"] - records[previous]["start"] <= gap_days:
+            parent[root(i)] = root(previous)
+        for mapping, key in ((by_sha, "sha256"), (by_frame, "frame_hash")):
+            other = mapping.setdefault(record[key], i)
+            parent[root(i)] = root(other)
+        previous = i
     out = {}
     for i, record in enumerate(records):
         out.setdefault(root(i), []).append(record)
     return sorted(out.values(), key=lambda g: (min(r["start"] for r in g), min(r["sha256"] for r in g)))
 
 
+def unique_records(records):
+    """Copies don't provide extra training or evaluation evidence, including controls."""
+    unique = {}
+    for record in records:
+        unique.setdefault(record["frame_hash"], record)
+    return list(unique.values())
+
+
 def split_records(records, family="voyager", allow_within_session=False):
     # Include both families when establishing sessions, so a bridging scan isn't ignored.
-    units = [[r for r in g if r["entry"]["family"] == family] for g in groups(records, 0.5)]
+    units = [[r for r in g if r["entry"]["family"] == family] for g in groups(records, SESSION_GAP_DAYS)]
     units = [g for g in units if g]
     independent = len(units) >= 3
     if not independent:
         if not allow_within_session:
             raise ValueError("Need at least 3 independent sessions for train/validation/test. "
                              "For a labelled smoke test only, pass --allow-within-session.")
-        units = [[r for r in g if r["entry"]["family"] == family] for g in groups(records, 1e-8)]
+        units = [[r for r in g if r["entry"]["family"] == family] for g in groups(records, SCAN_GAP_DAYS)]
         units = [g for g in units if g]
         if len(units) < 3:
             raise ValueError("Need at least 3 distinct scans even for a within-session smoke test")
     # Chronological 60/20/20, with at least one whole group in every split.
-    n_eval = max(1, len(units) // 5)
+    n_eval = max(1, round(len(units) * 0.2))
     partitions = (units[:-2 * n_eval], units[-2 * n_eval:-n_eval], units[-n_eval:])
     result = {}
     for name, partition in zip(SPLITS, partitions):
-        # Copies don't provide extra training or evaluation evidence.
-        unique = {}
-        for group in partition:
-            for r in group:
-                unique.setdefault(r["frame_hash"], r)
-        result[name] = list(unique.values())
+        result[name] = unique_records(r for group in partition for r in group)
     return result, independent
+
+
+def split_sizes(records, partitions, independent):
+    units = groups(records, SESSION_GAP_DAYS if independent else SCAN_GAP_DAYS)
+    unit_hashes = [{r["frame_hash"] for r in group} for group in units]
+    sizes = {}
+    for name, part in partitions.items():
+        part_hashes = {r["frame_hash"] for r in part}
+        sizes[name] = {"groups": sum(bool(hashes & part_hashes) for hashes in unit_hashes),
+                       "slices": len(part), "frames": sum(len(r["frames"]) for r in part),
+                       "targets": sum(len(r["frames"]) - 1 for r in part)}
+    return sizes
 
 
 def signed_log(frames):
@@ -136,9 +167,16 @@ class Tokenizer:
         return cls(mean, scale, centres)
 
     def _nearest(self, x):
-        # Bound the temporary distance matrix for larger slice collections.
-        return np.concatenate([((batch[:, None] - self.centroids[None]) ** 2).sum(-1).argmin(-1)
-                               for batch in np.array_split(x, max(1, (len(x) + 255) // 256))])
+        # O(batch * vocabulary) temporary storage, not batch * vocabulary * channels.
+        # Float64 reduces cancellation near a centroid while keeping the matrix bounded.
+        centres = self.centroids.astype(np.float64)
+        norms = (centres ** 2).sum(axis=1)
+        labels = []
+        for start in range(0, len(x), 256):
+            batch = np.asarray(x[start:start + 256], dtype=np.float64)
+            distances = (batch ** 2).sum(axis=1, keepdims=True) - 2 * batch @ centres.T + norms
+            labels.append(distances.argmin(axis=1))
+        return np.concatenate(labels) if labels else np.empty(0, dtype=np.int64)
 
     def encode(self, frames):
         return self._nearest((signed_log(frames) - self.mean) / self.scale).astype(np.int64)
@@ -163,6 +201,11 @@ def markov_probabilities(sequences, k):
 def surrogate(sequences, kind, seed, probabilities):
     rng = np.random.default_rng(seed)
     unigram, transitions = probabilities
+    if kind == "markov":
+        first_cdf = np.cumsum(unigram)
+        transition_cdf = np.cumsum(transitions, axis=1)
+        first_cdf[-1] = 1.0
+        transition_cdf[:, -1] = 1.0  # eliminate cumulative-rounding overflow at the last token
     out = []
     for seq in sequences:
         if kind == "real":
@@ -170,9 +213,9 @@ def surrogate(sequences, kind, seed, probabilities):
         elif kind == "shuffled":
             out.append(rng.permutation(seq))
         elif kind == "markov":
-            generated = [rng.choice(len(unigram), p=unigram)]
+            generated = [int(np.searchsorted(first_cdf, rng.random(), side="right"))]
             for _ in range(len(seq) - 1):
-                generated.append(rng.choice(len(unigram), p=transitions[generated[-1]]))
+                generated.append(int(np.searchsorted(transition_cdf[generated[-1]], rng.random(), side="right")))
             out.append(np.array(generated, dtype=np.int64))
         else:
             raise ValueError(kind)

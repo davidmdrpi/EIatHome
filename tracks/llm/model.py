@@ -8,13 +8,17 @@ from torch import nn
 from torch.nn import functional as F
 
 
+def validate_config(vocab_size, context, width, layers, heads, dropout):
+    if min(vocab_size, context, width, layers, heads) < 1 or width % heads:
+        raise ValueError("Positive model dimensions required; width must be divisible by heads")
+    if not 0 <= dropout < 1:
+        raise ValueError("Dropout must be in [0, 1)")
+
+
 class SignalLM(nn.Module):
     def __init__(self, vocab_size=16, context=15, width=128, layers=4, heads=4, dropout=0.1):
         super().__init__()
-        if min(vocab_size, context, width, layers, heads) < 1 or width % heads:
-            raise ValueError("Positive model dimensions required; width must be divisible by heads")
-        if not 0 <= dropout < 1:
-            raise ValueError("Dropout must be in [0, 1)")
+        validate_config(vocab_size, context, width, layers, heads, dropout)
         self.config = dict(vocab_size=vocab_size, context=context, width=width,
                            layers=layers, heads=heads, dropout=dropout)
         self.token = nn.Embedding(vocab_size, width)
@@ -48,13 +52,13 @@ def batches(examples, batch_size, device, order=None):
     for start in range(0, len(examples), batch_size):
         chosen = [examples[i] for i in order[start:start + batch_size]]
         n = max(len(y) for _, y in chosen)
-        x = torch.zeros(len(chosen), n, dtype=torch.long, device=device)
-        y = torch.full_like(x, -100)
+        x = np.zeros((len(chosen), n), dtype=np.int64)
+        y = np.full_like(x, -100)
         for i, (a, b) in enumerate(chosen):
             # Inputs can include one unused final token in the last chunk; trim to targets.
-            x[i, :len(b)] = torch.as_tensor(a[:len(b)], device=device)
-            y[i, :len(b)] = torch.as_tensor(b, device=device)
-        yield x, y
+            x[i, :len(b)] = a[:len(b)]
+            y[i, :len(b)] = b
+        yield torch.from_numpy(x).to(device), torch.from_numpy(y).to(device)
 
 
 @torch.no_grad()
@@ -73,7 +77,9 @@ def evaluate(model, sequences, batch_size=32):
 
 
 def fit(sequences, validation, config, epochs, batch_size, lr, patience, seed, device):
-    torch.manual_seed(seed)
+    torch.random.default_generator.manual_seed(seed)
+    if str(device).startswith("cuda"):
+        torch.cuda.manual_seed_all(seed)
     model = SignalLM(**config).to(device)
     optimizer = torch.optim.AdamW(model.parameters(), lr=lr, weight_decay=0.01)
     examples = windows(sequences, config["context"])
@@ -106,15 +112,24 @@ def fit(sequences, validation, config, epochs, batch_size, lr, patience, seed, d
 
 
 @torch.no_grad()
-def generate(model, prompt, count=32, seed=0, temperature=1.0):
-    if not prompt or count < 0 or not math.isfinite(temperature) or temperature <= 0:
+def generate(model, prompt, count=None, seed=0, temperature=1.0):
+    if not prompt or (count is not None and count < 0) or not math.isfinite(temperature) or temperature <= 0:
         raise ValueError("Need a nonempty prompt, nonnegative length, and positive finite temperature")
+    capacity = model.config["context"] + 1 - len(prompt)
+    count = capacity if count is None else count
+    if capacity < 1 or count > capacity:
+        raise ValueError(f"Continuation exceeds the trained context; this prompt allows at most {max(0, capacity)} tokens")
     model.eval()
     device = next(model.parameters()).device
     rng = torch.Generator(device=device).manual_seed(seed)
     tokens = list(prompt)
     for _ in range(count):
-        x = torch.tensor([tokens[-model.config["context"]:]], device=device)
-        probabilities = torch.softmax(model(x)[0, -1] / temperature, dim=-1)
+        # Keep frame 0 at position 0. No untrained sliding-position alignment is introduced.
+        x = torch.tensor([tokens], device=device)
+        logits = model(x)[0, -1].double()
+        if not torch.isfinite(logits).all():
+            raise ValueError("Model produced non-finite logits")
+        # Centre before dividing: tiny positive temperatures approach greedy decoding safely.
+        probabilities = torch.softmax((logits - logits.max()) / temperature, dim=-1)
         tokens.append(torch.multinomial(probabilities, 1, generator=rng).item())
     return tokens[len(prompt):]

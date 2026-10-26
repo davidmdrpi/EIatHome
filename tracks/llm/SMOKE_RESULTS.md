@@ -8,8 +8,8 @@ epochs with validation early stopping, and an explicit within-session scan holdo
 Commands (from the repository root):
 
 ```bash
-python -m tracks.llm.train --allow-within-session --output runs/voyager-smoke
-python -m tracks.llm.train --family offsource --allow-within-session --output runs/offsource-smoke
+python -m tracks.llm.train --allow-within-session --output runs/voyager-review-fix
+python -m tracks.llm.train --family offsource --allow-within-session --output runs/offsource-review-fix
 ```
 
 | Training family / stream | Transformer bits/token | Unigram bits/token | Markov-1 bits/token | Best epoch | Test targets |
@@ -33,8 +33,13 @@ Environment:
 
 - Python 3.12.14; NumPy 2.3.5; PyTorch 2.14.1+cpu; CPU, one thread.
 - Dataset fingerprint: `c177da9075e20ce4ef3165e20c2669f30e26db5f351efb6427d1ec605281d339`.
-- Training code fingerprint: `a32183736359db97fd4f69c63bdb2d71835dd5895679533f88e951ac83a776b2`.
+- Training code fingerprint: `802101756afbf8335c30f98d0f6af873ca072c671df472c67974f8601b436402` (data, model, training and runtime modules).
 
 Both runs also wrote loadable inference checkpoints and generated frames. The standalone
-sampling command in README.md was exercised and produced a finite 32 × 64 frame array.
+sampling command in README.md was exercised and produced a finite 8 × 64 frame array,
+bounded by the trained context. The earlier 32-frame continuation is superseded: it slid position alignments beyond the training distribution.
 Binary checkpoints are intentionally not committed; the commands reproduce them.
+
+Regenerated after the review fixes. Both reports record one scan group, three distinct
+slices, 48 frames and 45 targets in each split. The reported four-decimal metrics are
+unchanged by the optimized tokenizer and surrogate implementations.
