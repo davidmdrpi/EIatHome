@@ -28,7 +28,8 @@ def main(argv=None):
     p.add_argument("--manifest", type=Path, required=True)
     p.add_argument("--slice-id", required=True)
     p.add_argument("--prompt-frames", type=int, default=8)
-    p.add_argument("--tokens", type=int, default=None, help="Default: fill the trained context; never slide beyond it")
+    p.add_argument("--tokens", type=int, default=None,
+                   help="Default: fill the trained context. Only RoPE checkpoints continue past it, sliding a window of at most context tokens")
     p.add_argument("--seed", type=int, default=42)
     p.add_argument("--temperature", type=float, default=1)
     p.add_argument("--output", type=Path, required=True)
@@ -48,7 +49,11 @@ def main(argv=None):
                     "checkpoint_dataset": checkpoint["dataset_sha256"], "variant": checkpoint["variant"],
                     "source": record["entry"], "prompt": prompt, "generated": tokens,
                     "seed": args.seed, "temperature": args.temperature,
-                    "note": "Codebook-centroid continuation within the trained context; not a decoded message.",
+                    "position": model.config["position"],
+                    "note": ("Codebook-centroid continuation; past the trained context each step conditions on the last "
+                             "context tokens (RoPE). Qualitative: not a forecast or a decoded message."
+                             if len(prompt) + len(tokens) > model.config["context"] + 1 else
+                             "Codebook-centroid continuation within the trained context; not a decoded message."),
                 }, indent=2) + "\n")
     except (ValueError, OSError, RuntimeError) as exc:
         p.error(str(exc))
