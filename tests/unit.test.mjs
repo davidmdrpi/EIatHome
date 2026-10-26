@@ -5,6 +5,7 @@ import { deriveSeed, makeRng } from '../web/js/rng.js';
 import { T, makeSnippet, normalise, rosettaSymbols } from '../web/js/signals.js';
 import { canonicalOrder, datasetId, parseSlice } from '../web/js/slices.js';
 import { voyagerPools } from '../web/js/splits.js';
+import { conditionalEntropies, heldOutCrossEntropy, markovSurrogate, shuffleSurrogate } from '../web/js/trackb.js';
 import { ROSETTA_CORPUS, workUnitConfig } from '../web/js/workunits.js';
 import { entry, lineSlice, sha256, sliceBytes } from './fixtures.mjs';
 
@@ -135,6 +136,23 @@ test('Rosetta training and evaluation windows come from different parts of the t
       else assert.ok(start >= split);
     }
   }
+});
+
+test('held-out cross-entropy does not collapse for shuffled tokens', () => {
+  const text = Uint16Array.from(rosettaSymbols().subarray(0, 2048));
+  const shuffled = shuffleSurrogate(text, makeRng(1));
+  const ce = heldOutCrossEntropy(shuffled, 16).map((r) => r.bits);
+  for (const bits of ce.slice(1)) assert.ok(bits >= ce[0] - 0.05, `shuffled stays flat: ${ce.map((b) => b.toFixed(2))}`);
+  const plugIn = conditionalEntropies(shuffled, 16).map((r) => r.h);
+  assert.ok(plugIn[3] < plugIn[0] - 1, 'the plug-in estimate does collapse here, which is why it is no longer the headline');
+});
+
+test('held-out cross-entropy finds the structure in English text', () => {
+  const text = Uint16Array.from(rosettaSymbols().subarray(0, 2048));
+  const ce = heldOutCrossEntropy(text, 16).map((r) => r.bits);
+  assert.ok(ce[1] < ce[0] - 0.5, `one token of context helps: ${ce.map((b) => b.toFixed(2))}`);
+  const markov = heldOutCrossEntropy(markovSurrogate(text, 16, makeRng(2)), 16).map((r) => r.bits);
+  assert.ok(ce[3] < markov[3] - 0.2, 'text has structure longer than pairs; a Markov-1 copy does not');
 });
 
 test('the work-unit Rosetta corpus is pinned by its hash', () => {

@@ -7,6 +7,7 @@ import { canonicalOrder } from './slices.js';
 import {
   compressedBitsPerToken,
   conditionalEntropies,
+  heldOutCrossEntropy,
   kmeans,
   markovSurrogate,
   mutualInformation,
@@ -48,7 +49,7 @@ async function analyze({ family, k, nFrames, seed, text }) {
   const n = nSnippets * T;
   const frames = new Float32Array(n * C);
   snippets.forEach((raw, i) => frames.set(normalise(raw), i * T * C));
-  const tokens = kmeans(frames, n, C, k, rng).labels;
+  const { labels: tokens, centroids } = kmeans(frames, n, C, k, rng);
 
   const streams = {
     real: tokens,
@@ -56,9 +57,11 @@ async function analyze({ family, k, nFrames, seed, text }) {
     markov: markovSurrogate(tokens, k, rng),
   };
   const entropy = {};
+  const crossEntropy = {};
   const compression = {};
   for (const [name, stream] of Object.entries(streams)) {
     entropy[name] = conditionalEntropies(stream, k);
+    crossEntropy[name] = heldOutCrossEntropy(stream, k);
     compression[name] = await compressedBitsPerToken(stream);
   }
   const lags = Array.from({ length: MAX_LAG }, (_, i) => i + 1);
@@ -70,7 +73,11 @@ async function analyze({ family, k, nFrames, seed, text }) {
     preview: Array.from(tokens.subarray(0, 48)),
     notes,
     entropy,
+    crossEntropy,
     compression,
+    // For the token language model: the three streams and what each token looks like.
+    streams,
+    centroids,
     zipf: {
       unigram: { real: rankFrequency(streams.real, 1, k), shuffled: rankFrequency(streams.shuffled, 1, k) },
       bigram: { real: rankFrequency(streams.real, 2, k), shuffled: rankFrequency(streams.shuffled, 2, k) },

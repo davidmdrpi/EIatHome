@@ -98,6 +98,74 @@ export function conditionalEntropies(tokens, k, maxOrder = 4) {
   return out;
 }
 
+// Held-out cross-entropy (bits per token) of a smoothed n-gram model: fitted on the first
+// `trainFraction` of the stream and scored on the rest. Plug-in entropies collapse when there
+// are more possible contexts than tokens, because most n-grams are seen once. A held-out score
+// can't be lowered by memorizing them, so a shuffled stream stays near its single-token entropy
+// at every context length, and any drop means the context really predicts the next token.
+//
+// Smoothing is hierarchical (Dirichlet): the estimate for a context of length L backs off to
+// the estimate for its last L-1 tokens, with concentration `beta`, down to a uniform 1/k.
+// For each context length, beta is chosen on the last 20% of the training part, then the model
+// is refitted on the whole training part.
+const BETAS = [0.25, 0.5, 1, 2, 4, 8, 16, 32, 64];
+
+function ngramTables(tokens, maxContext, k) {
+  const tables = [];
+  for (let L = 0; L <= maxContext; L++) {
+    const joint = new Map(); // context + next token
+    const context = new Map(); // context followed by any token
+    for (let i = L; i < tokens.length; i++) {
+      let key = 0;
+      for (let j = i - L; j < i; j++) key = key * k + tokens[j];
+      context.set(key, (context.get(key) ?? 0) + 1);
+      const full = key * k + tokens[i];
+      joint.set(full, (joint.get(full) ?? 0) + 1);
+    }
+    tables.push({ joint, context });
+  }
+  return tables;
+}
+
+function scoreBits(tables, scored, contextLength, k, beta) {
+  let bits = 0;
+  let n = 0;
+  for (let i = contextLength; i < scored.length; i++) {
+    let p = 1 / k;
+    for (let L = 0; L <= contextLength; L++) {
+      let key = 0;
+      for (let j = i - L; j < i; j++) key = key * k + scored[j];
+      const { joint, context } = tables[L];
+      p = ((joint.get(key * k + scored[i]) ?? 0) + beta * p) / ((context.get(key) ?? 0) + beta);
+    }
+    bits -= Math.log2(p);
+    n++;
+  }
+  return bits / n;
+}
+
+export function heldOutCrossEntropy(tokens, k, maxContext = 3, trainFraction = 0.8) {
+  const split = Math.floor(tokens.length * trainFraction);
+  const train = tokens.subarray(0, split);
+  const test = tokens.subarray(split);
+  const devSplit = Math.floor(train.length * 0.8);
+  const fit = ngramTables(train.subarray(0, devSplit), maxContext, k);
+  const dev = train.subarray(devSplit);
+  const full = ngramTables(train, maxContext, k);
+  return Array.from({ length: maxContext + 1 }, (_, L) => {
+    let best = BETAS[0];
+    let bestBits = Infinity;
+    for (const beta of BETAS) {
+      const bits = scoreBits(fit, dev, L, k, beta);
+      if (bits < bestBits) {
+        bestBits = bits;
+        best = beta;
+      }
+    }
+    return { context: L, bits: scoreBits(full, test, L, k, best), beta: best };
+  });
+}
+
 // Rank-frequency of n-grams, normalized to frequencies (for Zipf plots).
 export function rankFrequency(tokens, n, k) {
   const counts = [...ngramCounts(tokens, n, k).values()].sort((a, b) => b - a);

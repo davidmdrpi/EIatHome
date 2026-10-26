@@ -411,13 +411,17 @@ function renderTrackB() {
   const entropySeries = STREAMS.map((s) => ({
     name: s.name,
     color: s.color,
-    points: r.entropy[s.id].map((e) => [e.n - 1, e.h]),
-    hollow: (i) => !r.entropy[s.id][i].reliable,
+    points: r.crossEntropy[s.id].map((e) => [e.context, e.bits]),
   }));
   legend($('tb-entropy'), entropySeries);
-  lineChart($('tb-entropy'), entropySeries, { xLabel: 'tokens of context', yLabel: 'bits', markers: true, yMin: 0 });
+  lineChart($('tb-entropy'), entropySeries, { xLabel: 'tokens of context', yLabel: 'bits per token (held out)', markers: true, yMin: 0 });
   fillTable(
     $('tb-entropy-table'),
+    ['Context', ...r.crossEntropy.real.map((e) => e.context)],
+    STREAMS.map((s) => [s.name, ...r.crossEntropy[s.id].map((e) => fmt(e.bits))]),
+  );
+  fillTable(
+    $('tb-plugin-table'),
     ['Context', ...r.entropy.real.map((e) => e.n - 1)],
     STREAMS.map((s) => [s.name, ...r.entropy[s.id].map((e) => `${fmt(e.h)}${e.reliable ? '' : '*'}`)]),
   );

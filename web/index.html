@@ -109,10 +109,15 @@
           <div id="tb-tiles" class="tiles"></div>
           <div class="grid inner">
             <figure>
-              <figcaption>Conditional entropy of the next token (bits)</figcaption>
-              <canvas id="tb-entropy" data-height="190" aria-label="Conditional entropy by context length"></canvas>
+              <figcaption>Held-out cross-entropy of the next token (bits)</figcaption>
+              <canvas id="tb-entropy" data-height="190" aria-label="Held-out cross-entropy by context length"></canvas>
               <div class="table-wrap"><table id="tb-entropy-table"></table></div>
-              <p class="muted small">Hollow markers: too few samples for a reliable estimate.</p>
+              <p class="muted small">A smoothed n-gram model fitted on the first 80% of the tokens and scored on the last 20%. Lower means the context predicts the next token. A shuffled stream should stay flat.</p>
+              <details class="small">
+                <summary>Plug-in estimates (biased when there are more contexts than tokens)</summary>
+                <div class="table-wrap"><table id="tb-plugin-table"></table></div>
+                <p class="muted small">* Too few samples for a reliable estimate. With 16 tokens and 3 tokens of context there are 4,096 possible contexts, so most are seen only once, and these estimates fall toward zero even for random order.</p>
+              </details>
             </figure>
             <figure>
               <figcaption>Mutual information between tokens <i>d</i> apart (bits)</figcaption>
