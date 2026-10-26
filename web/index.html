@@ -136,6 +136,16 @@
             </figure>
           </div>
           <p id="tb-notes" class="muted small"></p>
+
+          <h3>Does it speak back? A token language model</h3>
+          <p class="muted small">A small causal GRU (16-dimensional token embeddings, 32 hidden units) learns to predict the next radio token. It trains for 10 epochs on the first 80% of each stream and is scored on the last 20%, like the n-gram model above. Then it continues the real stream from a 16-token prompt. Each token is drawn as its k-means centroid frame.</p>
+          <div class="buttons"><button id="tb-lm" type="button">Train token model</button></div>
+          <p id="tb-lm-status" class="status" role="status" aria-live="polite"></p>
+          <div class="table-wrap"><table id="tb-lm-table"></table></div>
+          <div class="pair" id="tb-lm-sample" hidden>
+            <figure><figcaption>The real stream’s next 32 tokens</figcaption><canvas id="tb-lm-real" data-height="210" aria-label="Real continuation"></canvas></figure>
+            <figure><figcaption>The model’s continuation (sampled)</figcaption><canvas id="tb-lm-generated" data-height="210" aria-label="Model continuation"></canvas></figure>
+          </div>
         </div>
       </div>
     </section>

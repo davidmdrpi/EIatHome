@@ -106,6 +106,21 @@ test('every Track A model trains, at the parameter count the size matching promi
   await page.close();
 });
 
+test('the token language model finds the structure in Rosetta text but not in shuffled tokens', async () => {
+  const { page, errors } = await openLab();
+  await page.click('#families button[data-family="rosetta"]');
+  await page.waitForFunction(() => document.getElementById('tb-status').textContent.startsWith('Rosetta'), null, { timeout: 60000 });
+  await page.click('#tb-lm');
+  await page.waitForFunction(() => /^Done/.test(document.getElementById('tb-lm-status').textContent), null, { timeout: 240000 });
+  const rows = await page.$$eval('#tb-lm-table tbody tr', (trs) => trs.map((tr) => [...tr.cells].map((td) => td.textContent)));
+  const bits = Object.fromEntries(rows.map(([name, model, , noContext]) => [name, { model: Number(model), noContext: Number(noContext) }]));
+  assert.ok(bits.real.model < bits.shuffled.model - 0.5, JSON.stringify(bits));
+  assert.ok(Math.abs(bits.shuffled.model - bits.shuffled.noContext) < 0.3, 'early stopping keeps shuffled near its no-context entropy');
+  assert.equal(await page.isVisible('#tb-lm-sample'), true);
+  assert.deepEqual(errors, []);
+  await page.close();
+});
+
 test('training on the only Voyager observation is labelled as reconstruction', async () => {
   const { page, errors } = await openLab();
   await loadSlices(page, [

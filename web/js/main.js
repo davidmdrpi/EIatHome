@@ -153,9 +153,21 @@ function onEngineMessage(msg) {
       setRunning(null);
       unitStatus(`Unit ${msg.unit} stopped.`);
       break;
+    case 'token-lm-progress':
+      $('tb-lm-status').textContent = `Training on the ${STREAM_NAMES[msg.stream]} stream: epoch ${msg.epoch} of ${msg.epochs}…`;
+      break;
+    case 'token-lm-result':
+      setRunning(null);
+      state.tokenLm = msg.stopped ? null : { ...msg, analysis: state.tokenLmFor };
+      $('tb-lm-status').textContent = msg.stopped ? 'Stopped.' : 'Done. Lower is better; compare the real stream with its surrogates.';
+      renderTokenModel();
+      break;
     case 'error':
       if (state.running === 'unit') unitStatus(msg.message, true);
-      else labStatus(msg.message, true);
+      else if (state.running === 'tokens') {
+        $('tb-lm-status').textContent = msg.message;
+        $('tb-lm-status').classList.add('error');
+      } else labStatus(msg.message, true);
       setRunning(null);
       break;
   }
@@ -166,6 +178,7 @@ function setRunning(mode) {
   const busy = mode !== null;
   $('train').disabled = busy;
   $('wu-run').disabled = busy;
+  $('tb-lm').disabled = busy;
   $('stop').disabled = mode !== 'lab';
   $('wu-stop').disabled = mode !== 'unit';
   $('backend').disabled = busy;
@@ -384,6 +397,10 @@ function onTrackB(msg) {
     return;
   }
   state.trackb = msg;
+  if (state.tokenLm?.analysis !== msg) {
+    state.tokenLm = null; // the token model belongs to the previous token stream
+    if (state.running !== 'tokens') $('tb-lm-status').textContent = '';
+  }
   $('tb-status').textContent = `${familyById[msg.family].label}: ${msg.nTokens.toLocaleString()} tokens, ${msg.used} of ${msg.k} token types used. First tokens: ${msg.preview.map((t) => t.toString(36)).join(' ')}`;
   renderTrackB();
 }
@@ -441,6 +458,53 @@ function renderTrackB() {
     lineChart($(canvasId), [...series].reverse(), { xLabel: 'rank', yLabel: 'frequency', logX: true, logY: true, yFormat: (v) => v.toPrecision(2) });
   }
   $('tb-notes').textContent = r.notes.join(' ');
+}
+
+const STREAM_NAMES = Object.fromEntries(STREAMS.map((s) => [s.id, s.name]));
+
+function startTokenModel() {
+  if (state.running) return;
+  if (!state.trackb) {
+    $('tb-lm-status').textContent = 'Analyze tokens first.';
+    return;
+  }
+  const r = state.trackb;
+  state.tokenLmFor = r;
+  state.tokenLm = null;
+  renderTokenModel();
+  $('tb-lm-status').classList.remove('error');
+  $('tb-lm-status').textContent = 'Starting…';
+  setRunning('tokens');
+  engine.postMessage({ type: 'token-lm', k: r.k, streams: r.streams, centroids: r.centroids, seed: Number($('seed').value) || 0 });
+}
+
+function renderTokenModel() {
+  const m = state.tokenLm;
+  const r = state.trackb;
+  const show = Boolean(m && r && m.analysis === r);
+  $('tb-lm-sample').hidden = !show || !m.sample;
+  if (!show) {
+    $('tb-lm-table').replaceChildren();
+    return;
+  }
+  fillTable(
+    $('tb-lm-table'),
+    ['Stream (held out, bits per token)', 'Token GRU', 'n-gram, 3 tokens of context', 'No context', 'Best epoch'],
+    STREAMS.filter((s) => m.results[s.id]).map((s) => [
+      s.name,
+      fmt(m.results[s.id].bits),
+      fmt(r.crossEntropy[s.id][3].bits),
+      fmt(r.crossEntropy[s.id][0].bits),
+      `${m.results[s.id].bestEpoch} of ${m.epochs}`,
+    ]),
+  );
+  if (m.sample) {
+    const { real, generated, rows } = m.sample;
+    const top = Math.max(3, ...real, ...generated);
+    const options = { range: [-1, top], label: 'power (asinh)', rowLabel: 'token', firstRow: 1 };
+    heatmap($('tb-lm-real'), real, rows, C, options);
+    heatmap($('tb-lm-generated'), generated, rows, C, options);
+  }
 }
 
 // ---------- work units ----------
@@ -553,6 +617,7 @@ function redraw() {
   if (state.lastEpoch) renderLab();
   else renderPreview();
   renderTrackB();
+  renderTokenModel();
 }
 
 function showTab(name) {
@@ -602,6 +667,7 @@ function init() {
     analyzeTokens();
   };
   $('analyze').onclick = analyzeTokens;
+  $('tb-lm').onclick = startTokenModel;
   $('k').onchange = analyzeTokens;
   $('nframes').onchange = analyzeTokens;
 
