@@ -1,0 +1,3 @@
+# CPU: install torch separately with --index-url https://download.pytorch.org/whl/cpu
+numpy>=1.24,<3
+torch>=2.6,<3
