@@ -8,7 +8,7 @@ import { canonicalOrder, datasetId, parseSlice } from '../web/js/slices.js';
 import { voyagerPools } from '../web/js/splits.js';
 import { conditionalEntropies, heldOutCrossEntropy, markovSurrogate, shuffleSurrogate } from '../web/js/trackb.js';
 import { ROSETTA_CORPUS, workUnitConfig } from '../web/js/workunits.js';
-import { entry, lineSlice, sha256, sliceBytes } from './fixtures.mjs';
+import { entry, lineSlice, publishedSlices, sha256, sliceBytes } from './fixtures.mjs';
 
 test('slice loading verifies the SHA-256 of the bytes', async () => {
   const ones = sliceBytes(() => 1);
@@ -21,6 +21,16 @@ test('slice loading verifies the SHA-256 of the bytes', async () => {
   assert.equal(loaded.sha256, sha256(ones));
   const noDigest = await parseSlice(entry({ id: 'd' }), twos);
   assert.equal(noDigest.sha256, sha256(twos), 'records the computed digest when the manifest has none');
+});
+
+test('the published Voyager slices verify and credit their observations', async () => {
+  const slices = await publishedSlices(); // rejects if any file doesn't match its SHA-256
+  assert.ok(slices.length > 0);
+  for (const s of slices) {
+    assert.equal(s.family, 'voyager');
+    assert.match(s.source.url, /^https:\/\//, `${s.id} links to its observation`);
+    assert.ok(Number.isFinite(s.startMjd), `${s.id} records when its scan started`);
+  }
 });
 
 test('slice loading rejects entries without string identifiers', async () => {

@@ -9,7 +9,9 @@ import { fileURLToPath } from 'node:url';
 
 import { validateCard } from '../web/js/community.js';
 import { matchedSize, parameterCount } from '../web/js/models.js';
-import { lineSlice, makeCard, writeSliceFolder } from './fixtures.mjs';
+import { datasetId } from '../web/js/slices.js';
+import { sessions } from '../web/js/splits.js';
+import { lineSlice, makeCard, publishedSlices, writeSliceFolder } from './fixtures.mjs';
 
 const { chromium } = createRequire(import.meta.url)('playwright');
 const WEB = fileURLToPath(new URL('../web/', import.meta.url));
@@ -128,6 +130,21 @@ test('the token language model finds the structure in Rosetta text but not in sh
   await page.close();
 });
 
+test('the published Voyager slices load at startup, and the gains table says whether they were held out', async () => {
+  const published = await publishedSlices();
+  const { page, errors } = await openLab();
+  await page.waitForFunction(() => /loaded from this site/.test(document.getElementById('slice-status').textContent), null, { timeout: 30000 });
+  assert.equal(await page.locator('#slice-table tbody tr').count(), published.length);
+  assert.equal(await page.isDisabled('#families button[data-family="voyager"]'), false);
+
+  await train(page, 'voyager');
+  const label = await page.textContent('#gains tbody tr.current td:first-child');
+  if (sessions(published).length < 2) assert.match(label, /not held out/);
+  else assert.doesNotMatch(label, /not held out/);
+  assert.deepEqual(errors, []);
+  await page.close();
+});
+
 test('training on the only Voyager observation is labelled as reconstruction', async () => {
   const { page, errors } = await openLab();
   await loadSlices(page, [
@@ -179,8 +196,11 @@ test('work units evaluate the frozen corpus, whatever custom text is set', async
 
 test('a card from a real work unit passes the checks the ingestion workflow runs', async () => {
   const { page, errors } = await openLab();
+  await page.waitForFunction(() => /loaded from this site/.test(document.getElementById('slice-status').textContent), null, { timeout: 30000 });
   const card = await runUnit(page, 2);
-  assert.deepEqual(validateCard(card, { publishedDatasetId: null }), []);
+  const publishedDatasetId = await datasetId(await publishedSlices());
+  assert.equal(card.inputs.voyager.dataset_id, publishedDatasetId);
+  assert.deepEqual(validateCard(card, { publishedDatasetId }), []);
   assert.deepEqual(errors, []);
   await page.close();
 });

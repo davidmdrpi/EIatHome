@@ -63,6 +63,7 @@ const store = {
 const state = {
   family: 'tone',
   slices: [],
+  sliceSource: null, // 'site' | 'files' | null
   running: null, // 'lab' | 'unit' | null
   losses: [],
   lastEpoch: null,
@@ -631,15 +632,19 @@ async function loadCommunity() {
 // ---------- data ----------
 
 function setSlices(slices, source) {
+  // The published slices load in the background; never let them replace files the volunteer dropped.
+  if (source === 'site' && state.sliceSource === 'files') return;
   state.slices = slices;
+  state.sliceSource = source;
   broadcast({ type: 'slices', slices: forWorkers(slices) });
   renderFamilies();
   const status = $('slice-status');
   if (!slices.length) {
     status.textContent = 'No Voyager slices are published with this site yet. Maintainers create them with tools/extract_slices.py; you can also drop slice files below.';
   } else {
-    const file = slices[0].source?.file ?? 'unknown file';
-    status.textContent = `${slices.length} Voyager slices loaded ${source === 'site' ? 'from this site' : 'from your files'} (source: ${file}). The Voyager button is now enabled.`;
+    const files = new Set(slices.map((s) => s.source?.file ?? 'unknown file'));
+    const origin = files.size === 1 ? `source: ${[...files][0]}` : `from ${files.size} scans`;
+    status.textContent = `${slices.length} Voyager slices loaded ${source === 'site' ? 'from this site' : 'from your files'} (${origin}). The Voyager button is now enabled.`;
   }
   if (slices.length) {
     fillTable(

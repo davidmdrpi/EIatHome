@@ -9,7 +9,8 @@ Example (the Voyager 1 file from the Hello, Voyager notebook):
 
     python tools/extract_slices.py data/Voyager1.single_coarse.fine_res.h5
 
-This writes web/data/slices/index.json plus one .bin file per signal. The detection steps
+This writes web/data/slices/index.json plus one .bin file per signal. Pass several files to
+extract them together, and --append to add to the slices already published. The detection steps
 match tracks/rnn/hello_voyager.ipynb: mask the DC spike, flatten the bandpass, run a small
 de-Doppler search, and measure each signal's drift by tracking it frame by frame.
 """
@@ -23,7 +24,7 @@ import h5py
 import hdf5plugin  # noqa: F401  (registers the bitshuffle filter used in Breakthrough Listen files)
 import numpy as np
 
-VERSION = "0.1.0"
+VERSION = "0.2.0"
 
 
 def load(path):
@@ -93,17 +94,16 @@ def track(z, start, drift, half=6):
     return np.array(positions)
 
 
-def main():
-    parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    parser.add_argument("h5", type=Path, help="Breakthrough Listen filterbank HDF5 file")
-    parser.add_argument("--out", type=Path, default=Path("web/data/slices"), help="output folder")
-    parser.add_argument("--width", type=int, default=256, help="channels per slice")
-    parser.add_argument("--max-signals", type=int, default=3)
-    parser.add_argument("--threshold", type=float, default=15, help="minimum de-Doppler SNR")
-    parser.add_argument("--prefix", default="voyager1", help="prefix for slice ids and file names")
-    args = parser.parse_args()
+def scan_label(header):
+    """MJD day and seconds after midnight, e.g. 59046-80036: unique per scan, unlike file names."""
+    tstart = float(header["tstart"])
+    day = int(tstart)
+    return f"{day}-{round((tstart - day) * 86400):05d}"
 
-    data, header = load(args.h5)
+
+def extract(path, args):
+    """Slices for every signal found in one file."""
+    data, header = load(path)
     n_t, n_chan = data.shape
     fch1, foff, tsamp = float(header["fch1"]), float(header["foff"]), float(header["tsamp"])
     foff_hz = foff * 1e6
@@ -116,11 +116,13 @@ def main():
     snr[mid - args.width: mid + args.width] = -np.inf
     peaks = find_peaks(snr, args.max_signals, args.threshold, exclusion=args.width)
     if not peaks:
-        raise SystemExit("No signals above threshold.")
+        # Normal for the off-source scans of an on/off cadence: the transmitter isn't in the beam.
+        print(f"  skipped {path.name}: no signal above SNR {args.threshold:g} (an off-source scan?)")
+        return []
 
+    label = scan_label(header)
     brightest = max(peaks, key=lambda p: snr[p])
-    args.out.mkdir(parents=True, exist_ok=True)
-    entries = []
+    slices = []
     sidebands = 0
     for p in sorted(peaks, key=lambda p: fch1 + foff * p):
         positions = track(z, p, best_drift[p])
@@ -133,45 +135,83 @@ def main():
         else:
             sidebands += 1
             group, name = "sideband", f"sideband-{sidebands}"
-        file_name = f"{args.prefix}-{name}.bin"
+        slice_id = f"{args.prefix}-{label}-{name}"
+        source = {
+            "file": path.name,
+            "source_name": str(header.get("source_name", "")),
+            "tstart_mjd": float(header.get("tstart", np.nan)),
+            "fch1_mhz": fch1,
+            "foff_hz": foff_hz,
+            "tsamp_s": tsamp,
+            "first_channel": first,
+            "centre_freq_mhz": fch1 + foff * centre,
+            "drift_channels_per_step": float(slope),
+            "drift_hz_per_s": float(slope * foff_hz / tsamp),
+            "snr": float(snr[p]),
+        }
+        if args.source_base_url:
+            source["url"] = args.source_base_url.rstrip("/") + "/" + path.name
         payload = window.tobytes()
-        (args.out / file_name).write_bytes(payload)
-        entries.append({
-            "id": f"{args.prefix}-{name}",
+        slices.append((payload, {
+            "id": slice_id,
             "family": "voyager",
             "group": group,
-            "file": file_name,
+            "file": f"{slice_id}.bin",
             "dtype": "float32-le",
             "shape": [n_t, args.width],
             "units": "noise sigma, bandpass-flattened",
             "sha256": hashlib.sha256(payload).hexdigest(),
-            "source": {
-                "file": args.h5.name,
-                "source_name": str(header.get("source_name", "")),
-                "tstart_mjd": float(header.get("tstart", np.nan)),
-                "fch1_mhz": fch1,
-                "foff_hz": foff_hz,
-                "tsamp_s": tsamp,
-                "first_channel": first,
-                "centre_freq_mhz": fch1 + foff * centre,
-                "drift_channels_per_step": float(slope),
-                "drift_hz_per_s": float(slope * foff_hz / tsamp),
-                "snr": float(snr[p]),
-            },
-        })
+            "source": source,
+        }))
+    return slices
+
+
+def main():
+    parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+    parser.add_argument("h5", type=Path, nargs="+", help="Breakthrough Listen filterbank HDF5 file(s)")
+    parser.add_argument("--out", type=Path, default=Path("web/data/slices"), help="output folder")
+    parser.add_argument("--append", action="store_true", help="add to the manifest already in --out instead of replacing it")
+    parser.add_argument("--source-base-url", help="where the input files can be downloaded (recorded for each slice)")
+    parser.add_argument("--width", type=int, default=256, help="channels per slice")
+    parser.add_argument("--max-signals", type=int, default=3)
+    parser.add_argument("--threshold", type=float, default=15, help="minimum de-Doppler SNR")
+    parser.add_argument("--prefix", default="voyager1", help="prefix for slice ids and file names")
+    args = parser.parse_args()
+
+    args.out.mkdir(parents=True, exist_ok=True)
+    manifest_path = args.out / "index.json"
+    entries = []
+    if args.append and manifest_path.exists():
+        entries = json.loads(manifest_path.read_text())["slices"]
+    known_hashes = {e["sha256"] for e in entries}
+    known_ids = {e["id"] for e in entries}
+
+    added = []
+    for path in args.h5:
+        for payload, entry in extract(path, args):
+            if entry["sha256"] in known_hashes:
+                print(f"  skipped {entry['id']}: identical data is already in the manifest")
+                continue
+            if entry["id"] in known_ids:
+                raise SystemExit(f"{entry['id']} is already in the manifest with different data.")
+            (args.out / entry["file"]).write_bytes(payload)
+            entries.append(entry)
+            added.append(entry)
+            known_hashes.add(entry["sha256"])
+            known_ids.add(entry["id"])
 
     manifest = {
         "format": "eiathome-slices",
         "version": 1,
         "extracted_by": f"tools/extract_slices.py {VERSION}",
-        "slices": entries,
+        "slices": sorted(entries, key=lambda e: e["id"]),
     }
-    (args.out / "index.json").write_text(json.dumps(manifest, indent=2) + "\n")
+    manifest_path.write_text(json.dumps(manifest, indent=2) + "\n")
 
-    print(f"Wrote {len(entries)} slices to {args.out}/")
-    for e in entries:
+    print(f"Added {len(added)} slices to {args.out}/ ({len(entries)} in total)")
+    for e in added:
         s = e["source"]
-        print(f"  {e['id']:<22} {s['centre_freq_mhz']:.6f} MHz  SNR {s['snr']:6.1f}  drift {s['drift_hz_per_s']:+.3f} Hz/s")
+        print(f"  {e['id']:<34} {s['centre_freq_mhz']:.6f} MHz  SNR {s['snr']:6.1f}  drift {s['drift_hz_per_s']:+.3f} Hz/s")
 
 
 if __name__ == "__main__":

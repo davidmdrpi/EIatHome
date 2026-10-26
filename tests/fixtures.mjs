@@ -1,8 +1,12 @@
-// Test fixtures: synthetic micro-slices in the published format. Not real data.
+// Test fixtures: synthetic micro-slices in the published format (not real data), plus a loader
+// for the real slices committed in web/data/slices.
 import { createHash } from 'node:crypto';
-import { mkdtempSync, writeFileSync } from 'node:fs';
+import { mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { fileURLToPath } from 'node:url';
+
+import { canonicalOrder, parseSlice } from '../web/js/slices.js';
 
 export const ROWS = 16;
 export const WIDTH = 256;
@@ -23,6 +27,20 @@ export const lineSlice = (drift, seed = 1) =>
   });
 
 export const sha256 = (buffer) => createHash('sha256').update(new Uint8Array(buffer)).digest('hex');
+
+const PUBLISHED = fileURLToPath(new URL('../web/data/slices/', import.meta.url));
+
+// The slices this site publishes, loaded and verified the way the Live Lab loads them.
+export async function publishedSlices() {
+  const manifest = JSON.parse(readFileSync(join(PUBLISHED, 'index.json'), 'utf8'));
+  const slices = await Promise.all(
+    manifest.slices.map((e) => {
+      const bytes = readFileSync(join(PUBLISHED, e.file));
+      return parseSlice(e, bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength));
+    }),
+  );
+  return canonicalOrder(slices);
+}
 
 export function entry({ id, group = 'carrier', file = `${id}.bin`, digest, observationFile = 'obs-a.h5', tstart = 57650.78, drift = 2.4 }) {
   return {

@@ -25,9 +25,11 @@ It's meant to be a fun, hackable open-source project:
 > today. It trains GRU, LSTM and causal-attention models on signals in your browser, measures
 > how language-like their radio tokens are, trains a token language model, and runs
 > reproducible work units whose results are collected and checked for replication
-> automatically. Not yet: real Voyager slices published on the site (the Voyager button needs
-> them), the full notebook run on the real observation, and VQ-VAE tokenizers. The experiment
-> protocol is in [`docs/experiments.md`](docs/experiments.md).
+> automatically. Real Voyager 1 slices from a 2020 Green Bank observation are published, but
+> they all come from one observing session, so Voyager scores are reconstruction, not held out,
+> until a second session is added. Not yet: that second session, the full notebook run on the
+> real observation, and VQ-VAE tokenizers. The experiment protocol is in
+> [`docs/experiments.md`](docs/experiments.md).
 
 ## Quick start
 
@@ -318,7 +320,8 @@ EIatHome/
 **Phase 4: Volunteers**
 - [x] Browser Live Lab with Track A training, Track B token metrics and `track-a/v0` work units
 - [x] Enable GitHub Pages
-- [ ] Publish real Voyager micro-slices from at least two observing sessions
+- [x] Publish real Voyager micro-slices (one 2020 session: 3 on-source scans, 9 slices)
+- [ ] Add a second Voyager session, so Voyager scores are held out ([how](web/data/slices/README.md#adding-slices))
 - [ ] Add slices of a public SETI signal of interest as a second real-data preset
 - [x] Collect submitted result cards automatically and show replication status
 - [ ] Public volunteer pilot
