@@ -5,7 +5,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { test } from 'node:test';
 
-import { MAX_ISSUE_URL, extractCard, issueLink, summarize, validateCard } from '../web/js/community.js';
+import { MAX_CARD_BYTES, MAX_ISSUE_URL, extractCard, issueLink, submissionText, summarize, validateCard } from '../web/js/community.js';
 import { describeDataset } from '../web/js/slices.js';
 import { makeCard, publishedSlices } from './fixtures.mjs';
 
@@ -87,12 +87,31 @@ test('a card too long for a link opens an issue with an empty json block to past
   assert.ok(url.length <= MAX_ISSUE_URL);
   const body = issueBody(url);
   assert.ok(!body.includes(card.inputs.slices.dataset_id), 'the card itself is not in the link');
-  // Unpasted, the card is rejected with a reason; pasted (as Copy formats it), it is read back.
+  // Unpasted, the card is rejected with a reason; with its submission text pasted, it is read back.
   assert.throws(() => extractCard(body), /isn't valid JSON/);
-  const pasted = body.replace('```json\n\n```', `\`\`\`json\n${JSON.stringify(card, null, 2)}\n\`\`\``);
+  const pasted = body.replace('```json\n\n```', `\`\`\`json\n${submissionText(card)}\n\`\`\``);
   assert.notEqual(pasted, body);
   assert.deepEqual(extractCard(pasted), card);
   assert.deepEqual(validateCard(extractCard(pasted), { published }), []);
+});
+
+test('the text pasted for a large card is compact, so ingestion accepts a card it would reject pretty-printed', async () => {
+  const { card } = await publishedCard(4, 60);
+  const bytes = (text) => new TextEncoder().encode(text).length;
+  assert.ok(bytes(JSON.stringify(card, null, 2)) > MAX_CARD_BYTES, 'pretty-printed, over the ingestion limit');
+  assert.ok(bytes(submissionText(card)) < MAX_CARD_BYTES, 'compact, under it');
+  const { url, prefilled } = issueLink(card, 'https://github.com/davidmdrpi/EIatHome');
+  assert.equal(prefilled, false);
+  // The exact issue a volunteer posts, through the ingestion script.
+  const issue = (number, text) => ({ number, user: { login: 'alice' }, created_at: '2026-10-26T01:00:00Z',
+    body: issueBody(url).replace('```json\n\n```', `\`\`\`json\n${text}\n\`\`\``) });
+  const dir = mkdtempSync(join(tmpdir(), 'eiathome-ingest-'));
+  const accepted = ingest(dir, issue(20, submissionText(card)));
+  assert.equal(accepted.status, 'status=accepted', accepted.comment);
+  assert.deepEqual(JSON.parse(readFileSync(join(dir, 'results.json'), 'utf8')).results[0].card, card);
+  const pretty = ingest(dir, issue(21, JSON.stringify(card, null, 2)));
+  assert.equal(pretty.status, 'status=rejected');
+  assert.match(pretty.comment, /larger than 16 KB/);
 });
 
 test('replication counts volunteers whose runs agree', async () => {

@@ -1,4 +1,4 @@
-import { issueLink, summarize } from './community.js';
+import { issueLink, submissionText, summarize } from './community.js';
 import { architectureLabel, tokenArchitectureLabel } from './models.js';
 import { fmt, heatmap, lineChart, scatterPanel } from './plots.js';
 import { deriveSeed, makeRng } from './rng.js';
@@ -557,6 +557,7 @@ function onWorkUnitResult(card) {
   $('wu-card').textContent = JSON.stringify(card, null, 2);
   state.issue = issueLink(card, REPO);
   $('wu-submit').href = state.issue.url;
+  $('wu-submit-text').hidden = true;
   state.results = [card, ...state.results].slice(0, 200);
   store.set('results', state.results);
   renderHistory();
@@ -782,8 +783,9 @@ function init() {
   $('wu-download').onclick = () => state.card && download(`eiathome-${state.card.spec.replace('/', '-')}-unit${state.card.unit}.json`, state.card);
   // The link opens the issue in a new tab. The card also goes on the clipboard: a card too long
   // for a link is pasted from there, and so is any card GitHub drops while the volunteer signs in.
+  // Compact, like the link: pretty-printed, a card ingestion accepts can exceed its size limit.
   $('wu-submit').onclick = () => {
-    const text = JSON.stringify(state.card, null, 2);
+    const text = submissionText(state.card);
     const copied = navigator.clipboard ? navigator.clipboard.writeText(text) : Promise.reject(new Error('no clipboard'));
     const { prefilled } = state.issue;
     copied.then(
@@ -792,8 +794,11 @@ function init() {
         : 'This card is too long to fill in automatically, so it’s on your clipboard: paste it into the empty json block of the GitHub issue.'),
       () => {
         if (prefilled) return unitStatus('Opened a GitHub issue with the card filled in.');
-        getSelection().selectAllChildren($('wu-card'));
-        unitStatus('This card is too long to fill in automatically, and your browser blocked copying, so the card is selected: press Ctrl+C or ⌘C and paste it into the empty json block of the GitHub issue.', true);
+        const box = $('wu-submit-text');
+        box.value = text;
+        box.hidden = false;
+        box.select();
+        unitStatus('This card is too long to fill in automatically, and your browser blocked copying, so the text to paste is selected below: press Ctrl+C or ⌘C and paste it into the empty json block of the GitHub issue.', true);
       },
     );
   };
