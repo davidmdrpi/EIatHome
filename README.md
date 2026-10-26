@@ -16,9 +16,10 @@ It's meant to be a fun, hackable open-source project:
   as a possible language.
 - **Strong controls.** Every result is compared against noise, synthetic signals, known human
   transmissions and shuffled versions of the data.
-- **Volunteer computing.** Many small, independent runs on volunteers' machines, in the
-  spirit of [SETI@home](https://setiathome.berkeley.edu/) and built on
-  [BOINC](https://boinc.berkeley.edu/).
+- **Volunteer computing in a browser tab.** Many small, independent runs on volunteers'
+  own CPUs and GPUs, in the spirit of [SETI@home](https://setiathome.berkeley.edu/), with
+  nothing to install. [BOINC](https://boinc.berkeley.edu/) stays an option for heavier jobs
+  later.
 
 > **Status: early planning.** This README describes the goals, experiment design and the
 > tools we plan to use. Nothing is running yet. Issues, ideas and pull requests are welcome.
@@ -26,9 +27,13 @@ It's meant to be a fun, hackable open-source project:
 
 ## Quick start
 
-Try the first experiment, [**Hello, Voyager**](tracks/rnn/hello_voyager.ipynb). A small GRU
-learns to predict a real Breakthrough Listen observation of Voyager 1, and we look inside it to
-see what it learned. It runs in a few minutes on a laptop CPU.
+**In your browser (no install):** open the **[EI@Home Live Lab](https://davidmdrpi.github.io/EIatHome/)**.
+Pick a signal, press Train, and watch a small GRU learn to predict it, live, on your own CPU or
+GPU. The same page runs **work units**: small, reproducible experiments that produce a result
+card you can download or submit. Nothing leaves your browser unless you choose to send it.
+
+**In Python:** the [**Hello, Voyager**](tracks/rnn/hello_voyager.ipynb) notebook runs the same
+Track A experiment on the full Breakthrough Listen observation of Voyager 1.
 
 ```bash
 git clone https://github.com/davidmdrpi/EIatHome.git
@@ -36,6 +41,8 @@ cd EIatHome
 pip install -r requirements.txt
 jupyter lab tracks/rnn/hello_voyager.ipynb
 ```
+
+To work on the Live Lab itself, see [`web/README.md`](web/README.md).
 
 ---
 
@@ -215,7 +222,7 @@ flowchart LR
     CTRL["Controls<br/>noise, setigen, Voyager 1,<br/>known modulations"]
     SNIP["Snippet extractor<br/>blimpy, turboSETI"]
 
-    subgraph WU["Volunteer work units (BOINC)"]
+    subgraph WU["Volunteer work units (browser tab)"]
         A["Track A<br/>RNN next-step prediction"]
         B["Track B<br/>radio tokens + tiny LM"]
     end
@@ -235,7 +242,19 @@ flowchart LR
 Each work unit is one small, independent experiment: one snippet set, one model configuration
 and one random seed. Volunteers don't need to synchronize, so this works like
 [MLC@Home](https://www.mlcathome.org/), which trained more than 750,000 small neural networks on
-BOINC. BOINC's replication and quorum checks validate the results.
+BOINC.
+
+**Browser first.** The [Live Lab](https://davidmdrpi.github.io/EIatHome/) is a static site
+(GitHub Pages) that runs work units in a Web Worker with TensorFlow.js, on WebAssembly, WebGPU
+or WebGL. Each unit is fully determined by its number, so anyone can re-run it: replication is
+how results are checked. Signals come either from in-browser generators or from **micro-slices**,
+16 KB windows of real data cut by [`tools/extract_slices.py`](tools/extract_slices.py), so
+nobody downloads a multi-gigabyte file. Results are small JSON cards that volunteers download or
+submit as a pre-filled GitHub issue. There's no server to run or pay for.
+
+The first browser work unit, `track-a/v0`, replicates the Hello, Voyager notebook. The table
+below is the full plan. Heavier units (raw voltages, long sweeps) may later move to BOINC,
+whose replication and quorum checks validate results automatically.
 
 | Work unit | Hardware | What it does |
 |---|---|---|
@@ -248,18 +267,20 @@ BOINC. BOINC's replication and quorum checks validate the results.
 Synchronous distributed training of larger shared models (for example with Hivemind or
 OpenDiLoCo) is a stretch goal for later.
 
-### Planned repository layout
+### Repository layout
 
 ```text
-eiathome/
-├── data/        # download and snippet-extraction scripts (no raw data in git)
-├── controls/    # noise, setigen, Voyager 1, known modulations, surrogates
+EIatHome/
+├── web/         # the Live Lab: a static site, deployed to GitHub Pages
+│   ├── js/      # signal generators, Track A engine, Track B metrics, UI
+│   ├── data/    # micro-slices of real observations
+│   └── vendor/  # TensorFlow.js, pinned and vendored
+├── tools/       # extract_slices.py and other data tools
 ├── tracks/
-│   ├── rnn/     # Track A: next-step prediction, hidden-state analysis
-│   └── tokens/  # Track B: tokenizers, linguistic metrics, tiny language models
-├── analysis/    # shared metrics, plots and notebooks
-├── workunits/   # BOINC packaging (later)
-└── docs/        # experiment protocol and design notes
+│   ├── rnn/     # Track A notebooks (hello_voyager.ipynb)
+│   └── tokens/  # Track B notebooks (planned)
+├── docs/        # experiment protocol and design notes
+└── data/        # downloaded observations (git-ignored)
 ```
 
 ## Roadmap
@@ -286,8 +307,11 @@ eiathome/
 - [ ] Tiny causal language model on token streams; perplexity against surrogates
 
 **Phase 4: Volunteers**
-- [ ] Package Track A and B runs as BOINC work units (for example via [BOINC Central](https://boinc.berkeley.edu/central/scientist.php))
+- [x] Browser Live Lab with Track A training, Track B token metrics and `track-a/v0` work units
+- [ ] Enable GitHub Pages and publish the real Voyager micro-slices
+- [ ] Collect submitted result cards and compare replications
 - [ ] Public volunteer pilot and results dashboard
+- [ ] Heavier work units on BOINC, if needed (for example via [BOINC Central](https://boinc.berkeley.edu/central/scientist.php))
 
 **Stretch goals**
 - [ ] Raw-voltage track at scale
@@ -371,6 +395,7 @@ license. GPL or non-commercial code, for example, should stay a separate depende
 |---|---|
 | [Hugging Face Datasets](https://github.com/huggingface/datasets) | Publishing and streaming snippet datasets; the Hub can host small model weights |
 | [WebDataset](https://github.com/webdataset/webdataset) / [Zarr](https://github.com/zarr-developers/zarr-python) | Sharded, streamable storage for snippets |
+| [TensorFlow.js](https://github.com/tensorflow/tfjs) | Training in the browser on WebAssembly, WebGPU or WebGL. Powers the Live Lab (vendored in `web/vendor/`) |
 | [ONNX Runtime](https://github.com/microsoft/onnxruntime) | Portable inference on volunteer hardware |
 | [MLflow](https://github.com/mlflow/mlflow) / [DVC](https://github.com/treeverse/dvc) | Experiment tracking, plus data and model versioning |
 
@@ -413,8 +438,8 @@ preprocessing, resolution and known biases.
 
 | You have... | You can... |
 |---|---|
-| **A laptop** | Run the starter notebooks once they exist, and donate CPU time once our BOINC pilot launches. Until then, install the [BOINC client](https://boinc.berkeley.edu/download.php) and try it on an existing project |
-| **A consumer GPU** | Run bigger sweeps for Track A and Track B |
+| **A browser** | Open the [Live Lab](https://davidmdrpi.github.io/EIatHome/) and run work units. Submit the result cards so others can replicate them |
+| **A consumer GPU** | Switch the Live Lab to WebGPU and try bigger models, or run larger sweeps with the notebooks |
 | **Python / ML skills** | Add a model, a tokenizer, a metric or a control |
 | **Signal-processing or radio skills** | Build the snippet extractor and I/Q pipelines, and check our controls |
 | **Linguistics or information-theory knowledge** | Design better language-likeness tests and null models |
@@ -451,11 +476,14 @@ preprocessing, resolution and known biases.
 
 ### Safety for volunteers
 
-We plan to:
-- Run work units sandboxed (BOINC wrappers, containers) with no access to personal files.
-- Let volunteers control CPU/GPU limits, schedules and bandwidth through the BOINC client.
-- Keep all code open source, and make released binaries reproducible and signed.
-- Collect no personal data beyond what BOINC needs for credit.
+- The Live Lab runs inside the browser's sandbox, with no access to your files beyond the
+  ones you choose to load.
+- It has no analytics or accounts and makes no requests except for its own files.
+- Results leave your browser only if you download or submit them. A result card contains the
+  unit, its settings, the compute backend and the metrics, and nothing about you or your machine.
+- Closing the tab stops all work.
+- If we add BOINC later, those work units will run sandboxed, with volunteers controlling
+  limits and schedules through the BOINC client.
 
 ## FAQ
 
@@ -479,7 +507,9 @@ trains tiny causal language models on radio tokens. We start small because short
 need large models, and small models run on volunteers' machines.
 
 **Do I need a GPU?**
-No. The starter experiments are designed to run on a laptop CPU.
+No. The Live Lab uses WebAssembly by default. For models this small, that's usually faster
+than a GPU, because GPU start-up and per-step overhead outweigh the speed-up. You can switch
+to WebGPU and compare: the status line shows milliseconds per epoch.
 
 **Is this affiliated with SETI@home, Berkeley SETI Research Center, Breakthrough Listen or the SETI Institute?**
 No. EI@Home is an independent open-source project that builds on their public tools and data.

@@ -242,7 +242,37 @@ Each experiment report (a Markdown file under `reports/` or a GitHub issue) incl
 
 ## 9. Work-unit specification
 
-This section is for the later BOINC phase.
+### 9.1 Browser work units (implemented)
+
+The [Live Lab](../web/) runs work units in a Web Worker. Each spec is versioned, and a unit is
+fully determined by its spec and unit number.
+
+**`track-a/v0`** (`web/js/workunits.js`) replicates the Hello, Voyager notebook:
+
+- seed = unit number; hidden size cycles through 16, 32 and 64 with the unit number;
+- 600 synthetic drifting tones plus 600 noise snippets for training (16 x 64, normalized as in
+  section 2.2), 12 epochs, Adam (learning rate 0.003), batch 64;
+- 48 held-out snippets per family, including Voyager micro-slices if loaded;
+- reported: prediction gain against mean, persistence and linear baselines; GRU gain on
+  frame-shuffled snippets; and a drift probe (R² and error on synthetic tones, plus the
+  readout on Voyager).
+
+**Result card:** a JSON object with `format: "eiathome-result"`, the spec, unit, full
+configuration, app and TensorFlow.js versions, compute backend, parameter count, the
+`sha256` of any real slices used, run time and metrics. It contains nothing about the
+volunteer or their machine beyond the backend name. Volunteers download it or submit it as a
+pre-filled GitHub issue.
+
+**Determinism:** in our tests, the same unit on the same backend (WebAssembly) gave identical
+metrics across repeat runs and fresh tabs. Different backends (WebGPU, WebGL, WebAssembly)
+use different floating-point paths, so compare across backends within a tolerance.
+
+**Trust:** a submitted card is a claim, not a verified result. Replication by an independent
+volunteer, on the same spec and unit, is what confirms it.
+
+### 9.2 BOINC work units (later, if needed)
+
+For heavier jobs such as raw voltages or long sweeps:
 
 - **Input:** snippet shard IDs, a configuration file and a seed.
 - **Output:** a metrics JSON file, hidden-state summaries (PCA-reduced) and, optionally, model
