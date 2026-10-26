@@ -23,6 +23,10 @@ The scans started within 30 minutes of each other, so they count as one session,
 labels a score on the family it trained on as reconstruction rather than held out. A second
 session (scans more than 12 hours from these) fixes that.
 
+The same scans are also cut from the 6-second product, with 49 time steps instead of 16, for the
+Python signal language model only: see [tracks/llm/data/slices](../../../tracks/llm/data/slices/README.md).
+The Live Lab's models and work units use these 16-frame slices.
+
 ## Adding slices
 
 Download the observation files, then run from the repository root, for example:

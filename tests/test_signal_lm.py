@@ -14,9 +14,9 @@ import numpy as np
 import torch
 
 from tracks.llm.data import Tokenizer, digest, groups, load_slices, markov_probabilities, split_records, split_sizes, surrogate, SESSION_GAP_DAYS
-from tracks.llm.model import SignalLM, evaluate, fit, generate, windows
+from tracks.llm.model import RotaryBlock, SignalLM, evaluate, fit, generate, windows
 from tracks.llm.sample import load_checkpoint, main as sample_main
-from tracks.llm.train import parser, run
+from tracks.llm.train import parser, run, window_starts
 
 ROOT = Path(__file__).resolve().parents[1]
 MANIFEST = ROOT / "web/data/slices/index.json"
@@ -66,6 +66,16 @@ class PublishedDataTests(unittest.TestCase):
     def test_current_manifest_integrity_without_assuming_size_or_sessions(self):
         entries = json.loads(MANIFEST.read_text())['slices']
         self.assertEqual(len(load_slices(MANIFEST)), len(entries))
+
+    def test_long_window_manifest_integrity(self):
+        # The 49-frame slices from the 6-second product, published for this track only.
+        manifest = ROOT / 'tracks/llm/data/slices/index.json'
+        entries = json.loads(manifest.read_text())['slices']
+        records = load_slices(manifest)
+        self.assertEqual(len(records), len(entries))
+        for record in records:
+            self.assertEqual(len(record['frames']), record['entry']['shape'][0])
+            self.assertEqual(record['entry']['source']['product'], '6_sec_integration')
 
 
 class SignalDataTests(SignalFixture):
@@ -304,15 +314,16 @@ class SignalModelTests(SignalFixture):
         self.assertEqual(len(a['slices']), len(b['slices']))
 
     def test_causal_mask_in_train_and_eval(self):
-        torch.manual_seed(5)
-        model = SignalLM(vocab_size=8, context=10, width=16, layers=2, heads=2, dropout=0)
         a = torch.tensor([[0, 1, 2, 3, 4, 5, 6, 7]])
         b = a.clone()
         b[:, 4:] = 0
-        for training in [True, False]:
-            model.train(training)
-            with torch.no_grad():
-                torch.testing.assert_close(model(a)[:, :4], model(b)[:, :4], rtol=0, atol=0)
+        for position in ['absolute', 'rope']:
+            torch.manual_seed(5)
+            model = SignalLM(vocab_size=8, context=10, width=16, layers=2, heads=2, dropout=0, position=position)
+            for training in [True, False]:
+                model.train(training)
+                with self.subTest(position=position, training=training), torch.no_grad():
+                    torch.testing.assert_close(model(a)[:, :4], model(b)[:, :4], rtol=0, atol=0)
 
     def test_padding_does_not_change_likelihood(self):
         torch.manual_seed(5)
@@ -385,6 +396,158 @@ class SignalModelTests(SignalFixture):
             args.output = Path(tmp) / "must-refuse"
             with self.assertRaisesRegex(ValueError, "3 independent sessions"):
                 run(args)
+
+
+class PositionRobustnessTests(SignalFixture):
+    """Issue #7: RoPE, offset training windows, mid-scan scoring and sliding generation."""
+
+    def test_rope_attention_depends_only_on_relative_offsets(self):
+        torch.manual_seed(7)
+        block = RotaryBlock(16, 2, 0).eval()
+        x = torch.randn(2, 9, 16)
+        with torch.no_grad():
+            reference = block(x)
+            for start in [1, 37, 1000]:
+                torch.testing.assert_close(block(x, start=start), reference, rtol=0, atol=2e-5)
+
+    def test_rope_block_is_the_pytorch_layer_plus_rotation(self):
+        # So comparing absolute and RoPE models compares position encodings, not block designs.
+        torch.manual_seed(7)
+        block = RotaryBlock(16, 2, 0).eval()
+        layer = torch.nn.TransformerEncoderLayer(16, 2, 64, 0, activation='gelu', batch_first=True, norm_first=True).eval()
+        with torch.no_grad():
+            layer.self_attn.in_proj_weight.copy_(block.qkv.weight)
+            layer.self_attn.in_proj_bias.copy_(block.qkv.bias)
+            layer.self_attn.out_proj.weight.copy_(block.out.weight)
+            layer.self_attn.out_proj.bias.copy_(block.out.bias)
+            for ours, theirs in [(block.norm1, layer.norm1), (block.norm2, layer.norm2),
+                                 (block.feed[0], layer.linear1), (block.feed[3], layer.linear2)]:
+                theirs.load_state_dict(ours.state_dict())
+            x = torch.randn(2, 9, 16)
+            mask = torch.ones(9, 9, dtype=torch.bool).triu(1)
+            with mock.patch('tracks.llm.model.rotary', lambda q, start=0: q):
+                torch.testing.assert_close(block(x), layer(x, src_mask=mask), rtol=1e-5, atol=1e-5)
+
+    def test_rope_continuations_slide_past_the_context_and_stay_in_vocabulary(self):
+        torch.manual_seed(3)
+        model = SignalLM(vocab_size=4, context=4, width=16, layers=1, heads=2, dropout=0, position='rope')
+        prompt = [0, 1]
+        with mock.patch.object(model, 'forward', wraps=model.forward) as forward:
+            tokens = generate(model, prompt, count=40, seed=3)
+        self.assertEqual(len(tokens), 40)
+        self.assertTrue(all(0 <= t < 4 for t in tokens))
+        sequence = prompt + tokens
+        inputs = [call.args[0][0].tolist() for call in forward.call_args_list]
+        self.assertEqual([len(x) for x in inputs[:4]], [2, 3, 4, 4])
+        self.assertTrue(all(len(x) <= 4 for x in inputs))
+        for step, x in enumerate(inputs):
+            self.assertEqual(x, sequence[max(0, step + 2 - 4):step + 2], 'each step sees the last context tokens')
+        # Within the context, RoPE generation is the same as before: no sliding.
+        self.assertEqual(generate(model, prompt, seed=3), tokens[:3])
+
+    def test_absolute_models_still_stop_at_the_context(self):
+        model = SignalLM(vocab_size=4, context=4, width=16, layers=1, heads=2, dropout=0)
+        with mock.patch.object(model, 'forward') as forward:
+            with self.assertRaisesRegex(ValueError, 'at most 3 tokens .*RoPE'):
+                generate(model, [0, 1], count=4)
+            forward.assert_not_called()
+        rope = SignalLM(vocab_size=4, context=4, width=16, layers=1, heads=2, dropout=0, position='rope')
+        with self.assertRaisesRegex(ValueError, 'at most 0 tokens'):
+            generate(rope, [0, 1, 2, 3, 0], count=1)
+
+    def test_training_stride_overlaps_but_scoring_counts_each_target_once(self):
+        seqs = [np.arange(12), np.arange(100, 105)]
+        starts = lambda examples: [int(x[0]) for x, _ in examples]
+        self.assertEqual(starts(windows(seqs, 5)), [0, 5, 10, 100])
+        self.assertEqual(starts(windows(seqs, 5, stride=1)), list(range(11)) + [100, 101, 102, 103])
+        for stride in [1, 2, 5]:
+            for x, y in windows(seqs, 5, stride=stride):
+                np.testing.assert_array_equal(x[:len(y)] + 1, y)
+        with self.assertRaisesRegex(ValueError, 'stride must be positive'):
+            windows(seqs, 5, stride=0)
+        # Training on overlapping windows never changes how the test is scored: each target once.
+        seqs = [np.arange(12) % 4, np.array([1, 2, 3, 0, 1])]
+        config = dict(vocab_size=4, context=5, width=16, layers=1, heads=2, dropout=0, position='rope')
+        model, _, _ = fit(seqs, seqs, config, 1, 8, 0.01, 1, 3, 'cpu', stride=1)
+        self.assertEqual(evaluate(model, seqs)['targets'], 11 + 4)
+
+    def test_window_start_scores_compare_equal_length_windows(self):
+        torch.manual_seed(5)
+        model = SignalLM(vocab_size=12, context=5, width=16, layers=1, heads=2, dropout=0, position='rope')
+        seqs = [np.arange(12), np.arange(9) + 3, np.arange(4)]
+        starts = window_starts(model, seqs, 8)
+        # Full 6-frame windows: the 12-frame slice has starts 0-6, the 9-frame one 0-3, the
+        # 4-frame one none.
+        self.assertEqual([(s['start'], s['windows']) for s in starts['by_start']],
+                         [(0, 2), (1, 2), (2, 2), (3, 2), (4, 1), (5, 1), (6, 1)])
+        self.assertEqual(starts['mid_scan_windows'], 9)
+        for s in starts['by_start']:
+            chunks = [q[s['start']:s['start'] + 6] for q in seqs if len(q) >= s['start'] + 6]
+            self.assertEqual(s['bits_per_token'], evaluate(model, chunks)['bits_per_token'])
+        self.assertEqual(starts['scan_start_bits'], starts['by_start'][0]['bits_per_token'])
+        pooled = sum(s['bits_per_token'] * s['windows'] for s in starts['by_start'][1:]) / 9
+        self.assertAlmostEqual(starts['mid_scan_bits'], pooled, places=12)
+        self.assertIsNone(window_starts(model, [np.arange(5)], 8), 'no room for a full window')
+        self.assertIsNone(window_starts(model, [np.arange(6)], 8)['mid_scan_bits'], 'only a scan-start window')
+
+    def test_fit_trains_on_the_requested_stride(self):
+        seqs = [np.arange(12) % 4]
+        config = dict(vocab_size=4, context=5, width=16, layers=1, heads=2, dropout=0, position='rope')
+        with mock.patch('tracks.llm.model.windows', wraps=windows) as made:
+            fit(seqs, seqs, config, 1, 8, 0.01, 1, 3, 'cpu', stride=1)
+        self.assertEqual(made.call_args_list[0].args[2], 1, 'training windows use the stride')
+        self.assertTrue(all(len(call.args) < 3 or call.args[2] is None for call in made.call_args_list[1:]),
+                        'validation never overlaps')
+
+    def test_rope_training_run_records_position_and_scores_mid_scan_starts(self):
+        args = self.args(position='rope', train_stride=1, context=8)
+        report = run(args)
+        self.assertEqual(report['model']['position'], 'rope')
+        self.assertEqual(report['training']['train_stride'], 1)
+        for variant, result in report['variants'].items():
+            starts = result['test_window_starts']
+            # 3 test slices of 16 frames hold full 9-frame windows at starts 0-7.
+            self.assertEqual([(s['start'], s['windows']) for s in starts['by_start']], [(i, 3) for i in range(8)])
+            self.assertEqual(starts['mid_scan_windows'], 21)
+            self.assertTrue(np.isfinite([starts['scan_start_bits'], starts['mid_scan_bits']]).all())
+        control = report['variants']['real']['other_family_control']['window_starts']
+        self.assertEqual(control['by_start'][0]['windows'], len(report['variants']['real']['other_family_control']['slices']))
+        sample = report['variants']['real']['sample']
+        self.assertEqual(len(sample['prompt']) + len(sample['generated']), 16, 'RoPE samples run to the slice length')
+        model, _, checkpoint = load_checkpoint(args.output / 'real.pt')
+        self.assertEqual(checkpoint['config']['position'], 'rope')
+        self.assertEqual(generate(model, sample['prompt'], len(sample['generated']), seed=args.seed), sample['generated'])
+        # Sampling past the context from the saved checkpoint.
+        records = load_slices(self.manifest)
+        output = self.folder / 'long-sample'
+        sample_main([str(args.output / 'real.pt'), '--manifest', str(self.manifest), '--slice-id',
+                     records[0]['entry']['id'], '--prompt-frames', '4', '--tokens', '30', '--output', str(output)])
+        written = json.loads((output / 'sample.json').read_text())
+        self.assertEqual((len(written['generated']), written['position']), (30, 'rope'))
+        self.assertIn('Qualitative', written['note'])
+        self.assertTrue(np.isfinite(np.load(output / 'frames.npy')).all())
+
+    def test_invalid_position_settings_are_rejected_before_output(self):
+        for change in [dict(position='rope', width=12, heads=4), dict(train_stride=0), dict(train_stride=16)]:
+            with self.subTest(change=change):
+                args = self.args(**change)
+                with self.assertRaises(ValueError):
+                    run(args)
+                self.assertFalse(args.output.exists())
+
+    def test_checkpoints_without_a_position_load_as_absolute(self):
+        model = SignalLM(vocab_size=4, context=15, width=16, layers=1, heads=2, dropout=0)
+        legacy = {k: v for k, v in model.config.items() if k != 'position'}
+        records = load_slices(self.manifest)
+        path = self.folder / 'legacy.pt'
+        torch.save({'format': 'eiathome-signal-lm', 'version': 1, 'config': legacy, 'model': model.state_dict(),
+                    'tokenizer': Tokenizer.fit([records[0]['frames']], 4, 3).state(),
+                    'dataset_sha256': 'fixture', 'variant': 'real'}, path)
+        loaded, _, _ = load_checkpoint(path)
+        self.assertEqual(loaded.config['position'], 'absolute')
+        x = torch.tensor([[0, 1, 2, 3]])
+        with torch.no_grad():
+            torch.testing.assert_close(loaded(x), model.eval()(x), rtol=0, atol=0)
 
 
 class SignalSamplingTests(SignalFixture):

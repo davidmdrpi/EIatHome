@@ -30,12 +30,23 @@ so the same output path can be retried. Library calls restore PyTorch settings a
 on both success and failure. No account, remote model service or external data download is needed
 after installation: these commands use the committed, verified slices.
 
+**Longer windows.** [`data/slices`](data/slices/README.md) holds the same cadence cut from
+Breakthrough Listen's 6-second product: 49 time steps per scan instead of 16, at the same
+channel width. Train on it, with rotary position embeddings and a training window at every
+start:
+
+```bash
+python -m tracks.llm.train --manifest tracks/llm/data/slices/index.json --allow-within-session \
+  --position rope --train-stride 1 --output runs/voyager-6s-rope
+```
+
 **The current eighteen slices come from one session.** Without `--allow-within-session`,
 training refuses to run until the chosen family spans at least **three independent sessions**
 (one each for train, validation and test). The explicit smoke mode holds out whole scans,
 keeps carrier/sidebands together, and reports `within_session_scan_holdout`. It cannot establish
-generalization across observing sessions. Each current split has only 48 frames and 45
-next-token targets. More epochs do not make that dataset larger.
+generalization across observing sessions. With the Live Lab's 16-frame slices each split has
+48 frames and 45 next-token targets; with the 49-frame slices, 147 frames and 144 targets.
+More epochs do not make either dataset larger.
 
 For three or more sessions, export a manifest using `tools/extract_slices.py`, then:
 
@@ -66,18 +77,38 @@ independence of targets, observing hardware, or adjacent frequency bands.
    fixed add-one smoothing; it never uses validation/test transitions. These are statistical
    controls, not alternative physical observations.
 4. Minimize categorical next-token cross-entropy using an explicit causal attention mask,
-   AdamW, gradient clipping, and validation early stopping. Chunk each slice independently;
-   count every next-token target once, including short tails. Padding is excluded from loss.
+   AdamW, gradient clipping, and validation early stopping. Chunk each slice independently.
+   Training windows start every `--train-stride` frames (default: the context, so they don't
+   overlap; 1 starts one at every frame). Validation and test always use non-overlapping
+   chunks and count every next-token target once, including short tails. Padding is excluded
+   from loss.
 5. Reload the best validation weights and score test tokens. Report bits/token, perplexity,
    target count and training-fitted unigram/Markov-1 baselines. The real model is also scored
    on the other real family as a separately labelled control; it may share observing sessions.
+6. Score full-length windows (context + 1 frames) by where they start in the slice:
+   `test_window_starts` gives bits/token for each start, the scan-start window (start 0) and
+   all later starts pooled (`mid_scan_bits`). The windows have the same length and the same
+   contexts within them, so a gap between the two shows a model that depends on where a
+   window starts. A frame is scored once per window containing it: these are per-window
+   scores, not a second sequence likelihood. With 16-frame slices and context 15 there is
+   only the scan-start window.
 
-Default: 16 tokens, context 15, width 128, 4 layers, 4 heads, dropout 0.1, 50 maximum epochs,
-patience 8, learning rate 0.0003, batch size 32, seed 42. Use `--help` for all options. The current
-16-frame slices cannot test dependencies longer than 15 steps. A context longer than the
-longest training sequence's next-token span is rejected: it would leave positional embeddings
-untrained. Larger collections are currently loaded into memory;
+**Positions.** `--position absolute` (the default) learns one embedding per position: a model
+trained on windows that start at a scan's first frame has only seen frame *p* at position *p*.
+`--position rope` uses rotary position embeddings in a block that's otherwise PyTorch's
+pre-norm encoder layer: attention then depends only on relative offsets. Neither extrapolates
+past the trained context. RoPE is what makes sliding a window of at most `context` tokens
+safe, and `--train-stride 1` is what shows the model content from mid-scan starts.
+
+Default: 16 tokens, context 15, width 128, 4 layers, 4 heads, dropout 0.1, absolute positions,
+training stride 15, 50 maximum epochs, patience 8, learning rate 0.0003, batch size 32, seed
+42. Use `--help` for all options. The 16-frame slices cannot test dependencies longer than 15
+steps. A context longer than the longest training sequence's next-token span is rejected: it
+would leave positions untrained. Larger collections are currently loaded into memory;
 this implementation is for extracted slice collections, not streaming multi-gigabyte HDF5.
+With `--train-stride 1`, an epoch has about `context` times more training windows, so
+early stopping happens after fewer epochs. Comparing strides therefore also changes the number
+of optimizer updates and how often each target is trained on, not only where windows start.
 
 ## Outputs and inference
 
@@ -88,9 +119,10 @@ this implementation is for extracted slice collections, not streaming multi-giga
   fitted tokenizer, split provenance, fingerprints and evaluation label. These are inference
   checkpoints; optimizer state for interrupted-run resume is not included.
 - `generated_frames.npy`: codebook-centroid frames in approximate input noise-sigma units,
-  starting from a training prompt and stopping at the trained context. With default context
-  15 and an 8-frame prompt, this produces 8 frames (positions 8 through 15). This is a
-  qualitative continuation, not a long free-running signal generator.
+  starting from a training prompt. Absolute-position models stop at the trained context: with
+  context 15 and an 8-frame prompt, 8 frames (positions 8 through 15). RoPE models continue to
+  the prompt slice's length (41 frames for a 49-frame slice), sliding a window of at most
+  `context` tokens. Either way it's a qualitative continuation, not a forecast.
 
 Continue a particular signal with the saved tokenizer and model:
 
@@ -102,12 +134,15 @@ python -m tracks.llm.sample runs/voyager-smoke/real.pt \
 ```
 
 This produces `sample.json` and `frames.npy`; it never retrains the tokenizer. Checkpoints load
-with `weights_only=True`. Sampling verifies only the selected slice's bytes and shape; broken
-or unavailable unrelated entries do not prevent inference. With `--tokens` omitted, generation
-fills the remaining trained context. An explicit longer request is rejected before generation.
-The prompt always starts at position zero; no sliding window shifts mid-slice frames onto
-untrained position alignments. Even the final prediction uses at most `context` input tokens.
-Supporting longer continuations will require a separately validated training/position scheme.
+with `weights_only=True`, and checkpoints saved before `--position` existed load as absolute.
+Sampling verifies only the selected slice's bytes and shape; broken or unavailable unrelated
+entries do not prevent inference. With `--tokens` omitted, generation fills the remaining
+trained context. The prompt always starts at position zero, and every prediction uses at most
+`context` input tokens. For absolute-position checkpoints, a longer `--tokens` is rejected
+before generation: sliding would move mid-slice frames onto position alignments the model
+never trained on. RoPE checkpoints accept any length: past the context, each step conditions
+on the last `context` tokens. Long continuations are qualitative (`sample.json` says so); they
+repeat what the model learned about short windows and aren't evidence of longer structure.
 Generated tokens decode to centroid spectra, so fine spectral detail and phase are not recovered. Power-spectrogram prediction does not
 decode Voyager telemetry or establish natural language. A predictable drifting carrier can
 produce a strong score without linguistic structure.
@@ -115,7 +150,10 @@ produce a strong score without linguistic structure.
 ## Validation and interpretation
 
 The [recorded smoke results](SMOKE_RESULTS.md) include both published families, their
-baselines, the exact environment, and dataset/code fingerprints.
+baselines, the exact environment, and dataset/code fingerprints. [Position results](POSITION_RESULTS.md) compare
+absolute and rotary positions, with and without offset training windows, on the 49-frame slices:
+on windows that start mid-scan, absolute positions trained on non-overlapping windows do worst,
+and training on every start removes the difference.
 
 ```bash
 python -m unittest discover -s tests -p 'test_signal_lm.py' -v
@@ -125,6 +163,11 @@ CI covers integrity checks, session/copy grouping, explicit smoke-mode consent, 
 tokenization, split-local surrogates, causal attention in training and inference, padded loss,
 learning a known next-token rule, checkpoint/generation round trips, and an end-to-end check
 that mutating test data changes neither the fitted tokenizer nor selected model weights.
+For positions: shifting a RoPE window's start leaves its attention unchanged; the RoPE block
+equals PyTorch's encoder layer without the rotation; long RoPE continuations slide over the
+last `context` tokens and stay in the vocabulary; absolute models still refuse to slide;
+overlapping training windows leave test scoring at one count per target; and window-start
+scores compare equal-length windows.
 Behavioural tests create fixed synthetic manifests; only the integrity check reads the current
 published collection, without assuming its size or number of sessions. Regressions also cover
 context-bounded generation, tiny sampling temperatures, atomic output on late failure,

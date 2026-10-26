@@ -8,25 +8,73 @@ from torch import nn
 from torch.nn import functional as F
 
 
-def validate_config(vocab_size, context, width, layers, heads, dropout):
+POSITIONS = ("absolute", "rope")
+
+
+def validate_config(vocab_size, context, width, layers, heads, dropout, position="absolute"):
     if min(vocab_size, context, width, layers, heads) < 1 or width % heads:
         raise ValueError("Positive model dimensions required; width must be divisible by heads")
     if not 0 <= dropout < 1:
         raise ValueError("Dropout must be in [0, 1)")
+    if position not in POSITIONS:
+        raise ValueError(f"Position encoding must be one of {', '.join(POSITIONS)}")
+    if position == "rope" and (width // heads) % 2:
+        raise ValueError("Rotary position embeddings need an even width per head")
+
+
+def rotary(x, start=0):
+    """Rotary position embedding (RoPE): rotate feature pairs by angles proportional to position.
+    Query-key dot products then depend only on relative offsets, not on where a window starts."""
+    n, dim = x.shape[-2], x.shape[-1]
+    inverse = 10000.0 ** (-torch.arange(0, dim, 2, device=x.device, dtype=torch.float64) / dim)
+    angles = torch.arange(start, start + n, device=x.device, dtype=torch.float64)[:, None] * inverse
+    cos, sin = angles.cos().to(x.dtype), angles.sin().to(x.dtype)
+    a, b = x[..., 0::2], x[..., 1::2]
+    return torch.stack((a * cos - b * sin, a * sin + b * cos), dim=-1).flatten(-2)
+
+
+class RotaryBlock(nn.Module):
+    """nn.TransformerEncoderLayer(norm_first=True, activation="gelu") with RoPE applied to the
+    queries and keys, and causal attention. Without the rotation it computes the same function."""
+
+    def __init__(self, width, heads, dropout):
+        super().__init__()
+        self.heads, self.dropout = heads, dropout
+        self.norm1, self.norm2 = nn.LayerNorm(width), nn.LayerNorm(width)
+        self.qkv = nn.Linear(width, 3 * width)
+        self.out = nn.Linear(width, width)
+        self.feed = nn.Sequential(nn.Linear(width, 4 * width), nn.GELU(), nn.Dropout(dropout),
+                                  nn.Linear(4 * width, width))
+        self.drop1, self.drop2 = nn.Dropout(dropout), nn.Dropout(dropout)
+        # Initialized like nn.MultiheadAttention's projections.
+        nn.init.xavier_uniform_(self.qkv.weight)
+        nn.init.zeros_(self.qkv.bias)
+        nn.init.zeros_(self.out.bias)
+
+    def forward(self, x, start=0):
+        b, n, width = x.shape
+        q, k, v = self.qkv(self.norm1(x)).view(b, n, 3, self.heads, width // self.heads).permute(2, 0, 3, 1, 4)
+        attended = F.scaled_dot_product_attention(rotary(q, start), rotary(k, start), v, is_causal=True,
+                                                  dropout_p=self.dropout if self.training else 0.0)
+        x = x + self.drop1(self.out(attended.transpose(1, 2).reshape(b, n, width)))
+        return x + self.drop2(self.feed(self.norm2(x)))
 
 
 class SignalLM(nn.Module):
-    def __init__(self, vocab_size=16, context=15, width=128, layers=4, heads=4, dropout=0.1):
+    def __init__(self, vocab_size=16, context=15, width=128, layers=4, heads=4, dropout=0.1, position="absolute"):
         super().__init__()
-        validate_config(vocab_size, context, width, layers, heads, dropout)
+        validate_config(vocab_size, context, width, layers, heads, dropout, position)
         self.config = dict(vocab_size=vocab_size, context=context, width=width,
-                           layers=layers, heads=heads, dropout=dropout)
+                           layers=layers, heads=heads, dropout=dropout, position=position)
         self.token = nn.Embedding(vocab_size, width)
-        self.position = nn.Embedding(context, width)
-        # Independent layers: avoid cloned encoder layers starting with identical parameters.
-        self.blocks = nn.ModuleList([nn.TransformerEncoderLayer(
-            width, heads, 4 * width, dropout, activation="gelu", batch_first=True, norm_first=True)
-            for _ in range(layers)])
+        if position == "absolute":
+            self.position = nn.Embedding(context, width)
+            # Independent layers: avoid cloned encoder layers starting with identical parameters.
+            self.blocks = nn.ModuleList([nn.TransformerEncoderLayer(
+                width, heads, 4 * width, dropout, activation="gelu", batch_first=True, norm_first=True)
+                for _ in range(layers)])
+        else:
+            self.blocks = nn.ModuleList([RotaryBlock(width, heads, dropout) for _ in range(layers)])
         self.norm = nn.LayerNorm(width)
         self.head = nn.Linear(width, vocab_size, bias=False)
 
@@ -34,17 +82,27 @@ class SignalLM(nn.Module):
         n = tokens.shape[1]
         if not 1 <= n <= self.config["context"]:
             raise ValueError("Input length exceeds the checkpoint's context")
-        x = self.token(tokens) + self.position(torch.arange(n, device=tokens.device))
-        mask = torch.ones(n, n, device=tokens.device, dtype=torch.bool).triu(1)
-        for block in self.blocks:
-            x = block(x, src_mask=mask)
+        x = self.token(tokens)
+        if self.config["position"] == "rope":
+            for block in self.blocks:
+                x = block(x)
+        else:
+            x = x + self.position(torch.arange(n, device=tokens.device))
+            mask = torch.ones(n, n, device=tokens.device, dtype=torch.bool).triu(1)
+            for block in self.blocks:
+                x = block(x, src_mask=mask)
         return self.head(self.norm(x))
 
 
-def windows(sequences, context):
-    """No cross-slice boundaries; each target occurs once, including short tails."""
+def windows(sequences, context, stride=None):
+    """Chunks of each sequence, never across sequences. With the default stride (the context),
+    each target occurs once, including short tails: scoring always uses that. A smaller stride
+    gives overlapping training windows that start mid-sequence."""
+    stride = context if stride is None else stride
+    if stride < 1:
+        raise ValueError("Window stride must be positive")
     return [(s[start:start + context], s[start + 1:start + context + 1])
-            for s in sequences for start in range(0, len(s) - 1, context)]
+            for s in sequences for start in range(0, len(s) - 1, stride)]
 
 
 def batches(examples, batch_size, device, order=None):
@@ -76,13 +134,15 @@ def evaluate(model, sequences, batch_size=32):
     return {"bits_per_token": bits, "perplexity": 2 ** bits, "targets": count}
 
 
-def fit(sequences, validation, config, epochs, batch_size, lr, patience, seed, device):
+def fit(sequences, validation, config, epochs, batch_size, lr, patience, seed, device, stride=None):
+    """Train on windows `stride` frames apart (default: the context, so no overlap); validation
+    always scores each target once."""
     torch.random.default_generator.manual_seed(seed)
     if str(device).startswith("cuda"):
         torch.cuda.manual_seed_all(seed)
     model = SignalLM(**config).to(device)
     optimizer = torch.optim.AdamW(model.parameters(), lr=lr, weight_decay=0.01)
-    examples = windows(sequences, config["context"])
+    examples = windows(sequences, config["context"], stride)
     rng = np.random.default_rng(seed)
     best, best_state, best_epoch = math.inf, None, 0
     history = []
@@ -113,19 +173,26 @@ def fit(sequences, validation, config, epochs, batch_size, lr, patience, seed, d
 
 @torch.no_grad()
 def generate(model, prompt, count=None, seed=0, temperature=1.0):
+    """Sample a continuation. By default, fill the trained context. Absolute-position models
+    stop there. RoPE models can continue: past the context they condition on the last `context`
+    tokens, a sliding window whose attention depends only on relative offsets."""
     if not prompt or (count is not None and count < 0) or not math.isfinite(temperature) or temperature <= 0:
         raise ValueError("Need a nonempty prompt, nonnegative length, and positive finite temperature")
-    capacity = model.config["context"] + 1 - len(prompt)
+    context = model.config["context"]
+    capacity = context + 1 - len(prompt)
     count = capacity if count is None else count
-    if capacity < 1 or count > capacity:
-        raise ValueError(f"Continuation exceeds the trained context; this prompt allows at most {max(0, capacity)} tokens")
+    rope = model.config.get("position", "absolute") == "rope"
+    if capacity < 1 or (count > capacity and not rope):
+        raise ValueError(f"Continuation exceeds the trained context; this prompt allows at most {max(0, capacity)} tokens"
+                         + ("" if capacity < 1 else " (only RoPE checkpoints continue further)"))
     model.eval()
     device = next(model.parameters()).device
     rng = torch.Generator(device=device).manual_seed(seed)
     tokens = list(prompt)
     for _ in range(count):
-        # Keep frame 0 at position 0. No untrained sliding-position alignment is introduced.
-        x = torch.tensor([tokens], device=device)
+        # The window always starts at position 0. Absolute models never slide (count is bounded),
+        # so frame 0 stays at position 0; RoPE models slide over the last `context` tokens.
+        x = torch.tensor([tokens[-context:]], device=device)
         logits = model(x)[0, -1].double()
         if not torch.isfinite(logits).all():
             raise ValueError("Model produced non-finite logits")
