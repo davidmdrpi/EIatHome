@@ -1,0 +1,4 @@
+numpy>=1.24,<3
+# Only to build the background windows (tools/extract_slices.py):
+h5py>=3.8
+hdf5plugin>=4.1
