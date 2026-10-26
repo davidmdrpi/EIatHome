@@ -24,10 +24,24 @@ It's meant to be a fun, hackable open-source project:
 > tools we plan to use. Nothing is running yet. Issues, ideas and pull requests are welcome.
 > The full experiment protocol is in [`docs/experiments.md`](docs/experiments.md).
 
+## Quick start
+
+Try the first experiment, [**Hello, Voyager**](tracks/rnn/hello_voyager.ipynb). A small GRU
+learns to predict a real Breakthrough Listen observation of Voyager 1, and we look inside it to
+see what it learned. It runs in a few minutes on a laptop CPU.
+
+```bash
+git clone https://github.com/davidmdrpi/EIatHome.git
+cd EIatHome
+pip install -r requirements.txt
+jupyter lab tracks/rnn/hello_voyager.ipynb
+```
+
 ---
 
 ## Table of contents
 
+- [Quick start](#quick-start)
 - [Why EI@Home?](#why-eihome)
 - [Goals](#goals)
 - [The experiments](#the-experiments)
@@ -259,7 +273,7 @@ eiathome/
 - [ ] Snippet extractor around turboSETI hits (raw and de-drifted versions, with metadata)
 - [ ] Control sets: noise, off-source scans, setigen, Voyager 1, TorchSig modulations
 - [ ] Surrogate generators: shuffled, time-reversed, Markov-k
-- [ ] A starter notebook that runs end to end on a laptop
+- [ ] Starter notebook [Hello, Voyager](tracks/rnn/hello_voyager.ipynb) confirmed end to end on the real observation
 
 **Phase 2: Track A (RNN)**
 - [ ] GRU, LSTM and minGRU next-step baselines, plus a tiny transformer baseline
@@ -480,8 +494,9 @@ baseline.
 
 We're just getting started. Good first experiments:
 
-1. **Hello, Voyager.** Train a GRU to predict the next frame of the Voyager 1 example
-   observation and plot its hidden states.
+1. **Hello, Voyager.** Run the [starter notebook](tracks/rnn/hello_voyager.ipynb). It trains a
+   GRU to predict the next frame of the Voyager 1 example observation and probes its hidden
+   states. Then pick one of the next steps at the end of it.
 2. **Calibrate Zipf.** Tokenize pure noise with a VQ-VAE and see how Zipf-like the result looks.
    That's the baseline every Track B result must beat.
 3. **GRU vs. tiny transformer.** Compare them on setigen drifting tones: which learns the drift

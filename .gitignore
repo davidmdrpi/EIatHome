@@ -1,0 +1,15 @@
+# Downloaded observations and other large data
+data/
+*.h5
+*.fil
+*.raw
+*.part
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+
+# Jupyter
+.ipynb_checkpoints/
