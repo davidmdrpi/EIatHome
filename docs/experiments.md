@@ -153,11 +153,11 @@ A **snippet** is the unit of data for both tracks.
 | ID | Metric | Notes |
 |---|---|---|
 | M1 | Zipf rank-frequency | Fit with `powerlaw`. Compare power-law, lognormal and exponential fits by likelihood ratio, and report exponents with confidence intervals |
-| M2 | Block entropy `H_n` and conditional entropy `h_n = H_n − H_(n−1)` | Drops in `h_n` with `n` indicate rules and redundancy. Limit `n` by sample size, since counts must be much larger than `K^n`. Use bias-corrected estimators |
+| M2 | Block entropy `H_n` and conditional entropy `h_n = H_n − H_(n−1)` | Drops in `h_n` with `n` indicate rules and redundancy. Plug-in estimates collapse when contexts outnumber tokens (`K^n` large), even with bias correction, so the Live Lab reports the held-out cross-entropy of a smoothed n-gram model instead: fitted on the first 80% of tokens and scored on the rest |
 | M3 | Mutual information `I(d)` between tokens `d` apart | Compare exponential and power-law fits. Power-law decay suggests hierarchical structure ([Lin & Tegmark](https://arxiv.org/abs/1606.06737)) |
 | M4 | Compressibility | Compressed bits per token (zstd, xz) compared with surrogates |
 | M5 | Repeated motifs | Repeated n-grams beyond what a Markov-`k` surrogate predicts; longest repeated substring |
-| M6 | Language-model perplexity | Tiny causal transformer (nanoGPT) and an RNN language model. Held-out bits per token compared with unigram entropy and with surrogate streams |
+| M6 | Language-model perplexity | Tiny causal transformer (nanoGPT) and an RNN language model. Held-out bits per token compared with unigram entropy and with surrogate streams. The Live Lab trains a small GRU token model with early stopping |
 | M7 | "Speaks back" | Sample from the trained language model and check whether M1–M5 of the samples match the real streams, especially long-range structure |
 
 ### 4.3 Surrogates and null models
