@@ -8,6 +8,9 @@ const REPO = 'https://github.com/davidmdrpi/EIatHome';
 const BACKEND_NAMES = { webgpu: 'WebGPU', webgl: 'WebGL', wasm: 'WebAssembly', cpu: 'plain JS' };
 const $ = (id) => document.getElementById(id);
 
+// In the private claude.ai preview the viewer owns the theme and file downloads are blocked.
+const PREVIEW = document.querySelector('meta[name="eiathome-host"]')?.content === 'claude-artifact';
+
 // Browser storage is a convenience only: everything works without it.
 const store = {
   get(key, fallback) {
@@ -467,6 +470,7 @@ async function handleSliceFiles(files) {
 // ---------- theme, tabs, resize ----------
 
 function applyTheme() {
+  if (PREVIEW) return;
   if (state.theme === 'auto') delete document.documentElement.dataset.theme;
   else document.documentElement.dataset.theme = state.theme;
   $('theme').textContent = `Theme: ${state.theme}`;
@@ -487,6 +491,9 @@ function showTab(name) {
 // ---------- wiring ----------
 
 function init() {
+  if (PREVIEW) {
+    for (const id of ['theme', 'wu-download', 'wu-download-all']) $(id).hidden = true;
+  }
   applyTheme();
   $('backend').value = store.get('backend', 'auto');
   $('wu-spec').textContent = SPEC;
@@ -532,20 +539,36 @@ function init() {
     engine.postMessage({ type: 'stop' });
   };
   $('wu-download').onclick = () => state.card && download(`eiathome-${state.card.spec.replace('/', '-')}-unit${state.card.unit}.json`, state.card);
-  $('wu-copy').onclick = async () => {
-    try {
-      await navigator.clipboard.writeText(JSON.stringify(state.card, null, 2));
-      unitStatus('Result card copied.');
-    } catch {
-      unitStatus("Couldn't copy. Select the text and copy it manually.", true);
-    }
+  $('wu-copy').onclick = () => {
+    navigator.clipboard.writeText(JSON.stringify(state.card, null, 2)).then(
+      () => unitStatus('Result card copied.'),
+      () => {
+        getSelection().selectAllChildren($('wu-card'));
+        unitStatus('Your browser blocked copying, so the card is selected: press Ctrl+C or ⌘C.');
+      },
+    );
   };
   $('wu-download-all').onclick = () => download('eiathome-results.json', state.results);
+  // Two-step confirmation on the page itself (some hosts block confirm() dialogs).
+  let clearTimer;
   $('wu-clear').onclick = () => {
-    if (!confirm('Delete all results stored in this browser?')) return;
+    const button = $('wu-clear');
+    if (!button.dataset.armed) {
+      button.dataset.armed = 'yes';
+      button.textContent = 'Click again to delete all';
+      clearTimer = setTimeout(() => {
+        delete button.dataset.armed;
+        button.textContent = 'Clear';
+      }, 4000);
+      return;
+    }
+    clearTimeout(clearTimer);
+    delete button.dataset.armed;
+    button.textContent = 'Clear';
     state.results = [];
     store.set('results', []);
     renderHistory();
+    unitStatus('Deleted the results stored in this browser.');
   };
 
   $('slice-files').onchange = (e) => handleSliceFiles(e.target.files);
