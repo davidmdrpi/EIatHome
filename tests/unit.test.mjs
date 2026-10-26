@@ -3,10 +3,11 @@ import { test } from 'node:test';
 
 import { matchedSize, parameterCount } from '../web/js/models.js';
 import { deriveSeed, makeRng } from '../web/js/rng.js';
-import { T, makeSnippet, normalise, rosettaSymbols } from '../web/js/signals.js';
+import { C, T, makeSnippet, normalise, rosettaSymbols } from '../web/js/signals.js';
 import { canonicalOrder, datasetId, parseSlice } from '../web/js/slices.js';
 import { holdoutSplits, sessionPools } from '../web/js/splits.js';
-import { analyzeSplits, conditionalEntropies, fitMarkov, heldOutCrossEntropy, mutualInformation, sampleMarkov, shuffleWithin, targetCount } from '../web/js/trackb.js';
+import { analyzeSplits, compressedBitsPerToken, conditionalEntropies, fitMarkov, fitNgram, heldOutCrossEntropy, mutualInformation, sampleMarkov, shuffleWithin, targetCount } from '../web/js/trackb.js';
+import { rosettaSplits } from '../web/js/trackb-splits.js';
 import { ROSETTA_CORPUS, workUnitConfig } from '../web/js/workunits.js';
 import { entry, lineSlice, publishedSlices, sha256, sliceBytes } from './fixtures.mjs';
 
@@ -205,6 +206,34 @@ test('Track B fits its tokenizer and surrogates on the training split only', asy
     for (const split of ['train', 'validation']) assert.deepEqual(b.streams[stream][split], a.streams[stream][split], `${stream} ${split}`);
   }
   assert.notDeepEqual(b.streams.real.test, a.streams.real.test);
+});
+
+test('changing only the Rosetta test text leaves training and validation untouched', async () => {
+  const text = 'abcdefghijklmnopqrstuvwxyz '.repeat(120);
+  const before = rosettaSplits(128, 1, text).frameSplits;
+  // Every symbol from the first test frame onward changes (two 4-bit symbols per character).
+  const testStart = (before.train[0].length + before.validation[0].length) / C;
+  const after = rosettaSplits(128, 1, text.slice(0, testStart / 2) + 'z'.repeat(text.length - testStart / 2)).frameSplits;
+  assert.deepEqual(after.train, before.train);
+  assert.deepEqual(after.validation, before.validation, 'no validation frame is normalized together with test frames');
+  assert.notDeepEqual(after.test, before.test);
+
+  const analyze = (frameSplits) => analyzeSplits(frameSplits, { k: 16, dim: C, rng: makeRng(5) });
+  const [a, b] = [await analyze(before), await analyze(after)];
+  assert.deepEqual(b.streams.real.validation, a.streams.real.validation);
+  assert.deepEqual(b.crossEntropy.real.map((r) => r.beta), a.crossEntropy.real.map((r) => r.beta), 'smoothing is chosen without the test split');
+});
+
+test('the n-gram model is fitted on the same data as the token model: the training split', () => {
+  const tokens = (n, offset) => Array.from({ length: n }, (_, i) => Uint16Array.from({ length: 16 }, (_, j) => (i + j + offset) % 4));
+  const model = fitNgram({ train: tokens(5, 0), validation: tokens(7, 1) }, 4);
+  assert.equal(model.tables[0].context.get(0), 5 * 16, 'counts come from training tokens only');
+});
+
+test('compression never spans a segment boundary', async () => {
+  const segment = Uint16Array.from({ length: 16 }, (_, i) => i);
+  const one = await compressedBitsPerToken([segment]);
+  assert.equal(await compressedBitsPerToken(Array(100).fill(segment)), one, 'repeating a segment is no cheaper per token');
 });
 
 test('statistics never look across a segment boundary, and each target is scored once', () => {

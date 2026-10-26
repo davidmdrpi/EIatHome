@@ -22,6 +22,7 @@ browsers don't run module workers from `file://` URLs.
 | `index.html`, `css/app.css` | Page structure and theme tokens (light and dark have separate, validated chart colours) |
 | `js/main.js` | UI: tabs, signal switcher, rendering, work units, slice loading |
 | `js/engine.worker.js` | Track A engine (module worker): builds snippets, trains the GRU with TensorFlow.js, computes baselines, gains, the hidden-state PCA and the drift probe |
+| `js/trackb-splits.js` | Track B's training, validation and test frames for each kind of family, split before anything is fitted |
 | `js/trackb.worker.js`, `js/trackb.js` | Track B: splits each family into training, validation and test segments, fits the k-means tokenizer and the shuffled and Markov-1 surrogates on the training split only, and measures held-out cross-entropy, conditional entropy, mutual information, Zipf and compression without crossing a segment boundary |
 | `js/signals.js` | Signal families (two real-data ones, Voyager 1 and off-source, and the synthetic controls) and the Rosetta text; snippet normalization |
 | `js/slices.js` | Loads real-data micro-slices (`data/slices/`) or user-dropped files, verifies their SHA-256 and computes the dataset identity |
@@ -51,8 +52,10 @@ npm test
 `tests/unit.test.mjs` checks the data layer in Node: slice hash verification, dataset identity,
 that each real family samples only its own slices, session splits (including renamed copies and
 missing start times), order independence of the sampled inputs, and the pinned work-unit corpus.
-For Track B it checks that the tokenizer and surrogates never see the test split, that no
-statistic crosses a segment boundary, and that real data holds out whole scans or sessions.
+For Track B it checks that the tokenizer, surrogates and n-gram model never see the test split
+(including a Rosetta test text change end to end), that the n-gram fits the same data as the token
+model, that no statistic or compressed block crosses a segment boundary, and that real data holds
+out whole scans or sessions.
 `tests/community.test.mjs` checks card validation, replication summaries and the ingestion
 script, and `tests/ingest_issues.test.mjs` runs the ingestion driver against a local git
 remote and a fake `gh`. `tests/browser.test.mjs` serves this folder and drives the Live Lab in

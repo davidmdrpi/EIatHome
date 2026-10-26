@@ -164,8 +164,9 @@ export function conditionalEntropies(segments, k, maxOrder = 4) {
 //
 // Smoothing is hierarchical (Dirichlet): the estimate for a context of length L backs off to
 // the estimate for its last L-1 tokens, with concentration `beta`, down to a uniform 1/k.
-// For each context length, beta is chosen on the validation split using counts from the
-// training split; the model is then refitted on both and scored on the test split.
+// The counts come from the training split only, as the token model's weights do. The
+// validation split only chooses beta for each context length, as it only chooses the token
+// model's epoch.
 const BETAS = [0.25, 0.5, 1, 2, 4, 8, 16, 32, 64];
 
 function ngramTables(segments, maxContext, k) {
@@ -222,7 +223,7 @@ export function fitNgram({ train, validation }, k, maxContext = 3) {
     }
     return best;
   });
-  return { k, betas, tables: ngramTables([...train, ...validation], maxContext, k) };
+  return { k, betas, tables: fitted };
 }
 
 // Bits per token for each context length on `segments`, which the model wasn't fitted on.
@@ -308,12 +309,18 @@ export function sampleMarkov({ k, unigram, transitions }, lengths, rng) {
   });
 }
 
-// Compressed size in bits per token, using the browser's built-in DEFLATE.
+// Compressed size in bits per token, using the browser's built-in DEFLATE. Each segment is
+// compressed on its own, so no match or dictionary spans a boundary. Short segments pay
+// DEFLATE's fixed overhead, the same for every stream: compare streams, not absolute sizes.
 export async function compressedBitsPerToken(segments) {
-  const bytes = concat(segments, Uint8Array);
-  const stream = new Blob([bytes]).stream().pipeThrough(new CompressionStream('deflate-raw'));
-  const compressed = await new Response(stream).arrayBuffer();
-  return (compressed.byteLength * 8) / bytes.length;
+  let bits = 0;
+  let tokens = 0;
+  for (const segment of segments) {
+    const stream = new Blob([Uint8Array.from(segment)]).stream().pipeThrough(new CompressionStream('deflate-raw'));
+    bits += (await new Response(stream).arrayBuffer()).byteLength * 8;
+    tokens += segment.length;
+  }
+  return bits / tokens;
 }
 
 const MAX_LAG = 24;

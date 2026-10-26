@@ -179,8 +179,9 @@ Track B splits each family's frames into training, validation and test parts **b
 anything**, as the Python signal-language-model track does:
 
 - **Synthetic signals:** independent snippets, drawn separately for each split (70/10/20).
-- **Rosetta:** the text in order: the first 70% for training, the next 10% for validation, the
-  last 20% for testing, so the test split is text the tokenizer never saw.
+- **Rosetta:** the text in order: about 70% for training, 10% for validation and 20% for
+  testing, cut between snippets, so the test split is text the tokenizer never saw. (Each snippet
+  is normalized on its own, so a cut inside one would let test frames shape validation frames.)
 - **Real data:** one fixed central window per slice (no shifted copies), holding out whole
   scans, or whole sessions once a family has three. Copies stay in one split and count once.
   Within one session this is a within-session holdout, and the Live Lab labels it so.
@@ -188,13 +189,15 @@ anything**, as the Python signal-language-model track does:
 The k-means tokenizer is fitted on training frames only. S1 shuffles the tokens within each
 segment (snippet, slice or split), so it isolates order: it keeps each segment's tokens and can
 still dip a little when segments differ in content. S2 is a Markov-1 chain with add-one smoothing
-fitted to training transitions only. No statistic, n-gram context or token-model window crosses
-a segment boundary, and every target after a segment's first token is scored once.
+fitted to training transitions only. The n-gram model and the token model learn from the same
+data, the training split; the validation split only chooses the n-gram's smoothing and the token
+model's epoch. No statistic, n-gram context, token-model window or compressed block crosses a
+segment boundary, and every target after a segment's first token is scored once.
 
 For real data, a **control** row encodes the other real family with this family's tokenizer and
 scores it with this family's n-gram and token models. On the 2020 Voyager cadence, context
-predicts Voyager's held-out tokens (3.67 → 1.84 bits) but not off-source tokens (2.57 → 2.69),
-and Voyager's model gets worse with context on off-source frames. Before this protocol, shifted
+predicts Voyager's held-out tokens (3.72 → 2.03 bits) but not off-source tokens (2.89 → 3.03),
+and Voyager's model gets worse with context on off-source frames (3.19 → 3.95). Before this protocol, shifted
 copies of the same few windows on both sides of the split made off-source noise look structured
 (3.90 → 3.22 bits). Each real-data test split has only 45 scored tokens, so small differences are
 noise.
