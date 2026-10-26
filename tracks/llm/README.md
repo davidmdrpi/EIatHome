@@ -107,7 +107,8 @@ steps. A context longer than the longest training sequence's next-token span is 
 would leave positions untrained. Larger collections are currently loaded into memory;
 this implementation is for extracted slice collections, not streaming multi-gigabyte HDF5.
 With `--train-stride 1`, an epoch has about `context` times more training windows, so
-early stopping happens after fewer epochs.
+early stopping happens after fewer epochs. Comparing strides therefore also changes the number
+of optimizer updates and how often each target is trained on, not only where windows start.
 
 ## Outputs and inference
 

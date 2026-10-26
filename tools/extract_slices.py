@@ -80,7 +80,7 @@ class RangeFile(io.RawIOBase):
 
     def prefetch(self, ranges, workers=8):
         """Fetch these (offset, length) ranges in parallel, for the reads h5py is about to make."""
-        ranges = [r for r in ranges if r not in self.prefetched]
+        ranges = [r for r in dict.fromkeys(ranges) if r not in self.prefetched]  # each once
         with ThreadPoolExecutor(workers) as pool:
             for r, data in zip(ranges, pool.map(lambda r: self._get(*r), ranges)):
                 self.prefetched[r] = data
@@ -157,9 +157,10 @@ def load(path, coarse_at=None):
             header.update(fch1=fch1 + foff * lo, nchans=COARSE_WIDTH, coarse_channel=coarse)
         if remote and dset.chunks:
             # Every chunk of the selected channels, fetched in parallel before h5py reads them.
-            step = dset.chunks[2]
-            chunks = (dset.id.get_chunk_info_by_coord((t, 0, c)) for t in range(dset.shape[0])
-                      for c in range(lo - lo % step, hi, step))
+            # Chunk origins only: a chunk can span several time steps (and feeds).
+            t_step, f_step = dset.chunks[0], dset.chunks[2]
+            chunks = (dset.id.get_chunk_info_by_coord((t, 0, c)) for t in range(0, dset.shape[0], t_step)
+                      for c in range(lo - lo % f_step, hi, f_step))
             remote.prefetch([(c.byte_offset, c.size) for c in chunks])
         data = dset[:, 0, lo:hi].astype(np.float32)
     if remote:

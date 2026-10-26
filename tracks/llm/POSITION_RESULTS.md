@@ -81,6 +81,14 @@ initialization seed), for seeds 42, 43 and 44:
 - **Training on every start removes the difference.** With stride 1, absolute and RoPE models
   score within 0.03 bits of each other. RoPE alone, with non-overlapping windows, closes
   between a third and all of the gap, depending on the seed.
+- **These compare whole configurations; stride 1 changes more than where windows start.** On the
+  three 49-frame training slices, stride 15 gives 12 training windows and stride 1 gives 144.
+  With batch size 32, that's one optimizer update per epoch against five. At their selected
+  checkpoints, the stride-1 models had made 25–60 updates, the stride-15 models 13–29. Stride 1
+  also weights targets differently: frame *j* is a target in *j* windows, up to 15, so a scan's
+  first frames count for less. The stride-1 gains therefore combine offset coverage with more
+  optimization and a different target weighting, and don't isolate the effect of offset
+  coverage. The absolute-against-RoPE comparisons at the same stride have the same budget.
 - **The models learn order in the real stream.** Real Voyager tokens score 1.3 to 1.7 bits,
   below the training-fitted Markov-1 baseline (2.24). Shuffled within each slice, the same
   tokens score 3.0 to 3.2: below the unigram baseline (3.63), because a window's tokens show
@@ -99,7 +107,8 @@ initialization seed), for seeds 42, 43 and 44:
   64-channel window and fainter than later, and both sidebands are at noise level in frame 0.
   The bits-per-window profile over starts has the same shape for all four configurations.
   Stride-1 models score the scan start worse than stride-15 models (2.1–2.2 against 1.8–2.0),
-  plausibly because only 1 of 48 training windows per slice starts at frame 0, against 1 of 4.
+  plausibly because only 1 of 48 training windows per slice starts at frame 0, against 1 of 4,
+  and early targets carry less weight (above).
 
 By the issue's criterion, a RoPE model trained on offset windows scores no worse mid-scan than
 at the scan start (1.30 against 2.11). That comparison is dominated by the harder scan-start
@@ -110,6 +119,9 @@ within one model.
 
 - One observing session and one test scan (three slices). Three seeds. The scan-start score
   rests on 3 windows (45 targets).
+- No control matches the optimization budget across strides. A follow-up could hold the number
+  of optimizer updates and target windows fixed: for example, stride 15 with smaller batches or
+  repeated windows, or stride 1 with a sample of 12 windows per epoch.
 - Mid-scan windows overlap, so a frame is scored in up to 15 of them. The pooled mid-scan
   score is an average over windows, not a likelihood of the scan.
 - Continuations past the context from RoPE models (41 tokens after an 8-token prompt in these

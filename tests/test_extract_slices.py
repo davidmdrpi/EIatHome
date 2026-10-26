@@ -1,6 +1,7 @@
 """tools/extract_slices.py: remote range reads, coarse-channel selection and the drift search."""
 
 import argparse
+from collections import Counter
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 import importlib.util
 from pathlib import Path
@@ -19,9 +20,9 @@ x = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(x)
 
 
-def write_h5(path, data, fch1=8000.0, foff=-1e-6, tsamp=6.0, chunk=None):
+def write_h5(path, data, fch1=8000.0, foff=-1e-6, tsamp=6.0, chunk=None, time_chunk=1):
     with h5py.File(path, "w") as f:
-        dset = f.create_dataset("data", data=data[:, None, :], chunks=(1, 1, chunk or data.shape[1]), compression="gzip")
+        dset = f.create_dataset("data", data=data[:, None, :], chunks=(time_chunk, 1, chunk or data.shape[1]), compression="gzip")
         dset.attrs.update(fch1=fch1, foff=foff, tsamp=tsamp, tstart=60000.25, nchans=data.shape[1], source_name=b"TEST")
 
 
@@ -78,33 +79,44 @@ class ExtractorTests(unittest.TestCase):
             self.assertAlmostEqual((trials[1] - trials[0]) * n_t, 4)  # at most 2 channels off over the scan
             np.testing.assert_allclose([trials[0], trials[-1]], [-4, 4], rtol=0, atol=1e-9)
 
-    def test_range_reads_fetch_one_coarse_channel_and_match_a_local_read(self):
+    def test_range_reads_fetch_each_chunk_of_one_coarse_channel_once(self):
         rng = np.random.default_rng(1)
         width, coarse = 4096, 8
         data = (100 + rng.normal(size=(5, coarse * width))).astype(np.float32)
-        path = self.folder / "node.h5"
-        write_h5(path, data, chunk=width)
-        url = self.serve(path)
         freq = 8000.0 - 1e-6 * (5 * width + 10)  # inside coarse channel 5
-        # The tool reads https:// URLs only; the test server is plain HTTP on localhost.
-        with mock.patch.object(x, "COARSE_WIDTH", width), mock.patch.object(x, "is_url", lambda p: isinstance(p, str)):
-            local, local_header = x.load(path, freq)
-            remote, remote_header = x.load(url, freq)
-        np.testing.assert_array_equal(local, data[:, 5 * width:6 * width])
-        np.testing.assert_array_equal(remote, local)
-        self.assertEqual(local_header, remote_header)
-        self.assertEqual(local_header["coarse_channel"], 5)
-        self.assertEqual(local_header["nchans"], width)
-        self.assertAlmostEqual(local_header["fch1"], 8000.0 - 1e-6 * 5 * width)
-        # Only that coarse channel's chunks (plus metadata) come over the network.
-        remote_file = x.RangeFile(url)
-        with h5py.File(remote_file, "r") as f:
-            dset = f["data"]
-            infos = [dset.id.get_chunk_info_by_coord((t, 0, 5 * width)) for t in range(5)]
-            remote_file.prefetch([(c.byte_offset, c.size) for c in infos])
-            np.testing.assert_array_equal(dset[:, 0, 5 * width:6 * width], data[:, 5 * width:6 * width])
-            self.assertEqual(remote_file.prefetched, {}, "h5py read exactly the prefetched chunks")
-        self.assertLess(remote_file.fetched, path.stat().st_size / 2)
+        original = x.RangeFile._get
+        # Chunks of one time step (as in Breakthrough Listen files) and spanning all five.
+        for time_chunk in [1, 5]:
+            with self.subTest(time_chunk=time_chunk):
+                path = self.folder / f"node-{time_chunk}.h5"
+                write_h5(path, data, chunk=width, time_chunk=time_chunk)
+                url = self.serve(path)
+                with h5py.File(path, "r") as f:
+                    dset = f["data"]
+                    selected = {(c.byte_offset, c.size) for c in (dset.id.get_chunk_info_by_coord((t, 0, 5 * width))
+                                                                  for t in range(0, 5, time_chunk))}
+                fetches = Counter()
+
+                def counting(self, offset, length):
+                    fetches[(offset, length)] += 1
+                    return original(self, offset, length)
+
+                # The tool reads https:// URLs only; the test server is plain HTTP on localhost.
+                with mock.patch.object(x, "COARSE_WIDTH", width), mock.patch.object(x, "is_url", lambda p: isinstance(p, str)):
+                    local, local_header = x.load(path, freq)
+                    with mock.patch.object(x.RangeFile, "_get", counting):
+                        remote, remote_header = x.load(url, freq)
+                np.testing.assert_array_equal(local, data[:, 5 * width:6 * width])
+                np.testing.assert_array_equal(remote, local)
+                self.assertEqual(local_header, remote_header)
+                self.assertEqual(local_header["coarse_channel"], 5)
+                self.assertEqual(local_header["nchans"], width)
+                self.assertAlmostEqual(local_header["fch1"], 8000.0 - 1e-6 * 5 * width)
+                # Each chunk of that coarse channel is downloaded exactly once; nothing else that
+                # large is, so the rest of the file stays on the server.
+                self.assertEqual({r: fetches[r] for r in selected}, {r: 1 for r in selected})
+                self.assertEqual({r for r in fetches if r[1] > x.RangeFile.BLOCK}, {r for r in selected if r[1] > x.RangeFile.BLOCK})
+                self.assertLess(sum(length * n for (_, length), n in fetches.items()), path.stat().st_size / 2)
 
     def test_a_server_that_ignores_range_is_refused_not_downloaded(self):
         data = np.ones((2, 64), dtype=np.float32)
