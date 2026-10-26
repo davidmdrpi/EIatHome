@@ -11,6 +11,34 @@ const $ = (id) => document.getElementById(id);
 // In the private claude.ai preview the viewer owns the theme and file downloads are blocked.
 const PREVIEW = document.querySelector('meta[name="eiathome-host"]')?.content === 'claude-artifact';
 
+// Tables are built with textContent, so text from slice manifests or browser storage is
+// always shown literally and never parsed as HTML.
+function makeRow(cells, tag = 'td') {
+  const tr = document.createElement('tr');
+  for (const value of cells) {
+    const cell = document.createElement(tag);
+    if (tag === 'th') cell.scope = 'col';
+    cell.textContent = String(value ?? '');
+    tr.append(cell);
+  }
+  return tr;
+}
+
+function fillTable(table, header, rows) {
+  const head = document.createElement('thead');
+  head.append(makeRow(header, 'th'));
+  const body = document.createElement('tbody');
+  body.append(...rows.map((cells) => makeRow(cells)));
+  table.replaceChildren(head, body);
+}
+
+function element(tag, text, className) {
+  const node = document.createElement(tag);
+  if (text !== undefined) node.textContent = text;
+  if (className) node.className = className;
+  return node;
+}
+
 // Browser storage is a convenience only: everything works without it.
 const store = {
   get(key, fallback) {
@@ -103,12 +131,14 @@ function onEngineMessage(msg) {
       break;
     case 'trained':
       state.lastProbe = msg.probe;
+      state.lastUntrainedProbe = msg.untrainedProbe;
       setRunning(null);
-      labStatus(
-        msg.stopped
-          ? 'Stopped.'
-          : `Done. ${msg.parameters.toLocaleString()} parameters. Compare the GRU column with the baselines, then try another signal.`,
-      );
+      if (msg.stopped) labStatus('Stopped.');
+      else if (msg.reconstruction)
+        labStatus(
+          `Done. ${msg.parameters.toLocaleString()} parameters. ${msg.reconstruction} So the Voyager score measures how well the model reconstructs data it trained on, not how well it generalizes.`,
+        );
+      else labStatus(`Done. ${msg.parameters.toLocaleString()} parameters. Compare the GRU column with the baselines, then try another signal.`);
       renderProbe();
       break;
     case 'wu-progress':
@@ -220,13 +250,14 @@ function renderLab() {
   body.replaceChildren(
     ...FAMILIES.filter((f) => e.gains[f.id]).map((f) => {
       const g = e.gains[f.id];
-      const tr = document.createElement('tr');
+      let name = f.label;
+      if (f.id === state.trainedFamily) name += e.reconstruction ? ' (trained on; not held out)' : ' (trained on)';
+      const tr = makeRow([name, fmt(g.persistence), fmt(g.linear), fmt(g.gru), fmt(e.shuffledGains[f.id])]);
       if (f.id === state.trainedFamily) tr.className = 'current';
-      const name = f.id === state.trainedFamily ? `${f.label} (trained on)` : f.label;
-      tr.innerHTML = `<td>${name}</td><td>${fmt(g.persistence)}</td><td>${fmt(g.linear)}</td><td>${fmt(g.gru)}</td><td>${fmt(e.shuffledGains[f.id])}</td>`;
       return tr;
     }),
   );
+  $('gains-note').hidden = !e.reconstruction;
   renderMap();
 }
 
@@ -268,18 +299,37 @@ function renderMap() {
 function renderProbe() {
   const box = $('probe');
   const p = state.lastProbe;
+  const u = state.lastUntrainedProbe;
   if (!p) {
     box.hidden = true;
     return;
   }
   box.hidden = false;
-  let html = `<h3>Drift probe</h3><p class="small">A linear model reads drift rate from the GRU’s hidden state, trained on synthetic tones only. On held-out tones: <b>R² = ${fmt(p.r2)}</b>, mean error <b>${fmt(p.maeHzPerS, 3)} Hz/s</b>.</p>`;
-  if (p.voyager) {
-    html += `<div class="table-wrap"><table><thead><tr><th scope="col">Voyager</th><th scope="col">Probe readout (Hz/s)</th><th scope="col">Measured (Hz/s)</th></tr></thead><tbody>${p.voyager
-      .map((v) => `<tr><td>${v.group}</td><td>${fmt(v.readout, 3)} ± ${fmt(v.sd, 3)}</td><td>${fmt(v.measured, 3)}</td></tr>`)
-      .join('')}</tbody></table></div>`;
+  const parts = [
+    element('h3', 'Drift probe'),
+    element(
+      'p',
+      `A linear model reads drift rate from the GRU’s hidden state, trained on synthetic tones only. On held-out tones: R² = ${fmt(p.r2)}, mean error ${fmt(p.maeHzPerS, 3)} Hz/s.`,
+      'small',
+    ),
+  ];
+  if (u) {
+    parts.push(
+      element('p', `Control: the same GRU before training (same architecture and seed) gives R² = ${fmt(u.r2)}, mean error ${fmt(u.maeHzPerS, 3)} Hz/s. The difference is what training added.`, 'small'),
+    );
   }
-  box.innerHTML = html;
+  if (p.voyager) {
+    const table = document.createElement('table');
+    fillTable(
+      table,
+      ['Voyager', 'Probe readout (Hz/s)', 'Untrained GRU (Hz/s)', 'Measured (Hz/s)'],
+      p.voyager.map((v, i) => [v.group, `${fmt(v.readout, 3)} ± ${fmt(v.sd, 3)}`, fmt(u?.voyager?.[i]?.readout, 3), fmt(v.measured, 3)]),
+    );
+    const wrap = element('div', undefined, 'table-wrap');
+    wrap.append(table);
+    parts.push(wrap);
+  }
+  box.replaceChildren(...parts);
 }
 
 function startTraining() {
@@ -297,6 +347,7 @@ function startTraining() {
   state.losses = [];
   state.lastEpoch = null;
   state.lastProbe = null;
+  state.lastUntrainedProbe = null;
   state.trainedFamily = config.target;
   renderProbe();
   setRunning('lab');
@@ -365,10 +416,11 @@ function renderTrackB() {
   }));
   legend($('tb-entropy'), entropySeries);
   lineChart($('tb-entropy'), entropySeries, { xLabel: 'tokens of context', yLabel: 'bits', markers: true, yMin: 0 });
-  $('tb-entropy-table').innerHTML =
-    `<thead><tr><th scope="col">Context</th>${r.entropy.real.map((e) => `<th scope="col">${e.n - 1}</th>`).join('')}</tr></thead><tbody>` +
-    STREAMS.map((s) => `<tr><td>${s.name}</td>${r.entropy[s.id].map((e) => `<td>${fmt(e.h)}${e.reliable ? '' : '*'}</td>`).join('')}</tr>`).join('') +
-    '</tbody>';
+  fillTable(
+    $('tb-entropy-table'),
+    ['Context', ...r.entropy.real.map((e) => e.n - 1)],
+    STREAMS.map((s) => [s.name, ...r.entropy[s.id].map((e) => `${fmt(e.h)}${e.reliable ? '' : '*'}`)]),
+  );
 
   const two = STREAMS.slice(0, 2);
   const miSeries = two.map((s) => ({ name: s.name, color: s.color, points: r.mi.lags.map((d, i) => [d, r.mi[s.id][i]]) }));
@@ -392,8 +444,7 @@ function runUnit(unit) {
   $('wu-progress').value = 0;
   setRunning('unit');
   unitStatus(`Unit ${unit}: building snippets…`);
-  const dataset = voyagerAvailable() ? { voyager_slices: state.slices.map((s) => ({ id: s.id, sha256: s.sha256 })) } : null;
-  engine.postMessage({ type: 'workunit', unit, dataset });
+  engine.postMessage({ type: 'workunit', unit });
 }
 
 const randomUnit = () => Math.floor(Math.random() * (MAX_UNIT + 1));
@@ -422,9 +473,15 @@ function renderHistory() {
   $('wu-history').tBodies[0].replaceChildren(
     ...state.results.map((card) => {
       const g = card.metrics?.prediction_gain ?? {};
-      const tr = document.createElement('tr');
-      tr.innerHTML = `<td>${card.unit}</td><td>${card.config?.hidden}</td><td>${fmt(g.tone?.gru)}</td><td>${fmt(g.noise?.gru)}</td><td>${fmt(card.metrics?.drift_probe?.r2_synthetic)}</td><td>${BACKEND_NAMES[card.backend] ?? card.backend}</td><td>${card.seconds}</td>`;
-      return tr;
+      return makeRow([
+        card.unit,
+        card.config?.hidden,
+        fmt(g.tone?.gru),
+        fmt(g.noise?.gru),
+        fmt(card.metrics?.drift_probe?.r2_synthetic),
+        BACKEND_NAMES[card.backend] ?? card.backend,
+        card.seconds,
+      ]);
     }),
   );
 }
@@ -449,14 +506,23 @@ function setSlices(slices, source) {
     const file = slices[0].source?.file ?? 'unknown file';
     status.textContent = `${slices.length} Voyager slices loaded ${source === 'site' ? 'from this site' : 'from your files'} (source: ${file}). The Voyager button is now enabled.`;
   }
-  $('slice-table').innerHTML = slices.length
-    ? `<thead><tr><th scope="col">Slice</th><th scope="col">Signal</th><th scope="col">Size</th><th scope="col">Drift (Hz/s)</th><th scope="col">SNR</th></tr></thead><tbody>${slices
-        .map(
-          (s) =>
-            `<tr><td>${s.id}</td><td>${s.group}</td><td>${T} × ${s.width}</td><td>${fmt(driftToHzPerS(s.driftChannelsPerStep, s.foffHz, s.tsamp), 3)}</td><td>${fmt(s.source?.snr, 1)}</td></tr>`,
-        )
-        .join('')}</tbody>`
-    : '';
+  if (slices.length) {
+    fillTable(
+      $('slice-table'),
+      ['Slice', 'Signal', 'Scan start (MJD)', 'Size', 'Drift (Hz/s)', 'SNR', 'SHA-256 (verified)'],
+      slices.map((s) => [
+        s.id,
+        s.group,
+        Number.isFinite(s.startMjd) ? s.startMjd.toFixed(5) : 'unknown',
+        `${T} × ${s.width}`,
+        fmt(driftToHzPerS(s.driftChannelsPerStep, s.foffHz, s.tsamp), 3),
+        fmt(Number(s.source?.snr), 1),
+        `${s.sha256.slice(0, 12)}…`,
+      ]),
+    );
+  } else {
+    $('slice-table').replaceChildren();
+  }
 }
 
 async function handleSliceFiles(files) {

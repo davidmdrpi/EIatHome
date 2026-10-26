@@ -252,16 +252,50 @@ fully determined by its spec and unit number.
 - seed = unit number; hidden size cycles through 16, 32 and 64 with the unit number;
 - 600 synthetic drifting tones plus 600 noise snippets for training (16 x 64, normalized as in
   section 2.2), 12 epochs, Adam (learning rate 0.003), batch 64;
-- 48 held-out snippets per family, including Voyager micro-slices if loaded;
+- 48 held-out snippets per family, including Voyager micro-slices if loaded. The model never
+  trains on Voyager in this spec, so every Voyager snippet is unseen;
+- the Rosetta corpus is part of the spec (`en-gettysburg-bliss+us-preamble/v1`, pinned by
+  SHA-256). Work units ignore any custom text set in the Live Lab, and refuse to run if the
+  built-in text no longer matches the pinned hash;
 - reported: prediction gain against mean, persistence and linear baselines; GRU gain on
   frame-shuffled snippets; and a drift probe (R² and error on synthetic tones, plus the
-  readout on Voyager).
+  readout on Voyager). The probe is also fitted to the same GRU **before training** (same
+  architecture and seed), which shows how much drift is decodable from random features. The
+  trained-minus-untrained difference is what training added.
 
-**Result card:** a JSON object with `format: "eiathome-result"`, the spec, unit, full
-configuration, app and TensorFlow.js versions, compute backend, parameter count, the
-`sha256` of any real slices used, run time and metrics. It contains nothing about the
-volunteer or their machine beyond the backend name. Volunteers download it or submit it as a
-pre-filled GitHub issue.
+All inputs are captured when a unit starts, so loading new slices or text mid-run can't
+change them.
+
+**Result card (version 2):** a JSON object with `format: "eiathome-result"`, the spec, unit,
+full configuration, app and TensorFlow.js versions, compute backend, parameter count, run time,
+metrics, and an `inputs` block:
+
+- `rosetta_corpus`: the corpus id and the SHA-256 of the text actually used;
+- `voyager`: `null`, or a `dataset_id` plus each slice's id, SHA-256 and scan start time.
+  Slice hashes are computed from the loaded bytes, and a slice whose manifest digest doesn't
+  match is rejected. The `dataset_id` hashes the slice hashes together with the metadata that
+  changes results (start time, shape, channel width, time step, drift labels).
+
+Every run puts the loaded slices in one canonical order (by content hash, then id) before
+sampling, and the `dataset_id` uses the same order. Reordering a manifest, or renaming its
+files, therefore changes neither the inputs nor the results.
+
+The card contains nothing about the volunteer or their machine beyond the backend name.
+Volunteers download it or submit it as a pre-filled GitHub issue.
+
+**Training on real data in the Live Lab:** when the Live Lab trains on Voyager, it evaluates
+on observing sessions it didn't train on (about 30% of the loaded sessions). Sessions come from
+the data, never from file names:
+
+- slices whose scans started within 12 hours of each other, directly or through a chain of
+  scans, form one session;
+- slices with identical bytes always share a session, even if their metadata disagrees;
+- if any slice has no start time, independence can't be established.
+
+When there's only one session, or a start time is missing, nothing independent can be held out.
+The Voyager row is then labelled "not held out", because the score measures reconstruction of
+the training data, not generalization. The split trusts the manifest's start times, so it can't
+detect a copy whose bytes and start time were both deliberately altered.
 
 **Determinism:** in our tests, the same unit on the same backend (WebAssembly) gave identical
 metrics across repeat runs and fresh tabs. Different backends (WebGPU, WebGL, WebAssembly)

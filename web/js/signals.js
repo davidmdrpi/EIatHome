@@ -148,7 +148,10 @@ const GENERATORS = {
     for (let t = 0; t < T; t++) {
       x.set(slice.data.subarray(t * slice.width + first, t * slice.width + first + C), t * C);
     }
-    return { raw: x, label: { drift: slice.driftChannelsPerStep, group: slice.group, slice: slice.id } };
+    return {
+      raw: x,
+      label: { drift: slice.driftChannelsPerStep, group: slice.group, slice: slice.id, foffHz: slice.foffHz, tsamp: slice.tsamp },
+    };
   },
 };
 
