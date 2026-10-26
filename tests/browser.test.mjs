@@ -28,7 +28,7 @@ before(async () => {
   server = createServer(async (req, res) => {
     const path = normalize(decodeURIComponent(new URL(req.url, 'http://x').pathname)).replace(/^(\.\.[/\\])+/, '');
     if (overrides.has(path)) {
-      res.writeHead(200, { 'content-type': 'application/json' });
+      res.writeHead(200, { 'content-type': TYPES[extname(path)] ?? 'application/json' });
       res.end(overrides.get(path));
       return;
     }
@@ -196,6 +196,80 @@ test('Track B finds held-out structure in Voyager data but not in off-source noi
   assert.ok(offsource.real[3] > offsource.real[0] - 0.25, `no held-out structure in off-source noise: ${offsource.real}`);
   assert.deepEqual(errors, []);
   await page.close();
+});
+
+// Runs in a test-only page against the real layers (web/js/layers.js), on TF.js's CPU backend.
+const LAYER_CHECKS = `<!doctype html><meta charset="utf-8"><script type="module">
+import { LayerNorm, attentionStates, buildTokenModel } from '/js/layers.js';
+const tf = globalThis.tf;
+await tf.setBackend('cpu');
+const maxDiff = (a, b) => tf.tidy(() => tf.max(tf.abs(tf.sub(a, b))).dataSync()[0]);
+const out = {};
+
+// Changing tokens from position 20 on must leave the logits at positions 0-19 exactly unchanged.
+const k = 16;
+const lm = buildTokenModel(k, 7, 'transformer');
+const tokens = Array.from({ length: 32 }, (_, i) => (i * 7 + 3) % k);
+const changed = tokens.map((t, i) => (i >= 20 ? (t + 5) % k : t));
+const logits = (seq) => lm.apply(tf.oneHot(tf.tensor2d(seq, [1, seq.length], 'int32'), k).cast('float32'));
+const [a, b] = [logits(tokens), logits(changed)];
+out.tokenEarlier = maxDiff(a.slice([0, 0, 0], [1, 20, k]), b.slice([0, 0, 0], [1, 20, k]));
+out.tokenLater = maxDiff(a.slice([0, 20, 0], [1, 12, k]), b.slice([0, 20, 0], [1, 12, k]));
+// A shorter input gives the same logits as the prefix of a longer one.
+out.tokenPrefix = maxDiff(logits(tokens.slice(0, 8)), a.slice([0, 0, 0], [1, 8, k]));
+
+// Track A's attention block on continuous frames: the same causality check.
+const input = tf.input({ shape: [null, 64] });
+const block = tf.model({ inputs: input, outputs: attentionStates(input, 24, 3) });
+const frames = tf.randomNormal([1, 16, 64], 0, 1, 'float32', 5);
+const later = tf.concat([frames.slice([0, 0, 0], [1, 10, 64]), tf.randomNormal([1, 6, 64], 0, 1, 'float32', 6)], 1);
+const [fa, fb] = [block.apply(frames), block.apply(later)];
+out.frameEarlier = maxDiff(fa.slice([0, 0, 0], [1, 10, -1]), fb.slice([0, 0, 0], [1, 10, -1]));
+out.frameLater = maxDiff(fa.slice([0, 10, 0], [1, 6, -1]), fb.slice([0, 10, 0], [1, 6, -1]));
+
+// The custom layer norm against TF.js's own, with a non-default scale and offset.
+const x = tf.randomNormal([4, 7, 22], 0, 3, 'float32', 1);
+const ours = new LayerNorm({});
+const theirs = tf.layers.layerNormalization();
+ours.apply(x);
+theirs.apply(x);
+const weights = [tf.randomNormal([22], 1, 0.5, 'float32', 2), tf.randomNormal([22], 0, 0.5, 'float32', 3)];
+ours.setWeights(weights);
+theirs.setWeights(weights);
+out.normOutput = maxDiff(ours.apply(x), theirs.apply(x));
+const loss = (layer) => () => layer.apply(x).square().sum();
+const inputGrad = (layer) => tf.grad((v) => layer.apply(v).square().sum())(x);
+out.normInputGradient = maxDiff(inputGrad(ours), inputGrad(theirs));
+const paramGrads = (layer) => tf.variableGrads(loss(layer), layer.trainableWeights.map((w) => w.val)).grads;
+const [g1, g2] = [paramGrads(ours), paramGrads(theirs)];
+out.normParameterGradient = Math.max(...ours.trainableWeights.map((w, i) => maxDiff(g1[w.val.name], g2[theirs.trainableWeights[i].val.name])));
+out.epsilon = theirs.epsilon;
+window.__layerChecks = out;
+</script>`;
+
+test('attention is causal, and the custom layer norm matches TF.js’s', async () => {
+  overrides.set('/__test/layers.html', LAYER_CHECKS);
+  const page = await browser.newPage();
+  const errors = [];
+  page.on('pageerror', (e) => errors.push(e.message));
+  try {
+    await page.goto(`${base}__test/layers.html`);
+    await page.waitForFunction(() => window.__layerChecks, null, { timeout: 60000 });
+    const c = await page.evaluate(() => window.__layerChecks);
+    assert.equal(c.tokenEarlier, 0, 'later tokens never change earlier logits (token transformer)');
+    assert.ok(c.tokenLater > 0, 'and the check would see a change');
+    assert.ok(c.tokenPrefix < 1e-6, `a prefix pass matches the full pass: ${c.tokenPrefix}`);
+    assert.equal(c.frameEarlier, 0, 'later frames never change earlier states (Track A attention)');
+    assert.ok(c.frameLater > 0);
+    assert.equal(c.epsilon, 1e-3, 'the custom layer norm uses TF.js’s epsilon');
+    assert.ok(c.normOutput < 1e-5, `layer-norm outputs: ${c.normOutput}`);
+    assert.ok(c.normInputGradient < 1e-4, `layer-norm input gradients: ${c.normInputGradient}`);
+    assert.ok(c.normParameterGradient < 1e-4, `layer-norm scale and offset gradients: ${c.normParameterGradient}`);
+    assert.deepEqual(errors, []);
+  } finally {
+    overrides.delete('/__test/layers.html');
+    await page.close();
+  }
 });
 
 test('token-model training can be stopped, and the controls come back', async () => {

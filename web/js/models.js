@@ -47,6 +47,7 @@ export const TOKEN_ARCHITECTURES = [
 export const tokenArchitectureLabel = (id) => TOKEN_ARCHITECTURES.find((a) => a.id === id)?.label ?? id;
 
 export const TOKEN_GRU_UNITS = 32;
+export const TOKEN_WINDOW = 32; // input tokens per token-model example
 const TOKEN_EMBEDDING = 16;
 
 export function tokenParameterCount(arch, size, k, window) {
