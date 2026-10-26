@@ -16,3 +16,7 @@ venv/
 
 # Node
 node_modules/
+
+# Signal-language-model checkpoints, samples and reports
+/runs/
+

@@ -51,6 +51,17 @@ jupyter lab tracks/rnn/hello_voyager.ipynb
 
 To work on the Live Lab itself, see [`web/README.md`](web/README.md).
 
+**Train a transformer on the signal data:** the new [SETI signal language-model track](tracks/llm/README.md)
+trains a configurable decoder-only transformer from spectrogram tokens, with shuffled and
+Markov controls, checkpoints and signal continuation. The published data supports a labelled
+within-session smoke test; independent train/validation/test evaluation needs three sessions.
+
+```bash
+python -m pip install 'torch>=2.6,<3' --index-url https://download.pytorch.org/whl/cpu
+python -m pip install -r tracks/llm/requirements.txt
+python -m tracks.llm.train --allow-within-session --output runs/voyager-smoke
+```
+
 ---
 
 ## Table of contents
@@ -326,6 +337,7 @@ EIatHome/
 - [ ] Add a second Voyager session, so Voyager scores are held out ([how](web/data/slices/README.md#adding-slices))
 - [ ] Add slices of a public SETI signal of interest as a second real-data preset
 - [x] Collect submitted result cards automatically, retry any a run missed, and show replication status per slice dataset
+- [x] Train and save causal signal-token transformers in Python, with train-only tokenization and surrogate controls
 - [ ] Public volunteer pilot
 - [ ] Heavier work units on BOINC, if needed (for example via [BOINC Central](https://boinc.berkeley.edu/central/scientist.php))
 
