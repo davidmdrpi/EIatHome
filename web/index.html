@@ -183,7 +183,8 @@
           <button id="wu-copy" type="button">Copy</button>
           <a id="wu-submit" class="button" target="_blank" rel="noopener">Submit as a GitHub issue</a>
         </div>
-        <p class="muted small">Submitting opens a pre-filled GitHub issue that you can review before posting. It needs a GitHub account. The card contains only the unit, its settings, the compute backend and the metrics.</p>
+        <textarea id="wu-submit-text" rows="4" readonly spellcheck="false" aria-label="Result card to paste into the GitHub issue" hidden></textarea>
+        <p class="muted small">Submitting opens a GitHub issue with the card filled in, for you to review before posting, and copies the card to your clipboard. If a card is too long to fill in, paste it into the issue’s empty json block. It needs a GitHub account. The card contains only the unit, its settings, the compute backend, the slices it used and the metrics.</p>
       </div>
 
       <div class="panel">

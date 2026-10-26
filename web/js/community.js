@@ -13,6 +13,27 @@ const BACKENDS = ['wasm', 'webgpu', 'webgl', 'cpu'];
 const FAMILY_IDS = FAMILIES.map((f) => f.id);
 const isNumberOrNull = (v) => v === null || Number.isFinite(v);
 
+// GitHub refuses longer request URLs ("Whoa there! Your request URL is too long"): 8,180
+// characters worked and 8,280 didn't. Stay well below, with room for a sign-in redirect.
+export const MAX_ISSUE_URL = 7500;
+const ISSUE_INTRO = 'Result card from the EI@Home Live Lab.';
+// No backticks in the comment: extractCard reads the first json block.
+const PASTE_BODY = `${ISSUE_INTRO}\n\n<!-- This card was too long to fill in automatically, so the Live Lab copied it to your clipboard. Paste it on the empty line of the json block below, then submit. -->\n\n\`\`\`json\n\n\`\`\`\n`;
+
+// The text a card is submitted as, in the issue link or pasted into the issue: compact JSON.
+// Pretty-printing adds about 40%, enough to push a card past MAX_CARD_BYTES or the link limit.
+export const submissionText = (card) => JSON.stringify(card);
+
+// A link that opens a new result issue in repo, with the card's submission text in the body.
+// prefilled is false when that's too long for a link: the body then has an empty json block to
+// paste the submission text into.
+export function issueLink(card, repo) {
+  const title = `Work unit result: ${card.spec} #${card.unit}`;
+  const link = (body) => `${repo}/issues/new?${new URLSearchParams({ title, body, labels: 'work-unit' })}`;
+  const url = link(`${ISSUE_INTRO}\n\n\`\`\`json\n${submissionText(card)}\n\`\`\`\n`);
+  return url.length <= MAX_ISSUE_URL ? { url, prefilled: true } : { url: link(PASTE_BODY), prefilled: false };
+}
+
 // The first ```json block of an issue body, parsed. Throws a readable error otherwise.
 export function extractCard(body) {
   const match = /```json\s*([\s\S]*?)```/.exec(String(body ?? ''));

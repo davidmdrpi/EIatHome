@@ -7,7 +7,7 @@ import { extname, join, normalize } from 'node:path';
 import { after, before, test } from 'node:test';
 import { fileURLToPath } from 'node:url';
 
-import { validateCard } from '../web/js/community.js';
+import { MAX_ISSUE_URL, extractCard, submissionText, validateCard } from '../web/js/community.js';
 import { matchedSize, matchedTokenWidth, parameterCount, tokenParameterCount } from '../web/js/models.js';
 import { RESULT_CARD_VERSION } from '../web/js/workunits.js';
 import { describeDataset } from '../web/js/slices.js';
@@ -352,6 +352,56 @@ test('a card from a real work unit passes the checks the ingestion workflow runs
   assert.equal(card.inputs.slices.dataset_id, published.datasetId);
   assert.ok(published.families.every((f) => card.families.includes(f)), 'the card covers every published family');
   assert.deepEqual(validateCard(card, { published }), []);
+
+  // Submit: the link fits GitHub's URL limit and its issue body holds this card. Clicking it
+  // opens the issue (stubbed here) and puts the card on the clipboard too.
+  const href = await page.getAttribute('#wu-submit', 'href');
+  assert.ok(href.length <= MAX_ISSUE_URL, `${href.length} characters`);
+  assert.deepEqual(extractCard(new URL(href).searchParams.get('body')), card);
+  await page.context().route('https://github.com/**', (route) => route.fulfill({ status: 200, contentType: 'text/html', body: 'stub' }));
+  await page.context().grantPermissions(['clipboard-read', 'clipboard-write'], { origin: base.slice(0, -1) });
+  const [issue] = await Promise.all([page.waitForEvent('popup'), page.click('#wu-submit')]);
+  assert.equal(issue.url(), href);
+  await page.waitForFunction(() => /^Opened a GitHub issue/.test(document.getElementById('wu-status').textContent), null, { timeout: 10000 });
+  assert.match(await page.textContent('#wu-status'), /also on your clipboard/);
+  assert.equal(await page.evaluate(() => navigator.clipboard.readText()), submissionText(card));
+  await issue.close();
+  assert.deepEqual(errors, []);
+  await page.close();
+});
+
+test('a card too long for a link is put on the clipboard, for an issue with a json block to paste into', async () => {
+  const { page, errors } = await openLab();
+  // Forty slices: the card lists every one, which makes it too long for a link.
+  await loadSlices(page, Array.from({ length: 40 }, (_, i) => ({
+    meta: { id: `voyager-session-${String(i).padStart(2, '0')}`, group: i % 3 ? 'sideband' : 'carrier', tstart: 57650.78 + Math.floor(i / 3) * 0.004 },
+    bytes: lineSlice(2.4 + (i % 5) * 0.1, i + 1),
+  })));
+  const card = await runUnit(page, 0);
+  assert.equal(card.inputs.slices.slices.length, 40);
+  const href = await page.getAttribute('#wu-submit', 'href');
+  assert.ok(href.length <= MAX_ISSUE_URL, `${href.length} characters`);
+  const body = new URL(href).searchParams.get('body');
+  assert.ok(body.includes('```json\n\n```') && !body.includes(card.inputs.slices.dataset_id), 'an empty json block, not the card');
+  await page.context().route('https://github.com/**', (route) => route.fulfill({ status: 200, contentType: 'text/html', body: 'stub' }));
+  await page.context().grantPermissions(['clipboard-read', 'clipboard-write'], { origin: base.slice(0, -1) });
+  const [issue] = await Promise.all([page.waitForEvent('popup'), page.click('#wu-submit')]);
+  await page.waitForFunction(() => /too long to fill in automatically/.test(document.getElementById('wu-status').textContent), null, { timeout: 10000 });
+  assert.match(await page.textContent('#wu-status'), /on your clipboard: paste it into the empty json block/);
+  const clipboard = await page.evaluate(() => navigator.clipboard.readText());
+  assert.equal(clipboard, submissionText(card), 'the compact submission text, not the pretty-printed card');
+  assert.deepEqual(extractCard(body.replace('```json\n\n```', `\`\`\`json\n${clipboard}\n\`\`\``)), card, 'pasting the clipboard fills the issue with the card');
+  await issue.close();
+  assert.equal(await page.isVisible('#wu-submit-text'), false);
+
+  // If the browser blocks copying, the same text is shown and selected, to copy by hand.
+  await page.evaluate(() => (navigator.clipboard.writeText = () => Promise.reject(new Error('blocked'))));
+  const [again] = await Promise.all([page.waitForEvent('popup'), page.click('#wu-submit')]);
+  await page.waitForFunction(() => /blocked copying/.test(document.getElementById('wu-status').textContent), null, { timeout: 10000 });
+  assert.equal(await page.isVisible('#wu-submit-text'), true);
+  assert.equal(await page.inputValue('#wu-submit-text'), submissionText(card));
+  assert.deepEqual(await page.$eval('#wu-submit-text', (box) => [box.selectionStart, box.selectionEnd, box.value.length]).then(([a, b, n]) => [a, b === n]), [0, true], 'all of it is selected');
+  await again.close();
   assert.deepEqual(errors, []);
   await page.close();
 });

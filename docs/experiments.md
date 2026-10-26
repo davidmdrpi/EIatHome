@@ -339,7 +339,10 @@ use different floating-point paths, so compare across backends within a toleranc
 **Trust:** a submitted card is a claim, not a verified result. Replication by an independent
 volunteer, on the same spec and unit, is what confirms it.
 
-**Collection:** "Submit as a GitHub issue" opens a pre-filled issue. A GitHub Action
+**Collection:** "Submit as a GitHub issue" opens an issue with the card in its body, as compact
+JSON, and copies the card to the clipboard. GitHub refuses URLs longer than about 8 KB, so a
+card too long for the link (one listing many slices) opens an issue with an empty `json` block
+for the volunteer to paste it into. A GitHub Action
 (`.github/workflows/ingest-results.yml`) then checks the card against its spec:
 
 - the configuration must equal the spec's configuration for that unit;
