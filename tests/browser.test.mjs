@@ -8,7 +8,7 @@ import { after, before, test } from 'node:test';
 import { fileURLToPath } from 'node:url';
 
 import { validateCard } from '../web/js/community.js';
-import { matchedSize, parameterCount } from '../web/js/models.js';
+import { matchedSize, matchedTokenWidth, parameterCount, tokenParameterCount } from '../web/js/models.js';
 import { RESULT_CARD_VERSION } from '../web/js/workunits.js';
 import { describeDataset } from '../web/js/slices.js';
 import { sessions } from '../web/js/splits.js';
@@ -116,17 +116,29 @@ test('every Track A model trains, at the parameter count the size matching promi
   await page.close();
 });
 
-test('the token language model finds the structure in Rosetta text but not in shuffled tokens', async () => {
+test('both token models find the structure in Rosetta text but not in shuffled tokens', async () => {
   const { page, errors } = await openLab();
   await page.click('#families button[data-family="rosetta"]');
   await page.waitForFunction(() => document.getElementById('tb-status').textContent.startsWith('Rosetta'), null, { timeout: 60000 });
-  await page.click('#tb-lm');
-  await page.waitForFunction(() => /^Done/.test(document.getElementById('tb-lm-status').textContent), null, { timeout: 240000 });
-  const rows = await page.$$eval('#tb-lm-table tbody tr', (trs) => trs.map((tr) => [...tr.cells].map((td) => td.textContent)));
-  const bits = Object.fromEntries(rows.map(([name, model, , noContext]) => [name, { model: Number(model), noContext: Number(noContext) }]));
-  assert.ok(bits.real.model < bits.shuffled.model - 0.5, JSON.stringify(bits));
-  assert.ok(Math.abs(bits.shuffled.model - bits.shuffled.noContext) < 0.3, 'early stopping keeps shuffled near its no-context entropy');
-  assert.equal(await page.isVisible('#tb-lm-sample'), true);
+  const k = Number(await page.inputValue('#k'));
+  const window = 32;
+  const sizes = { gru: 32, transformer: matchedTokenWidth(k, window) };
+  for (const [arch, label] of [['gru', 'GRU'], ['transformer', 'Transformer']]) {
+    await page.selectOption('#tb-lm-arch', arch);
+    await page.click('#tb-lm');
+    await page.waitForFunction(() => /^Done/.test(document.getElementById('tb-lm-status').textContent) && !document.getElementById('tb-lm').disabled, null, { timeout: 240000 });
+    const parameters = tokenParameterCount(arch, sizes[arch], k, window).toLocaleString('en-US');
+    assert.match(await page.textContent('#tb-lm-status'), new RegExp(`^Done: ${label}, ${parameters} parameters`), 'TF.js counts what the size matching promises');
+    const rows = await page.$$eval('#tb-lm-table tbody tr', (trs) => trs.map((tr) => [...tr.cells].map((td) => td.textContent)));
+    const bits = Object.fromEntries(rows.map(([name, model, , noContext]) => [name, { model: Number(model), noContext: Number(noContext) }]));
+    assert.ok(bits.real.model < bits.shuffled.model - 0.5, `${arch}: ${JSON.stringify(bits)}`);
+    assert.ok(Math.abs(bits.shuffled.model - bits.shuffled.noContext) < 0.3, `${arch}: early stopping keeps shuffled near its no-context entropy`);
+    for (const [name, b] of Object.entries(bits)) assert.ok(b.model > 0.5, `${arch} ${name}: a model that could see the next token would score near 0 bits`);
+    assert.equal(await page.isVisible('#tb-lm-sample'), true);
+    // The GRU continues for 32 tokens; the transformer stops when its input would exceed its 32 trained positions.
+    const generated = arch === 'gru' ? 32 : window + 1 - 16;
+    assert.equal(await page.textContent('#tb-lm-generated-caption'), `The model’s ${generated}-token continuation (sampled)`);
+  }
   assert.deepEqual(errors, []);
   await page.close();
 });

@@ -1,5 +1,5 @@
 import { summarize } from './community.js';
-import { architectureLabel } from './models.js';
+import { architectureLabel, tokenArchitectureLabel } from './models.js';
 import { fmt, heatmap, lineChart, scatterPanel } from './plots.js';
 import { deriveSeed, makeRng } from './rng.js';
 import { forWorkers, loadPublishedSlices, loadSliceFiles } from './slices.js';
@@ -156,12 +156,14 @@ function onEngineMessage(msg) {
       unitStatus(`Unit ${msg.unit} stopped.`);
       break;
     case 'token-lm-progress':
-      $('tb-lm-status').textContent = `Training on the ${STREAM_NAMES[msg.stream]} stream: epoch ${msg.epoch} of ${msg.epochs}…`;
+      $('tb-lm-status').textContent = `Training on the ${STREAM_NAMES[msg.stream]} stream (${tokenArchitectureLabel(msg.arch)}): epoch ${msg.epoch} of ${msg.epochs}…`;
       break;
     case 'token-lm-result':
       setRunning(null);
       state.tokenLm = msg.stopped ? null : { ...msg, analysis: state.tokenLmFor };
-      $('tb-lm-status').textContent = msg.stopped ? 'Stopped.' : 'Done. Lower is better; compare the real stream with its surrogates.';
+      $('tb-lm-status').textContent = msg.stopped
+        ? 'Stopped.'
+        : `Done: ${tokenArchitectureLabel(msg.arch)}, ${msg.parameters.toLocaleString()} parameters. Lower is better; compare the real stream with its surrogates.`;
       renderTokenModel();
       break;
     case 'error':
@@ -489,7 +491,15 @@ function startTokenModel() {
   $('tb-lm-status').classList.remove('error');
   $('tb-lm-status').textContent = 'Starting…';
   setRunning('tokens');
-  engine.postMessage({ type: 'token-lm', k: r.k, splits: r.streams, control: r.control?.segments ?? null, centroids: r.centroids, seed: Number($('seed').value) || 0 });
+  engine.postMessage({
+    type: 'token-lm',
+    arch: $('tb-lm-arch').value,
+    k: r.k,
+    splits: r.streams,
+    control: r.control?.segments ?? null,
+    centroids: r.centroids,
+    seed: Number($('seed').value) || 0,
+  });
 }
 
 function renderTokenModel() {
@@ -512,7 +522,7 @@ function renderTokenModel() {
   if (m.control && r.control) {
     tableRows.push([controlName(r), fmt(m.control.bits), fmt(r.control.crossEntropy[3].bits), fmt(r.control.crossEntropy[0].bits), m.control.targets.toLocaleString(), 'real model']);
   }
-  fillTable($('tb-lm-table'), ['Stream (held out, bits per token)', 'Token GRU', 'n-gram, 3 tokens of context', 'No context', 'Tokens scored', 'Best epoch'], tableRows);
+  fillTable($('tb-lm-table'), ['Stream (held out, bits per token)', `Token ${tokenArchitectureLabel(m.arch)}`, 'n-gram, 3 tokens of context', 'No context', 'Tokens scored', 'Best epoch'], tableRows);
   if (m.sample) {
     const { real, generated, rows } = m.sample;
     $('tb-lm-real-caption').textContent = `The real next ${rows} tokens`;
