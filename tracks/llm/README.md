@@ -149,7 +149,10 @@ produce a strong score without linguistic structure.
 ## Validation and interpretation
 
 The [recorded smoke results](SMOKE_RESULTS.md) include both published families, their
-baselines, the exact environment, and dataset/code fingerprints.
+baselines, the exact environment, and dataset/code fingerprints. [Position results](POSITION_RESULTS.md) compare
+absolute and rotary positions, with and without offset training windows, on the 49-frame slices:
+on windows that start mid-scan, absolute positions trained on non-overlapping windows do worst,
+and training on every start removes the difference.
 
 ```bash
 python -m unittest discover -s tests -p 'test_signal_lm.py' -v
