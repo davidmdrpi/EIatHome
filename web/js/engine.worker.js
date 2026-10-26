@@ -6,7 +6,9 @@ import '../vendor/tfjs/tf-backend-webgpu.min.js';
 import '../vendor/tfjs/tf-backend-wasm.min.js';
 import { deriveSeed, makeRng } from './rng.js';
 import { C, DEFAULT_FOFF_HZ, DEFAULT_TSAMP_S, FAMILIES, T, driftToHzPerS, makeSnippet, normalise, shuffleFrames } from './signals.js';
-import { APP_VERSION, workUnitConfig } from './workunits.js';
+import { datasetId, sha256Hex } from './slices.js';
+import { voyagerPools } from './splits.js';
+import { APP_VERSION, RESULT_CARD_VERSION, ROSETTA_CORPUS, workUnitConfig } from './workunits.js';
 
 const tf = globalThis.tf;
 tf.wasm.setWasmPaths(new URL('../vendor/tfjs/', import.meta.url).href);
@@ -20,7 +22,6 @@ const STEP = T * C;
 
 let slices = [];
 let rosettaText; // undefined = the built-in public-domain text
-let units = { foffHz: DEFAULT_FOFF_HZ, tsamp: DEFAULT_TSAMP_S };
 let stopRequested = false;
 let busy = false;
 
@@ -34,7 +35,6 @@ self.onmessage = async ({ data: msg }) => {
       post({ type: 'ready', backend, version: tf.version.tfjs });
     } else if (msg.type === 'slices') {
       slices = msg.slices;
-      if (slices.length) units = { foffHz: slices[0].foffHz, tsamp: slices[0].tsamp };
     } else if (msg.type === 'text') {
       rosettaText = msg.text || undefined;
     } else if (msg.type === 'stop') {
@@ -45,7 +45,7 @@ self.onmessage = async ({ data: msg }) => {
       stopRequested = false;
       try {
         if (msg.type === 'train') await liveTrain(msg.config);
-        else await runWorkUnit(msg.unit, msg.dataset);
+        else await runWorkUnit(msg.unit);
       } finally {
         busy = false;
       }
@@ -72,15 +72,30 @@ async function useBackend(preferred) {
 
 // ---------- data ----------
 
-function familiesAvailable() {
-  return FAMILIES.filter((f) => f.id !== 'voyager' || slices.length).map((f) => f.id);
+// Everything a run reads, captured when it starts, so messages that arrive mid-run (new
+// slices, new text) can't change its inputs.
+function snapshotInputs({ text = rosettaText } = {}) {
+  const runSlices = slices.slice();
+  const units = runSlices.length ? { foffHz: runSlices[0].foffHz, tsamp: runSlices[0].tsamp } : { foffHz: DEFAULT_FOFF_HZ, tsamp: DEFAULT_TSAMP_S };
+  return { slices: runSlices, text, units };
 }
 
-function buildSet(family, n, rng, { region, shuffle = false }) {
+function familiesAvailable(inputs) {
+  return FAMILIES.filter((f) => f.id !== 'voyager' || inputs.slices.length).map((f) => f.id);
+}
+
+// Which Voyager slices each split may use. Only training on Voyager needs separate
+// observations; otherwise every slice is unseen evaluation data.
+function slicePools(target, inputs) {
+  if (target === 'voyager') return voyagerPools(inputs.slices);
+  return { train: inputs.slices, eval: inputs.slices, heldOut: null };
+}
+
+function buildSet(family, n, rng, { region, shuffle = false, slices: pool, text }) {
   const x = new Float32Array(n * STEP);
   const labels = [];
   for (let i = 0; i < n; i++) {
-    const { raw, label } = makeSnippet(family, rng, { region, slices, text: rosettaText });
+    const { raw, label } = makeSnippet(family, rng, { region, slices: pool, text });
     let snippet = normalise(raw);
     if (shuffle) snippet = shuffleFrames(snippet, rng.permutation(T));
     x.set(snippet, i * STEP);
@@ -324,7 +339,7 @@ function fitProbe(states, n, dim, targets) {
   };
 }
 
-async function probeDrift(model, trainSet, evalSets, hidden) {
+async function probeDrift(model, trainSet, evalSets, hidden, units) {
   const toneIdx = trainSet.families.map((f, i) => (f === 'tone' ? i : -1)).filter((i) => i >= 0).slice(0, 600);
   if (toneIdx.length < 20 || !evalSets.tone) return null;
   const x = new Float32Array(toneIdx.length * STEP);
@@ -372,20 +387,24 @@ async function probeDrift(model, trainSet, evalSets, hidden) {
 
 // ---------- training ----------
 
-async function train(config, onEpoch) {
+async function train(config, onEpoch, inputs) {
   const { target, hidden, epochs, nTrain, batch, lr, seed, mixNoise, shuffle } = config;
-  const available = familiesAvailable();
+  const available = familiesAvailable(inputs);
   if (!available.includes(target)) throw new Error(`"${target}" isn't available. Load Voyager slices first.`);
+  const pools = slicePools(target, inputs);
+  const context = (region) => ({ region, text: inputs.text, slices: region === 'train' ? pools.train : pools.eval });
+  // Training on the only loaded observation: Voyager scores measure reconstruction.
+  const reconstruction = pools.heldOut === false;
 
   const trainRng = makeRng(deriveSeed(seed, 'train'));
-  const parts = [buildSet(target, mixNoise && target !== 'noise' ? nTrain / 2 : nTrain, trainRng, { region: 'train', shuffle })];
-  if (mixNoise && target !== 'noise') parts.push(buildSet('noise', nTrain / 2, trainRng, { region: 'train' }));
+  const parts = [buildSet(target, mixNoise && target !== 'noise' ? nTrain / 2 : nTrain, trainRng, { ...context('train'), shuffle })];
+  if (mixNoise && target !== 'noise') parts.push(buildSet('noise', nTrain / 2, trainRng, context('train')));
   const trainSet = concatSets(parts);
 
   const evalSets = {};
   for (const family of available) {
     const rng = makeRng(deriveSeed(seed, `eval-${family}`));
-    evalSets[family] = buildSet(family, N_EVAL, rng, { region: 'eval', shuffle: shuffle && family === target });
+    evalSets[family] = buildSet(family, N_EVAL, rng, { ...context('eval'), shuffle: shuffle && family === target });
   }
   const mean = meanFrame(trainSet);
   const W = fitLinear(trainSet);
@@ -405,6 +424,8 @@ async function train(config, onEpoch) {
   let previousComponents = null;
 
   try {
+    // Control: how much drift a probe can read from the same GRU before any training.
+    const untrainedProbe = await probeDrift(model, trainSet, evalSets, hidden, inputs.units);
     for (let epoch = 1; epoch <= epochs && !stopRequested; epoch++) {
       const started = performance.now();
       const perm = order.permutation(trainSet.n);
@@ -434,11 +455,11 @@ async function train(config, onEpoch) {
         shuffledGains[family] = await gruGain(model, shuffledSets[family].set, shuffledSets[family].floor);
       }
       history.push({ epoch, loss: lossSum / seen, ms });
-      await onEpoch({ epoch, epochs, loss: lossSum / seen, ms, gains: familyGains, shuffledGains, model, evalSets, previousComponents, setComponents: (c) => (previousComponents = c) });
+      await onEpoch({ epoch, epochs, loss: lossSum / seen, ms, gains: familyGains, shuffledGains, reconstruction, model, evalSets, previousComponents, setComponents: (c) => (previousComponents = c) });
       await pause();
     }
-    const probe = stopRequested ? null : await probeDrift(model, trainSet, evalSets, hidden);
-    return { history, probe, parameters: model.parameters, stopped: stopRequested, available };
+    const probe = stopRequested ? null : await probeDrift(model, trainSet, evalSets, hidden, inputs.units);
+    return { history, probe, untrainedProbe, reconstruction, parameters: model.parameters, stopped: stopRequested, available };
   } finally {
     model.predictor.dispose();
     optimizer.dispose();
@@ -446,10 +467,14 @@ async function train(config, onEpoch) {
 }
 
 async function liveTrain(config) {
+  const inputs = snapshotInputs();
+  const pools = slicePools(config.target, inputs);
   const mapSets = {};
-  for (const family of familiesAvailable()) {
+  for (const family of familiesAvailable(inputs)) {
     mapSets[family] = buildSet(family, N_MAP, makeRng(deriveSeed(config.seed, `map-${family}`)), {
       region: 'eval',
+      slices: pools.eval,
+      text: inputs.text,
       shuffle: config.shuffle && family === config.target,
     });
   }
@@ -475,25 +500,45 @@ async function liveTrain(config) {
       ms: state.ms,
       gains: state.gains,
       shuffledGains: state.shuffledGains,
+      reconstruction: state.reconstruction,
       example: { actual, predicted, residual, rows: T - 2 },
       map: { points, families: mapAll.families },
       backend: tf.getBackend(),
     });
+  }, inputs);
+  post({
+    type: 'trained',
+    probe: result.probe,
+    untrainedProbe: result.untrainedProbe,
+    reconstruction: result.reconstruction,
+    parameters: result.parameters,
+    stopped: result.stopped,
   });
-  post({ type: 'trained', probe: result.probe, parameters: result.parameters, stopped: result.stopped });
 }
 
 const round = (v, digits = 4) => (Number.isFinite(v) ? Number(v.toFixed(digits)) : null);
 
-async function runWorkUnit(unit, dataset) {
+async function runWorkUnit(unit) {
   const config = workUnitConfig(unit);
   const started = new Date();
   const t0 = performance.now();
+  // Work units always use the spec's frozen corpus, never the Live Lab's custom text.
+  const inputs = snapshotInputs({ text: ROSETTA_CORPUS.text });
+  const corpusSha256 = await sha256Hex(new TextEncoder().encode(inputs.text));
+  if (corpusSha256 !== ROSETTA_CORPUS.sha256) {
+    throw new Error(`The built-in Rosetta text no longer matches spec ${config.spec}. Define a new spec instead of editing the text.`);
+  }
+  const inputRecord = {
+    rosetta_corpus: { id: ROSETTA_CORPUS.id, sha256: corpusSha256 },
+    voyager: inputs.slices.length
+      ? { dataset_id: await datasetId(inputs.slices), slices: inputs.slices.map((s) => ({ id: s.id, sha256: s.sha256, observation: s.observation })) }
+      : null,
+  };
   let last = null;
   const result = await train(config, async (state) => {
     last = state;
     post({ type: 'wu-progress', unit, epoch: state.epoch, epochs: state.epochs, loss: state.loss });
-  });
+  }, inputs);
   if (result.stopped || !last) {
     post({ type: 'wu-stopped', unit });
     return;
@@ -505,17 +550,26 @@ async function runWorkUnit(unit, dataset) {
   }
   metrics.final_train_loss = round(last.loss);
   if (result.probe) {
+    const { probe, untrainedProbe } = result;
     metrics.drift_probe = {
-      r2_synthetic: round(result.probe.r2),
-      mae_hz_per_s_synthetic: round(result.probe.maeHzPerS),
-      voyager: result.probe.voyager?.map((v) => ({ group: v.group, measured_hz_per_s: round(v.measured), readout_hz_per_s: round(v.readout), readout_sd: round(v.sd) })),
+      r2_synthetic: round(probe.r2),
+      mae_hz_per_s_synthetic: round(probe.maeHzPerS),
+      untrained_r2_synthetic: round(untrainedProbe?.r2),
+      untrained_mae_hz_per_s_synthetic: round(untrainedProbe?.maeHzPerS),
+      voyager: probe.voyager?.map((v, i) => ({
+        group: v.group,
+        measured_hz_per_s: round(v.measured),
+        readout_hz_per_s: round(v.readout),
+        readout_sd: round(v.sd),
+        untrained_readout_hz_per_s: round(untrainedProbe?.voyager?.[i]?.readout),
+      })),
     };
   }
   post({
     type: 'wu-result',
     card: {
       format: 'eiathome-result',
-      version: 1,
+      version: RESULT_CARD_VERSION,
       spec: config.spec,
       unit,
       config,
@@ -524,7 +578,7 @@ async function runWorkUnit(unit, dataset) {
       backend: tf.getBackend(),
       parameters: result.parameters,
       families: result.available,
-      dataset: dataset ?? null,
+      inputs: inputRecord,
       started: started.toISOString(),
       seconds: round((performance.now() - t0) / 1000, 1),
       metrics,

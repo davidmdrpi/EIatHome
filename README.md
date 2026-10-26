@@ -540,7 +540,9 @@ Other ways to help:
 - **Pick a roadmap item** and say in an issue that you're working on it.
 - **Share expertise** in SETI, radio astronomy, signal processing, linguistics or machine learning.
 
-A `CONTRIBUTING.md` and code of conduct are coming soon.
+Before opening a pull request, run the tests: `npm ci`, `npx playwright install chromium`,
+then `npm test` (see [`web/README.md`](web/README.md#tests)). A `CONTRIBUTING.md` and code of
+conduct are coming soon.
 
 ## License
 

@@ -24,7 +24,8 @@ browsers don't run module workers from `file://` URLs.
 | `js/engine.worker.js` | Track A engine (module worker): builds snippets, trains the GRU with TensorFlow.js, computes baselines, gains, the hidden-state PCA and the drift probe |
 | `js/trackb.worker.js`, `js/trackb.js` | Track B: k-means tokenizer, conditional entropy, mutual information, Zipf, compression, and the shuffled and Markov-1 surrogates |
 | `js/signals.js` | Signal families and the Rosetta text; snippet normalization |
-| `js/slices.js` | Loads real-data micro-slices (`data/slices/`) or user-dropped files |
+| `js/slices.js` | Loads real-data micro-slices (`data/slices/`) or user-dropped files, verifies their SHA-256 and computes the dataset identity |
+| `js/splits.js` | Keeps Voyager training and evaluation on different observations |
 | `js/workunits.js` | Versioned work-unit specs |
 | `js/rng.js` | Seeded random numbers, so everything is reproducible |
 | `js/plots.js` | Small canvas charts with hover tooltips |
@@ -36,6 +37,26 @@ overhead outweigh the speed-up. WebGPU and WebGL are one click away, and the sta
 shows milliseconds per epoch so you can compare on your own machine. Multithreaded
 WebAssembly needs cross-origin isolation headers, which GitHub Pages doesn't send, so it
 runs single-threaded there.
+
+## Tests
+
+From the repository root:
+
+```bash
+npm ci
+npx playwright install chromium
+npm test
+```
+
+`tests/unit.test.mjs` checks the data layer in Node: slice hash verification, dataset identity,
+train/evaluation splits and the pinned work-unit corpus. `tests/browser.test.mjs` serves this
+folder and drives the Live Lab in headless Chromium. It checks that slice metadata is always
+shown as text, that a Voyager run on one observation is labelled as reconstruction, and that
+work units give identical metrics whatever custom text is set. CI runs both on every pull
+request.
+
+Build table cells with `textContent` (see `makeRow` in `js/main.js`). Never put text from a
+manifest, a file or browser storage into `innerHTML`.
 
 ## Common changes
 

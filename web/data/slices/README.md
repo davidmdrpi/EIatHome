@@ -24,6 +24,11 @@ keep the `source` metadata in `index.json` so every slice credits the observatio
   time step (`tsamp_s`), first channel, centre frequency, measured drift and SNR.
 - Each `.bin` file is raw little-endian float32, row-major (time step by time step), in
   noise-sigma units after bandpass flattening.
+- The Live Lab computes each file's SHA-256 when it loads it and rejects the slice if the
+  manifest's `sha256` doesn't match. Result cards record the computed digest.
+- Slices with the same `source.file` and `source.tstart_mjd` count as one observation. When
+  the Live Lab trains on Voyager, it evaluates on other observations; with only one, it labels
+  the score as reconstruction rather than a held-out result.
 
 Anyone can also drop a manifest plus its `.bin` files into the Live Lab's Data tab to try
 slices locally without publishing them.
