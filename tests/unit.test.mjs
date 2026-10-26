@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
-import { matchedSize, parameterCount } from '../web/js/models.js';
+import { matchedSize, matchedTokenWidth, parameterCount, tokenParameterCount } from '../web/js/models.js';
 import { deriveSeed, makeRng } from '../web/js/rng.js';
 import { C, T, makeSnippet, normalise, rosettaSymbols } from '../web/js/signals.js';
 import { canonicalOrder, datasetId, parseSlice } from '../web/js/slices.js';
@@ -277,6 +277,13 @@ test('real-data token statistics hold out whole scans, or whole sessions once th
 
   assert.match(holdoutSplits(await load([scan('a', DAY_1, 1), scan('b', DAY_1 + minutes(10), 2)]), 'voyager').error, /at least 3 scans/);
   assert.match(holdoutSplits(await load([scan('a', null, 1), scan('b', DAY_3, 2), scan('c', DAY_6, 3)]), 'voyager').error, /no start time/);
+});
+
+test('the token transformer is sized to within 3% of the token GRU, for every vocabulary size', () => {
+  for (const k of [8, 16, 32]) {
+    const ratio = tokenParameterCount('transformer', matchedTokenWidth(k, 32), k, 32) / tokenParameterCount('gru', 32, k, 32);
+    assert.ok(Math.abs(ratio - 1) < 0.03, `K = ${k}: ${ratio.toFixed(3)}`);
+  }
 });
 
 test('LSTM and attention are sized to within 3% of the GRU parameter count', () => {

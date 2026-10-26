@@ -8,7 +8,8 @@ import { deriveSeed, makeRng } from './rng.js';
 import { C, DEFAULT_FOFF_HZ, DEFAULT_TSAMP_S, FAMILIES, REAL_FAMILIES, T, driftToHzPerS, makeSnippet, normalise, shuffleFrames } from './signals.js';
 import { canonicalOrder, datasetId, sha256Hex } from './slices.js';
 import { sessionPools } from './splits.js';
-import { matchedSize } from './models.js';
+import { attentionStates, buildTokenModel } from './layers.js';
+import { TOKEN_WINDOW, matchedSize } from './models.js';
 import { APP_VERSION, RESULT_CARD_VERSION, ROSETTA_CORPUS, workUnitConfig } from './workunits.js';
 
 const tf = globalThis.tf;
@@ -119,93 +120,6 @@ function concatSets(sets) {
 }
 
 // ---------- model ----------
-
-// A learned position embedding, added to each time step (attention has no built-in order).
-class PositionEmbedding extends tf.layers.Layer {
-  static className = 'EIatHomePositionEmbedding';
-
-  constructor(config) {
-    super(config);
-    this.maxLength = config.maxLength;
-    this.seed = config.seed;
-  }
-
-  build(inputShape) {
-    const width = inputShape[inputShape.length - 1];
-    this.table = this.addWeight('table', [this.maxLength, width], 'float32', tf.initializers.randomNormal({ stddev: 0.02, seed: this.seed }));
-    this.built = true;
-  }
-
-  call(inputs) {
-    return tf.tidy(() => {
-      const x = Array.isArray(inputs) ? inputs[0] : inputs;
-      return x.add(this.table.read().slice([0, 0], [x.shape[1], -1]));
-    });
-  }
-
-  computeOutputShape(inputShape) {
-    return inputShape;
-  }
-
-  getConfig() {
-    return { ...super.getConfig(), maxLength: this.maxLength, seed: this.seed };
-  }
-}
-
-// Single-head causal self-attention: each time step attends only to itself and earlier steps.
-class CausalSelfAttention extends tf.layers.Layer {
-  static className = 'EIatHomeCausalSelfAttention';
-
-  constructor(config) {
-    super(config);
-    this.seed = config.seed;
-  }
-
-  build(inputShape) {
-    const d = inputShape[inputShape.length - 1];
-    for (const [i, name] of ['q', 'k', 'v', 'o'].entries()) {
-      this[`w${name}`] = this.addWeight(`w${name}`, [d, d], 'float32', tf.initializers.glorotUniform({ seed: this.seed + i }));
-      this[`b${name}`] = this.addWeight(`b${name}`, [d], 'float32', tf.initializers.zeros());
-    }
-    this.built = true;
-  }
-
-  call(inputs) {
-    return tf.tidy(() => {
-      const x = Array.isArray(inputs) ? inputs[0] : inputs;
-      const [, steps, d] = x.shape;
-      const flat = x.reshape([-1, d]);
-      const project = (w, b) => flat.matMul(w.read()).add(b.read()).reshape([-1, steps, d]);
-      const q = project(this.wq, this.bq);
-      const k = project(this.wk, this.bk);
-      const v = project(this.wv, this.bv);
-      const future = tf.sub(1, tf.linalg.bandPart(tf.ones([steps, steps]), -1, 0)); // 1 above the diagonal
-      const scores = tf.matMul(q, k, false, true).div(Math.sqrt(d)).add(future.mul(-1e9));
-      const mixed = tf.matMul(tf.softmax(scores, -1), v).reshape([-1, d]);
-      return mixed.matMul(this.wo.read()).add(this.bo.read()).reshape([-1, steps, d]);
-    });
-  }
-
-  computeOutputShape(inputShape) {
-    return inputShape;
-  }
-
-  getConfig() {
-    return { ...super.getConfig(), seed: this.seed };
-  }
-}
-
-// One pre-norm transformer block: attention then a feed-forward layer, each with a residual.
-function attentionStates(input, width, seed) {
-  const glorot = (i) => tf.initializers.glorotUniform({ seed: seed + i });
-  let h = tf.layers.dense({ units: width, kernelInitializer: glorot(10) }).apply(input);
-  h = new PositionEmbedding({ maxLength: T, seed: seed + 11 }).apply(h);
-  const attended = new CausalSelfAttention({ seed: seed + 12 }).apply(tf.layers.layerNormalization().apply(h));
-  h = tf.layers.add().apply([h, attended]);
-  const expanded = tf.layers.dense({ units: 2 * width, activation: 'relu', kernelInitializer: glorot(20) }).apply(tf.layers.layerNormalization().apply(h));
-  const projected = tf.layers.dense({ units: width, kernelInitializer: glorot(21) }).apply(expanded);
-  return tf.layers.add().apply([h, projected]);
-}
 
 // arch: 'gru' | 'lstm' | 'attention'. size: hidden units, or model width for attention.
 function buildModel(arch, size, seed) {
@@ -626,32 +540,12 @@ async function liveTrain(config) {
 
 // Token streams arrive split into training, validation and test segments (see trackb.js).
 // Examples never cross a segment boundary.
-const TOKEN_WINDOW = 32; // input tokens per example
 const TRAIN_STRIDE = 8; // a training window starts every 8 tokens of a segment
 const SCORE_STRIDE = 16; // after its first window, a long segment is scored 16 new targets at a time
 const TOKEN_EPOCHS = 10;
 const MIN_EXAMPLES_PER_EPOCH = 160; // a small split (real slices) repeats its windows within an epoch
-
-// A small causal model over radio tokens: embedding -> GRU -> next-token logits. The
-// embedding is a bias-free dense layer on one-hot tokens: the same parameters as an embedding
-// lookup, but its gradient is a matrix product, which every backend supports (the lookup's
-// gradient has no WebAssembly kernel).
-function buildTokenModel(k, seed) {
-  const input = tf.input({ shape: [null, k] });
-  const embedded = tf.layers
-    .dense({ units: 16, useBias: false, kernelInitializer: tf.initializers.randomUniform({ minval: -0.05, maxval: 0.05, seed }) })
-    .apply(input);
-  const states = tf.layers
-    .gru({
-      units: 32,
-      returnSequences: true,
-      kernelInitializer: tf.initializers.glorotUniform({ seed: seed + 1 }),
-      recurrentInitializer: tf.initializers.orthogonal({ seed: seed + 2 }),
-    })
-    .apply(embedded);
-  const logits = tf.layers.dense({ units: k, kernelInitializer: tf.initializers.glorotUniform({ seed: seed + 3 }) }).apply(states);
-  return tf.model({ inputs: input, outputs: logits });
-}
+// Adam learning rates. The transformer overfits small splits within an epoch at the GRU's rate.
+const TOKEN_LEARNING_RATE = { gru: 1e-2, transformer: 3e-3 };
 
 // Integer tokens (shape [batch, time]) as float one-hot vectors ([batch, time, k]).
 const oneHot = (tokens, shape, k) => tf.tidy(() => tf.oneHot(tf.tensor2d(tokens, shape, 'int32'), k).cast('float32'));
@@ -712,9 +606,9 @@ async function heldOutBits(model, segments, k) {
 
 // Trains on the training split with early stopping: the weights from the best validation
 // epoch are kept. The model is then scored once on the test split, which it never saw.
-async function trainTokenModel(name, splits, k, seed, progress) {
-  const model = buildTokenModel(k, seed);
-  const optimizer = tf.train.adam(1e-2);
+async function trainTokenModel(name, splits, k, seed, progress, arch) {
+  const model = buildTokenModel(k, seed, arch);
+  const optimizer = tf.train.adam(TOKEN_LEARNING_RATE[arch]);
   const rng = makeRng(deriveSeed(seed, `token-order-${name}`));
   const examples = segmentWindows(splits.train, TRAIN_STRIDE, false);
   const passes = Math.max(1, Math.ceil(MIN_EXAMPLES_PER_EPOCH / examples.length));
@@ -773,25 +667,29 @@ async function sampleTokens(model, prompt, n, k, rng) {
   return tokens.slice(prompt.length);
 }
 
-async function runTokenModels({ id, k, splits, control, centroids, seed }) {
+async function runTokenModels({ id, k, splits, control, centroids, seed, arch = 'gru' }) {
   const results = {};
   let controlResult = null;
   let sample = null;
+  let parameters = null;
   for (const name of ['real', 'shuffled', 'markov']) {
-    const { model, bits, targets, bestEpoch, optimizer } = await trainTokenModel(name, splits[name], k, seed % 100000, (stream, epoch) =>
-      post({ type: 'token-lm-progress', id, stream, epoch, epochs: TOKEN_EPOCHS }),
-    );
+    const progress = (stream, epoch) => post({ type: 'token-lm-progress', id, stream, epoch, epochs: TOKEN_EPOCHS, arch });
+    const { model, bits, targets, bestEpoch, optimizer } = await trainTokenModel(name, splits[name], k, seed % 100000, progress, arch);
     try {
+      parameters = model.countParams();
       if (stopRequested) break;
       results[name] = { bits, targets, bestEpoch };
       if (name === 'real') {
         // Control: the real model on another family's frames, tokenized with this family's codebook.
         if (control?.length) controlResult = await heldOutBits(model, control, k);
-        // Continue the first test segment from its first half (at most 16 tokens), next to the real continuation.
+        // Continue the first test segment from its first half (at most 16 tokens), next to the
+        // real continuation. The transformer stops when its input would outgrow the window its
+        // positions were trained on: it never slides a token onto an untrained position.
         const segment = splits.real.test.find((s) => s.length >= 2);
         if (segment) {
           const promptLength = Math.min(16, Math.floor(segment.length / 2));
-          const count = Math.min(32, segment.length - promptLength);
+          const capacity = arch === 'transformer' ? TOKEN_WINDOW + 1 - promptLength : Infinity;
+          const count = Math.min(32, segment.length - promptLength, capacity);
           const generated = await sampleTokens(model, segment.subarray(0, promptLength), count, k, makeRng(deriveSeed(seed, 'token-sample')));
           const frames = (tokens) => {
             const out = new Float32Array(tokens.length * C);
@@ -806,7 +704,7 @@ async function runTokenModels({ id, k, splits, control, centroids, seed }) {
       optimizer.dispose();
     }
   }
-  post({ type: 'token-lm-result', id, stopped: stopRequested, results, control: controlResult, sample, epochs: TOKEN_EPOCHS });
+  post({ type: 'token-lm-result', id, stopped: stopRequested, results, control: controlResult, sample, epochs: TOKEN_EPOCHS, arch, parameters });
 }
 
 const round = (v, digits = 4) => (Number.isFinite(v) ? Number(v.toFixed(digits)) : null);

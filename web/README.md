@@ -21,7 +21,9 @@ browsers don't run module workers from `file://` URLs.
 |---|---|
 | `index.html`, `css/app.css` | Page structure and theme tokens (light and dark have separate, validated chart colours) |
 | `js/main.js` | UI: tabs, signal switcher, rendering, work units, slice loading |
-| `js/engine.worker.js` | Track A engine (module worker): builds snippets, trains the GRU with TensorFlow.js, computes baselines, gains, the hidden-state PCA and the drift probe |
+| `js/engine.worker.js` | Track A engine (module worker): builds snippets, trains the GRU, LSTM or causal-attention model with TensorFlow.js, computes baselines, gains, the hidden-state PCA and the drift probe. Also trains Track B's token model (GRU or transformer) |
+| `js/layers.js` | Model layers shared by Track A and Track B (causal attention, learned positions, layer normalization) and the token-model builder, importable outside the engine so tests can check them |
+| `js/models.js` | Model families and their parameter counts, so architectures can be compared at about the same size (Track A models, and Track B's token models) |
 | `js/trackb-splits.js` | Track B's training, validation and test frames for each kind of family, split before anything is fitted |
 | `js/trackb.worker.js`, `js/trackb.js` | Track B: splits each family into training, validation and test segments, fits the k-means tokenizer and the shuffled and Markov-1 surrogates on the training split only, and measures held-out cross-entropy, conditional entropy, mutual information, Zipf and compression without crossing a segment boundary |
 | `js/signals.js` | Signal families (two real-data ones, Voyager 1 and off-source, and the synthetic controls) and the Rosetta text; snippet normalization |
@@ -67,6 +69,11 @@ headless Chromium. It checks that:
 - work units give identical metrics whatever custom text is set;
 - Track B finds held-out structure in Voyager data but not in off-source noise, and scores the
   other real family as a control;
+- both token models (GRU and transformer) find the structure in Rosetta text but not in shuffled
+  tokens, at the parameter count the size matching promises, and the transformer's continuation
+  stays within its trained positions;
+- attention is causal (later tokens or frames never change earlier outputs, and a prefix pass
+  matches the full pass), and the custom layer norm matches TF.js's in outputs and gradients;
 - token-model training can be stopped, and the controls come back.
 
 CI runs both on every pull request.

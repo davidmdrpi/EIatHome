@@ -35,3 +35,38 @@ export function matchedSize(arch, gruHidden) {
   }
   return best;
 }
+
+// Track B token models: next-token logits over k token types, from one-hot tokens, over at
+// most `window` tokens. The GRU has a bias-free 16-dimensional embedding and 32 hidden units;
+// the transformer is one block of Track A's causal attention at width `size`.
+export const TOKEN_ARCHITECTURES = [
+  { id: 'gru', label: 'GRU' },
+  { id: 'transformer', label: 'Transformer' },
+];
+
+export const tokenArchitectureLabel = (id) => TOKEN_ARCHITECTURES.find((a) => a.id === id)?.label ?? id;
+
+export const TOKEN_GRU_UNITS = 32;
+export const TOKEN_WINDOW = 32; // input tokens per token-model example
+const TOKEN_EMBEDDING = 16;
+
+export function tokenParameterCount(arch, size, k, window) {
+  const head = size * k + k;
+  if (arch === 'gru') return k * TOKEN_EMBEDDING + 3 * size * (TOKEN_EMBEDDING + size + 1) + head;
+  if (arch === 'transformer') {
+    const d = size;
+    // token projection, position table, two layer norms, Q/K/V/O, feed-forward (d -> 2d -> d)
+    return k * d + d + window * d + 2 * d + 4 * (d * d + d) + 2 * d + (2 * d * d + 2 * d) + (2 * d * d + d) + head;
+  }
+  throw new Error(`Unknown token architecture "${arch}"`);
+}
+
+// The transformer width whose parameter count is closest to the token GRU's.
+export function matchedTokenWidth(k, window) {
+  const target = tokenParameterCount('gru', TOKEN_GRU_UNITS, k, window);
+  let best = 1;
+  for (let d = 1; d <= 4 * TOKEN_GRU_UNITS; d++) {
+    if (Math.abs(tokenParameterCount('transformer', d, k, window) - target) < Math.abs(tokenParameterCount('transformer', best, k, window) - target)) best = d;
+  }
+  return best;
+}

@@ -140,8 +140,12 @@
           <p id="tb-notes" class="muted small"></p>
 
           <h3>Does it speak back? A token language model</h3>
-          <p class="muted small">A small causal GRU (16-dimensional token embeddings, 32 hidden units) learns to predict the next radio token, on the same splits as the n-gram model above: it trains on the training split for up to 10 epochs, keeps the epoch that does best on the validation split, and is scored once on the test split. Then it continues the first test segment from its first half (at most 16 tokens). Each token is drawn as its k-means centroid frame.</p>
-          <div class="buttons"><button id="tb-lm" type="button">Train token model</button><button id="tb-lm-stop" type="button" disabled>Stop</button></div>
+          <p class="muted small">A small causal model learns to predict the next radio token: a <b>GRU</b> (16-dimensional token embeddings, 32 hidden units) or a <b>transformer</b> (one block of single-head causal attention with learned positions for up to 32 tokens), sized to about the same number of parameters. It uses the same splits as the n-gram model above: it trains on the training split for up to 10 epochs, keeps the epoch that does best on the validation split, and is scored once on the test split. Then it continues the first test segment from its first half (at most 16 tokens). The transformer stops when its input would exceed the 32 positions it was trained on, so it never shifts a token onto an untrained position. Each token is drawn as its k-means centroid frame.</p>
+          <div class="controls">
+            <label class="field"><span>Model</span>
+              <select id="tb-lm-arch"><option value="gru" selected>GRU</option><option value="transformer">Transformer</option></select></label>
+            <div class="buttons"><button id="tb-lm" type="button">Train token model</button><button id="tb-lm-stop" type="button" disabled>Stop</button></div>
+          </div>
           <p id="tb-lm-status" class="status" role="status" aria-live="polite"></p>
           <div class="table-wrap"><table id="tb-lm-table"></table></div>
           <div class="pair" id="tb-lm-sample" hidden>

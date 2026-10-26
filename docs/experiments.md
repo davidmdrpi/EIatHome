@@ -157,7 +157,7 @@ A **snippet** is the unit of data for both tracks.
 | M3 | Mutual information `I(d)` between tokens `d` apart | Compare exponential and power-law fits. Power-law decay suggests hierarchical structure ([Lin & Tegmark](https://arxiv.org/abs/1606.06737)) |
 | M4 | Compressibility | Compressed bits per token (zstd, xz) compared with surrogates |
 | M5 | Repeated motifs | Repeated n-grams beyond what a Markov-`k` surrogate predicts; longest repeated substring |
-| M6 | Language-model perplexity | Tiny causal transformer (nanoGPT) and an RNN language model. Held-out bits per token compared with unigram entropy and with surrogate streams. The Live Lab trains a small GRU token model with early stopping |
+| M6 | Language-model perplexity | Tiny causal transformer (nanoGPT) and an RNN language model. Held-out bits per token compared with unigram entropy and with surrogate streams. The Live Lab trains a small token model, a GRU or a one-block causal transformer at about the same parameter count, with early stopping. The transformer's sampled continuation stops at the 32 positions it was trained on, so it never shifts tokens onto untrained positions |
 | M7 | "Speaks back" | Sample from the trained language model and check whether M1–M5 of the samples match the real streams, especially long-range structure |
 
 ### 4.3 Surrogates and null models
