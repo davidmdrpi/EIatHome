@@ -1,8 +1,8 @@
 // Train/evaluation splits for real data.
 //
-// Voyager snippets are shifted windows of a few signals, so snippets from the same observing
-// session overlap heavily or share an interference environment. When the model trains on
-// Voyager, evaluation must use other sessions. Sessions are found from the data itself, never
+// Real-data snippets (Voyager, off-source) are shifted windows of a few slices, so snippets
+// from the same observing session overlap heavily or share an interference environment. When
+// the model trains on a real family, evaluation must use other sessions of that family. Sessions are found from the data itself, never
 // from file names, which change when a file is renamed or re-exported:
 //
 // - slices whose scans started within SESSION_GAP_DAYS of each other (directly or through a
@@ -46,7 +46,8 @@ export function sessions(slices) {
   return [...groups.values()].sort((a, b) => earliest(a) - earliest(b) || (firstHash(a) < firstHash(b) ? -1 : 1));
 }
 
-export function voyagerPools(slices, evalFraction = 0.3) {
+// Training and evaluation slices for training on one real family (pass that family's slices).
+export function sessionPools(slices, evalFraction = 0.3) {
   const reconstruction = (reason, count) => ({ train: slices, eval: slices, heldOut: false, sessions: count, reason });
   if (slices.some((s) => !Number.isFinite(s.startMjd))) return reconstruction('A slice has no start time, so independence can’t be established.', null);
   const groups = sessions(slices);

@@ -1,6 +1,7 @@
-// Signal families for the Live Lab: one real (Voyager 1, from pre-extracted slices) and
-// several synthetic controls with known answers. Every generator returns a raw snippet in
-// noise-sigma units (T time steps x C channels, row-major), before normalization.
+// Signal families for the Live Lab: two real ones from pre-extracted slices (Voyager 1, and
+// the off-source scans of the same cadence) and several synthetic controls with known answers.
+// Every generator returns a raw snippet in noise-sigma units (T time steps x C channels,
+// row-major), before normalization.
 
 export const T = 16; // time steps per snippet: all that Breakthrough Listen's high-resolution product has
 export const C = 64; // channels per snippet
@@ -11,7 +12,13 @@ export const DEFAULT_FOFF_HZ = -2.7939677238464355;
 export const DEFAULT_TSAMP_S = 18.253611008;
 
 export const FAMILIES = [
-  { id: 'voyager', label: 'Voyager 1', about: 'Real Green Bank data: Voyager 1’s carrier and telemetry sidebands. Needs extracted slices (see the Data tab).' },
+  { id: 'voyager', label: 'Voyager 1', real: true, about: 'Real Green Bank data: Voyager 1’s carrier and telemetry sidebands. Needs extracted slices (see the Data tab).' },
+  {
+    id: 'offsource',
+    label: 'Off-source',
+    real: true,
+    about: 'Real Green Bank data from the same cadence with the telescope pointed 1° away from Voyager 1: the same receiver, frequencies and processing, at the channels where Voyager’s signals would be, but nothing in the beam. The real-data counterpart of Noise.',
+  },
   { id: 'tone', label: 'Drifting tone', about: 'A narrow line drifting at a constant rate, like a transmitter on a moving planet.' },
   { id: 'pulsed', label: 'Pulsed', about: 'A drifting tone switched on and off with a fixed period.' },
   { id: 'sweep', label: 'RFI sweep', about: 'A fast sawtooth sweep that wraps around the window, like swept radar interference.' },
@@ -21,6 +28,8 @@ export const FAMILIES = [
 ];
 
 export const familyById = Object.fromEntries(FAMILIES.map((f) => [f.id, f]));
+// Families whose snippets are cut from real-data slices.
+export const REAL_FAMILIES = FAMILIES.filter((f) => f.real).map((f) => f.id);
 
 // Public-domain English text for the Rosetta control.
 export const ROSETTA_TEXT = `Four score and seven years ago our fathers brought forth on this continent, a new nation, conceived in Liberty, and dedicated to the proposition that all men are created equal.
@@ -139,21 +148,29 @@ const GENERATORS = {
   },
 
   voyager(rng, ctx) {
-    const slices = ctx.slices ?? [];
-    if (!slices.length) throw new Error('No Voyager slices loaded');
-    const slice = slices[rng.int(0, slices.length)];
-    const offset = rng.int(-6, 7);
-    const first = Math.round(slice.width / 2 - C / 2) + offset;
-    const x = new Float32Array(T * C);
-    for (let t = 0; t < T; t++) {
-      x.set(slice.data.subarray(t * slice.width + first, t * slice.width + first + C), t * C);
-    }
-    return {
-      raw: x,
-      label: { drift: slice.driftChannelsPerStep, group: slice.group, slice: slice.id, foffHz: slice.foffHz, tsamp: slice.tsamp },
-    };
+    const { raw, slice } = sliceWindow('voyager', rng, ctx);
+    return { raw, label: { drift: slice.driftChannelsPerStep, group: slice.group, slice: slice.id, foffHz: slice.foffHz, tsamp: slice.tsamp } };
+  },
+
+  offsource(rng, ctx) {
+    const { raw, slice } = sliceWindow('offsource', rng, ctx);
+    return { raw, label: { group: slice.group, slice: slice.id } };
   },
 };
+
+// A C-channel window, shifted by up to 6 channels, from a random slice of `family`.
+function sliceWindow(family, rng, ctx) {
+  const slices = (ctx.slices ?? []).filter((s) => s.family === family);
+  if (!slices.length) throw new Error(`No ${familyById[family].label} slices loaded`);
+  const slice = slices[rng.int(0, slices.length)];
+  const offset = rng.int(-6, 7);
+  const first = Math.round(slice.width / 2 - C / 2) + offset;
+  const raw = new Float32Array(T * C);
+  for (let t = 0; t < T; t++) {
+    raw.set(slice.data.subarray(t * slice.width + first, t * slice.width + first + C), t * C);
+  }
+  return { raw, slice };
+}
 
 export function makeSnippet(family, rng, ctx = {}) {
   return GENERATORS[family](rng, ctx);

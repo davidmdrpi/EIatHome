@@ -2,11 +2,12 @@
 // statistics against surrogates. Pure JavaScript, so it runs while the engine trains.
 
 import { deriveSeed, makeRng } from './rng.js';
-import { C, T, makeSnippet, normalise, rosettaStream } from './signals.js';
+import { C, T, familyById, makeSnippet, normalise, rosettaStream } from './signals.js';
 import { canonicalOrder } from './slices.js';
 import {
   compressedBitsPerToken,
   conditionalEntropies,
+  heldOutCrossEntropy,
   kmeans,
   markovSurrogate,
   mutualInformation,
@@ -41,14 +42,17 @@ async function analyze({ family, k, nFrames, seed, text }) {
     if (stream.wrapped) notes.push('The text is shorter than the stream, so it repeats. Repeats add artificial structure: use a longer text or fewer frames.');
   } else {
     snippets = Array.from({ length: nSnippets }, () => makeSnippet(family, rng, { slices, region: 'eval' }).raw);
-    if (family === 'voyager') notes.push(`Only ${slices.length} real signals are loaded, so these snippets are shifted views of the same few signals.`);
+    if (familyById[family].real) {
+      const count = slices.filter((s) => s.family === family).length;
+      notes.push(`Only ${count} ${familyById[family].label} slices are loaded, so these snippets are shifted views of the same few windows.`);
+    }
   }
   if (family !== 'rosetta') notes.push('Snippets are independent, so structure can only span 16 tokens.');
 
   const n = nSnippets * T;
   const frames = new Float32Array(n * C);
   snippets.forEach((raw, i) => frames.set(normalise(raw), i * T * C));
-  const tokens = kmeans(frames, n, C, k, rng).labels;
+  const { labels: tokens, centroids } = kmeans(frames, n, C, k, rng);
 
   const streams = {
     real: tokens,
@@ -56,9 +60,11 @@ async function analyze({ family, k, nFrames, seed, text }) {
     markov: markovSurrogate(tokens, k, rng),
   };
   const entropy = {};
+  const crossEntropy = {};
   const compression = {};
   for (const [name, stream] of Object.entries(streams)) {
     entropy[name] = conditionalEntropies(stream, k);
+    crossEntropy[name] = heldOutCrossEntropy(stream, k);
     compression[name] = await compressedBitsPerToken(stream);
   }
   const lags = Array.from({ length: MAX_LAG }, (_, i) => i + 1);
@@ -70,7 +76,11 @@ async function analyze({ family, k, nFrames, seed, text }) {
     preview: Array.from(tokens.subarray(0, 48)),
     notes,
     entropy,
+    crossEntropy,
     compression,
+    // For the token language model: the three streams and what each token looks like.
+    streams,
+    centroids,
     zipf: {
       unigram: { real: rankFrequency(streams.real, 1, k), shuffled: rankFrequency(streams.shuffled, 1, k) },
       bigram: { real: rankFrequency(streams.real, 2, k), shuffled: rankFrequency(streams.shuffled, 2, k) },

@@ -73,7 +73,8 @@ export const fmt = (v, digits = 2) => (Number.isFinite(v) ? v.toFixed(digits) : 
 // ---------- heatmap ----------
 
 // kind: 'sequential' (magnitude, one hue) or 'diverging' (sign, blue <-> red, gray midpoint).
-export function heatmap(canvas, values, rows, cols, { kind = 'sequential', range, label = 'value' } = {}) {
+// rowLabel names the vertical axis; firstRow is the number of the bottom row.
+export function heatmap(canvas, values, rows, cols, { kind = 'sequential', range, label = 'value', rowLabel = 'frame', firstRow = 2 } = {}) {
   const { ctx, w, h } = prepare(canvas);
   const pad = { l: 34, r: 6, t: 6, b: 22 };
   const pw = w - pad.l - pad.r;
@@ -102,20 +103,20 @@ export function heatmap(canvas, values, rows, cols, { kind = 'sequential', range
   ctx.textAlign = 'center';
   ctx.fillText('channel', pad.l + pw / 2, h - 6);
   ctx.textAlign = 'right';
-  ctx.fillText(String(rows + 1), pad.l - 4, pad.t + 9);
-  ctx.fillText('2', pad.l - 4, pad.t + ph);
+  ctx.fillText(String(firstRow + rows - 1), pad.l - 4, pad.t + 9);
+  ctx.fillText(String(firstRow), pad.l - 4, pad.t + ph);
   ctx.save();
   ctx.translate(10, pad.t + ph / 2);
   ctx.rotate(-Math.PI / 2);
   ctx.textAlign = 'center';
-  ctx.fillText('frame', 0, 0);
+  ctx.fillText(rowLabel, 0, 0);
   ctx.restore();
 
   attachHover(canvas, (x, y) => {
     if (x < pad.l || x > pad.l + pw || y < pad.t || y > pad.t + ph) return null;
     const c = Math.floor(((x - pad.l) / pw) * cols);
     const r = rows - 1 - Math.floor(((y - pad.t) / ph) * rows);
-    return `frame ${r + 2}, channel ${c}<br><b>${label} ${fmt(values[r * cols + c])}</b>`;
+    return `${rowLabel} ${r + firstRow}, channel ${c}<br><b>${label} ${fmt(values[r * cols + c])}</b>`;
   });
 }
 

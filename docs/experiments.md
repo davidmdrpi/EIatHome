@@ -153,11 +153,11 @@ A **snippet** is the unit of data for both tracks.
 | ID | Metric | Notes |
 |---|---|---|
 | M1 | Zipf rank-frequency | Fit with `powerlaw`. Compare power-law, lognormal and exponential fits by likelihood ratio, and report exponents with confidence intervals |
-| M2 | Block entropy `H_n` and conditional entropy `h_n = H_n − H_(n−1)` | Drops in `h_n` with `n` indicate rules and redundancy. Limit `n` by sample size, since counts must be much larger than `K^n`. Use bias-corrected estimators |
+| M2 | Block entropy `H_n` and conditional entropy `h_n = H_n − H_(n−1)` | Drops in `h_n` with `n` indicate rules and redundancy. Plug-in estimates collapse when contexts outnumber tokens (`K^n` large), even with bias correction, so the Live Lab reports the held-out cross-entropy of a smoothed n-gram model instead: fitted on the first 80% of tokens and scored on the rest |
 | M3 | Mutual information `I(d)` between tokens `d` apart | Compare exponential and power-law fits. Power-law decay suggests hierarchical structure ([Lin & Tegmark](https://arxiv.org/abs/1606.06737)) |
 | M4 | Compressibility | Compressed bits per token (zstd, xz) compared with surrogates |
 | M5 | Repeated motifs | Repeated n-grams beyond what a Markov-`k` surrogate predicts; longest repeated substring |
-| M6 | Language-model perplexity | Tiny causal transformer (nanoGPT) and an RNN language model. Held-out bits per token compared with unigram entropy and with surrogate streams |
+| M6 | Language-model perplexity | Tiny causal transformer (nanoGPT) and an RNN language model. Held-out bits per token compared with unigram entropy and with surrogate streams. The Live Lab trains a small GRU token model with early stopping |
 | M7 | "Speaks back" | Sample from the trained language model and check whether M1–M5 of the samples match the real streams, especially long-range structure |
 
 ### 4.3 Surrogates and null models
@@ -178,7 +178,7 @@ alone says nothing about order or grammar.
 | ID | Control | Ground truth | Purpose |
 |---|---|---|---|
 | C0 | Thermal noise (synthetic) | No structure | Calibrates every metric |
-| C1 | Off-source scans | Real sky and instrument without the hit | Realistic null |
+| C1 | Off-source scans (in the Live Lab: the off-source family, cut where Voyager’s signals would be) | Real sky and instrument without the hit | Realistic null |
 | C2 | setigen continuous tones with drift | Drift rate, SNR | Simplest predictable structure |
 | C3 | setigen pulsed signals | Pulse period, duty cycle | Periodic structure |
 | C4 | Chirps and frequency sweeps (radar-like) | Sweep rate | Deterministic but meaningless structure |
@@ -252,8 +252,9 @@ fully determined by its spec and unit number.
 - seed = unit number; hidden size cycles through 16, 32 and 64 with the unit number;
 - 600 synthetic drifting tones plus 600 noise snippets for training (16 x 64, normalized as in
   section 2.2), 12 epochs, Adam (learning rate 0.003), batch 64;
-- 48 held-out snippets per family, including Voyager micro-slices if loaded. The model never
-  trains on Voyager in this spec, so every Voyager snippet is unseen;
+- 48 held-out snippets per family, including the real-data families (Voyager, and off-source
+  scans of the same cadence) if their micro-slices are loaded. The model never trains on real
+  data in this spec, so every real snippet is unseen;
 - the Rosetta corpus is part of the spec (`en-gettysburg-bliss+us-preamble/v1`, pinned by
   SHA-256). Work units ignore any custom text set in the Live Lab, and refuse to run if the
   built-in text no longer matches the pinned hash;
@@ -266,15 +267,19 @@ fully determined by its spec and unit number.
 All inputs are captured when a unit starts, so loading new slices or text mid-run can't
 change them.
 
-**Result card (version 2):** a JSON object with `format: "eiathome-result"`, the spec, unit,
+**Result card (version 3):** a JSON object with `format: "eiathome-result"`, the spec, unit,
 full configuration, app and TensorFlow.js versions, compute backend, parameter count, run time,
 metrics, and an `inputs` block:
 
 - `rosetta_corpus`: the corpus id and the SHA-256 of the text actually used;
-- `voyager`: `null`, or a `dataset_id` plus each slice's id, SHA-256 and scan start time.
-  Slice hashes are computed from the loaded bytes, and a slice whose manifest digest doesn't
-  match is rejected. The `dataset_id` hashes the slice hashes together with the metadata that
-  changes results (start time, shape, channel width, time step, drift labels).
+- `slices`: `null`, or a `dataset_id` plus each slice's id, family, SHA-256 and scan start
+  time. Slice hashes are computed from the loaded bytes, and a slice whose manifest digest
+  doesn't match is rejected. The `dataset_id` hashes the slice hashes together with the
+  metadata that changes results (family, start time, shape, channel width, time step, drift
+  labels). Version 2 called this block `voyager`; version 3 renamed it when off-source slices
+  joined the dataset.
+
+Runs of a unit are compared for replication only when they used the same `dataset_id`.
 
 Every run puts the loaded slices in one canonical order (by content hash, then id) before
 sampling, and the `dataset_id` uses the same order. Reordering a manifest, or renaming its
@@ -283,8 +288,9 @@ files, therefore changes neither the inputs nor the results.
 The card contains nothing about the volunteer or their machine beyond the backend name.
 Volunteers download it or submit it as a pre-filled GitHub issue.
 
-**Training on real data in the Live Lab:** when the Live Lab trains on Voyager, it evaluates
-on observing sessions it didn't train on (about 30% of the loaded sessions). Sessions come from
+**Training on real data in the Live Lab:** when the Live Lab trains on a real family (Voyager
+or off-source), it evaluates that family on observing sessions it didn't train on (about 30% of
+the family's sessions). Slices of the other real family are unseen, so they're all evaluated. Sessions come from
 the data, never from file names:
 
 - slices whose scans started within 12 hours of each other, directly or through a chain of
@@ -303,6 +309,20 @@ use different floating-point paths, so compare across backends within a toleranc
 
 **Trust:** a submitted card is a claim, not a verified result. Replication by an independent
 volunteer, on the same spec and unit, is what confirms it.
+
+**Collection:** "Submit as a GitHub issue" opens a pre-filled issue. A GitHub Action
+(`.github/workflows/ingest-results.yml`) then checks the card against its spec:
+
+- the configuration must equal the spec's configuration for that unit;
+- the Rosetta corpus must be the pinned one;
+- any Voyager data must be the slices the site publishes;
+- every metric must be a number.
+
+The Action rejects duplicates: the same issue, an identical card, or the same volunteer
+re-submitting the same unit. It appends a valid card to `web/data/community_results.json` and
+redeploys the Live Lab. The Work units tab shows each unit's status. A unit is **replicated**
+when runs from at least two volunteers agree within 0.02 on every metric, and marked **runs
+disagree** when they don't. Each volunteer's first run of a unit is the one compared.
 
 ### 9.2 BOINC work units (later, if needed)
 

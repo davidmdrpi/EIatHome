@@ -21,9 +21,16 @@ It's meant to be a fun, hackable open-source project:
   nothing to install. [BOINC](https://boinc.berkeley.edu/) stays an option for heavier jobs
   later.
 
-> **Status: early planning.** This README describes the goals, experiment design and the
-> tools we plan to use. Nothing is running yet. Issues, ideas and pull requests are welcome.
-> The full experiment protocol is in [`docs/experiments.md`](docs/experiments.md).
+> **Status: early, and running.** The [Live Lab](https://davidmdrpi.github.io/EIatHome/) works
+> today. It trains GRU, LSTM and causal-attention models on signals in your browser, measures
+> how language-like their radio tokens are, trains a token language model, and runs
+> reproducible work units whose results are collected and checked for replication
+> automatically. Real Voyager 1 slices from a 2020 Green Bank observation are published, with
+> off-source slices from the same cadence as a real-noise control. They all come from one
+> observing session, so a score on the real family a model trained on is reconstruction, not
+> held out, until a second session is added. Not yet: that second session, the full notebook run on the
+> real observation, and VQ-VAE tokenizers. The experiment protocol is in
+> [`docs/experiments.md`](docs/experiments.md).
 
 ## Quick start
 
@@ -250,7 +257,9 @@ or WebGL. Each unit is fully determined by its number, so anyone can re-run it: 
 how results are checked. Signals come either from in-browser generators or from **micro-slices**,
 16 KB windows of real data cut by [`tools/extract_slices.py`](tools/extract_slices.py), so
 nobody downloads a multi-gigabyte file. Results are small JSON cards that volunteers download or
-submit as a pre-filled GitHub issue. There's no server to run or pay for.
+submit as a pre-filled GitHub issue. A GitHub Action checks each card against its spec and
+adds it to the community results shown in the Live Lab, where a unit counts as replicated once
+two volunteers' runs agree. There's no server to run or pay for.
 
 The first browser work unit, `track-a/v0`, replicates the Hello, Voyager notebook. The table
 below is the full plan. Heavier units (raw voltages, long sweeps) may later move to BOINC,
@@ -285,7 +294,7 @@ EIatHome/
 
 ## Roadmap
 
-**Phase 0: Foundations** *(current)*
+**Phase 0: Foundations**
 - [x] Repository, license, project goals and experiment design
 - [ ] `CONTRIBUTING.md`, code of conduct and issue templates
 - [ ] Choose the first observations and candidate sets
@@ -293,24 +302,31 @@ EIatHome/
 **Phase 1: Snippets and controls**
 - [ ] Snippet extractor around turboSETI hits (raw and de-drifted versions, with metadata)
 - [ ] Control sets: noise, off-source scans, setigen, Voyager 1, TorchSig modulations
-- [ ] Surrogate generators: shuffled, time-reversed, Markov-k
+- [x] Shuffled-frame, shuffled-token and Markov-1 surrogates (Live Lab)
+- [ ] Time-reversed and Markov-k surrogates
 - [ ] Starter notebook [Hello, Voyager](tracks/rnn/hello_voyager.ipynb) confirmed end to end on the real observation
 
 **Phase 2: Track A (RNN)**
-- [ ] GRU, LSTM and minGRU next-step baselines, plus a tiny transformer baseline
-- [ ] Hidden-state projection, clustering and linear probes
+- [x] GRU, LSTM and one-layer causal attention at matched parameter counts, with persistence and linear baselines (Live Lab)
+- [ ] minGRU and Mamba-style models
+- [x] Hidden-state projection and a linear drift probe, with an untrained-model control
+- [ ] Hidden-state clustering
 - [ ] First report: candidates compared with every control
 
 **Phase 3: Track B (tokens)**
 - [ ] VQ-VAE and FSQ tokenizers with a vocabulary-size sweep
-- [ ] Linguistic metrics with null models (Zipf, entropy, mutual information, compressibility)
-- [ ] Tiny causal language model on token streams; perplexity against surrogates
+- [x] Linguistic metrics with null models: held-out cross-entropy, mutual information, Zipf and compressibility (Live Lab, k-means tokens)
+- [x] Tiny causal language model on token streams, scored held out against surrogates, with sampled continuations (Live Lab)
 
 **Phase 4: Volunteers**
 - [x] Browser Live Lab with Track A training, Track B token metrics and `track-a/v0` work units
-- [ ] Enable GitHub Pages and publish the real Voyager micro-slices
-- [ ] Collect submitted result cards and compare replications
-- [ ] Public volunteer pilot and results dashboard
+- [x] Enable GitHub Pages
+- [x] Publish real Voyager micro-slices (one 2020 session: 3 on-source scans, 9 slices)
+- [x] Publish off-source control slices from the same cadence (3 off-source scans, 9 slices), as a real-data family in the Live Lab
+- [ ] Add a second Voyager session, so Voyager scores are held out ([how](web/data/slices/README.md#adding-slices))
+- [ ] Add slices of a public SETI signal of interest as a second real-data preset
+- [x] Collect submitted result cards automatically, retry any a run missed, and show replication status per slice dataset
+- [ ] Public volunteer pilot
 - [ ] Heavier work units on BOINC, if needed (for example via [BOINC Central](https://boinc.berkeley.edu/central/scientist.php))
 
 **Stretch goals**

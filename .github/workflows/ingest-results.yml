@@ -1,0 +1,52 @@
+name: Ingest work-unit results
+
+# Volunteers submit result cards from the Live Lab as issues titled "Work unit result: ...".
+# tools/ingest_issues.mjs validates each card, appends it to web/data/community_results.json on
+# main, redeploys the Live Lab, and replies on the issue. The issue text is untrusted: it is only
+# read by tools/ingest_result.mjs as JSON, never interpolated into a shell command.
+#
+# Runs are serialized so their commits to the results file can't compete. A run that's
+# cancelled anyway (the queue holds at most 100) or fails leaves its issue unlabelled or
+# labelled work-unit-pending, and the scheduled run records it, or, if the card was already
+# stored, requests the Live Lab deploy and settles the issue.
+
+on:
+  issues:
+    types: [opened]
+  schedule:
+    - cron: "41 */6 * * *" # retry anything a cancelled or failed run missed
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  issues: write
+  actions: write
+
+concurrency:
+  group: ingest-results
+  cancel-in-progress: false
+  queue: max # keep every waiting run, not just the newest one
+
+jobs:
+  ingest:
+    if: github.event_name != 'issues' || startsWith(github.event.issue.title, 'Work unit result:')
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Record result issues
+        env:
+          GH_TOKEN: ${{ github.token }}
+          ISSUE: ${{ github.event.issue.number }}
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          if [ -n "$ISSUE" ]; then
+            node tools/ingest_issues.mjs "$ISSUE"
+          else
+            node tools/ingest_issues.mjs --pending
+          fi

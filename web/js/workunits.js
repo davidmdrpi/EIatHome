@@ -3,8 +3,8 @@
 
 import { ROSETTA_TEXT } from './signals.js';
 
-export const APP_VERSION = '0.2.0';
-export const RESULT_CARD_VERSION = 2;
+export const APP_VERSION = '0.3.0';
+export const RESULT_CARD_VERSION = 3;
 export const SPEC = 'track-a/v0';
 const HIDDEN_GRID = [16, 32, 64];
 
@@ -18,7 +18,8 @@ export const ROSETTA_CORPUS = {
 };
 
 // track-a/v0 replicates the Hello, Voyager notebook in the browser: train on noise and
-// synthetic drifting tones only, then evaluate on every family, including Voyager if loaded.
+// synthetic drifting tones only, then evaluate on every family, including the real ones
+// (Voyager, off-source) whose slices are loaded.
 export function workUnitConfig(unit) {
   return {
     spec: SPEC,

@@ -7,7 +7,12 @@ import { extname, join, normalize } from 'node:path';
 import { after, before, test } from 'node:test';
 import { fileURLToPath } from 'node:url';
 
-import { lineSlice, writeSliceFolder } from './fixtures.mjs';
+import { validateCard } from '../web/js/community.js';
+import { matchedSize, parameterCount } from '../web/js/models.js';
+import { RESULT_CARD_VERSION } from '../web/js/workunits.js';
+import { describeDataset } from '../web/js/slices.js';
+import { sessions } from '../web/js/splits.js';
+import { lineSlice, makeCard, publishedSlices, writeSliceFolder } from './fixtures.mjs';
 
 const { chromium } = createRequire(import.meta.url)('playwright');
 const WEB = fileURLToPath(new URL('../web/', import.meta.url));
@@ -17,10 +22,16 @@ const ATTACK = '<img src=x onerror="window.__pwned=1">';
 let server;
 let browser;
 let base;
+const overrides = new Map(); // path -> body, to serve fixture data in place of the real file
 
 before(async () => {
   server = createServer(async (req, res) => {
     const path = normalize(decodeURIComponent(new URL(req.url, 'http://x').pathname)).replace(/^(\.\.[/\\])+/, '');
+    if (overrides.has(path)) {
+      res.writeHead(200, { 'content-type': 'application/json' });
+      res.end(overrides.get(path));
+      return;
+    }
     const file = join(WEB, path.endsWith('/') ? `${path}index.html` : path);
     try {
       const body = await readFile(file);
@@ -92,6 +103,76 @@ test('HTML in slice metadata is displayed literally, never run', async () => {
   await page.close();
 });
 
+test('every Track A model trains, at the parameter count the size matching promises', async () => {
+  const { page, errors } = await openLab();
+  for (const arch of ['gru', 'lstm', 'attention']) {
+    await page.selectOption('#arch', arch);
+    await train(page, 'tone');
+    const expected = parameterCount(arch, matchedSize(arch, 32)).toLocaleString('en-US');
+    assert.match(await page.textContent('#lab-status'), new RegExp(`${expected} parameters`), arch);
+    assert.ok(Number.isFinite(Number(await page.textContent('#gains tbody tr.current td:nth-child(4)'))), `${arch} reports a gain`);
+  }
+  assert.deepEqual(errors, []);
+  await page.close();
+});
+
+test('the token language model finds the structure in Rosetta text but not in shuffled tokens', async () => {
+  const { page, errors } = await openLab();
+  await page.click('#families button[data-family="rosetta"]');
+  await page.waitForFunction(() => document.getElementById('tb-status').textContent.startsWith('Rosetta'), null, { timeout: 60000 });
+  await page.click('#tb-lm');
+  await page.waitForFunction(() => /^Done/.test(document.getElementById('tb-lm-status').textContent), null, { timeout: 240000 });
+  const rows = await page.$$eval('#tb-lm-table tbody tr', (trs) => trs.map((tr) => [...tr.cells].map((td) => td.textContent)));
+  const bits = Object.fromEntries(rows.map(([name, model, , noContext]) => [name, { model: Number(model), noContext: Number(noContext) }]));
+  assert.ok(bits.real.model < bits.shuffled.model - 0.5, JSON.stringify(bits));
+  assert.ok(Math.abs(bits.shuffled.model - bits.shuffled.noContext) < 0.3, 'early stopping keeps shuffled near its no-context entropy');
+  assert.equal(await page.isVisible('#tb-lm-sample'), true);
+  assert.deepEqual(errors, []);
+  await page.close();
+});
+
+const waitForPublished = (page) =>
+  page.waitForFunction(() => /loaded from this site/.test(document.getElementById('slice-status').textContent), null, { timeout: 30000 });
+
+test('the published slices load at startup, and the gains table says whether each real family was held out', async () => {
+  const published = await publishedSlices();
+  const { page, errors } = await openLab();
+  await waitForPublished(page);
+  assert.equal(await page.locator('#slice-table tbody tr').count(), published.length);
+
+  for (const family of ['voyager', 'offsource']) {
+    const own = published.filter((s) => s.family === family);
+    assert.ok(own.length, `${family} slices are published`);
+    assert.equal(await page.isDisabled(`#families button[data-family="${family}"]`), false);
+    await train(page, family);
+    const label = await page.textContent('#gains tbody tr.current td:first-child');
+    if (sessions(own).length < 2) assert.match(label, /not held out/);
+    else assert.doesNotMatch(label, /not held out/);
+    const rows = await page.$$eval('#gains tbody tr td:first-child', (tds) => tds.map((td) => td.textContent));
+    assert.ok(rows.some((r) => r.startsWith('Voyager 1')) && rows.some((r) => r.startsWith('Off-source')), 'both real families are evaluated');
+  }
+  assert.deepEqual(errors, []);
+  await page.close();
+});
+
+test('token-model training can be stopped, and the controls come back', async () => {
+  const { page, errors } = await openLab();
+  await page.click('#families button[data-family="rosetta"]');
+  await page.waitForFunction(() => document.getElementById('tb-status').textContent.startsWith('Rosetta'), null, { timeout: 60000 });
+  await page.click('#tb-lm');
+  await page.waitForFunction(() => /^Training on/.test(document.getElementById('tb-lm-status').textContent), null, { timeout: 60000 });
+  assert.equal(await page.isDisabled('#tb-lm-stop'), false, 'Stop is available while the token model trains');
+  assert.equal(await page.isDisabled('#train'), true);
+
+  await page.click('#tb-lm-stop');
+  await page.waitForFunction(() => document.getElementById('tb-lm-status').textContent === 'Stopped.', null, { timeout: 60000 });
+  for (const id of ['#train', '#wu-run', '#tb-lm', '#backend']) assert.equal(await page.isDisabled(id), false, `${id} is enabled again`);
+  for (const id of ['#tb-lm-stop', '#stop', '#wu-stop']) assert.equal(await page.isDisabled(id), true, `${id} is disabled again`);
+  assert.equal(await page.isVisible('#tb-lm-sample'), false, 'a stopped run shows no results');
+  assert.deepEqual(errors, []);
+  await page.close();
+});
+
 test('training on the only Voyager observation is labelled as reconstruction', async () => {
   const { page, errors } = await openLab();
   await loadSlices(page, [
@@ -119,8 +200,8 @@ test('reordering the manifest (and renaming its files) changes neither inputs no
     assert.deepEqual(errors, []);
     await page.close();
   }
-  assert.ok(cards[0].inputs.voyager.dataset_id);
-  assert.deepEqual(cards[1].inputs.voyager, cards[0].inputs.voyager);
+  assert.ok(cards[0].inputs.slices.dataset_id);
+  assert.deepEqual(cards[1].inputs.slices, cards[0].inputs.slices);
   assert.deepEqual(cards[1].metrics, cards[0].metrics);
 });
 
@@ -133,10 +214,43 @@ test('work units evaluate the frozen corpus, whatever custom text is set', async
   await page.click('#rosetta-apply');
   const afterCustomText = await runUnit(page, 0);
 
-  assert.equal(before.version, 2);
+  assert.equal(before.version, RESULT_CARD_VERSION);
   assert.deepEqual(before.inputs.rosetta_corpus, afterCustomText.inputs.rosetta_corpus);
   assert.deepEqual(before.metrics, afterCustomText.metrics);
   assert.ok(Number.isFinite(before.metrics.drift_probe.untrained_r2_synthetic), 'reports the untrained-GRU control');
   assert.deepEqual(errors, []);
   await page.close();
+});
+
+test('a card from a real work unit passes the checks the ingestion workflow runs', async () => {
+  const { page, errors } = await openLab();
+  await waitForPublished(page);
+  const card = await runUnit(page, 2);
+  const published = await describeDataset(await publishedSlices());
+  assert.equal(card.inputs.slices.dataset_id, published.datasetId);
+  assert.ok(published.families.every((f) => card.families.includes(f)), 'the card covers every published family');
+  assert.deepEqual(validateCard(card, { published }), []);
+  assert.deepEqual(errors, []);
+  await page.close();
+});
+
+test('community results are summarized, with volunteer names shown as text', async () => {
+  const run = async (issue, by, unit, shift = 0) => ({ issue, submitted_by: by, submitted_at: '2026-10-26T01:00:00Z', card: await makeCard(unit, { shift }) });
+  const results = [await run(21, 'alice', 4), await run(22, 'bob', 4, 0.01), await run(23, '<b>eve</b>', 5)];
+  overrides.set('/data/community_results.json', JSON.stringify({ format: 'eiathome-community-results', version: 1, results }));
+  try {
+    const { page, errors } = await openLab();
+    await page.click('.tabs button[data-tab="units"]');
+    await page.waitForFunction(() => !document.getElementById('community-tables').hidden, null, { timeout: 10000 });
+    assert.match(await page.textContent('#community-status'), /3 result cards for 2 units from 3 volunteers\. 1 of 2 units replicated/);
+    const units = await page.$$eval('#community-units tbody tr', (trs) => trs.map((tr) => [...tr.cells].map((td) => td.textContent)));
+    assert.deepEqual(units.map((u) => [u[0], u[6]]), [['4', 'Replicated'], ['5', 'One volunteer so far']]);
+    const names = await page.$$eval('#community-volunteers tbody tr td:first-child', (tds) => tds.map((td) => td.textContent));
+    assert.ok(names.includes('<b>eve</b>'));
+    assert.equal(await page.locator('#community-volunteers b').count(), 0);
+    assert.deepEqual(errors, []);
+    await page.close();
+  } finally {
+    overrides.clear();
+  }
 });

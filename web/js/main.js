@@ -1,3 +1,5 @@
+import { summarize } from './community.js';
+import { architectureLabel } from './models.js';
 import { fmt, heatmap, lineChart, scatterPanel } from './plots.js';
 import { deriveSeed, makeRng } from './rng.js';
 import { forWorkers, loadPublishedSlices, loadSliceFiles } from './slices.js';
@@ -61,6 +63,7 @@ const store = {
 const state = {
   family: 'tone',
   slices: [],
+  sliceSource: null, // 'site' | 'files' | null
   running: null, // 'lab' | 'unit' | null
   losses: [],
   lastEpoch: null,
@@ -126,7 +129,7 @@ function onEngineMessage(msg) {
     case 'epoch':
       state.losses.push([msg.epoch, msg.loss]);
       state.lastEpoch = msg;
-      labStatus(`Epoch ${msg.epoch} of ${msg.epochs} · ${Math.round(msg.ms)} ms per epoch on ${BACKEND_NAMES[msg.backend] ?? msg.backend}`);
+      labStatus(`${architectureLabel(msg.arch)}, ${msg.parameters.toLocaleString()} parameters · epoch ${msg.epoch} of ${msg.epochs} · ${Math.round(msg.ms)} ms per epoch on ${BACKEND_NAMES[msg.backend] ?? msg.backend}`);
       renderLab();
       break;
     case 'trained':
@@ -136,9 +139,9 @@ function onEngineMessage(msg) {
       if (msg.stopped) labStatus('Stopped.');
       else if (msg.reconstruction)
         labStatus(
-          `Done. ${msg.parameters.toLocaleString()} parameters. ${msg.reconstruction} So the Voyager score measures how well the model reconstructs data it trained on, not how well it generalizes.`,
+          `Done: ${architectureLabel(msg.arch)}, ${msg.parameters.toLocaleString()} parameters. ${msg.reconstruction} So the ${familyById[state.trainedFamily].label} score measures how well the model reconstructs data it trained on, not how well it generalizes.`,
         );
-      else labStatus(`Done. ${msg.parameters.toLocaleString()} parameters. Compare the GRU column with the baselines, then try another signal.`);
+      else labStatus(`Done: ${architectureLabel(msg.arch)}, ${msg.parameters.toLocaleString()} parameters. Compare it with the baselines, then try another signal or model.`);
       renderProbe();
       break;
     case 'wu-progress':
@@ -152,9 +155,21 @@ function onEngineMessage(msg) {
       setRunning(null);
       unitStatus(`Unit ${msg.unit} stopped.`);
       break;
+    case 'token-lm-progress':
+      $('tb-lm-status').textContent = `Training on the ${STREAM_NAMES[msg.stream]} stream: epoch ${msg.epoch} of ${msg.epochs}…`;
+      break;
+    case 'token-lm-result':
+      setRunning(null);
+      state.tokenLm = msg.stopped ? null : { ...msg, analysis: state.tokenLmFor };
+      $('tb-lm-status').textContent = msg.stopped ? 'Stopped.' : 'Done. Lower is better; compare the real stream with its surrogates.';
+      renderTokenModel();
+      break;
     case 'error':
       if (state.running === 'unit') unitStatus(msg.message, true);
-      else labStatus(msg.message, true);
+      else if (state.running === 'tokens') {
+        $('tb-lm-status').textContent = msg.message;
+        $('tb-lm-status').classList.add('error');
+      } else labStatus(msg.message, true);
       setRunning(null);
       break;
   }
@@ -165,14 +180,17 @@ function setRunning(mode) {
   const busy = mode !== null;
   $('train').disabled = busy;
   $('wu-run').disabled = busy;
+  $('tb-lm').disabled = busy;
   $('stop').disabled = mode !== 'lab';
   $('wu-stop').disabled = mode !== 'unit';
+  $('tb-lm-stop').disabled = mode !== 'tokens';
   $('backend').disabled = busy;
 }
 
 // ---------- Live Lab ----------
 
-const voyagerAvailable = () => state.slices.length > 0;
+// Real families need loaded slices of their own.
+const familyAvailable = (id) => !familyById[id].real || state.slices.some((s) => s.family === id);
 
 function renderFamilies() {
   const box = $('families');
@@ -184,9 +202,9 @@ function renderFamilies() {
       b.textContent = f.label;
       b.dataset.family = f.id;
       b.setAttribute('aria-checked', String(f.id === state.family));
-      if (f.id === 'voyager' && !voyagerAvailable()) {
+      if (!familyAvailable(f.id)) {
         b.disabled = true;
-        b.title = 'No Voyager slices loaded yet. See the Data tab.';
+        b.title = `No ${f.label} slices loaded yet. See the Data tab.`;
       }
       b.onclick = () => selectFamily(f.id);
       return b;
@@ -258,6 +276,7 @@ function renderLab() {
     }),
   );
   $('gains-note').hidden = !e.reconstruction;
+  $('gains-model').textContent = architectureLabel(e.arch);
   renderMap();
 }
 
@@ -309,13 +328,13 @@ function renderProbe() {
     element('h3', 'Drift probe'),
     element(
       'p',
-      `A linear model reads drift rate from the GRU’s hidden state, trained on synthetic tones only. On held-out tones: R² = ${fmt(p.r2)}, mean error ${fmt(p.maeHzPerS, 3)} Hz/s.`,
+      `A linear model reads drift rate from the model’s hidden state, trained on synthetic tones only. On held-out tones: R² = ${fmt(p.r2)}, mean error ${fmt(p.maeHzPerS, 3)} Hz/s.`,
       'small',
     ),
   ];
   if (u) {
     parts.push(
-      element('p', `Control: the same GRU before training (same architecture and seed) gives R² = ${fmt(u.r2)}, mean error ${fmt(u.maeHzPerS, 3)} Hz/s. The difference is what training added.`, 'small'),
+      element('p', `Control: the same model before training (same architecture and seed) gives R² = ${fmt(u.r2)}, mean error ${fmt(u.maeHzPerS, 3)} Hz/s. The difference is what training added.`, 'small'),
     );
   }
   if (p.voyager) {
@@ -335,6 +354,7 @@ function renderProbe() {
 function startTraining() {
   const config = {
     target: state.family,
+    arch: $('arch').value,
     hidden: Number($('hidden').value),
     epochs: Math.min(60, Math.max(1, Number($('epochs').value) || 15)),
     nTrain: Number($('ntrain').value),
@@ -358,7 +378,7 @@ function startTraining() {
 // ---------- Track B ----------
 
 function analyzeTokens() {
-  if (state.family === 'voyager' && !voyagerAvailable()) return;
+  if (!familyAvailable(state.family)) return;
   const id = ++analyzeId;
   $('tb-status').textContent = 'Tokenizing…';
   $('tb-status').classList.remove('error');
@@ -381,6 +401,10 @@ function onTrackB(msg) {
     return;
   }
   state.trackb = msg;
+  if (state.tokenLm?.analysis !== msg) {
+    state.tokenLm = null; // the token model belongs to the previous token stream
+    if (state.running !== 'tokens') $('tb-lm-status').textContent = '';
+  }
   $('tb-status').textContent = `${familyById[msg.family].label}: ${msg.nTokens.toLocaleString()} tokens, ${msg.used} of ${msg.k} token types used. First tokens: ${msg.preview.map((t) => t.toString(36)).join(' ')}`;
   renderTrackB();
 }
@@ -411,13 +435,17 @@ function renderTrackB() {
   const entropySeries = STREAMS.map((s) => ({
     name: s.name,
     color: s.color,
-    points: r.entropy[s.id].map((e) => [e.n - 1, e.h]),
-    hollow: (i) => !r.entropy[s.id][i].reliable,
+    points: r.crossEntropy[s.id].map((e) => [e.context, e.bits]),
   }));
   legend($('tb-entropy'), entropySeries);
-  lineChart($('tb-entropy'), entropySeries, { xLabel: 'tokens of context', yLabel: 'bits', markers: true, yMin: 0 });
+  lineChart($('tb-entropy'), entropySeries, { xLabel: 'tokens of context', yLabel: 'bits per token (held out)', markers: true, yMin: 0 });
   fillTable(
     $('tb-entropy-table'),
+    ['Context', ...r.crossEntropy.real.map((e) => e.context)],
+    STREAMS.map((s) => [s.name, ...r.crossEntropy[s.id].map((e) => fmt(e.bits))]),
+  );
+  fillTable(
+    $('tb-plugin-table'),
     ['Context', ...r.entropy.real.map((e) => e.n - 1)],
     STREAMS.map((s) => [s.name, ...r.entropy[s.id].map((e) => `${fmt(e.h)}${e.reliable ? '' : '*'}`)]),
   );
@@ -434,6 +462,53 @@ function renderTrackB() {
     lineChart($(canvasId), [...series].reverse(), { xLabel: 'rank', yLabel: 'frequency', logX: true, logY: true, yFormat: (v) => v.toPrecision(2) });
   }
   $('tb-notes').textContent = r.notes.join(' ');
+}
+
+const STREAM_NAMES = Object.fromEntries(STREAMS.map((s) => [s.id, s.name]));
+
+function startTokenModel() {
+  if (state.running) return;
+  if (!state.trackb) {
+    $('tb-lm-status').textContent = 'Analyze tokens first.';
+    return;
+  }
+  const r = state.trackb;
+  state.tokenLmFor = r;
+  state.tokenLm = null;
+  renderTokenModel();
+  $('tb-lm-status').classList.remove('error');
+  $('tb-lm-status').textContent = 'Starting…';
+  setRunning('tokens');
+  engine.postMessage({ type: 'token-lm', k: r.k, streams: r.streams, centroids: r.centroids, seed: Number($('seed').value) || 0 });
+}
+
+function renderTokenModel() {
+  const m = state.tokenLm;
+  const r = state.trackb;
+  const show = Boolean(m && r && m.analysis === r);
+  $('tb-lm-sample').hidden = !show || !m.sample;
+  if (!show) {
+    $('tb-lm-table').replaceChildren();
+    return;
+  }
+  fillTable(
+    $('tb-lm-table'),
+    ['Stream (held out, bits per token)', 'Token GRU', 'n-gram, 3 tokens of context', 'No context', 'Best epoch'],
+    STREAMS.filter((s) => m.results[s.id]).map((s) => [
+      s.name,
+      fmt(m.results[s.id].bits),
+      fmt(r.crossEntropy[s.id][3].bits),
+      fmt(r.crossEntropy[s.id][0].bits),
+      `${m.results[s.id].bestEpoch} of ${m.epochs}`,
+    ]),
+  );
+  if (m.sample) {
+    const { real, generated, rows } = m.sample;
+    const top = Math.max(3, ...real, ...generated);
+    const options = { range: [-1, top], label: 'power (asinh)', rowLabel: 'token', firstRow: 1 };
+    heatmap($('tb-lm-real'), real, rows, C, options);
+    heatmap($('tb-lm-generated'), generated, rows, C, options);
+  }
 }
 
 // ---------- work units ----------
@@ -493,25 +568,100 @@ function download(name, data) {
   setTimeout(() => URL.revokeObjectURL(url), 1000);
 }
 
+// ---------- community results ----------
+
+const STATUS_LABELS = { single: 'One volunteer so far', replicated: 'Replicated', disagree: 'Runs disagree' };
+const GITHUB_LOGIN = /^[A-Za-z0-9](?:[A-Za-z0-9-]{0,38})$/;
+
+function link(text, href) {
+  const a = element('a', text);
+  a.href = href;
+  a.target = '_blank';
+  a.rel = 'noopener';
+  return a;
+}
+
+function volunteerCell(login) {
+  const td = document.createElement('td');
+  td.append(GITHUB_LOGIN.test(login) ? link(login, `https://github.com/${login}`) : document.createTextNode(login));
+  return td;
+}
+
+async function loadCommunity() {
+  const status = $('community-status');
+  let store;
+  try {
+    const response = await fetch('data/community_results.json', { cache: 'no-cache' });
+    if (!response.ok) throw new Error(String(response.status));
+    store = await response.json();
+  } catch {
+    status.textContent = "Couldn't load community results.";
+    return;
+  }
+  const results = Array.isArray(store.results) ? store.results : [];
+  if (!results.length) {
+    status.textContent = 'No community results yet. Run a unit and submit its card to be the first.';
+    return;
+  }
+  const { units, leaderboard } = summarize(results);
+  const replicated = units.filter((u) => u.status === 'replicated').length;
+  status.textContent = `${results.length} result cards for ${units.length} units from ${leaderboard.length} volunteers. ${replicated} of ${units.length} units replicated.`;
+
+  fillTable($('community-units'), ['Unit', 'Hidden', 'Data', 'Runs', 'Volunteers', 'Backends', 'Status', 'Issues'], []);
+  $('community-units').tBodies[0].append(
+    ...units.map((u) => {
+      // Runs on different slice datasets are separate groups: name the dataset by its id's first characters.
+      const data = u.dataset_id ? `slices ${u.dataset_id.slice(0, 8)}` : 'synthetic only';
+      const tr = makeRow([u.unit, u.hidden, data, u.runs, u.volunteers.length, u.backends.map((b) => BACKEND_NAMES[b] ?? b).join(', '), STATUS_LABELS[u.status]]);
+      if (u.dataset_id) tr.cells[2].title = `Dataset ${u.dataset_id}`;
+      const issues = document.createElement('td');
+      u.issues.filter(Number.isInteger).forEach((n, i) => {
+        if (i) issues.append(', ');
+        issues.append(link(`#${n}`, `${REPO}/issues/${n}`));
+      });
+      tr.append(issues);
+      return tr;
+    }),
+  );
+  fillTable($('community-volunteers'), ['Volunteer', 'Units run', 'Units replicated'], []);
+  $('community-volunteers').tBodies[0].append(
+    ...leaderboard.map((p) => {
+      const tr = document.createElement('tr');
+      tr.append(volunteerCell(p.volunteer), ...makeRow([p.units, p.replicated]).children);
+      return tr;
+    }),
+  );
+  $('community-tables').hidden = false;
+}
+
 // ---------- data ----------
 
 function setSlices(slices, source) {
+  // The published slices load in the background; never let them replace files the volunteer dropped.
+  if (source === 'site' && state.sliceSource === 'files') return;
   state.slices = slices;
+  state.sliceSource = source;
   broadcast({ type: 'slices', slices: forWorkers(slices) });
-  renderFamilies();
+  if (familyAvailable(state.family)) renderFamilies();
+  else selectFamily('tone');
   const status = $('slice-status');
   if (!slices.length) {
-    status.textContent = 'No Voyager slices are published with this site yet. Maintainers create them with tools/extract_slices.py; you can also drop slice files below.';
+    status.textContent = 'No real-data slices are published with this site yet. Maintainers create them with tools/extract_slices.py; you can also drop slice files below.';
   } else {
-    const file = slices[0].source?.file ?? 'unknown file';
-    status.textContent = `${slices.length} Voyager slices loaded ${source === 'site' ? 'from this site' : 'from your files'} (source: ${file}). The Voyager button is now enabled.`;
+    const real = FAMILIES.filter((f) => f.real && familyAvailable(f.id));
+    const counts = real.map((f) => `${slices.filter((s) => s.family === f.id).length} ${f.label}`).join(', ');
+    const files = new Set(slices.map((s) => s.source?.file ?? 'unknown file'));
+    const origin = files.size === 1 ? `source: ${[...files][0]}` : `from ${files.size} scans`;
+    const buttons = real.map((f) => f.label).join(' and ');
+    status.textContent = `${slices.length} slices loaded ${source === 'site' ? 'from this site' : 'from your files'} (${counts}; ${origin}). The ${buttons} ${real.length > 1 ? 'buttons are' : 'button is'} now enabled.`;
   }
   if (slices.length) {
     fillTable(
       $('slice-table'),
-      ['Slice', 'Signal', 'Scan start (MJD)', 'Size', 'Drift (Hz/s)', 'SNR', 'SHA-256 (verified)'],
+      ['Slice', 'Family', 'Signal or window', 'Scan start (MJD)', 'Size', 'Drift (Hz/s)', 'Peak SNR', 'SHA-256 (verified)'],
       slices.map((s) => [
         s.id,
+        familyById[s.family].label,
         s.group,
         Number.isFinite(s.startMjd) ? s.startMjd.toFixed(5) : 'unknown',
         `${T} × ${s.width}`,
@@ -546,6 +696,7 @@ function redraw() {
   if (state.lastEpoch) renderLab();
   else renderPreview();
   renderTrackB();
+  renderTokenModel();
 }
 
 function showTab(name) {
@@ -595,6 +746,11 @@ function init() {
     analyzeTokens();
   };
   $('analyze').onclick = analyzeTokens;
+  $('tb-lm').onclick = startTokenModel;
+  $('tb-lm-stop').onclick = () => {
+    $('tb-lm-status').textContent = 'Stopping…';
+    engine.postMessage({ type: 'stop' });
+  };
   $('k').onchange = analyzeTokens;
   $('nframes').onchange = analyzeTokens;
 
@@ -672,6 +828,7 @@ function init() {
 
   renderPreview();
   analyzeTokens();
+  loadCommunity();
   loadPublishedSlices()
     .then((slices) => setSlices(slices, 'site'))
     .catch((err) => {

@@ -2,7 +2,7 @@
 // units) cut out of Breakthrough Listen files by tools/extract_slices.py. A manifest
 // (index.json) describes each little-endian float32 .bin file.
 
-import { T } from './signals.js';
+import { REAL_FAMILIES, T } from './signals.js';
 
 export const MANIFEST_URL = 'data/slices/index.json';
 
@@ -18,6 +18,7 @@ export async function parseSlice(entry, buffer) {
   for (const key of ['id', 'group', 'file']) {
     if (typeof entry[key] !== 'string' || !entry[key]) throw new Error(`A slice is missing its "${key}".`);
   }
+  if (!REAL_FAMILIES.includes(entry.family)) throw new Error(`${entry.id}: family must be one of ${REAL_FAMILIES.join(', ')}`);
   if (!Array.isArray(entry.shape) || entry.shape.length !== 2) throw new Error(`${entry.id}: shape must be [time steps, channels]`);
   const [rows, width] = entry.shape;
   if (entry.dtype !== 'float32-le') throw new Error(`${entry.id}: unsupported dtype ${entry.dtype}`);
@@ -57,10 +58,11 @@ export function canonicalOrder(slices) {
 }
 
 // One identity for a set of slices: their computed hashes plus the metadata that changes
-// results (start time, resolution, drift labels), in canonical order.
+// results (family, start time, resolution, drift labels), in canonical order.
 export async function datasetId(slices) {
   const canonical = canonicalOrder(slices).map((s) => ({
     id: s.id,
+    family: s.family,
     group: s.group,
     start_mjd: Number.isFinite(s.startMjd) ? s.startMjd : null,
     shape: [T, s.width],
@@ -70,6 +72,12 @@ export async function datasetId(slices) {
     tsamp_s: s.tsamp,
   }));
   return sha256Hex(new TextEncoder().encode(JSON.stringify(canonical)));
+}
+
+// What a result card's slices are checked against: the dataset's identity and its families.
+export async function describeDataset(slices) {
+  if (!slices.length) return null;
+  return { datasetId: await datasetId(slices), families: REAL_FAMILIES.filter((f) => slices.some((s) => s.family === f)) };
 }
 
 // Fetch the slices published with the site. Returns [] if there are none yet.
@@ -108,8 +116,9 @@ export async function loadSliceFiles(fileList) {
 
 // What workers need (typed arrays are copied by postMessage).
 export const forWorkers = (slices) =>
-  canonicalOrder(slices).map(({ id, group, width, data, driftChannelsPerStep, foffHz, tsamp, sha256, startMjd }) => ({
+  canonicalOrder(slices).map(({ id, family, group, width, data, driftChannelsPerStep, foffHz, tsamp, sha256, startMjd }) => ({
     id,
+    family,
     group,
     width,
     data,

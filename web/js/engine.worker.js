@@ -5,9 +5,10 @@ import '../vendor/tfjs/tf.min.js';
 import '../vendor/tfjs/tf-backend-webgpu.min.js';
 import '../vendor/tfjs/tf-backend-wasm.min.js';
 import { deriveSeed, makeRng } from './rng.js';
-import { C, DEFAULT_FOFF_HZ, DEFAULT_TSAMP_S, FAMILIES, T, driftToHzPerS, makeSnippet, normalise, shuffleFrames } from './signals.js';
+import { C, DEFAULT_FOFF_HZ, DEFAULT_TSAMP_S, FAMILIES, REAL_FAMILIES, T, driftToHzPerS, makeSnippet, normalise, shuffleFrames } from './signals.js';
 import { canonicalOrder, datasetId, sha256Hex } from './slices.js';
-import { voyagerPools } from './splits.js';
+import { sessionPools } from './splits.js';
+import { matchedSize } from './models.js';
 import { APP_VERSION, RESULT_CARD_VERSION, ROSETTA_CORPUS, workUnitConfig } from './workunits.js';
 
 const tf = globalThis.tf;
@@ -39,13 +40,14 @@ self.onmessage = async ({ data: msg }) => {
       rosettaText = msg.text || undefined;
     } else if (msg.type === 'stop') {
       stopRequested = true;
-    } else if (msg.type === 'train' || msg.type === 'workunit') {
+    } else if (msg.type === 'train' || msg.type === 'workunit' || msg.type === 'token-lm') {
       if (busy) throw new Error('Already running. Stop the current run first.');
       busy = true;
       stopRequested = false;
       try {
         if (msg.type === 'train') await liveTrain(msg.config);
-        else await runWorkUnit(msg.unit);
+        else if (msg.type === 'workunit') await runWorkUnit(msg.unit);
+        else await runTokenModels(msg);
       } finally {
         busy = false;
       }
@@ -78,15 +80,18 @@ function snapshotInputs({ text = rosettaText } = {}) {
   return { slices: canonicalOrder(slices), text };
 }
 
+// Real families need slices of their own; synthetic ones are always available.
 function familiesAvailable(inputs) {
-  return FAMILIES.filter((f) => f.id !== 'voyager' || inputs.slices.length).map((f) => f.id);
+  return FAMILIES.filter((f) => !f.real || inputs.slices.some((s) => s.family === f.id)).map((f) => f.id);
 }
 
-// Which Voyager slices each split may use. Only training on Voyager needs separate
-// observing sessions; otherwise every slice is unseen evaluation data.
+// Which slices each split may use. Only the real family being trained on needs separate
+// observing sessions; slices of any other family are unseen evaluation data.
 function slicePools(target, inputs) {
-  if (target === 'voyager') return voyagerPools(inputs.slices);
-  return { train: inputs.slices, eval: inputs.slices, heldOut: null };
+  if (!REAL_FAMILIES.includes(target)) return { train: inputs.slices, eval: inputs.slices, heldOut: null };
+  const others = inputs.slices.filter((s) => s.family !== target);
+  const pools = sessionPools(inputs.slices.filter((s) => s.family === target));
+  return { ...pools, train: pools.train.concat(others), eval: pools.eval.concat(others) };
 }
 
 function buildSet(family, n, rng, { region, shuffle = false, slices: pool, text }) {
@@ -115,22 +120,113 @@ function concatSets(sets) {
 
 // ---------- model ----------
 
-function buildModel(hidden, seed) {
+// A learned position embedding, added to each time step (attention has no built-in order).
+class PositionEmbedding extends tf.layers.Layer {
+  static className = 'EIatHomePositionEmbedding';
+
+  constructor(config) {
+    super(config);
+    this.maxLength = config.maxLength;
+    this.seed = config.seed;
+  }
+
+  build(inputShape) {
+    const width = inputShape[inputShape.length - 1];
+    this.table = this.addWeight('table', [this.maxLength, width], 'float32', tf.initializers.randomNormal({ stddev: 0.02, seed: this.seed }));
+    this.built = true;
+  }
+
+  call(inputs) {
+    return tf.tidy(() => {
+      const x = Array.isArray(inputs) ? inputs[0] : inputs;
+      return x.add(this.table.read().slice([0, 0], [x.shape[1], -1]));
+    });
+  }
+
+  computeOutputShape(inputShape) {
+    return inputShape;
+  }
+
+  getConfig() {
+    return { ...super.getConfig(), maxLength: this.maxLength, seed: this.seed };
+  }
+}
+
+// Single-head causal self-attention: each time step attends only to itself and earlier steps.
+class CausalSelfAttention extends tf.layers.Layer {
+  static className = 'EIatHomeCausalSelfAttention';
+
+  constructor(config) {
+    super(config);
+    this.seed = config.seed;
+  }
+
+  build(inputShape) {
+    const d = inputShape[inputShape.length - 1];
+    for (const [i, name] of ['q', 'k', 'v', 'o'].entries()) {
+      this[`w${name}`] = this.addWeight(`w${name}`, [d, d], 'float32', tf.initializers.glorotUniform({ seed: this.seed + i }));
+      this[`b${name}`] = this.addWeight(`b${name}`, [d], 'float32', tf.initializers.zeros());
+    }
+    this.built = true;
+  }
+
+  call(inputs) {
+    return tf.tidy(() => {
+      const x = Array.isArray(inputs) ? inputs[0] : inputs;
+      const [, steps, d] = x.shape;
+      const flat = x.reshape([-1, d]);
+      const project = (w, b) => flat.matMul(w.read()).add(b.read()).reshape([-1, steps, d]);
+      const q = project(this.wq, this.bq);
+      const k = project(this.wk, this.bk);
+      const v = project(this.wv, this.bv);
+      const future = tf.sub(1, tf.linalg.bandPart(tf.ones([steps, steps]), -1, 0)); // 1 above the diagonal
+      const scores = tf.matMul(q, k, false, true).div(Math.sqrt(d)).add(future.mul(-1e9));
+      const mixed = tf.matMul(tf.softmax(scores, -1), v).reshape([-1, d]);
+      return mixed.matMul(this.wo.read()).add(this.bo.read()).reshape([-1, steps, d]);
+    });
+  }
+
+  computeOutputShape(inputShape) {
+    return inputShape;
+  }
+
+  getConfig() {
+    return { ...super.getConfig(), seed: this.seed };
+  }
+}
+
+// One pre-norm transformer block: attention then a feed-forward layer, each with a residual.
+function attentionStates(input, width, seed) {
+  const glorot = (i) => tf.initializers.glorotUniform({ seed: seed + i });
+  let h = tf.layers.dense({ units: width, kernelInitializer: glorot(10) }).apply(input);
+  h = new PositionEmbedding({ maxLength: T, seed: seed + 11 }).apply(h);
+  const attended = new CausalSelfAttention({ seed: seed + 12 }).apply(tf.layers.layerNormalization().apply(h));
+  h = tf.layers.add().apply([h, attended]);
+  const expanded = tf.layers.dense({ units: 2 * width, activation: 'relu', kernelInitializer: glorot(20) }).apply(tf.layers.layerNormalization().apply(h));
+  const projected = tf.layers.dense({ units: width, kernelInitializer: glorot(21) }).apply(expanded);
+  return tf.layers.add().apply([h, projected]);
+}
+
+// arch: 'gru' | 'lstm' | 'attention'. size: hidden units, or model width for attention.
+function buildModel(arch, size, seed) {
   const input = tf.input({ shape: [null, C] });
-  const states = tf.layers
-    .gru({
-      units: hidden,
-      returnSequences: true,
-      kernelInitializer: tf.initializers.glorotUniform({ seed }),
-      recurrentInitializer: tf.initializers.orthogonal({ seed: seed + 1 }),
-    })
-    .apply(input);
+  const recurrent = {
+    units: size,
+    returnSequences: true,
+    kernelInitializer: tf.initializers.glorotUniform({ seed }),
+    recurrentInitializer: tf.initializers.orthogonal({ seed: seed + 1 }),
+  };
+  let states;
+  if (arch === 'gru') states = tf.layers.gru(recurrent).apply(input);
+  else if (arch === 'lstm') states = tf.layers.lstm(recurrent).apply(input);
+  else if (arch === 'attention') states = attentionStates(input, size, seed);
+  else throw new Error(`Unknown architecture "${arch}"`);
   const prediction = tf.layers
     .dense({ units: C, kernelInitializer: tf.initializers.glorotUniform({ seed: seed + 2 }) })
     .apply(states);
   const predictor = tf.model({ inputs: input, outputs: prediction });
   const encoder = tf.model({ inputs: input, outputs: states });
-  return { predictor, encoder, parameters: predictor.countParams() };
+  return { predictor, encoder, parameters: predictor.countParams(), arch, stateSize: size };
 }
 
 // Predictions of frames 1..T-1 from frames 0..T-2, as one flat array (n x (T-1) x C).
@@ -341,7 +437,8 @@ function fitProbe(states, n, dim, targets) {
 // Breakthrough Listen's high-resolution product. Voyager readouts use each slice's own units.
 const SYNTHETIC_UNITS = { foffHz: DEFAULT_FOFF_HZ, tsamp: DEFAULT_TSAMP_S };
 
-async function probeDrift(model, trainSet, evalSets, hidden) {
+async function probeDrift(model, trainSet, evalSets) {
+  const hidden = model.stateSize;
   const units = SYNTHETIC_UNITS;
   const toneIdx = trainSet.families.map((f, i) => (f === 'tone' ? i : -1)).filter((i) => i >= 0).slice(0, 600);
   if (toneIdx.length < 20 || !evalSets.tone) return null;
@@ -392,11 +489,13 @@ async function probeDrift(model, trainSet, evalSets, hidden) {
 
 async function train(config, onEpoch, inputs) {
   const { target, hidden, epochs, nTrain, batch, lr, seed, mixNoise, shuffle } = config;
+  // Work units have no `arch`: they are GRU-only by spec. Other models get the GRU's parameter budget.
+  const arch = config.arch ?? 'gru';
   const available = familiesAvailable(inputs);
-  if (!available.includes(target)) throw new Error(`"${target}" isn't available. Load Voyager slices first.`);
+  if (!available.includes(target)) throw new Error(`"${target}" isn't available. Load its slices first (see the Data tab).`);
   const pools = slicePools(target, inputs);
   const context = (region) => ({ region, text: inputs.text, slices: region === 'train' ? pools.train : pools.eval });
-  // Nothing independent to hold out: Voyager scores measure reconstruction. Holds the reason.
+  // Nothing independent to hold out: the target's scores measure reconstruction. Holds the reason.
   const reconstruction = pools.heldOut === false ? pools.reason : null;
 
   const trainRng = makeRng(deriveSeed(seed, 'train'));
@@ -419,7 +518,7 @@ async function train(config, onEpoch, inputs) {
     shuffledSets[family] = { set: shuffled, floor: mse(shuffled, baselines.mean(shuffled, mean)) };
   }
 
-  const model = buildModel(hidden, seed % 100000);
+  const model = buildModel(arch, matchedSize(arch, hidden), seed % 100000);
   const optimizer = tf.train.adam(lr);
   const order = makeRng(deriveSeed(seed, 'order'));
   const batchBuffer = new Float32Array(batch * STEP);
@@ -428,7 +527,7 @@ async function train(config, onEpoch, inputs) {
 
   try {
     // Control: how much drift a probe can read from the same GRU before any training.
-    const untrainedProbe = await probeDrift(model, trainSet, evalSets, hidden);
+    const untrainedProbe = await probeDrift(model, trainSet, evalSets);
     for (let epoch = 1; epoch <= epochs && !stopRequested; epoch++) {
       const started = performance.now();
       const perm = order.permutation(trainSet.n);
@@ -461,8 +560,8 @@ async function train(config, onEpoch, inputs) {
       await onEpoch({ epoch, epochs, loss: lossSum / seen, ms, gains: familyGains, shuffledGains, reconstruction, model, evalSets, previousComponents, setComponents: (c) => (previousComponents = c) });
       await pause();
     }
-    const probe = stopRequested ? null : await probeDrift(model, trainSet, evalSets, hidden);
-    return { history, probe, untrainedProbe, reconstruction, parameters: model.parameters, stopped: stopRequested, available };
+    const probe = stopRequested ? null : await probeDrift(model, trainSet, evalSets);
+    return { history, probe, untrainedProbe, reconstruction, parameters: model.parameters, arch, stateSize: model.stateSize, stopped: stopRequested, available };
   } finally {
     model.predictor.dispose();
     optimizer.dispose();
@@ -492,13 +591,15 @@ async function liveTrain(config) {
     const residual = actual.map((v, i) => v - predicted[i]);
 
     const states = await finalStates(model.encoder, mapAll.x, mapAll.n);
-    const { points, components } = pca2(states, mapAll.n, config.hidden, state.previousComponents);
+    const { points, components } = pca2(states, mapAll.n, model.stateSize, state.previousComponents);
     state.setComponents(components);
 
     post({
       type: 'epoch',
       epoch: state.epoch,
       epochs: state.epochs,
+      arch: state.model.arch,
+      parameters: state.model.parameters,
       loss: state.loss,
       ms: state.ms,
       gains: state.gains,
@@ -515,8 +616,167 @@ async function liveTrain(config) {
     untrainedProbe: result.untrainedProbe,
     reconstruction: result.reconstruction,
     parameters: result.parameters,
+    arch: result.arch,
+    stateSize: result.stateSize,
     stopped: result.stopped,
   });
+}
+
+// ---------- Track B: token language model ----------
+
+const TOKEN_WINDOW = 32; // tokens per training example
+const TOKEN_SCORED = 16; // only the last 16 positions of each test window are scored
+const TOKEN_EPOCHS = 10;
+
+// A small causal model over radio tokens: embedding -> GRU -> next-token logits. The
+// embedding is a bias-free dense layer on one-hot tokens: the same parameters as an embedding
+// lookup, but its gradient is a matrix product, which every backend supports (the lookup's
+// gradient has no WebAssembly kernel).
+function buildTokenModel(k, seed) {
+  const input = tf.input({ shape: [null, k] });
+  const embedded = tf.layers
+    .dense({ units: 16, useBias: false, kernelInitializer: tf.initializers.randomUniform({ minval: -0.05, maxval: 0.05, seed }) })
+    .apply(input);
+  const states = tf.layers
+    .gru({
+      units: 32,
+      returnSequences: true,
+      kernelInitializer: tf.initializers.glorotUniform({ seed: seed + 1 }),
+      recurrentInitializer: tf.initializers.orthogonal({ seed: seed + 2 }),
+    })
+    .apply(embedded);
+  const logits = tf.layers.dense({ units: k, kernelInitializer: tf.initializers.glorotUniform({ seed: seed + 3 }) }).apply(states);
+  return tf.model({ inputs: input, outputs: logits });
+}
+
+// Integer tokens (shape [batch, time]) as float one-hot vectors ([batch, time, k]).
+const oneHot = (tokens, shape, k) => tf.tidy(() => tf.oneHot(tf.tensor2d(tokens, shape, 'int32'), k).cast('float32'));
+
+function windowBatch(stream, starts, length) {
+  const x = new Int32Array(starts.length * length);
+  const y = new Int32Array(starts.length * length);
+  starts.forEach((start, b) => {
+    for (let t = 0; t < length; t++) {
+      x[b * length + t] = stream[start + t];
+      y[b * length + t] = stream[start + t + 1];
+    }
+  });
+  return { x, y };
+}
+
+// Mean cross-entropy in bits over the scored positions of test windows.
+async function heldOutBits(model, test, k) {
+  const starts = [];
+  for (let i = 0; i + TOKEN_WINDOW + 1 <= test.length; i += TOKEN_SCORED) starts.push(i);
+  const { x, y } = windowBatch(test, starts, TOKEN_WINDOW);
+  const out = tf.tidy(() => {
+    const logits = model.apply(oneHot(x, [starts.length, TOKEN_WINDOW], k));
+    const logp = tf.logSoftmax(logits.slice([0, TOKEN_WINDOW - TOKEN_SCORED, 0], [-1, -1, -1]));
+    const target = tf.oneHot(tf.tensor2d(y, [starts.length, TOKEN_WINDOW], 'int32').slice([0, TOKEN_WINDOW - TOKEN_SCORED], [-1, -1]), k);
+    return logp.mul(target.cast('float32')).sum(-1).mean().neg().div(Math.LN2);
+  });
+  const bits = (await out.data())[0];
+  out.dispose();
+  return bits;
+}
+
+// Trains on the first 80% of the stream with early stopping: the last tenth of that part is a
+// validation set, and the weights from the best validation epoch are kept. The model is then
+// scored once on the final 20%, which it never saw.
+async function trainTokenModel(name, stream, k, seed, progress) {
+  const split = Math.floor(stream.length * 0.8);
+  const valSplit = Math.floor(split * 0.9);
+  const train = stream.subarray(0, valSplit);
+  const validation = stream.subarray(valSplit, split);
+  const test = stream.subarray(split);
+  const model = buildTokenModel(k, seed);
+  const optimizer = tf.train.adam(1e-2);
+  const rng = makeRng(deriveSeed(seed, `token-order-${name}`));
+  const starts = [];
+  for (let i = 0; i + TOKEN_WINDOW + 1 <= train.length; i += 8) starts.push(i);
+  let best = { bits: Infinity, epoch: 0, weights: null };
+  try {
+    for (let epoch = 1; epoch <= TOKEN_EPOCHS && !stopRequested; epoch++) {
+      const order = rng.permutation(starts.length).map((i) => starts[i]);
+      for (let b = 0; b < order.length && !stopRequested; b += 32) {
+        const batchStarts = order.slice(b, b + 32);
+        const { x, y } = windowBatch(train, batchStarts, TOKEN_WINDOW);
+        const inputs = oneHot(x, [batchStarts.length, TOKEN_WINDOW], k);
+        const targets = oneHot(y, [batchStarts.length, TOKEN_WINDOW], k);
+        const cost = optimizer.minimize(() => tf.losses.softmaxCrossEntropy(targets, model.apply(inputs)), true);
+        await cost.data();
+        tf.dispose([cost, inputs, targets]);
+      }
+      if (stopRequested) break;
+      const valBits = await heldOutBits(model, validation, k);
+      if (valBits < best.bits) {
+        tf.dispose(best.weights ?? []);
+        best = { bits: valBits, epoch, weights: model.getWeights().map((w) => w.clone()) };
+      }
+      progress(name, epoch);
+      await pause();
+    }
+    if (best.weights) model.setWeights(best.weights);
+    return { model, bits: stopRequested ? NaN : await heldOutBits(model, test, k), bestEpoch: best.epoch, test, optimizer };
+  } catch (err) {
+    model.dispose();
+    optimizer.dispose();
+    throw err;
+  } finally {
+    tf.dispose(best.weights ?? []);
+  }
+}
+
+// Continue a prompt by sampling one token at a time.
+async function sampleTokens(model, prompt, n, k, rng) {
+  const tokens = Array.from(prompt);
+  for (let i = 0; i < n; i++) {
+    const probs = tf.tidy(() => {
+      const logits = model.apply(oneHot(Int32Array.from(tokens), [1, tokens.length], k));
+      return tf.softmax(logits.slice([0, tokens.length - 1, 0], [1, 1, k]).reshape([k]));
+    });
+    const p = await probs.data();
+    probs.dispose();
+    let r = rng.next();
+    let pick = k - 1;
+    for (let j = 0; j < k; j++) {
+      r -= p[j];
+      if (r <= 0) {
+        pick = j;
+        break;
+      }
+    }
+    tokens.push(pick);
+  }
+  return tokens.slice(prompt.length);
+}
+
+async function runTokenModels({ id, k, streams, centroids, seed }) {
+  const results = {};
+  let sample = null;
+  for (const name of ['real', 'shuffled', 'markov']) {
+    const { model, bits, bestEpoch, test, optimizer } = await trainTokenModel(name, Uint16Array.from(streams[name]), k, seed % 100000, (stream, epoch) =>
+      post({ type: 'token-lm-progress', id, stream, epoch, epochs: TOKEN_EPOCHS }),
+    );
+    try {
+      if (stopRequested) break;
+      results[name] = { bits, bestEpoch };
+      if (name === 'real') {
+        const prompt = test.subarray(0, 16);
+        const generated = await sampleTokens(model, prompt, 32, k, makeRng(deriveSeed(seed, 'token-sample')));
+        const frames = (tokens) => {
+          const out = new Float32Array(tokens.length * C);
+          tokens.forEach((token, i) => out.set(centroids.subarray(token * C, (token + 1) * C), i * C));
+          return out;
+        };
+        sample = { real: frames(Array.from(test.subarray(16, 48))), generated: frames(generated), rows: 32 };
+      }
+    } finally {
+      model.dispose();
+      optimizer.dispose();
+    }
+  }
+  post({ type: 'token-lm-result', id, stopped: stopRequested, results, sample, epochs: TOKEN_EPOCHS });
 }
 
 const round = (v, digits = 4) => (Number.isFinite(v) ? Number(v.toFixed(digits)) : null);
@@ -533,8 +793,11 @@ async function runWorkUnit(unit) {
   }
   const inputRecord = {
     rosetta_corpus: { id: ROSETTA_CORPUS.id, sha256: corpusSha256 },
-    voyager: inputs.slices.length
-      ? { dataset_id: await datasetId(inputs.slices), slices: inputs.slices.map((s) => ({ id: s.id, sha256: s.sha256, start_mjd: Number.isFinite(s.startMjd) ? s.startMjd : null })) }
+    slices: inputs.slices.length
+      ? {
+          dataset_id: await datasetId(inputs.slices),
+          slices: inputs.slices.map((s) => ({ id: s.id, family: s.family, sha256: s.sha256, start_mjd: Number.isFinite(s.startMjd) ? s.startMjd : null })),
+        }
       : null,
   };
   let last = null;

@@ -1,8 +1,12 @@
-// Test fixtures: synthetic micro-slices in the published format. Not real data.
+// Test fixtures: synthetic micro-slices in the published format (not real data), plus a loader
+// for the real slices committed in web/data/slices.
 import { createHash } from 'node:crypto';
-import { mkdtempSync, writeFileSync } from 'node:fs';
+import { mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { fileURLToPath } from 'node:url';
+
+import { canonicalOrder, parseSlice } from '../web/js/slices.js';
 
 export const ROWS = 16;
 export const WIDTH = 256;
@@ -24,10 +28,24 @@ export const lineSlice = (drift, seed = 1) =>
 
 export const sha256 = (buffer) => createHash('sha256').update(new Uint8Array(buffer)).digest('hex');
 
-export function entry({ id, group = 'carrier', file = `${id}.bin`, digest, observationFile = 'obs-a.h5', tstart = 57650.78, drift = 2.4 }) {
+const PUBLISHED = fileURLToPath(new URL('../web/data/slices/', import.meta.url));
+
+// The slices this site publishes, loaded and verified the way the Live Lab loads them.
+export async function publishedSlices() {
+  const manifest = JSON.parse(readFileSync(join(PUBLISHED, 'index.json'), 'utf8'));
+  const slices = await Promise.all(
+    manifest.slices.map((e) => {
+      const bytes = readFileSync(join(PUBLISHED, e.file));
+      return parseSlice(e, bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength));
+    }),
+  );
+  return canonicalOrder(slices);
+}
+
+export function entry({ id, family = 'voyager', group = 'carrier', file = `${id}.bin`, digest, observationFile = 'obs-a.h5', tstart = 57650.78, drift = 2.4 }) {
   return {
     id,
-    family: 'voyager',
+    family,
     group,
     file,
     dtype: 'float32-le',
@@ -50,4 +68,33 @@ export function writeSliceFolder(slices) {
   });
   writeFileSync(join(dir, 'index.json'), JSON.stringify(manifest));
   return [join(dir, 'index.json'), ...paths];
+}
+
+// A result card that passes validation for `unit`; `shift` nudges every metric. With
+// `dataset` ({ datasetId, families }, see describeDataset), the card used those slices.
+export async function makeCard(unit, { backend = 'wasm', shift = 0, started = '2026-10-26T00:00:00.000Z', dataset = null } = {}) {
+  const { workUnitConfig, ROSETTA_CORPUS, RESULT_CARD_VERSION, SPEC, APP_VERSION } = await import('../web/js/workunits.js');
+  const families = [...(dataset?.families ?? []), 'tone', 'pulsed', 'sweep', 'rosetta', 'randfsk', 'noise'];
+  const gain = (base) => ({ persistence: -0.5 + shift, linear: 0.2 + shift, gru: base + shift });
+  return {
+    format: 'eiathome-result',
+    version: RESULT_CARD_VERSION,
+    spec: SPEC,
+    unit,
+    config: workUnitConfig(unit),
+    app: APP_VERSION,
+    tfjs: '4.22.0',
+    backend,
+    parameters: 11424,
+    families,
+    inputs: { rosetta_corpus: { id: ROSETTA_CORPUS.id, sha256: ROSETTA_CORPUS.sha256 }, slices: dataset ? { dataset_id: dataset.datasetId, slices: [] } : null },
+    started,
+    seconds: 20.4,
+    metrics: {
+      prediction_gain: Object.fromEntries(families.map((f) => [f, gain(f === 'tone' ? 0.4 : 0)])),
+      gru_gain_frames_shuffled: Object.fromEntries(families.map((f) => [f, -0.1 + shift])),
+      final_train_loss: 0.72 + shift,
+      drift_probe: { r2_synthetic: 0.76 + shift, mae_hz_per_s_synthetic: 0.12, untrained_r2_synthetic: 0.2, untrained_mae_hz_per_s_synthetic: 0.3 },
+    },
+  };
 }

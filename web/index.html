@@ -45,7 +45,9 @@
         <div id="families" class="switcher" role="radiogroup" aria-label="Signal family"></div>
         <p id="family-about" class="muted"></p>
         <div class="controls">
-          <label class="field"><span>Hidden units</span>
+          <label class="field"><span>Model</span>
+            <select id="arch"><option value="gru" selected>GRU</option><option value="lstm">LSTM</option><option value="attention">Causal attention</option></select></label>
+          <label class="field"><span>Size (GRU units)</span>
             <select id="hidden"><option>16</option><option selected>32</option><option>64</option><option>128</option></select></label>
           <label class="field"><span>Epochs</span>
             <input id="epochs" type="number" min="1" max="60" value="15"></label>
@@ -66,10 +68,10 @@
       <div class="grid">
         <div class="panel wide">
           <h2>2. Waterfall and next-frame prediction</h2>
-          <p class="muted">The GRU sees frames 1 to <i>t</i> and predicts frame <i>t</i>+1. Left: the real frames. Middle: the GRU’s predictions. Right: what it got wrong (blue: too high, red: too low).</p>
+          <p class="muted">The model sees frames 1 to <i>t</i> and predicts frame <i>t</i>+1. Left: the real frames. Middle: the model’s predictions. Right: what it got wrong (blue: too high, red: too low).</p>
           <div class="triptych">
             <figure><figcaption>Actual</figcaption><canvas id="wf-actual" data-height="190" aria-label="Actual spectrogram"></canvas></figure>
-            <figure><figcaption>GRU prediction</figcaption><canvas id="wf-pred" data-height="190" aria-label="Predicted spectrogram"></canvas></figure>
+            <figure><figcaption>Model prediction</figcaption><canvas id="wf-pred" data-height="190" aria-label="Predicted spectrogram"></canvas></figure>
             <figure><figcaption>Residual (actual − prediction)</figcaption><canvas id="wf-resid" data-height="190" aria-label="Residual"></canvas></figure>
           </div>
         </div>
@@ -81,17 +83,17 @@
           <p class="muted small">1 − error ÷ error of always guessing the average frame. 0 = learned nothing. Higher is better.</p>
           <div class="table-wrap">
             <table id="gains">
-              <thead><tr><th scope="col">Signal</th><th scope="col">Persistence</th><th scope="col">Linear</th><th scope="col">GRU</th><th scope="col">GRU, frames shuffled</th></tr></thead>
+              <thead><tr><th scope="col">Signal</th><th scope="col">Persistence</th><th scope="col">Linear</th><th scope="col" id="gains-model">GRU</th><th scope="col" title="The same trained model, scored on time-shuffled snippets">Frames shuffled</th></tr></thead>
               <tbody></tbody>
             </table>
           </div>
-          <p id="gains-note" class="muted small" hidden>No independent Voyager data could be held out, so the Voyager row is scored on the same observing session the model trained on. It measures reconstruction, not generalization. To get a held-out score, load slices from more than one session (scans that started more than 12 hours apart), each with a start time.</p>
+          <p id="gains-note" class="muted small" hidden>No independent real data could be held out, so the row of the family the model trained on is scored on the same observing session it trained on. It measures reconstruction, not generalization. To get a held-out score, load slices from more than one session (scans that started more than 12 hours apart), each with a start time.</p>
           <div id="probe" class="probe" hidden></div>
         </div>
 
         <div class="panel">
           <h2>4. Hidden-state map</h2>
-          <p class="muted small">Each snippet’s final GRU state, projected to 2D (PCA). Each panel highlights one signal in blue over all the others in gray.</p>
+          <p class="muted small">Each snippet’s final hidden state, projected to 2D (PCA). Each panel highlights one signal in blue over all the others in gray.</p>
           <div id="map" class="multiples"></div>
         </div>
 
@@ -109,10 +111,15 @@
           <div id="tb-tiles" class="tiles"></div>
           <div class="grid inner">
             <figure>
-              <figcaption>Conditional entropy of the next token (bits)</figcaption>
-              <canvas id="tb-entropy" data-height="190" aria-label="Conditional entropy by context length"></canvas>
+              <figcaption>Held-out cross-entropy of the next token (bits)</figcaption>
+              <canvas id="tb-entropy" data-height="190" aria-label="Held-out cross-entropy by context length"></canvas>
               <div class="table-wrap"><table id="tb-entropy-table"></table></div>
-              <p class="muted small">Hollow markers: too few samples for a reliable estimate.</p>
+              <p class="muted small">A smoothed n-gram model fitted on the first 80% of the tokens and scored on the last 20%. Lower means the context predicts the next token. A shuffled stream should stay flat.</p>
+              <details class="small">
+                <summary>Plug-in estimates (biased when there are more contexts than tokens)</summary>
+                <div class="table-wrap"><table id="tb-plugin-table"></table></div>
+                <p class="muted small">* Too few samples for a reliable estimate. With 16 tokens and 3 tokens of context there are 4,096 possible contexts, so most are seen only once, and these estimates fall toward zero even for random order.</p>
+              </details>
             </figure>
             <figure>
               <figcaption>Mutual information between tokens <i>d</i> apart (bits)</figcaption>
@@ -129,6 +136,16 @@
             </figure>
           </div>
           <p id="tb-notes" class="muted small"></p>
+
+          <h3>Does it speak back? A token language model</h3>
+          <p class="muted small">A small causal GRU (16-dimensional token embeddings, 32 hidden units) learns to predict the next radio token. It trains for 10 epochs on the first 80% of each stream and is scored on the last 20%, like the n-gram model above. Then it continues the real stream from a 16-token prompt. Each token is drawn as its k-means centroid frame.</p>
+          <div class="buttons"><button id="tb-lm" type="button">Train token model</button><button id="tb-lm-stop" type="button" disabled>Stop</button></div>
+          <p id="tb-lm-status" class="status" role="status" aria-live="polite"></p>
+          <div class="table-wrap"><table id="tb-lm-table"></table></div>
+          <div class="pair" id="tb-lm-sample" hidden>
+            <figure><figcaption>The real stream’s next 32 tokens</figcaption><canvas id="tb-lm-real" data-height="210" aria-label="Real continuation"></canvas></figure>
+            <figure><figcaption>The model’s continuation (sampled)</figcaption><canvas id="tb-lm-generated" data-height="210" aria-label="Model continuation"></canvas></figure>
+          </div>
         </div>
       </div>
     </section>
@@ -138,7 +155,7 @@
       <div class="panel">
         <h2>Volunteer compute in a tab</h2>
         <p>A work unit is one small, complete experiment, fully determined by its number: it builds the same snippets, trains the same model and reports the same metrics on any machine. Run one, and you get a small <b>result card</b>. Nothing leaves your browser unless you choose to submit it.</p>
-        <p class="muted small">Spec <code id="wu-spec"></code>: train a GRU on noise and synthetic drifting tones only (like the Hello, Voyager notebook), then test it on every signal, including Voyager if loaded. The hidden size cycles through 16, 32 and 64 with the unit number.</p>
+        <p class="muted small">Spec <code id="wu-spec"></code>: train a GRU on noise and synthetic drifting tones only (like the Hello, Voyager notebook), then test it on every signal, including the real-data families if their slices are loaded. The hidden size cycles through 16, 32 and 64 with the unit number.</p>
         <div class="controls">
           <label class="field"><span>Unit number</span><input id="wu-number" type="number" min="0" max="9999" value="0"></label>
           <div class="buttons">
@@ -176,14 +193,27 @@
           <button id="wu-clear" type="button">Clear</button>
         </div>
       </div>
+
+      <div class="panel">
+        <h2>Community results</h2>
+        <p class="muted small">Result cards submitted as GitHub issues are checked against their spec automatically and collected here. A unit counts as <b>replicated</b> when runs from at least two volunteers agree within 0.02 on every metric. A card is a claim until someone else replicates it.</p>
+        <p id="community-status" class="status" role="status"></p>
+        <div id="community-tables" hidden>
+          <h3>Units</h3>
+          <div class="table-wrap"><table id="community-units"></table></div>
+          <h3>Volunteers</h3>
+          <div class="table-wrap"><table id="community-volunteers"></table></div>
+        </div>
+      </div>
     </section>
 
     <!-- ================= Data ================= -->
     <section id="tab-data" class="tab" role="tabpanel" hidden>
       <div class="panel">
-        <h2>Real data: Voyager 1 micro-slices</h2>
+        <h2>Real data: Voyager 1 and off-source micro-slices</h2>
         <p id="slice-status" role="status">Checking for published slices…</p>
         <p>Instead of multi-gigabyte HDF5 files, the Live Lab uses <b>micro-slices</b>: 16 time steps × 256 channels around each signal, about 16 KB each. They’re cut from the Breakthrough Listen observation by <code>tools/extract_slices.py</code> and published in <code>web/data/slices/</code>.</p>
+        <p>The <b>off-source</b> slices come from the same on/off cadence with the telescope pointed 1° away from Voyager, cut where Voyager’s signals would have drifted to by then. They’re real receiver noise and interference with nothing in the beam: if a model scores as well on them as on Voyager, it isn’t learning the signal.</p>
         <div id="drop" class="drop" tabindex="0">
           <p><b>Drop slice files here</b>: an <code>index.json</code> manifest plus its <code>.bin</code> files.</p>
           <label class="button">Choose files<input id="slice-files" type="file" multiple accept=".json,.bin" hidden></label>
@@ -208,12 +238,12 @@
         <h2>What is this?</h2>
         <p>EI@Home flips the usual SETI machine-learning pipeline. Instead of training a filter to throw away interference, it uses candidate signals as <b>training data</b> and asks what the models learn. This page runs the experiments directly in your browser, on your own hardware, with nothing to install.</p>
         <h3>Track A: continuous dynamics</h3>
-        <p>A small GRU learns to predict the next spectrogram frame. We compare it with simple baselines, look at its hidden states, and check whether its state encodes physical quantities such as drift rate.</p>
+        <p>A small model learns to predict the next spectrogram frame: a GRU, an LSTM or one layer of causal attention, each with about the same number of parameters. We compare it with simple baselines, look at its hidden states, and check whether its state encodes physical quantities such as drift rate.</p>
         <h3>Track B: is it language?</h3>
         <p>A tokenizer turns frames into discrete tokens, and we measure entropy, mutual information, compressibility and Zipf statistics against surrogates. The Rosetta control (real English text sent as FSK) checks that the pipeline can find language when it is there. A Zipf-like curve on its own proves nothing.</p>
         <h3>Honest limits</h3>
         <ul>
-          <li>Voyager is a positive control, not a candidate: we know exactly what it is.</li>
+          <li>Voyager is a positive control, not a candidate: we know exactly what it is. The off-source scans are its negative control.</li>
           <li>Synthetic signals are simple. Real signals differ, and that difference is worth investigating before concluding anything.</li>
           <li>Different compute backends give slightly different numbers. Replication compares results within a tolerance.</li>
         </ul>

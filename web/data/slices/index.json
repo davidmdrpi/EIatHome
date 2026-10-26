@@ -1,6 +1,484 @@
 {
   "format": "eiathome-slices",
   "version": 1,
-  "extracted_by": null,
-  "slices": []
+  "extracted_by": "tools/extract_slices.py 0.3.0",
+  "slices": [
+    {
+      "id": "voyager1-59046-80036-carrier",
+      "family": "voyager",
+      "group": "carrier",
+      "file": "voyager1-59046-80036-carrier.bin",
+      "dtype": "float32-le",
+      "shape": [
+        16,
+        256
+      ],
+      "units": "noise sigma, bandpass-flattened",
+      "sha256": "45a3aefcfb7d61b94b62d8d1d86d72ee31ae618f558031bf13ebfb6deb7fd8f6",
+      "source": {
+        "file": "single_coarse_guppi_59046_80036_DIAG_VOYAGER-1_0011.rawspec.0000.h5",
+        "source_name": "VOYAGER-1",
+        "tstart_mjd": 59046.92634259259,
+        "fch1_mhz": 8421.38671875,
+        "foff_hz": -2.7939677238464355,
+        "tsamp_s": 18.253611007999982,
+        "first_channel": 659880,
+        "centre_freq_mhz": 8419.542678937103,
+        "drift_channels_per_step": 2.395725836084681,
+        "drift_hz_per_s": -0.3666989867523763,
+        "snr": 693.7583618164062,
+        "url": "https://bldata.berkeley.edu/voyager_2020/single_coarse_channel/single_coarse_guppi_59046_80036_DIAG_VOYAGER-1_0011.rawspec.0000.h5"
+      }
+    },
+    {
+      "id": "voyager1-59046-80036-sideband-1",
+      "family": "voyager",
+      "group": "sideband",
+      "file": "voyager1-59046-80036-sideband-1.bin",
+      "dtype": "float32-le",
+      "shape": [
+        16,
+        256
+      ],
+      "units": "noise sigma, bandpass-flattened",
+      "sha256": "f57d3841c7f5de65093e72cf4d9632ab53af565e2701255796af40353cb105f6",
+      "source": {
+        "file": "single_coarse_guppi_59046_80036_DIAG_VOYAGER-1_0011.rawspec.0000.h5",
+        "source_name": "VOYAGER-1",
+        "tstart_mjd": 59046.92634259259,
+        "fch1_mhz": 8421.38671875,
+        "foff_hz": -2.7939677238464355,
+        "tsamp_s": 18.253611007999982,
+        "first_channel": 667989,
+        "centre_freq_mhz": 8419.520021852522,
+        "drift_channels_per_step": 2.330481213101523,
+        "drift_hz_per_s": -0.35671239447265796,
+        "snr": 84.57659912109375,
+        "url": "https://bldata.berkeley.edu/voyager_2020/single_coarse_channel/single_coarse_guppi_59046_80036_DIAG_VOYAGER-1_0011.rawspec.0000.h5"
+      }
+    },
+    {
+      "id": "voyager1-59046-80036-sideband-2",
+      "family": "voyager",
+      "group": "sideband",
+      "file": "voyager1-59046-80036-sideband-2.bin",
+      "dtype": "float32-le",
+      "shape": [
+        16,
+        256
+      ],
+      "units": "noise sigma, bandpass-flattened",
+      "sha256": "b05a0b1025b920ead098319ee43da9ee437ebd867c6ae7b1f85e2f41202ca833",
+      "source": {
+        "file": "single_coarse_guppi_59046_80036_DIAG_VOYAGER-1_0011.rawspec.0000.h5",
+        "source_name": "VOYAGER-1",
+        "tstart_mjd": 59046.92634259259,
+        "fch1_mhz": 8421.38671875,
+        "foff_hz": -2.7939677238464355,
+        "tsamp_s": 18.253611007999982,
+        "first_channel": 651885,
+        "centre_freq_mhz": 8419.565016631203,
+        "drift_channels_per_step": 2.328687230891548,
+        "drift_hz_per_s": -0.3564378006736761,
+        "snr": 82.14545440673828,
+        "url": "https://bldata.berkeley.edu/voyager_2020/single_coarse_channel/single_coarse_guppi_59046_80036_DIAG_VOYAGER-1_0011.rawspec.0000.h5"
+      }
+    },
+    {
+      "id": "voyager1-59046-80354-off-carrier",
+      "family": "offsource",
+      "group": "carrier window",
+      "file": "voyager1-59046-80354-off-carrier.bin",
+      "dtype": "float32-le",
+      "shape": [
+        16,
+        256
+      ],
+      "units": "noise sigma, bandpass-flattened",
+      "sha256": "49bf3b7b36f2df5cab78d177eaece989c9956c0ad682eb9d29e2e312b565132e",
+      "source": {
+        "file": "single_coarse_guppi_59046_80354_DIAG_VOYAGER-1_0012.rawspec.0000.h5",
+        "source_name": "VOYAGER-1 OFF",
+        "tstart_mjd": 59046.93002314815,
+        "fch1_mhz": 8421.38671875,
+        "foff_hz": -2.7939677238464355,
+        "tsamp_s": 18.253611007999982,
+        "first_channel": 659921,
+        "centre_freq_mhz": 8419.542562326826,
+        "window_of": "voyager1-59046-80036-carrier",
+        "snr": 4.3631181716918945,
+        "url": "https://bldata.berkeley.edu/voyager_2020/single_coarse_channel/single_coarse_guppi_59046_80354_DIAG_VOYAGER-1_0012.rawspec.0000.h5"
+      }
+    },
+    {
+      "id": "voyager1-59046-80354-off-sideband-1",
+      "family": "offsource",
+      "group": "sideband window",
+      "file": "voyager1-59046-80354-off-sideband-1.bin",
+      "dtype": "float32-le",
+      "shape": [
+        16,
+        256
+      ],
+      "units": "noise sigma, bandpass-flattened",
+      "sha256": "b58d4614fe4a0f6548a1e08f3cdc66e32d38f2d8814daffe7d1876a759ab071a",
+      "source": {
+        "file": "single_coarse_guppi_59046_80354_DIAG_VOYAGER-1_0012.rawspec.0000.h5",
+        "source_name": "VOYAGER-1 OFF",
+        "tstart_mjd": 59046.93002314815,
+        "fch1_mhz": 8421.38671875,
+        "foff_hz": -2.7939677238464355,
+        "tsamp_s": 18.253611007999982,
+        "first_channel": 668029,
+        "centre_freq_mhz": 8419.51990841798,
+        "window_of": "voyager1-59046-80036-sideband-1",
+        "snr": 3.9503493309020996,
+        "url": "https://bldata.berkeley.edu/voyager_2020/single_coarse_channel/single_coarse_guppi_59046_80354_DIAG_VOYAGER-1_0012.rawspec.0000.h5"
+      }
+    },
+    {
+      "id": "voyager1-59046-80354-off-sideband-2",
+      "family": "offsource",
+      "group": "sideband window",
+      "file": "voyager1-59046-80354-off-sideband-2.bin",
+      "dtype": "float32-le",
+      "shape": [
+        16,
+        256
+      ],
+      "units": "noise sigma, bandpass-flattened",
+      "sha256": "0dd3439afd078309beda8a2fb6b9ecf0fb05dccb5c83af9f5207f1275050230e",
+      "source": {
+        "file": "single_coarse_guppi_59046_80354_DIAG_VOYAGER-1_0012.rawspec.0000.h5",
+        "source_name": "VOYAGER-1 OFF",
+        "tstart_mjd": 59046.93002314815,
+        "fch1_mhz": 8421.38671875,
+        "foff_hz": -2.7939677238464355,
+        "tsamp_s": 18.253611007999982,
+        "first_channel": 651925,
+        "centre_freq_mhz": 8419.564903283981,
+        "window_of": "voyager1-59046-80036-sideband-2",
+        "snr": 4.001396656036377,
+        "url": "https://bldata.berkeley.edu/voyager_2020/single_coarse_channel/single_coarse_guppi_59046_80354_DIAG_VOYAGER-1_0012.rawspec.0000.h5"
+      }
+    },
+    {
+      "id": "voyager1-59046-80672-carrier",
+      "family": "voyager",
+      "group": "carrier",
+      "file": "voyager1-59046-80672-carrier.bin",
+      "dtype": "float32-le",
+      "shape": [
+        16,
+        256
+      ],
+      "units": "noise sigma, bandpass-flattened",
+      "sha256": "6a32b7bca071b0f6bf9b6377e6bd27133a260957588570de9c84560df237b64c",
+      "source": {
+        "file": "single_coarse_guppi_59046_80672_DIAG_VOYAGER-1_0013.rawspec.0000.h5",
+        "source_name": "VOYAGER-1",
+        "tstart_mjd": 59046.933703703704,
+        "fch1_mhz": 8421.38671875,
+        "foff_hz": -2.7939677238464355,
+        "tsamp_s": 18.253611007999982,
+        "first_channel": 659967,
+        "centre_freq_mhz": 8419.542435868296,
+        "drift_channels_per_step": 2.591078440261103,
+        "drift_hz_per_s": -0.39660040574279193,
+        "snr": 330.3290100097656,
+        "url": "https://bldata.berkeley.edu/voyager_2020/single_coarse_channel/single_coarse_guppi_59046_80672_DIAG_VOYAGER-1_0013.rawspec.0000.h5"
+      }
+    },
+    {
+      "id": "voyager1-59046-80672-sideband-1",
+      "family": "voyager",
+      "group": "sideband",
+      "file": "voyager1-59046-80672-sideband-1.bin",
+      "dtype": "float32-le",
+      "shape": [
+        16,
+        256
+      ],
+      "units": "noise sigma, bandpass-flattened",
+      "sha256": "6535d774039711290a9b46cf986718a6b91d9f05563cfe9563caf696d94dc9a4",
+      "source": {
+        "file": "single_coarse_guppi_59046_80672_DIAG_VOYAGER-1_0013.rawspec.0000.h5",
+        "source_name": "VOYAGER-1",
+        "tstart_mjd": 59046.933703703704,
+        "fch1_mhz": 8421.38671875,
+        "foff_hz": -2.7939677238464355,
+        "tsamp_s": 18.253611007999982,
+        "first_channel": 668076,
+        "centre_freq_mhz": 8419.519778599999,
+        "drift_channels_per_step": 2.5537280867633894,
+        "drift_hz_per_s": -0.3908834173561581,
+        "snr": 41.16608810424805,
+        "url": "https://bldata.berkeley.edu/voyager_2020/single_coarse_channel/single_coarse_guppi_59046_80672_DIAG_VOYAGER-1_0013.rawspec.0000.h5"
+      }
+    },
+    {
+      "id": "voyager1-59046-80672-sideband-2",
+      "family": "voyager",
+      "group": "sideband",
+      "file": "voyager1-59046-80672-sideband-2.bin",
+      "dtype": "float32-le",
+      "shape": [
+        16,
+        256
+      ],
+      "units": "noise sigma, bandpass-flattened",
+      "sha256": "40967ad38ec07f4982eed55c88e20519d9700497bb1c1479bba921ca799b3d80",
+      "source": {
+        "file": "single_coarse_guppi_59046_80672_DIAG_VOYAGER-1_0013.rawspec.0000.h5",
+        "source_name": "VOYAGER-1",
+        "tstart_mjd": 59046.933703703704,
+        "fch1_mhz": 8421.38671875,
+        "foff_hz": -2.7939677238464355,
+        "tsamp_s": 18.253611007999982,
+        "first_channel": 651857,
+        "centre_freq_mhz": 8419.565092746445,
+        "drift_channels_per_step": 2.6808463550306696,
+        "drift_hz_per_s": -0.41034062713752006,
+        "snr": 43.8419189453125,
+        "url": "https://bldata.berkeley.edu/voyager_2020/single_coarse_channel/single_coarse_guppi_59046_80672_DIAG_VOYAGER-1_0013.rawspec.0000.h5"
+      }
+    },
+    {
+      "id": "voyager1-59046-80989-off-carrier",
+      "family": "offsource",
+      "group": "carrier window",
+      "file": "voyager1-59046-80989-off-carrier.bin",
+      "dtype": "float32-le",
+      "shape": [
+        16,
+        256
+      ],
+      "units": "noise sigma, bandpass-flattened",
+      "sha256": "99e599f02ddaf4d198a03c241decd18342cec869d5ad80cdde2f58717f089eca",
+      "source": {
+        "file": "single_coarse_guppi_59046_80989_DIAG_VOYAGER-1_0014.rawspec.0000.h5",
+        "source_name": "VOYAGER-1 OFF",
+        "tstart_mjd": 59046.937372685185,
+        "fch1_mhz": 8421.38671875,
+        "foff_hz": -2.7939677238464355,
+        "tsamp_s": 18.253611007999982,
+        "first_channel": 660012,
+        "centre_freq_mhz": 8419.542310145967,
+        "window_of": "voyager1-59046-80672-carrier",
+        "snr": 3.942747116088867,
+        "url": "https://bldata.berkeley.edu/voyager_2020/single_coarse_channel/single_coarse_guppi_59046_80989_DIAG_VOYAGER-1_0014.rawspec.0000.h5"
+      }
+    },
+    {
+      "id": "voyager1-59046-80989-off-sideband-1",
+      "family": "offsource",
+      "group": "sideband window",
+      "file": "voyager1-59046-80989-off-sideband-1.bin",
+      "dtype": "float32-le",
+      "shape": [
+        16,
+        256
+      ],
+      "units": "noise sigma, bandpass-flattened",
+      "sha256": "56450c0d7a8cd15b848d710009100584fefb1d2c4109399f24a8cab8e992e71a",
+      "source": {
+        "file": "single_coarse_guppi_59046_80989_DIAG_VOYAGER-1_0014.rawspec.0000.h5",
+        "source_name": "VOYAGER-1 OFF",
+        "tstart_mjd": 59046.937372685185,
+        "fch1_mhz": 8421.38671875,
+        "foff_hz": -2.7939677238464355,
+        "tsamp_s": 18.253611007999982,
+        "first_channel": 668120,
+        "centre_freq_mhz": 8419.519654689955,
+        "window_of": "voyager1-59046-80672-sideband-1",
+        "snr": 4.003225803375244,
+        "url": "https://bldata.berkeley.edu/voyager_2020/single_coarse_channel/single_coarse_guppi_59046_80989_DIAG_VOYAGER-1_0014.rawspec.0000.h5"
+      }
+    },
+    {
+      "id": "voyager1-59046-80989-off-sideband-2",
+      "family": "offsource",
+      "group": "sideband window",
+      "file": "voyager1-59046-80989-off-sideband-2.bin",
+      "dtype": "float32-le",
+      "shape": [
+        16,
+        256
+      ],
+      "units": "noise sigma, bandpass-flattened",
+      "sha256": "346c082a2be3173d25e7570674f08708d1626bce8d581e9a5b794fe11a9795b9",
+      "source": {
+        "file": "single_coarse_guppi_59046_80989_DIAG_VOYAGER-1_0014.rawspec.0000.h5",
+        "source_name": "VOYAGER-1 OFF",
+        "tstart_mjd": 59046.937372685185,
+        "fch1_mhz": 8421.38671875,
+        "foff_hz": -2.7939677238464355,
+        "tsamp_s": 18.253611007999982,
+        "first_channel": 651904,
+        "centre_freq_mhz": 8419.564962668466,
+        "window_of": "voyager1-59046-80672-sideband-2",
+        "snr": 4.2046027183532715,
+        "url": "https://bldata.berkeley.edu/voyager_2020/single_coarse_channel/single_coarse_guppi_59046_80989_DIAG_VOYAGER-1_0014.rawspec.0000.h5"
+      }
+    },
+    {
+      "id": "voyager1-59046-81310-carrier",
+      "family": "voyager",
+      "group": "carrier",
+      "file": "voyager1-59046-81310-carrier.bin",
+      "dtype": "float32-le",
+      "shape": [
+        16,
+        256
+      ],
+      "units": "noise sigma, bandpass-flattened",
+      "sha256": "75072875cd2d2a412cc6db2b8c222bc120829c486fd1a5e3b9d4ec6b31eb492f",
+      "source": {
+        "file": "single_coarse_guppi_59046_81310_DIAG_VOYAGER-1_0015.rawspec.0000.h5",
+        "source_name": "VOYAGER-1",
+        "tstart_mjd": 59046.941087962965,
+        "fch1_mhz": 8421.38671875,
+        "foff_hz": -2.7939677238464355,
+        "tsamp_s": 18.253611007999982,
+        "first_channel": 660061,
+        "centre_freq_mhz": 8419.542172081128,
+        "drift_channels_per_step": 2.802078709015665,
+        "drift_hz_per_s": -0.42889691629978793,
+        "snr": 615.2271728515625,
+        "url": "https://bldata.berkeley.edu/voyager_2020/single_coarse_channel/single_coarse_guppi_59046_81310_DIAG_VOYAGER-1_0015.rawspec.0000.h5"
+      }
+    },
+    {
+      "id": "voyager1-59046-81310-sideband-1",
+      "family": "voyager",
+      "group": "sideband",
+      "file": "voyager1-59046-81310-sideband-1.bin",
+      "dtype": "float32-le",
+      "shape": [
+        16,
+        256
+      ],
+      "units": "noise sigma, bandpass-flattened",
+      "sha256": "3540d3da488981380de9f662c656971db1091db606c16023e75d0fd2a66dbf1c",
+      "source": {
+        "file": "single_coarse_guppi_59046_81310_DIAG_VOYAGER-1_0015.rawspec.0000.h5",
+        "source_name": "VOYAGER-1",
+        "tstart_mjd": 59046.941087962965,
+        "fch1_mhz": 8421.38671875,
+        "foff_hz": -2.7939677238464355,
+        "tsamp_s": 18.253611007999982,
+        "first_channel": 668170,
+        "centre_freq_mhz": 8419.519514705358,
+        "drift_channels_per_step": 2.7794697989856267,
+        "drift_hz_per_s": -0.4254363098001978,
+        "snr": 72.16787719726562,
+        "url": "https://bldata.berkeley.edu/voyager_2020/single_coarse_channel/single_coarse_guppi_59046_81310_DIAG_VOYAGER-1_0015.rawspec.0000.h5"
+      }
+    },
+    {
+      "id": "voyager1-59046-81310-sideband-2",
+      "family": "voyager",
+      "group": "sideband",
+      "file": "voyager1-59046-81310-sideband-2.bin",
+      "dtype": "float32-le",
+      "shape": [
+        16,
+        256
+      ],
+      "units": "noise sigma, bandpass-flattened",
+      "sha256": "6fa13d8dc7461e811169ff55b9b13162868169205b25d926b843fc1b280423e6",
+      "source": {
+        "file": "single_coarse_guppi_59046_81310_DIAG_VOYAGER-1_0015.rawspec.0000.h5",
+        "source_name": "VOYAGER-1",
+        "tstart_mjd": 59046.941087962965,
+        "fch1_mhz": 8421.38671875,
+        "foff_hz": -2.7939677238464355,
+        "tsamp_s": 18.253611007999982,
+        "first_channel": 651952,
+        "centre_freq_mhz": 8419.56482851791,
+        "drift_channels_per_step": 2.7590834205063737,
+        "drift_hz_per_s": -0.4223158925056588,
+        "snr": 71.46287536621094,
+        "url": "https://bldata.berkeley.edu/voyager_2020/single_coarse_channel/single_coarse_guppi_59046_81310_DIAG_VOYAGER-1_0015.rawspec.0000.h5"
+      }
+    },
+    {
+      "id": "voyager1-59046-81628-off-carrier",
+      "family": "offsource",
+      "group": "carrier window",
+      "file": "voyager1-59046-81628-off-carrier.bin",
+      "dtype": "float32-le",
+      "shape": [
+        16,
+        256
+      ],
+      "units": "noise sigma, bandpass-flattened",
+      "sha256": "6f8d3f6dc6ab127901d5df46db8ab377606dcf32d0a4f3b4b01a72785bd10857",
+      "source": {
+        "file": "single_coarse_guppi_59046_81628_DIAG_VOYAGER-1_0016.rawspec.0000.h5",
+        "source_name": "VOYAGER-1 OFF",
+        "tstart_mjd": 59046.944768518515,
+        "fch1_mhz": 8421.38671875,
+        "foff_hz": -2.7939677238464355,
+        "tsamp_s": 18.253611007999982,
+        "first_channel": 660110,
+        "centre_freq_mhz": 8419.54203569191,
+        "window_of": "voyager1-59046-81310-carrier",
+        "snr": 3.5516185760498047,
+        "url": "https://bldata.berkeley.edu/voyager_2020/single_coarse_channel/single_coarse_guppi_59046_81628_DIAG_VOYAGER-1_0016.rawspec.0000.h5"
+      }
+    },
+    {
+      "id": "voyager1-59046-81628-off-sideband-1",
+      "family": "offsource",
+      "group": "sideband window",
+      "file": "voyager1-59046-81628-off-sideband-1.bin",
+      "dtype": "float32-le",
+      "shape": [
+        16,
+        256
+      ],
+      "units": "noise sigma, bandpass-flattened",
+      "sha256": "d9df010d71b5b33987a27adecb6ff47a67e54135bff5aa3cec1d97a9f68bc841",
+      "source": {
+        "file": "single_coarse_guppi_59046_81628_DIAG_VOYAGER-1_0016.rawspec.0000.h5",
+        "source_name": "VOYAGER-1 OFF",
+        "tstart_mjd": 59046.944768518515,
+        "fch1_mhz": 8421.38671875,
+        "foff_hz": -2.7939677238464355,
+        "tsamp_s": 18.253611007999982,
+        "first_channel": 668219,
+        "centre_freq_mhz": 8419.519379416612,
+        "window_of": "voyager1-59046-81310-sideband-1",
+        "snr": 4.709339141845703,
+        "url": "https://bldata.berkeley.edu/voyager_2020/single_coarse_channel/single_coarse_guppi_59046_81628_DIAG_VOYAGER-1_0016.rawspec.0000.h5"
+      }
+    },
+    {
+      "id": "voyager1-59046-81628-off-sideband-2",
+      "family": "offsource",
+      "group": "sideband window",
+      "file": "voyager1-59046-81628-off-sideband-2.bin",
+      "dtype": "float32-le",
+      "shape": [
+        16,
+        256
+      ],
+      "units": "noise sigma, bandpass-flattened",
+      "sha256": "2790297b84fcc6a48676c8bc57346094e7f4c1066266aa6e5525fb60a5892e04",
+      "source": {
+        "file": "single_coarse_guppi_59046_81628_DIAG_VOYAGER-1_0016.rawspec.0000.h5",
+        "source_name": "VOYAGER-1 OFF",
+        "tstart_mjd": 59046.944768518515,
+        "fch1_mhz": 8421.38671875,
+        "foff_hz": -2.7939677238464355,
+        "tsamp_s": 18.253611007999982,
+        "first_channel": 652000,
+        "centre_freq_mhz": 8419.564694221457,
+        "window_of": "voyager1-59046-81310-sideband-2",
+        "snr": 3.6823785305023193,
+        "url": "https://bldata.berkeley.edu/voyager_2020/single_coarse_channel/single_coarse_guppi_59046_81628_DIAG_VOYAGER-1_0016.rawspec.0000.h5"
+      }
+    }
+  ]
 }
