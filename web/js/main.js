@@ -1,4 +1,4 @@
-import { summarize } from './community.js';
+import { issueLink, summarize } from './community.js';
 import { architectureLabel, tokenArchitectureLabel } from './models.js';
 import { fmt, heatmap, lineChart, scatterPanel } from './plots.js';
 import { deriveSeed, makeRng } from './rng.js';
@@ -71,6 +71,7 @@ const state = {
   trainedFamily: null,
   trackb: null,
   card: null,
+  issue: null, // the card's GitHub issue link: { url, prefilled }
   stopLoop: false,
   text: store.get('rosettaText', ''),
   results: store.get('results', []),
@@ -554,17 +555,12 @@ function onWorkUnitResult(card) {
   unitStatus(`Unit ${card.unit} finished in ${card.seconds} s on ${BACKEND_NAMES[card.backend] ?? card.backend}.`);
   $('wu-card-panel').hidden = false;
   $('wu-card').textContent = JSON.stringify(card, null, 2);
-  $('wu-submit').href = issueUrl(card);
+  state.issue = issueLink(card, REPO);
+  $('wu-submit').href = state.issue.url;
   state.results = [card, ...state.results].slice(0, 200);
   store.set('results', state.results);
   renderHistory();
   if ($('wu-loop').checked && !state.stopLoop) setTimeout(() => !state.running && runUnit(randomUnit()), 1000);
-}
-
-function issueUrl(card) {
-  const title = `Work unit result: ${card.spec} #${card.unit}`;
-  const body = `Result card from the EI@Home Live Lab.\n\n\`\`\`json\n${JSON.stringify(card, null, 2)}\n\`\`\`\n`;
-  return `${REPO}/issues/new?${new URLSearchParams({ title, body, labels: 'work-unit' })}`;
 }
 
 function renderHistory() {
@@ -784,6 +780,23 @@ function init() {
     engine.postMessage({ type: 'stop' });
   };
   $('wu-download').onclick = () => state.card && download(`eiathome-${state.card.spec.replace('/', '-')}-unit${state.card.unit}.json`, state.card);
+  // The link opens the issue in a new tab. The card also goes on the clipboard: a card too long
+  // for a link is pasted from there, and so is any card GitHub drops while the volunteer signs in.
+  $('wu-submit').onclick = () => {
+    const text = JSON.stringify(state.card, null, 2);
+    const copied = navigator.clipboard ? navigator.clipboard.writeText(text) : Promise.reject(new Error('no clipboard'));
+    const { prefilled } = state.issue;
+    copied.then(
+      () => unitStatus(prefilled
+        ? 'Opened a GitHub issue with the card filled in. The card is also on your clipboard, in case GitHub asks you to sign in first.'
+        : 'This card is too long to fill in automatically, so it’s on your clipboard: paste it into the empty json block of the GitHub issue.'),
+      () => {
+        if (prefilled) return unitStatus('Opened a GitHub issue with the card filled in.');
+        getSelection().selectAllChildren($('wu-card'));
+        unitStatus('This card is too long to fill in automatically, and your browser blocked copying, so the card is selected: press Ctrl+C or ⌘C and paste it into the empty json block of the GitHub issue.', true);
+      },
+    );
+  };
   $('wu-copy').onclick = () => {
     navigator.clipboard.writeText(JSON.stringify(state.card, null, 2)).then(
       () => unitStatus('Result card copied.'),
