@@ -52,18 +52,26 @@ def rate(flags):
     return {"flagged": k, "windows": n, "fraction": k / n if n else None, "interval": wilson(k, n)}
 
 
-def code_identity():
-    """What produced the scores: a fingerprint of this package's source and, in a git checkout,
-    the revision and whether this package had uncommitted changes."""
-    package = Path(__file__).parent
-    digest = hashlib.sha256(b"".join(f.read_bytes() for f in sorted(package.glob("*.py")))).hexdigest()
+# Everything that computes scores: this package, and the tracks/llm modules the learned
+# detectors run (tokenizer, model and training, and its runtime settings).
+SOURCES = tuple(sorted(Path(__file__).resolve().parent.glob("*.py"))) + tuple(
+    ROOT / "tracks" / "llm" / name for name in ("data.py", "model.py", "runtime.py"))
+
+
+def code_identity(sources=SOURCES):
+    """What produced the scores: a fingerprint of the source files that compute them and, in a
+    git checkout, the revision and whether any of those files had uncommitted changes."""
+    digest = hashlib.sha256()
+    for path in sources:
+        digest.update(Path(path).relative_to(ROOT).as_posix().encode() + b"\0" + Path(path).read_bytes())
     git = None
     try:
-        run = lambda *a: subprocess.run(["git", *a], cwd=package, capture_output=True, text=True, check=True).stdout
-        git = {"revision": run("rev-parse", "HEAD").strip(), "uncommitted_changes": bool(run("status", "--porcelain", "--", ".").strip())}
+        run = lambda *a: subprocess.run(["git", *a], cwd=ROOT, capture_output=True, text=True, check=True).stdout
+        changed = run("status", "--porcelain", "--", *(str(Path(p).relative_to(ROOT)) for p in sources)).strip()
+        git = {"revision": run("rev-parse", "HEAD").strip(), "uncommitted_changes": bool(changed)}
     except (OSError, subprocess.CalledProcessError):
         pass  # not a git checkout: the fingerprint still identifies the code
-    return {"sha256": digest, "git": git}
+    return {"sha256": digest.hexdigest(), "files": [Path(p).relative_to(ROOT).as_posix() for p in sources], "git": git}
 
 
 def describe(detect):
@@ -132,33 +140,49 @@ def table(report):
     return "\n".join(lines) + "\n"
 
 
+def detectors_for(cache, learned, train_seed=0):
+    """The baselines, plus (with learned) the learned detectors, trained on the train scan alone
+    before anything is dealt. Returns (detectors, trained state or None)."""
+    if not learned:
+        return dict(DETECTORS), None
+    from .learned import learned_detectors  # needs torch
+    trained, state = learned_detectors(background.load(cache, "train"), seed=train_seed)
+    return {**DETECTORS, **trained}, state
+
+
 def main(argv=None):
     p = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     p.add_argument("--cache", type=Path, default=ROOT / "data/recovery", help="background windows (see background.py)")
     p.add_argument("--seed", type=int, default=0, help="the injection draw")
     p.add_argument("--per-cell", type=int, default=PER_CELL, help="injections per class and strength")
     p.add_argument("--output", type=Path, required=True, help="a new folder for report.json, key.json and report.md")
+    p.add_argument("--learned", action="store_true", help="also train and score the learned detectors (needs torch)")
+    p.add_argument("--train-seed", type=int, default=0, help="the learned detectors' training draw")
     args = p.parse_args(argv)
     if args.output.exists():
         p.error(f"{args.output} already exists")
+    detectors, trained = detectors_for(args.cache, args.learned, args.train_seed)
     calibration = background.load(args.cache, "calibration")
     test = background.load(args.cache, "test")
-    report, blinded = evaluate(calibration, test, args.seed, args.per_cell)
+    report, blinded = evaluate(calibration, test, args.seed, args.per_cell, detectors=detectors)
     manifest = json.loads(background.MANIFEST.read_text())
     report = {
         "format": "eiathome-recovery", "version": 1, "seed": args.seed,
         "limitation": LIMITATION,
         "backgrounds": {role: {k: manifest["scans"][role][k] for k in ("url", "tstart_mjd", "sha256", "shape")}
-                        for role in ("calibration", "test")},
+                        for role in (("train",) if trained else ()) + ("calibration", "test")},
         "strength": "optimal matched-filter SNR: the injected signal's norm, in noise sigma",
         "false_alarm_rates": list(FALSE_ALARM_RATES),
-        "versions": {"python": platform.python_version(), "numpy": np.__version__},
+        "versions": {"python": platform.python_version(), "numpy": np.__version__,
+                     **({"torch": str(__import__("torch").__version__)} if trained else {})},
         **report,
     }
     args.output.mkdir(parents=True)
     (args.output / "report.json").write_text(json.dumps(report, indent=1) + "\n")
     (args.output / "key.json").write_text(json.dumps(blinded, indent=1) + "\n")
     (args.output / "report.md").write_text(f"{LIMITATION}\n{table(report)}")
+    if trained:  # the trained models, to rescore or inspect
+        __import__("torch").save(trained, args.output / "learned.pt")
     print(LIMITATION)
     print(table(report))
 
