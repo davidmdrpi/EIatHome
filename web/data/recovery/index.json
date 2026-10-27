@@ -1,0 +1,58 @@
+{
+ "format": "eiathome-recovery-windows",
+ "version": 1,
+ "file": "test.i8",
+ "dtype": "int8",
+ "step": 0.0625,
+ "shape": [
+  1024,
+  49,
+  64
+ ],
+ "sha256": "c26379abea93fc7e4e48f498b525131cb84d0df236717f7e7466e40cd4f96914",
+ "windows": "Every 4th window of the test scan, in noise sigma: value = byte x 0.0625.",
+ "test": {
+  "url": "https://bldata.berkeley.edu/voyager_2020/6_sec_integration/blc23_guppi_59046_81628_DIAG_VOYAGER-1_0016.rawspec.0000.h5",
+  "tstart_mjd": 59046.944768518515,
+  "sha256": "68da7cdab6855c70f979b5d8ddb6b0fe288bd84b4a11e1f5008f226c00e67874",
+  "shape": [
+   4096,
+   49,
+   64
+  ],
+  "stride": 4
+ },
+ "calibration": {
+  "url": "https://bldata.berkeley.edu/voyager_2020/6_sec_integration/blc23_guppi_59046_80989_DIAG_VOYAGER-1_0014.rawspec.0000.h5",
+  "tstart_mjd": 59046.937372685185,
+  "sha256": "dab6076e9dacffc7e0ca6006c2608c2ef0fa46bb866f0a6ca62449b3b4d74af2",
+  "shape": [
+   4096,
+   49,
+   64
+  ],
+  "quantized": "as the published windows"
+ },
+ "thresholds": {
+  "dedoppler": {
+   "0.01": 4.9375,
+   "0.001": 5.473214285714286
+  },
+  "energy": {
+   "0.01": 3.6531712994267327,
+   "0.001": 4.787324014731104
+  }
+ },
+ "detectors": {
+  "dedoppler": {
+   "function": "tracks.recovery.detectors.dedoppler",
+   "drift_trials": "-4 to 4 channels per frame, 4 / frames apart (as tools/extract_slices.py)",
+   "tracks": "straight, rounded to whole channels, never wrapping",
+   "score": "best track sum / sqrt(frames)"
+  },
+  "energy": {
+   "function": "tracks.recovery.detectors.energy",
+   "score": "(sum of squares - frames * channels) / sqrt(2 * frames * channels)"
+  }
+ }
+}

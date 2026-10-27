@@ -4,8 +4,9 @@ Can a method recover a weak signal without raising false alarms? This track meas
 Synthetic signals of known class and strength are injected into real off-source data, dealt
 blind to detectors, and scored at a fixed false-alarm rate against fixed baselines. The plan
 and milestones are in [issue #13](https://github.com/davidmdrpi/EIatHome/issues/13). The
-measurements, first of the baselines and then of the project's learned models, are in
-[RESULTS.md](RESULTS.md).
+measurements are in [RESULTS.md](RESULTS.md): the baselines, then the project's learned
+models, then the browser work unit. The Live Lab's **Recovery** tab runs the comparison in a
+browser (see [In the browser](#in-the-browser)).
 
 ## Run it
 
@@ -112,14 +113,42 @@ tuning one.
 
 A second observing session (milestone 4) will give a test that no development has seen at all.
 
+## In the browser
+
+The Live Lab's **Recovery** tab runs this comparison as a work unit, `recovery/v0`
+([web/js/recovery.js](../../web/js/recovery.js)).
+
+- **Windows:** every 4th of the test scan's windows, 1,024 in all, quantized to steps of 1/16
+  noise sigma: 3.2 MB in `web/data/recovery/`. [browser.py](browser.py) writes them, together
+  with thresholds set on the whole calibration scan, quantized the same way. The spec pins the
+  file's SHA-256 and the thresholds.
+- **A unit:** 18 injections per class and strength, and 268 windows left empty, drawn from the
+  unit number. Every unit draws different signals into the same windows, so their counts add
+  up.
+- **Checks:** `browser.py` ports the unit to Python, using this package's own injections and
+  detectors. Its tests check that both draw the same signals and give the same scores and
+  counts. Ingestion reruns each submitted unit and records only cards whose counts match.
+
+```bash
+python -m tracks.recovery.browser --cache data/recovery          # check the published files against a rebuild
+python -m tracks.recovery.browser --cache data/recovery --write  # rewrite them (a new spec must pin them)
+node tools/recovery_unit.mjs 0 999                               # run units 0 to 999 in Node, added up
+```
+
 ## Tests
 
 ```bash
 python -m unittest discover -s tests -p 'test_recovery.py' -v
 ```
 
-They use synthetic Gaussian backgrounds, so they need only `numpy`. The learned detectors'
-tests need PyTorch too:
+They use synthetic Gaussian backgrounds, so they need only `numpy`. The browser unit's tests
+need Node as well, to run the JavaScript unit they compare against:
+
+```bash
+python -m unittest discover -s tests -p 'test_recovery_browser.py' -v
+```
+
+The learned detectors' tests need PyTorch too:
 
 ```bash
 python -m unittest discover -s tests -p 'test_recovery_learned.py' -v
@@ -153,3 +182,7 @@ The numpy-only tests cover:
   modules the learned detectors run, and changing any of them changes the identity.
 - **End to end:** an evaluation reproduces the baselines' known behaviour, and the background
   manifest check rejects altered windows.
+- **Browser unit** (`test_recovery_browser.py`, which also needs Node): the Python port and
+  the JavaScript unit deal identical signals, and give the same scores and counts. The
+  published windows match their index and refuse a changed byte, and quantizing refuses to
+  clip. With the background cache, a rebuild reproduces the published files exactly.

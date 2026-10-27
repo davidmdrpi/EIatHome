@@ -310,3 +310,136 @@ Fingerprints (the first 16 hex digits of the hashes in the report):
 - training windows: `728ad428140c6c6c`;
 - GRU state: `9cc159f1505ed0e8`;
 - token model state: `c9c25f4c59453105`.
+
+# Milestone 3: recovery units in the browser
+
+The Live Lab's **Recovery** tab runs the blinded comparison as a work unit, `recovery/v0`
+([web/js/recovery.js](../../web/js/recovery.js)). Every unit number draws different signals
+into the same real windows, so units add up. A submitted card is recomputed before it's
+recorded.
+
+## The spec
+
+- **Windows:** every 4th of the test scan's 4,096 windows. These 1,024 windows span the whole
+  coarse channel, in 3.2 MB (`web/data/recovery/test.i8`).
+  - They're quantized to steps of 1/16 noise sigma, which moves each value by at most 1/32
+    sigma.
+  - Nothing clips: the largest value in either scan, 7.92 sigma, is under the 7.94 sigma that
+    8 bits hold.
+- **Thresholds:** set on all 4,096 calibration windows, quantized the same way. The spec pins
+  them with the file's SHA-256, so changing either needs a new spec.
+
+  | Detector | 1% | 0.1% |
+  |---|---:|---:|
+  | de-Doppler | 4.9375 | 5.4732 |
+  | energy | 3.6532 | 4.7873 |
+
+  Milestone 1's full-precision thresholds were 4.93 and 5.46, and 3.64 and 4.77.
+- **Design:** each unit has 18 injections per class and strength (756 in all) and 268 windows
+  left empty. Its seed is derived from the unit number, drawn with mulberry32
+  (`web/js/rng.js`).
+- **Detectors:** the same de-Doppler search and energy detector, in JavaScript.
+- **Card:** about 2 KB. It holds the counts flagged per detector, false-alarm rate, class and
+  strength, and how many were flagged by both detectors.
+
+```bash
+python -m tracks.recovery.browser --cache data/recovery   # rebuild the published files and compare
+node tools/recovery_unit.mjs 0 999                         # units 0 to 999, added up (about 6 minutes)
+```
+
+## Checks
+
+- **The two implementations agree.** `tracks/recovery/browser.py` ports the unit to Python,
+  using `inject.py`'s own `draw()` and `render()` and `detectors.py`'s detectors. Its tests run
+  units 0 and 41 in Node and in Python and compare:
+  - the injected signals are identical;
+  - the de-Doppler scores are bit-identical, and the energy scores agree to 1e-13 (the sums run
+    in a different order);
+  - every count is identical.
+- **Ingestion recomputes.** The GitHub Action reruns each submitted unit on the published
+  windows and records the card only if its counts match. A unit takes under a second.
+- **Units reproduce.** A unit run twice gives the same counts. The page and Node give the same
+  counts for the same unit.
+
+## Reference: 1,000 units
+
+Units 0 to 999, added up: 18,000 injections per class and strength. At 50% recovery, the
+injections' 95% interval is about ±0.7 points. In brackets, milestone 1's single draw: 72
+injections on all 4,096 windows at full precision, seed 0.
+
+Recovery at a 1% false-alarm rate (decoys: how often they're flagged):
+
+| Class | Detector | SNR 5 | SNR 7 | SNR 10 | SNR 14 | SNR 20 | SNR 28 |
+|---|---|---:|---:|---:|---:|---:|---:|
+| tone | de-Doppler | 25% (24%) | 74% (71%) | 99% (100%) | 100% (100%) | 100% (100%) | 100% (100%) |
+| tone | energy | 2% (6%) | 3% (3%) | 12% (14%) | 48% (46%) | 99% (97%) | 100% (100%) |
+| intermittent | de-Doppler | 3% (4%) | 14% (12%) | 53% (60%) | 91% (90%) | 100% (100%) | 100% (100%) |
+| intermittent | energy | 2% (1%) | 3% (1%) | 11% (17%) | 46% (50%) | 98% (100%) | 100% (100%) |
+| wideband | de-Doppler | 17% (15%) | 56% (69%) | 98% (97%) | 100% (100%) | 100% (100%) | 100% (100%) |
+| wideband | energy | 2% (6%) | 5% (3%) | 16% (29%) | 57% (60%) | 99% (100%) | 100% (100%) |
+| sidebands | de-Doppler | 15% (17%) | 54% (46%) | 95% (96%) | 100% (100%) | 100% (100%) | 100% (100%) |
+| sidebands | energy | 2% (4%) | 4% (7%) | 13% (17%) | 52% (49%) | 99% (100%) | 100% (100%) |
+| fsk | de-Doppler | 4% (1%) | 17% (25%) | 60% (56%) | 97% (99%) | 100% (100%) | 100% (100%) |
+| fsk | energy | 2% (0%) | 3% (6%) | 12% (14%) | 48% (43%) | 99% (100%) | 100% (100%) |
+| stationary (decoy) | de-Doppler | 55% (57%) | 97% (94%) | 100% (100%) | 100% (100%) | 100% (100%) | 100% (100%) |
+| stationary (decoy) | energy | 2% (3%) | 4% (4%) | 12% (24%) | 48% (56%) | 99% (99%) | 100% (100%) |
+| pulse (decoy) | de-Doppler | 2% (0%) | 1% (1%) | 2% (1%) | 2% (1%) | 4% (6%) | 6% (6%) |
+| pulse (decoy) | energy | 2% (3%) | 3% (4%) | 12% (14%) | 47% (50%) | 99% (99%) | 100% (100%) |
+
+At 0.1%:
+
+- **de-Doppler search:** 90% of tones from SNR 10 (97%). Wideband signals and carriers with
+  sidebands need SNR 14 (87% and 86% at SNR 10), and intermittent and FSK signals SNR 20 (81%
+  and 88% at SNR 14).
+- **Energy detector:** 90% of wideband signals and carriers with sidebands from SNR 20 (94% and
+  91%). The other classes need SNR 28 (88–90% at SNR 20).
+
+**False alarms.** With nothing injected, the de-Doppler search flags 9 of the 1,024 windows at
+the 1% threshold and 1 at 0.1%. The energy detector flags 7 and 0. Every unit's empty windows
+are drawn from these windows, so combined units measure the same false alarms over and over:
+2,343 and 1,846 of 268,000 at 1% (0.87% and 0.69%), and 259 and 0 at 0.1%.
+
+**Paired outcomes** over all 540,000 signal injections at 1%:
+
+| | Both | De-Doppler only | Energy only | Neither |
+|---|---:|---:|---:|---:|
+| 1,000 units | 43.7% | 28.8% | 1.0% | 26.6% |
+| Milestone 1 | 44.4% | 28.4% | 1.3% | 25.9% |
+
+## What this shows
+
+- **The browser benchmark reproduces milestone 1.** Of the 168 cells at both rates, 160 lie in
+  milestone 1's 95% intervals. Chance alone would put about 8 outside, and 8 are outside.
+  At 1%, each signal class reaches 90% at the same strength as before:
+  - **de-Doppler at 1%:** SNR 10 for tones, wideband signals and carriers with sidebands; SNR
+    14 for intermittent and FSK signals;
+  - **energy detector:** SNR 20 for every class.
+- **Combining units removes the variation between injection draws.**
+  - Milestone 1's single draw: the energy detector found 18% of all injections at SNR 10,
+    decoys included.
+  - Five other seeds on the same full scan give 12–15% (13.5% on average), and the 1,000 units
+    give 12.8%.
+  - Milestone 1's outlying cells (energy on wideband signals at SNR 10: 29%) were that
+    variation, not a property of the class.
+  - The small remaining gap fits the window subset: every 4th window has slightly lower energy
+    scores than the full scan.
+- **The energy detector sees only power, so it barely distinguishes classes.** At SNR 10 it
+  finds 11–13% of every class except wideband signals (16%). The likely reason: the backgrounds'
+  mean of 0.06 sigma (milestone 1) adds to a signal spread over more channels. The de-Doppler
+  search spreads widely across classes, from 53% (intermittent) to 99% (tones) at SNR 10.
+
+## Limitations
+
+- **Every unit uses the same 1,024 windows from one scan.** Combining units narrows the
+  intervals over injection draws only.
+  - False alarms are fixed by those windows.
+  - Recovery intervals from many units leave out window-to-window, scan-to-scan and
+    receiver-to-receiver variation. Milestone 4's second session is where that gets measured.
+- **The thresholds aren't recomputed in the browser.** They come from the calibration scan,
+  which isn't published. The cross-check shows the JavaScript detectors equal the Python ones,
+  and `python -m tracks.recovery.browser` rebuilds the thresholds from the background cache.
+- **Recomputation confirms a card's counts, not the volunteer's computation.** For these
+  baselines a unit costs under a second, so the Action can rerun it. Units with detectors
+  trained in the browser would be too costly to recompute and will need replication instead.
+- Everything in the earlier limitations still applies: one session, one receiver and one coarse
+  channel, idealized injections, and window-level detection only.

@@ -1,6 +1,7 @@
 // Community results: validation of submitted result cards, and replication summaries.
 // Used by tools/ingest_result.mjs (in a GitHub Action) and by the Live Lab's Work units tab.
 
+import { RECOVERY_SPEC, validateRecoveryCard } from './recovery.js';
 import { FAMILIES, REAL_FAMILIES } from './signals.js';
 import { MAX_UNIT, RESULT_CARD_VERSION, ROSETTA_CORPUS, SPEC, workUnitConfig } from './workunits.js';
 
@@ -50,6 +51,9 @@ export function extractCard(body) {
 // unit are compared only within one dataset.
 export const cardDataset = (card) => card?.inputs?.slices?.dataset_id ?? null;
 
+// Recovery units (recovery.js) are checked by recomputation and combined, not replicated.
+export const isRecoveryCard = (card) => card?.spec === RECOVERY_SPEC;
+
 // Checks a card against its spec. Returns a list of problems (empty means valid).
 // published: the slices this site publishes, as { datasetId, families } (see describeDataset
 // in slices.js), or null if none.
@@ -57,6 +61,7 @@ export function validateCard(card, { published = null } = {}) {
   const errors = [];
   const fail = (message) => errors.push(message);
   if (!card || typeof card !== 'object' || Array.isArray(card)) return ['The card is not a JSON object.'];
+  if (isRecoveryCard(card)) return validateRecoveryCard(card);
   if (card.format !== 'eiathome-result') fail('`format` must be "eiathome-result".');
   if (card.version !== RESULT_CARD_VERSION) fail(`\`version\` must be ${RESULT_CARD_VERSION}. Re-run the unit in the current Live Lab.`);
   if (card.spec !== SPEC) fail(`\`spec\` must be "${SPEC}".`);
@@ -120,11 +125,11 @@ export function agree(a, b, tolerance = AGREEMENT_TOLERANCE) {
   return keys.length === Object.keys(vb).length && keys.every((key) => key in vb && Math.abs(va[key] - vb[key]) <= tolerance);
 }
 
-// Replication status per unit, and per-volunteer counts.
-// results: [{ issue, submitted_by, submitted_at, card }]
+// Replication status per unit, and per-volunteer counts, for the units that are replicated
+// (not recovery units). results: [{ issue, submitted_by, submitted_at, card }]
 export function summarize(results) {
   const byUnit = new Map();
-  for (const r of results) {
+  for (const r of results.filter((r) => !isRecoveryCard(r.card))) {
     const key = `${r.card.spec}#${r.card.unit}|${cardDataset(r.card) ?? 'synthetic'}`;
     if (!byUnit.has(key)) byUnit.set(key, []);
     byUnit.get(key).push(r);

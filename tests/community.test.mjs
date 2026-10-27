@@ -6,6 +6,7 @@ import { join } from 'node:path';
 import { test } from 'node:test';
 
 import { MAX_CARD_BYTES, MAX_ISSUE_URL, extractCard, issueLink, submissionText, summarize, validateCard } from '../web/js/community.js';
+import { parseRecoveryWindows, recoveryCard, runRecoveryUnit } from '../web/js/recovery.js';
 import { describeDataset } from '../web/js/slices.js';
 import { makeCard, publishedSlices } from './fixtures.mjs';
 
@@ -190,4 +191,35 @@ test('the reply describes the accepted card’s own dataset, not an older one fo
 
   const units = summarize(JSON.parse(readFileSync(join(dir, 'results.json'), 'utf8')).results).units;
   assert.deepEqual(units.map((u) => [u.dataset_id, u.runs, u.status]), [[older.datasetId, 2, 'replicated'], [current.datasetId, 1, 'single']]);
+});
+
+test('recovery cards are recorded only when a recomputation matches, and kept out of replication', async () => {
+  const dir = mkdtempSync(join(tmpdir(), 'eiathome-ingest-'));
+  const bytes = readFileSync('web/data/recovery/test.i8');
+  const data = await parseRecoveryWindows(bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength));
+  const results = runRecoveryUnit(5, data).results;
+  const card = (started, change = () => {}) => {
+    const c = recoveryCard(5, structuredClone(results), { seconds: 0.6, started });
+    change(c);
+    return c;
+  };
+  const issue = (number, login, c) => ({ number, user: { login }, created_at: '2026-10-27T01:00:00Z', body: `Result card from the EI@Home Live Lab.\n\n\`\`\`json\n${JSON.stringify(c)}\n\`\`\`\n` });
+
+  const accepted = ingest(dir, issue(40, 'alice', card('2026-10-27T00:00:00.000Z')));
+  assert.equal(accepted.status, 'status=accepted');
+  assert.match(accepted.comment, /recomputed on the published windows and its counts match/);
+  assert.match(accepted.comment, /combine 1 unit\(s\) from 1 volunteer\(s\)/);
+
+  const forged = ingest(dir, issue(41, 'bob', card('2026-10-27T00:01:00.000Z', (c) => (c.results.false_alarms.dedoppler['0.01'] += 1))));
+  assert.equal(forged.status, 'status=rejected');
+  assert.match(forged.comment, /recomputation/);
+
+  const repeat = ingest(dir, issue(42, 'bob', card('2026-10-27T00:02:00.000Z')));
+  assert.equal(repeat.status, 'status=accepted', 'another volunteer may run the same unit');
+  assert.match(repeat.comment, /combine 1 unit\(s\) from 2 volunteer\(s\)/, 'but it counts once');
+  assert.match(ingest(dir, issue(43, 'alice', card('2026-10-27T00:03:00.000Z'))).comment, /Each unit counts once/);
+
+  const stored = JSON.parse(readFileSync(join(dir, 'results.json'), 'utf8')).results;
+  assert.deepEqual(stored.map((r) => r.issue), [40, 42]);
+  assert.deepEqual(summarize(stored).units, [], 'recovery units are not replicated');
 });

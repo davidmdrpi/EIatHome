@@ -122,8 +122,10 @@ export function heatmap(canvas, values, rows, cols, { kind = 'sequential', range
 
 // ---------- line chart ----------
 
-// series: [{ name, color (CSS token name), points: [[x, y], ...], hollow?: (i) => bool }]
-export function lineChart(canvas, series, { xLabel = '', yLabel = '', logX = false, logY = false, yMin, yMax, markers = false, xFormat = (v) => fmt(v, 0), yFormat = (v) => fmt(v, 2) } = {}) {
+// series: [{ name, color (CSS token name), points: [[x, y], ...], hollow?: (i) => bool,
+//   band?: [[x, low, high], ...] (an interval, shaded), describe?: (i) => tooltip text for point i }]
+// xTicks: tick positions, in place of the automatic ones.
+export function lineChart(canvas, series, { xLabel = '', yLabel = '', logX = false, logY = false, yMin, yMax, markers = false, xTicks: fixedTicks, xFormat = (v) => fmt(v, 0), yFormat = (v) => fmt(v, 2) } = {}) {
   const { ctx, w, h } = prepare(canvas);
   const pad = { l: 44, r: 12, t: 22, b: 30 };
   const pw = w - pad.l - pad.r;
@@ -147,7 +149,7 @@ export function lineChart(canvas, series, { xLabel = '', yLabel = '', logX = fal
     return out.length ? out : [10 ** a];
   };
   const yTicks = logY ? powers(y0, y1) : niceTicks(y0, y1);
-  const xTicks = logX ? powers(x0, x1) : niceTicks(x0, x1, 5);
+  const xTicks = fixedTicks ?? (logX ? powers(x0, x1) : niceTicks(x0, x1, 5));
   ctx.strokeStyle = token('--grid');
   ctx.fillStyle = token('--ink-muted');
   ctx.textAlign = 'right';
@@ -169,6 +171,18 @@ export function lineChart(canvas, series, { xLabel = '', yLabel = '', logX = fal
   ctx.fillText(xLabel, pad.l + pw / 2, h - 4);
   ctx.textAlign = 'left';
   ctx.fillText(yLabel, pad.l, 12);
+
+  for (const s of series.filter((s) => s.band?.length)) {
+    ctx.save();
+    ctx.globalAlpha = 0.16;
+    ctx.fillStyle = token(s.color);
+    ctx.beginPath();
+    s.band.forEach(([x, low], i) => (i ? ctx.lineTo(sx(x), sy(low)) : ctx.moveTo(sx(x), sy(low))));
+    for (const [x, , high] of [...s.band].reverse()) ctx.lineTo(sx(x), sy(high));
+    ctx.closePath();
+    ctx.fill();
+    ctx.restore();
+  }
 
   for (const s of series) {
     const stroke = token(s.color);
@@ -207,9 +221,11 @@ export function lineChart(canvas, series, { xLabel = '', yLabel = '', logX = fal
     if (x < pad.l - 4 || x > pad.l + pw + 4 || y < pad.t - 4 || y > pad.t + ph + 4) return null;
     const rows = series
       .map((s) => {
-        let best = null;
-        for (const p of s.points) if (!best || Math.abs(sx(p[0]) - x) < Math.abs(sx(best[0]) - x)) best = p;
-        return best && `<span class="key" style="background:${token(s.color)}"></span>${s.name}: <b>${yFormat(best[1])}</b>`;
+        let best = -1;
+        s.points.forEach((p, i) => {
+          if (best < 0 || Math.abs(sx(p[0]) - x) < Math.abs(sx(s.points[best][0]) - x)) best = i;
+        });
+        return best >= 0 && `<span class="key" style="background:${token(s.color)}"></span>${s.name}: <b>${s.describe ? s.describe(best) : yFormat(s.points[best][1])}</b>`;
       })
       .filter(Boolean);
     let nearest = null;

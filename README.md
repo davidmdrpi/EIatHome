@@ -273,7 +273,10 @@ submit as a pre-filled GitHub issue. A GitHub Action checks each card against it
 adds it to the community results shown in the Live Lab, where a unit counts as replicated once
 two volunteers' runs agree. There's no server to run or pay for.
 
-The first browser work unit, `track-a/v0`, replicates the Hello, Voyager notebook. The table
+The first browser work unit, `track-a/v0`, replicates the Hello, Voyager notebook. The second,
+`recovery/v0`, hides synthetic signals in real off-source data and measures which ones the
+de-Doppler and energy detectors find at a fixed false-alarm rate. Its cards are recomputed when
+submitted, and the Recovery tab adds units up into recovery curves per signal class. The table
 below is the full plan. Heavier units (raw voltages, long sweeps) may later move to BOINC,
 whose replication and quorum checks validate results automatically.
 
@@ -294,12 +297,12 @@ OpenDiLoCo) is a stretch goal for later.
 EIatHome/
 ├── web/         # the Live Lab: a static site, deployed to GitHub Pages
 │   ├── js/      # signal generators, Track A engine, Track B metrics, UI
-│   ├── data/    # micro-slices of real observations
+│   ├── data/    # micro-slices of real observations, and the recovery windows
 │   └── vendor/  # TensorFlow.js, pinned and vendored
 ├── tools/       # extract_slices.py and other data tools
 ├── tracks/
 │   ├── llm/     # signal-token transformer (Python), with its 49-frame slices
-│   ├── recovery/ # blinded signal-recovery tests on real off-source data (Python)
+│   ├── recovery/ # blinded signal-recovery tests on real off-source data (Python; the browser unit is web/js/recovery.js)
 │   ├── rnn/     # Track A notebooks (hello_voyager.ipynb)
 │   └── tokens/  # Track B notebooks (planned)
 ├── docs/        # experiment protocol and design notes
@@ -345,7 +348,7 @@ EIatHome/
 - [x] 49-frame slices from the 6-second product, rotary positions and offset training windows, scored on windows that start mid-scan ([issue #7](https://github.com/davidmdrpi/EIatHome/issues/7))
 - [x] Blinded signal recovery: synthetic signals injected into real off-source data, recovery against false alarms for the de-Doppler and energy baselines ([tracks/recovery](tracks/recovery/README.md), [issue #13](https://github.com/davidmdrpi/EIatHome/issues/13))
 - [x] Learned detectors in the recovery benchmark: Track A's next-frame GRU and the token model, scored against the baselines (issue #13, milestone 2)
-- [ ] A browser work unit and a results page for signal recovery (issue #13, milestone 3)
+- [x] A browser work unit and a results page for signal recovery: the Live Lab's Recovery tab, with cards recomputed on submission (issue #13, milestone 3)
 - [ ] Public volunteer pilot
 - [ ] Heavier work units on BOINC, if needed (for example via [BOINC Central](https://boinc.berkeley.edu/central/scientist.php))
 
