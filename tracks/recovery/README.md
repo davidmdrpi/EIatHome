@@ -69,7 +69,9 @@ SHA-256. The second command writes three files:
 
 [learned.py](learned.py) trains two of the project's models on the train scan:
 
-- Track A's next-frame GRU;
+- Track A's next-frame GRU, ported from TF.js: its GRU cell, initializers and optimizer settings.
+  `tests/track_a_gru.json` holds a reference computed from TF.js's equations. The port
+  reproduces it, and so does `tf.layers.gru` itself in the browser tests.
 - the `tracks/llm` token model.
 
 Each gives two detectors:
@@ -126,6 +128,8 @@ python -m unittest discover -s tests -p 'test_recovery_learned.py' -v
 Those tests cover:
 
 - the fit and development windows split the train scan, with tones in half of each;
+- the GRU reproduces the TF.js reference, has Track A's parameter count (28,928 at hidden 64)
+  and its initialization;
 - the preprocessing is Track A's, checked against a line-by-line port of the JavaScript;
 - training is seeded and keeps the best development epoch's weights;
 - token scores match `tracks/llm`'s own evaluation;
@@ -145,6 +149,7 @@ The numpy-only tests cover:
 - **More detectors:** adding a third detector keeps every pairing, and leaves the existing
   pair's outcomes unchanged.
 - **Provenance:** reports record the code fingerprint, the git revision and each detector's
-  configuration.
+  configuration. The fingerprint and the uncommitted-changes check cover the `tracks/llm`
+  modules the learned detectors run, and changing any of them changes the identity.
 - **End to end:** an evaluation reproduces the baselines' known behaviour, and the background
   manifest check rejects altered windows.

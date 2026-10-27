@@ -1,7 +1,10 @@
 """tracks/recovery/learned.py: the learned detectors and their training protocol, with small
 models on synthetic backgrounds. Needs torch (run with the signal-LM tests)."""
 
+import json
 import math
+from pathlib import Path
+import sys
 import unittest
 from unittest import mock
 
@@ -12,8 +15,11 @@ from tracks.llm.model import evaluate as lm_evaluate
 from tracks.recovery import run
 from tracks.recovery.detectors import DETECTORS
 from tracks.recovery.inject import STRENGTHS, draw, render
-from tracks.recovery.learned import (digest, fit_gru, learned_detectors, state_digest, token_bits,
+from tracks.recovery.learned import (NextFrame, digest, fit_gru, learned_detectors, state_digest, token_bits,
                                      track_a_normalise, training_windows)
+
+sys.path.insert(0, str(Path(__file__).parent))
+import track_a_gru_reference as reference  # noqa: E402
 
 FRAMES, CHANNELS = 49, 64
 SMALL_GRU = dict(hidden=16, lr=3e-3, batch=64, epochs=3, patience=2)
@@ -61,6 +67,44 @@ class TrainingDataTests(unittest.TestCase):
         np.testing.assert_allclose(track_a_normalise(windows), np.stack([js_normalise(w) for w in windows]), rtol=1e-6, atol=1e-6)
 
 
+class TrackAModelTests(unittest.TestCase):
+    """The PyTorch port against TF.js's GRU, through the reference in tests/track_a_gru.json
+    (tests/browser.test.mjs checks TF.js against the same file)."""
+
+    def test_the_fixture_is_the_reference(self):
+        fixture = json.loads(reference.FIXTURE.read_text())
+        self.assertEqual(fixture, json.loads(json.dumps(reference.as_json(reference.reference_case()))))
+        clipped = np.abs(reference.pre_activations(reference.reference_case())) > 2.5
+        self.assertGreater(clipped.sum(), 10, "the case reaches the hard sigmoid's clipping")
+
+    def test_the_port_reproduces_tfjs_reference_outputs(self):
+        f = {k: np.array(v) if isinstance(v, list) else v for k, v in json.loads(reference.FIXTURE.read_text()).items()}
+        model = NextFrame(f["channels"], f["units"])
+        with torch.no_grad():
+            model.kernel.copy_(torch.tensor(f["kernel"]))
+            model.recurrent_kernel.copy_(torch.tensor(f["recurrent_kernel"]))
+            model.bias.copy_(torch.tensor(f["bias"]))
+            model.head.weight.copy_(torch.tensor(f["dense_kernel"]).T)  # TF.js dense kernel is (in, out)
+            model.head.bias.copy_(torch.tensor(f["dense_bias"]))
+            x = torch.tensor(f["input"], dtype=torch.float32)
+            np.testing.assert_allclose(model.states(x).numpy(), f["states"], atol=1e-5)
+            np.testing.assert_allclose(model(x).numpy(), f["prediction"], atol=1e-5)
+
+    def test_parameters_and_initialization_are_track_as(self):
+        torch.manual_seed(0)
+        model = NextFrame(64, 64)
+        # web/js/models.js: parameterCount('gru', size) = 3 size (C + size + 1) + size C + C.
+        self.assertEqual(sum(p.numel() for p in model.parameters()), 3 * 64 * (64 + 64 + 1) + 64 * 64 + 64)
+        self.assertEqual(sum(p.numel() for p in model.parameters()), 28928)
+        limit = math.sqrt(6 / (64 + 3 * 64))  # Glorot uniform on the (channels, 3 x units) kernel
+        self.assertLessEqual(model.kernel.abs().max().item(), limit)
+        self.assertAlmostEqual(model.kernel.std().item(), limit / math.sqrt(3), delta=0.01)
+        u = model.recurrent_kernel.detach()
+        torch.testing.assert_close(u @ u.T, torch.eye(64), atol=1e-5, rtol=0)  # orthogonal rows
+        self.assertEqual(model.bias.abs().sum().item(), 0)
+        self.assertEqual(model.head.bias.abs().sum().item(), 0)
+
+
 class ModelTests(unittest.TestCase):
     def test_gru_training_is_seeded_and_keeps_the_best_development_epoch(self):
         fit, dev, _ = training_windows(noise(160, 3), seed=0)
@@ -68,10 +112,10 @@ class ModelTests(unittest.TestCase):
         b, _, _ = fit_gru(fit, dev, seed=7, **SMALL_GRU)
         self.assertEqual(state_digest(a), state_digest(b))
         self.assertEqual(best, 1 + int(np.argmin([h["dev_mse"] for h in history])))
-        # With these settings the development loss rises after epoch 5: the weights returned
-        # must be epoch 5's, not the last epoch's.
-        model, history, best = fit_gru(fit, dev, seed=7, hidden=16, lr=3e-2, batch=64, epochs=6, patience=6)
-        self.assertEqual((best, len(history)), (5, 6))
+        # With these settings the development loss rises after epoch 2: the weights returned
+        # must be epoch 2's, not the last epoch's.
+        model, history, best = fit_gru(fit, dev, seed=7, hidden=16, lr=1e-1, batch=64, epochs=6, patience=6)
+        self.assertEqual((best, len(history)), (2, 6))
         z = torch.from_numpy(track_a_normalise(dev))
         with torch.no_grad():
             dev_mse = torch.nn.functional.mse_loss(model(z[:, :-1]), z[:, 1:]).item()

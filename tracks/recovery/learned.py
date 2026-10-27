@@ -2,8 +2,8 @@
 
 Two of the project's models, each giving two statistics:
 
-- next-frame GRU (Track A's architecture and preprocessing): predicts each frame from the
-  frames before it;
+- next-frame GRU (Track A's model, ported from TF.js and checked against it): predicts each
+  frame from the frames before it;
 - token model (tracks/llm): k-means tokens of frames and a causal transformer over them.
 
 surprise: how badly the model predicts the window (mean squared residual; bits per token).
@@ -80,16 +80,53 @@ def track_a_normalise(windows):
     return np.arcsinh((x - median[:, None, None]) / scale[:, None, None]).astype(np.float32)
 
 
+def hard_sigmoid(x):
+    """TF.js's hardSigmoid, the default gate activation of its GRU."""
+    return torch.clamp(0.2 * x + 0.5, 0.0, 1.0)
+
+
 class NextFrame(nn.Module):
-    """Track A's predictor: a GRU over frames and a linear head giving the next frame."""
+    """Track A's predictor as TF.js computes it (buildModel in web/js/engine.worker.js):
+    tf.layers.gru, then a dense layer giving the next frame.
+
+    Not PyTorch's GRU, which differs in four ways:
+    - TF.js has one bias per gate, not separate input and recurrent biases;
+    - its gates use a hard sigmoid;
+    - it applies the reset gate before the recurrent product;
+    - it initializes the input kernel Glorot-uniform and the recurrent kernel orthogonally
+      (biases zero).
+    Weights use TF.js's layout: kernel (channels, 3 x units) and recurrent kernel
+    (units, 3 x units), with gates in the order z, r, candidate. tests/track_a_gru.json holds a
+    reference that this and TF.js itself must both reproduce."""
 
     def __init__(self, channels, hidden):
         super().__init__()
-        self.gru = nn.GRU(channels, hidden, batch_first=True)
+        self.units = hidden
+        self.kernel = nn.Parameter(torch.empty(channels, 3 * hidden))
+        self.recurrent_kernel = nn.Parameter(torch.empty(hidden, 3 * hidden))
+        self.bias = nn.Parameter(torch.zeros(3 * hidden))
         self.head = nn.Linear(hidden, channels)
+        nn.init.xavier_uniform_(self.kernel)  # Glorot uniform, as the engine sets
+        nn.init.orthogonal_(self.recurrent_kernel)
+        nn.init.xavier_uniform_(self.head.weight)  # tf.layers.dense's default Glorot uniform
+        nn.init.zeros_(self.head.bias)
+
+    def states(self, frames):
+        u = self.units
+        projected = frames @ self.kernel + self.bias
+        h = frames.new_zeros(frames.shape[0], u)
+        out = []
+        for t in range(frames.shape[1]):
+            xz, xr, xh = projected[:, t].split(u, dim=-1)
+            hz, hr = (h @ self.recurrent_kernel[:, :2 * u]).split(u, dim=-1)
+            z, r = hard_sigmoid(xz + hz), hard_sigmoid(xr + hr)
+            candidate = torch.tanh(xh + (r * h) @ self.recurrent_kernel[:, 2 * u:])
+            h = z * h + (1 - z) * candidate
+            out.append(h)
+        return torch.stack(out, dim=1)
 
     def forward(self, frames):
-        return self.head(self.gru(frames)[0])
+        return self.head(self.states(frames))
 
 
 def fit_gru(fit, dev, seed, hidden, lr, batch, epochs, patience):
@@ -98,24 +135,25 @@ def fit_gru(fit, dev, seed, hidden, lr, batch, epochs, patience):
     torch.manual_seed(seed)
     x, x_dev = torch.from_numpy(track_a_normalise(fit)), torch.from_numpy(track_a_normalise(dev))
     model = NextFrame(x.shape[2], hidden)
-    optimizer = torch.optim.Adam(model.parameters(), lr=lr)
+    optimizer = torch.optim.Adam(model.parameters(), lr=lr, eps=1e-7)  # tf.train.adam's epsilon
     rng = np.random.default_rng(seed)
     best, best_state, best_epoch, history = math.inf, None, 0, []
     for epoch in range(1, epochs + 1):
         model.train()
         order = rng.permutation(len(x))
         total = 0.0
-        for start in range(0, len(x), batch):
+        for start in range(0, len(x) - batch + 1, batch):  # whole batches only, as Track A
             xb = x[order[start:start + batch]]
             optimizer.zero_grad(set_to_none=True)
             loss = F.mse_loss(model(xb[:, :-1]), xb[:, 1:])
             loss.backward()
             optimizer.step()
             total += loss.item() * len(xb)
+        seen = len(x) - len(x) % batch
         model.eval()
         with torch.no_grad():
             dev_loss = F.mse_loss(model(x_dev[:, :-1]), x_dev[:, 1:]).item()
-        history.append({"epoch": epoch, "train_mse": total / len(x), "dev_mse": dev_loss})
+        history.append({"epoch": epoch, "train_mse": total / seen, "dev_mse": dev_loss})
         if dev_loss < best:
             best, best_epoch = dev_loss, epoch
             best_state = {k: v.detach().clone() for k, v in model.state_dict().items()}
@@ -175,7 +213,7 @@ def learned_detectors(train, seed=0, gru=GRU, tokens=TOKENS):
     with training_runtime(1, "cpu"):
         gru_model, gru_history, gru_best = fit_gru(fit, dev, seed, **gru)
         tokenizer, token_model, unigram, token_history, token_best = fit_tokens(fit, dev, seed, **tokens)
-    gru_common = {"model": "Track A next-frame GRU (tracks/recovery/learned.py)",
+    gru_common = {"model": "Track A next-frame GRU: TF.js's GRU cell and initializers, ported (tracks/recovery/learned.py)",
                   "preprocessing": "per-window median/MAD, asinh (as web/js/signals.js)",
                   "parameters": sum(p.numel() for p in gru_model.parameters()), "hyperparameters": dict(gru),
                   "training": info, "best_epoch": gru_best, "dev_mse": gru_history[gru_best - 1]["dev_mse"],

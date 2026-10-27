@@ -4,14 +4,17 @@ backgrounds (no download needed)."""
 import hashlib
 import json
 from pathlib import Path
+import shutil
 import tempfile
 import unittest
+from unittest import mock
 
 import numpy as np
 
 from tracks.recovery import background
 from tracks.recovery.detectors import dedoppler, drift_trials, energy
 from tracks.recovery.inject import DECOYS, KINDS, SIGNALS, STRENGTHS, deal, design, draw, render
+from tracks.recovery import run
 from tracks.recovery.run import code_identity, evaluate, threshold, wilson
 
 FRAMES, CHANNELS = 49, 64
@@ -233,8 +236,11 @@ class ScoringTests(unittest.TestCase):
 
     def test_reports_record_the_code_and_each_detector(self):
         report, _ = evaluate(noise(300, 10), noise(300, 11), seed=0, per_cell=2)
-        package = Path(__file__).resolve().parents[1] / "tracks" / "recovery"
-        expected = hashlib.sha256(b"".join(f.read_bytes() for f in sorted(package.glob("*.py")))).hexdigest()
+        root = Path(__file__).resolve().parents[1]
+        files = sorted(f"tracks/recovery/{f.name}" for f in (root / "tracks" / "recovery").glob("*.py"))
+        files += ["tracks/llm/data.py", "tracks/llm/model.py", "tracks/llm/runtime.py"]
+        self.assertEqual(report["code"]["files"], files)
+        expected = hashlib.sha256(b"".join(f.encode() + b"\0" + (root / f).read_bytes() for f in files)).hexdigest()
         self.assertEqual(report["code"]["sha256"], expected)
         self.assertEqual(report["code"], code_identity())
         if report["code"]["git"] is not None:
@@ -244,6 +250,45 @@ class ScoringTests(unittest.TestCase):
         self.assertIn("score", report["detectors"]["energy"])
         self.assertEqual(report["design"]["strengths"], list(STRENGTHS))
         self.assertEqual(report["design"]["window"], [FRAMES, CHANNELS])
+
+
+    def test_code_identity_changes_with_any_file_that_computes_scores(self):
+        # The learned detectors run tracks/llm's tokenizer, model and training: changing them
+        # must change the identity, as changing this package does.
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp = Path(tmp)
+            copies = []
+            for path in run.SOURCES:
+                copy = tmp / path.relative_to(run.ROOT)
+                copy.parent.mkdir(parents=True, exist_ok=True)
+                shutil.copy(path, copy)
+                copies.append(copy)
+            with mock.patch.object(run, "ROOT", tmp):
+                before = code_identity(copies)
+                for relative in ("tracks/llm/model.py", "tracks/llm/data.py", "tracks/llm/runtime.py", "tracks/recovery/learned.py"):
+                    changed = tmp / relative
+                    original = changed.read_text()
+                    changed.write_text(original + "\n# changed\n")
+                    self.assertNotEqual(code_identity(copies)["sha256"], before["sha256"], relative)
+                    changed.write_text(original)
+                self.assertEqual(code_identity(copies)["sha256"], before["sha256"])
+                self.assertIsNone(before["git"], "outside a checkout, only the fingerprint")
+
+    def test_uncommitted_changes_are_checked_in_every_file_that_computes_scores(self):
+        calls = []
+
+        def fake_git(args, **kwargs):
+            calls.append(args)
+            out = "abc123\n" if "rev-parse" in args else " M tracks/llm/model.py\n"
+            return mock.Mock(stdout=out)
+
+        with mock.patch.object(run.subprocess, "run", side_effect=fake_git):
+            identity = code_identity()
+        status = next(c for c in calls if "status" in c)
+        for relative in identity["files"]:
+            self.assertIn(relative, status)
+        self.assertIn("tracks/llm/model.py", status)
+        self.assertEqual(identity["git"], {"revision": "abc123", "uncommitted_changes": True})
 
 
 class BackgroundTests(unittest.TestCase):

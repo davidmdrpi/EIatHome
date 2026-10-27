@@ -247,6 +247,54 @@ out.epsilon = theirs.epsilon;
 window.__layerChecks = out;
 </script>`;
 
+// Track A's next-frame model as the engine builds it (tf.layers.gru then a dense layer, as in
+// buildModel), with the reference weights of tests/track_a_gru.json: TF.js must reproduce the
+// reference outputs that the Python port (tracks/recovery/learned.py) is also checked against.
+const GRU_CHECK = `<!doctype html><meta charset="utf-8"><script type="module">
+import '/vendor/tfjs/tf.min.js';
+const tf = globalThis.tf;
+await tf.setBackend('cpu');
+const f = await (await fetch('/__test/track_a_gru.json')).json();
+const maxDiff = (a, b) => tf.tidy(() => tf.max(tf.abs(tf.sub(a, tf.tensor(b)))).dataSync()[0]);
+const build = (channels, units) => {
+  const input = tf.input({ shape: [null, channels] });
+  const gru = tf.layers.gru({ units, returnSequences: true });
+  const dense = tf.layers.dense({ units: channels });
+  const states = gru.apply(input);
+  return { gru, dense, model: tf.model({ inputs: input, outputs: [states, dense.apply(states)] }) };
+};
+const { gru, dense, model } = build(f.channels, f.units);
+gru.setWeights([tf.tensor2d(f.kernel), tf.tensor2d(f.recurrent_kernel), tf.tensor1d(f.bias)]);
+dense.setWeights([tf.tensor2d(f.dense_kernel), tf.tensor1d(f.dense_bias)]);
+const [states, prediction] = model.predict(tf.tensor3d(f.input));
+window.__gruCheck = {
+  states: maxDiff(states, f.states),
+  prediction: maxDiff(prediction, f.prediction),
+  parameters: build(64, 64).model.countParams(),
+};
+</script>`;
+
+test('Track A’s GRU in TF.js reproduces the reference that the Python port is checked against', async () => {
+  overrides.set('/__test/gru.html', GRU_CHECK);
+  overrides.set('/__test/track_a_gru.json', await readFile(new URL('./track_a_gru.json', import.meta.url), 'utf8'));
+  const page = await browser.newPage();
+  const errors = [];
+  page.on('pageerror', (e) => errors.push(e.message));
+  try {
+    await page.goto(`${base}__test/gru.html`);
+    await page.waitForFunction(() => window.__gruCheck, null, { timeout: 60000 });
+    const c = await page.evaluate(() => window.__gruCheck);
+    assert.ok(c.states < 1e-5, `GRU states: ${c.states}`);
+    assert.ok(c.prediction < 1e-5, `next-frame predictions: ${c.prediction}`);
+    assert.equal(c.parameters, parameterCount('gru', 64), 'one bias per gate, as models.js counts');
+    assert.deepEqual(errors, []);
+  } finally {
+    overrides.delete('/__test/gru.html');
+    overrides.delete('/__test/track_a_gru.json');
+    await page.close();
+  }
+});
+
 test('attention is causal, and the custom layer norm matches TF.js’s', async () => {
   overrides.set('/__test/layers.html', LAYER_CHECKS);
   const page = await browser.newPage();

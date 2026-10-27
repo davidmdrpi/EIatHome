@@ -52,18 +52,26 @@ def rate(flags):
     return {"flagged": k, "windows": n, "fraction": k / n if n else None, "interval": wilson(k, n)}
 
 
-def code_identity():
-    """What produced the scores: a fingerprint of this package's source and, in a git checkout,
-    the revision and whether this package had uncommitted changes."""
-    package = Path(__file__).parent
-    digest = hashlib.sha256(b"".join(f.read_bytes() for f in sorted(package.glob("*.py")))).hexdigest()
+# Everything that computes scores: this package, and the tracks/llm modules the learned
+# detectors run (tokenizer, model and training, and its runtime settings).
+SOURCES = tuple(sorted(Path(__file__).resolve().parent.glob("*.py"))) + tuple(
+    ROOT / "tracks" / "llm" / name for name in ("data.py", "model.py", "runtime.py"))
+
+
+def code_identity(sources=SOURCES):
+    """What produced the scores: a fingerprint of the source files that compute them and, in a
+    git checkout, the revision and whether any of those files had uncommitted changes."""
+    digest = hashlib.sha256()
+    for path in sources:
+        digest.update(Path(path).relative_to(ROOT).as_posix().encode() + b"\0" + Path(path).read_bytes())
     git = None
     try:
-        run = lambda *a: subprocess.run(["git", *a], cwd=package, capture_output=True, text=True, check=True).stdout
-        git = {"revision": run("rev-parse", "HEAD").strip(), "uncommitted_changes": bool(run("status", "--porcelain", "--", ".").strip())}
+        run = lambda *a: subprocess.run(["git", *a], cwd=ROOT, capture_output=True, text=True, check=True).stdout
+        changed = run("status", "--porcelain", "--", *(str(Path(p).relative_to(ROOT)) for p in sources)).strip()
+        git = {"revision": run("rev-parse", "HEAD").strip(), "uncommitted_changes": bool(changed)}
     except (OSError, subprocess.CalledProcessError):
         pass  # not a git checkout: the fingerprint still identifies the code
-    return {"sha256": digest, "git": git}
+    return {"sha256": digest.hexdigest(), "files": [Path(p).relative_to(ROOT).as_posix() for p in sources], "git": git}
 
 
 def describe(detect):
