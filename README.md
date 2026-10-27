@@ -299,6 +299,7 @@ EIatHome/
 ├── tools/       # extract_slices.py and other data tools
 ├── tracks/
 │   ├── llm/     # signal-token transformer (Python), with its 49-frame slices
+│   ├── recovery/ # blinded signal-recovery tests on real off-source data (Python)
 │   ├── rnn/     # Track A notebooks (hello_voyager.ipynb)
 │   └── tokens/  # Track B notebooks (planned)
 ├── docs/        # experiment protocol and design notes
@@ -342,6 +343,8 @@ EIatHome/
 - [x] Collect submitted result cards automatically, retry any a run missed, and show replication status per slice dataset
 - [x] Train and save causal signal-token transformers in Python, with train-only tokenization and surrogate controls
 - [x] 49-frame slices from the 6-second product, rotary positions and offset training windows, scored on windows that start mid-scan ([issue #7](https://github.com/davidmdrpi/EIatHome/issues/7))
+- [x] Blinded signal recovery: synthetic signals injected into real off-source data, recovery against false alarms for the de-Doppler and energy baselines ([tracks/recovery](tracks/recovery/README.md), [issue #13](https://github.com/davidmdrpi/EIatHome/issues/13))
+- [ ] Learned detectors, a browser work unit and a results page for signal recovery (issue #13, milestones 2 and 3)
 - [ ] Public volunteer pilot
 - [ ] Heavier work units on BOINC, if needed (for example via [BOINC Central](https://boinc.berkeley.edu/central/scientist.php))
 
