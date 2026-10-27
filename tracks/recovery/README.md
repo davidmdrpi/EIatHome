@@ -3,8 +3,9 @@
 Can a method recover a weak signal without raising false alarms? This track measures it.
 Synthetic signals of known class and strength are injected into real off-source data, dealt
 blind to detectors, and scored at a fixed false-alarm rate against fixed baselines. The plan
-and milestones are in [issue #13](https://github.com/davidmdrpi/EIatHome/issues/13); the first
-measurement is in [RESULTS.md](RESULTS.md).
+and milestones are in [issue #13](https://github.com/davidmdrpi/EIatHome/issues/13). The
+measurements, first of the baselines and then of the project's learned models, are in
+[RESULTS.md](RESULTS.md).
 
 ## Run it
 
@@ -13,7 +14,12 @@ From the repository root, with `numpy` (and `h5py` and `hdf5plugin` to build the
 ```bash
 python -m tracks.recovery.background --cache data/recovery    # ~510 MB of range reads, once
 python -m tracks.recovery.run --cache data/recovery --seed 0 --output runs/recovery
+python -m tracks.recovery.run --cache data/recovery --seed 0 --learned --output runs/recovery-learned
 ```
+
+`--learned` also trains and scores the learned detectors, on the train scan only. It needs
+PyTorch, installed as for [tracks/llm](../llm/README.md), and takes about 4 minutes on one CPU
+thread. The trained models are saved as `learned.pt`.
 
 The first command reads coarse channel 6 of the three off-source 6-second scans over HTTPS. It
 writes 4,096 windows per scan to `data/recovery/` (git-ignored) and checks them against
@@ -59,8 +65,27 @@ SHA-256. The second command writes three files:
    - flag rates for the decoys;
    - each injection's paired outcome under the two detectors.
 
-A learned detector is any function from a stack of windows to scores. Add it to `DETECTORS`
-and it gets the same treatment as the baselines:
+## Learned detectors
+
+[learned.py](learned.py) trains two of the project's models on the train scan:
+
+- Track A's next-frame GRU;
+- the `tracks/llm` token model.
+
+Each gives two detectors:
+
+- **surprise:** how badly the model predicts the window;
+- **gain:** how much better it predicts than a model of no structure.
+
+Training follows Track A's work units: signal-free windows plus synthetic drifting tones,
+injected with train-only seeds. No labels are used. Each detector's `config` records:
+
+- the model and its hyperparameters;
+- a hash of its training windows;
+- its best epoch and a hash of its trained state.
+
+Any function from a stack of windows to scores can be a detector. Add it to `DETECTORS` and it
+gets the same treatment as the baselines:
 
 - thresholds from the calibration scan;
 - the same injections;
@@ -91,7 +116,23 @@ A second observing session (milestone 4) will give a test that no development ha
 python -m unittest discover -s tests -p 'test_recovery.py' -v
 ```
 
-They use synthetic Gaussian backgrounds, so they need only `numpy`. They cover:
+They use synthetic Gaussian backgrounds, so they need only `numpy`. The learned detectors'
+tests need PyTorch too:
+
+```bash
+python -m unittest discover -s tests -p 'test_recovery_learned.py' -v
+```
+
+Those tests cover:
+
+- the fit and development windows split the train scan, with tones in half of each;
+- the preprocessing is Track A's, checked against a line-by-line port of the JavaScript;
+- training is seeded and keeps the best development epoch's weights;
+- token scores match `tracks/llm`'s own evaluation;
+- every config records the model and its training;
+- learned detectors are trained on the train scan alone and compared with every baseline.
+
+The numpy-only tests cover:
 
 - **Injections:** every class's norm equals its strength, signals stay inside the window,
   tracks follow their drift, each class has its shape, and draws are seeded.

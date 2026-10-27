@@ -344,7 +344,8 @@ EIatHome/
 - [x] Train and save causal signal-token transformers in Python, with train-only tokenization and surrogate controls
 - [x] 49-frame slices from the 6-second product, rotary positions and offset training windows, scored on windows that start mid-scan ([issue #7](https://github.com/davidmdrpi/EIatHome/issues/7))
 - [x] Blinded signal recovery: synthetic signals injected into real off-source data, recovery against false alarms for the de-Doppler and energy baselines ([tracks/recovery](tracks/recovery/README.md), [issue #13](https://github.com/davidmdrpi/EIatHome/issues/13))
-- [ ] Learned detectors, a browser work unit and a results page for signal recovery (issue #13, milestones 2 and 3)
+- [x] Learned detectors in the recovery benchmark: Track A's next-frame GRU and the token model, scored against the baselines (issue #13, milestone 2)
+- [ ] A browser work unit and a results page for signal recovery (issue #13, milestone 3)
 - [ ] Public volunteer pilot
 - [ ] Heavier work units on BOINC, if needed (for example via [BOINC Central](https://boinc.berkeley.edu/central/scientist.php))
 

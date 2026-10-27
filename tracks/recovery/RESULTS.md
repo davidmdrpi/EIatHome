@@ -125,3 +125,146 @@ Environment: Python 3.13.17, NumPy 2.5.4. Background hashes are in
 [backgrounds.json](backgrounds.json). Key fingerprint: `3edd308a156144bc` (the first 16 hex
 digits of `key_sha256` in the report). Code fingerprint: `1f1660b93691a94f` (`code.sha256` in the
 report). Rerunning with that code reproduces the first run's tables exactly.
+
+# Milestone 2: learned detectors
+
+Two of the project's models join the benchmark, scored on the same injections (key
+fingerprint `3edd308a156144bc`) at thresholds set on the same calibration scan. Each model gives
+two statistics:
+
+- **surprise:** how badly the model predicts the window;
+- **gain:** how much better it predicts than a model of no structure.
+
+A carrier can be very predictable and a glitch very surprising, so the two measure different
+things.
+
+## Setup
+
+The configurations were fixed before any training, from each model's existing settings, and
+nothing was tuned afterwards.
+
+- **Next-frame GRU** (Track A's architecture and preprocessing, `learned.py`): 29,120 parameters.
+  - Architecture: hidden size 64 (the top of Track A's grid).
+  - Preprocessing: per-window median and MAD, then asinh.
+  - Training: Adam at 3e-3, batch 64, mean squared error predicting each frame from the frames
+    before it.
+  - Statistics: **surprise** is the mean squared residual; **gain** is the residual of
+    predicting empty frames minus the model's.
+- **Token model** (`tracks/llm`): 803,584 parameters.
+  - Architecture: 16 k-means tokens of whole frames, and `SignalLM` with the track's defaults,
+    its context spanning the whole window.
+  - Statistics: **surprise** is bits per token; **gain** is bits per token under the training
+    token frequencies minus under the model.
+- **Training data:** the train scan only (0012). Of its windows, 3,072 are for fitting and 1,024
+  for early stopping (patience 5). Like Track A's work units, half of each set carries drifting
+  tones at the design strengths, injected with train-only seeds.
+  - The models only predict; no labels are used.
+  - **Tones are a class seen in training. The other four signal classes and both decoys aren't.**
+
+Early stopping chose epoch 4 for the GRU (development loss 0.6416) and epoch 3 for the token
+model (4.006 bits per token). The token model's 4.006 is chance level for 16 tokens: it learned
+nothing beyond their frequencies.
+
+**Development check.** This ran on the train scan's development windows, before any test-scan
+scoring, and changed nothing. Ability to tell tone windows from empty ones (AUC):
+
+| de-Doppler | energy | GRU gain | GRU surprise | token gain | token surprise |
+|---:|---:|---:|---:|---:|---:|
+| 0.975 | 0.849 | 0.827 | 0.625 | 0.546 | 0.466 |
+
+```bash
+python -m tracks.recovery.run --cache data/recovery --seed 0 --learned --output runs/recovery-m2
+```
+
+## Results
+
+False alarms measured on the test scan's 1,072 signal-free windows:
+
+| Rate | GRU surprise | GRU gain | Token surprise | Token gain |
+|---|---:|---:|---:|---:|
+| 1% | 11 | 9 | 10 | 11 |
+| 0.1% | 3 | 1 | 0 | 0 |
+
+The lowest strength at which each detector recovers 90% at a 1% false-alarm rate (decoys:
+flagged 90%). "Over 28" means never within the design.
+
+| Class | de-Doppler | energy | GRU gain | GRU surprise | token gain | token surprise |
+|---|---:|---:|---:|---:|---:|---:|
+| tone (seen in training) | 10 | 20 | 28 | over 28 | over 28 | over 28 |
+| intermittent | 14 | 20 | over 28 | over 28 | over 28 | over 28 |
+| wideband | 10 | 20 | 10 | over 28 | over 28 | over 28 |
+| sidebands | 10 | 20 | 20 | over 28 | over 28 | over 28 |
+| fsk | 14 | 20 | 28 | over 28 | over 28 | over 28 |
+| stationary (decoy) | 7 | 20 | 28 | over 28 | over 28 | over 28 |
+| pulse (decoy) | over 28 | 20 | over 28 | over 28 | over 28 | over 28 |
+
+Recovery of the learned detectors at a 1% false-alarm rate (the baselines are in the first
+table above):
+
+| Class | Detector | SNR 5 | SNR 7 | SNR 10 | SNR 14 | SNR 20 | SNR 28 |
+|---|---|---:|---:|---:|---:|---:|---:|
+| tone | GRU gain | 1% | 3% | 18% | 50% | 85% | 99% |
+| tone | GRU surprise | 0% | 3% | 3% | 3% | 4% | 36% |
+| intermittent | GRU gain | 0% | 1% | 1% | 10% | 15% | 40% |
+| wideband | GRU gain | 17% | 49% | 94% | 100% | 100% | 100% |
+| sidebands | GRU gain | 1% | 8% | 21% | 60% | 97% | 100% |
+| fsk | GRU gain | 3% | 10% | 14% | 29% | 82% | 97% |
+| stationary (decoy) | GRU gain | 1% | 4% | 33% | 53% | 81% | 96% |
+| pulse (decoy) | GRU gain | 1% | 1% | 3% | 3% | 4% | 11% |
+| pulse (decoy) | GRU surprise | 1% | 0% | 1% | 0% | 14% | 65% |
+| any class | token surprise or gain | 0–4% | 0–3% | 0–4% | 0–6% | 0–6% | 0–22% |
+
+Paired outcomes over all 2,160 signal injections at a 1% false-alarm rate:
+
+| Pair | Both | Baseline only | Learned only | Neither |
+|---|---:|---:|---:|---:|
+| de-Doppler vs GRU gain | 910 | 661 | 30 | 559 |
+| energy vs GRU gain | 715 | 272 | 225 | 948 |
+| de-Doppler vs GRU surprise | 131 | 1,440 | 11 | 578 |
+| de-Doppler vs token gain | 47 | 1,524 | 7 | 582 |
+
+## What this shows
+
+- **No learned detector beats the de-Doppler search.** Over all signal injections at a 1%
+  false-alarm rate, it alone finds 661 that GRU gain misses, against 30 the other way round.
+  It's ahead or level on every class.
+- **GRU gain detects predictable structure, and complements the energy detector.**
+  - It finds wideband signals almost as well as the de-Doppler search (94% against 97% at SNR
+    10), and carriers with sidebands from SNR 20.
+  - It flags zero-drift lines, which are predictable. It rarely flags broadband pulses, which
+    aren't (11% at SNR 28).
+  - Against the energy detector, each catches what the other misses: 225 injections to 272.
+- **Even on tones, the class it trained on, the GRU is far behind.** It recovers 50% at SNR 14,
+  against the de-Doppler search's 100%. A line in one of 64 channels is a small part of a
+  mean-squared-error loss dominated by unpredictable noise: training moved the development loss
+  from 0.6422 to 0.6416. Intermittent signals, which break the frame-to-frame continuity it
+  learned, are the hardest for it (40% at SNR 28).
+- **GRU surprise loses the energy detector's information.** Track A's preprocessing divides
+  each window by its own spread, which removes the excess power a radiometer relies on. It only
+  responds to the strongest signals (pulses: 65% at SNR 28).
+- **The token model detects almost nothing.** Both statistics stay within a few percent of the
+  false-alarm rate for every class and strength. The exceptions are token gain on wideband
+  signals at SNR 28 (22%) and on zero-drift lines (10%). Its 16 k-means tokens of whole
+  64-channel frames don't preserve signals this weak, and the model learned nothing beyond token
+  frequencies.
+
+As the project builds them now, these models measure predictability, not detection. Directions
+this points to:
+
+- **Supervised detectors**, trained on injected classes, with each class held out in turn to
+  test morphologies they haven't seen.
+- **Tokenizers that keep narrowband structure**, for example per channel or drift-aware.
+- **Preprocessing that keeps a window's power.**
+
+## Limitations
+
+- These results inherit everything in the first measurement's limitations: one session, one
+  receiver and one coarse channel, idealized injections, and window-level detection only.
+- **One configuration and one training seed per model.** Other configurations might do better.
+  This measures the models as the project builds them, not their best possible versions.
+- The development check was seen before the test run. Nothing was changed after it.
+
+Environment: Python 3.13.17, NumPy 2.5.4, PyTorch 2.14.1 (CPU, one thread for training). Code
+fingerprint: `4ccee4de24def65c`. Training windows: `728ad428140c6c6c`. GRU state: `55c0b9b7e6f563bd`.
+Token model state: `c9c25f4c59453105`, tokenizer `e95b2d03a086b8a4` (the first 16 hex digits of
+the hashes in the report).
