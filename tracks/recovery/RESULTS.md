@@ -481,10 +481,14 @@ Code: [sessions.py](sessions.py).
   - The key fingerprint `4d7a2ba7d178a86f` is the same in all four pairings below.
 - **Thresholds:** set on each session's calibration windows at 1% and 0.1%, and applied to both
   sessions' test windows.
-- **Comparison across sessions:** each injection against its twin, with exact McNemar tests,
-  done twice:
+- **Comparison across sessions:** each injection against its twin, done twice:
   - **at each session's own thresholds:** the whole difference between the sessions;
   - **at 2020's thresholds for both:** only the difference between their windows.
+
+  Each comparison gives an exact McNemar test and the paired difference in recovery (2016 minus
+  2020), with a 95% interval (Newcombe's hybrid score interval for paired proportions). No
+  equivalence margin was set in advance. So these comparisons can find a difference, or bound
+  its size; they can't show that the sessions are equivalent.
 
 ```bash
 python -m tracks.recovery.sessions build --cache data/recovery   # rebuild and verify the windows (about 3 minutes)
@@ -527,39 +531,49 @@ one session and at SNR 14 in the other, from cells of 86% to 93% at SNR 10.
 
 **The same injections in both sessions:**
 
-| Detector | Rate | Thresholds | Injections | Flagged in 2020 | Flagged in 2016 | McNemar p |
-|---|---|---|---|---:|---:|---:|
-| de-Doppler | 1% | own | 2,160 signals | 1,629 | 1,634 | 0.80 |
-| de-Doppler | 1% | own | 864 decoys | 428 | 441 | 0.26 |
-| de-Doppler | 0.1% | own | 2,160 signals | 1,499 | 1,494 | 0.79 |
-| energy | 1% | own | 2,160 signals | 1,232 | 1,254 | 0.22 |
-| energy | 0.1% | own | 2,160 signals | 1,082 | 1,058 | 0.13 |
-| energy | 0.1% | own | 864 decoys | 450 | 424 | 0.015 |
-| energy | 0.1% | 2020's | 2,160 signals | 1,082 | 1,100 | 0.28 |
-| energy | 0.1% | 2020's | 864 decoys | 450 | 431 | 0.081 |
+| Detector | Rate | Thresholds | Injections | Flagged in 2020 | Flagged in 2016 | McNemar p | 2016 minus 2020, points (95% interval) |
+|---|---|---|---|---:|---:|---:|---:|
+| de-Doppler | 1% | own | 2,160 signals | 1,629 | 1,634 | 0.80 | +0.2 (−1.2 to +1.7) |
+| de-Doppler | 1% | own | 864 decoys | 428 | 441 | 0.26 | +1.5 (−0.9 to +3.9) |
+| de-Doppler | 0.1% | own | 2,160 signals | 1,499 | 1,494 | 0.79 | −0.2 (−1.6 to +1.1) |
+| energy | 1% | own | 2,160 signals | 1,232 | 1,254 | 0.22 | +1.0 (−0.5 to +2.6) |
+| energy | 0.1% | own | 2,160 signals | 1,082 | 1,058 | 0.13 | −1.1 (−2.5 to +0.3) |
+| energy | 0.1% | own | 864 decoys | 450 | 424 | 0.015 | −3.0 (−5.3 to −0.7) |
+| energy | 0.1% | 2020's | 2,160 signals | 1,082 | 1,100 | 0.28 | +0.8 (−0.6 to +2.3) |
+| energy | 0.1% | 2020's | 864 decoys | 450 | 431 | 0.081 | −2.2 (−4.5 to +0.1) |
 
 The report has the rest: each class, the other rows at 2020's thresholds, and every pairing's
 recovery table.
 
 ## What this shows
 
-- **In this coarse channel, the benchmark carries over between sessions four years apart.**
-  - The thresholds agree: 4.594 and 4.590 for the de-Doppler search at 1%.
+- **In this coarse channel, overall recovery shows no significant difference between sessions
+  four years apart, and the paired intervals keep it within a few points.**
+  - The thresholds are close: 4.594 and 4.590 for the de-Doppler search at 1%.
   - Each session's thresholds hold their false-alarm rate on the other session's windows.
-  - The same injections are recovered equally. Over all 2,160 signals at 1%, the de-Doppler
-    search finds 1,629 in 2020 and 1,634 in 2016 (p = 0.80), and the energy detector 1,232 and
-    1,254 (p = 0.22).
-- **The only differences come from estimating a 0.1% threshold.**
-  - That threshold rests on about 4 of 4,096 calibration windows. 2016's energy threshold came
-    out higher (3.77 against 3.59).
-  - At its own thresholds, 2016 flags fewer decoys (p = 0.015) and fewer pulses (p = 0.044).
-  - With 2020's thresholds on both sessions, the difference disappears (decoys p = 0.081,
-    signals p = 0.28): the difference comes from the threshold estimate, not the data.
+  - Over all 2,160 signals at 1%, the de-Doppler search finds 1,629 of the same injections in
+    2020 and 1,634 in 2016 (p = 0.80): a paired difference of +0.2 percentage points, with a 95%
+    interval of −1.2 to +1.7. The energy detector finds 1,232 and 1,254 (p = 0.22): +1.0 points
+    (−0.5 to +2.6).
+  - These intervals bound the overall difference at a few points. Without an equivalence
+    margin set in advance, they don't show that the sessions are equivalent.
+- **One comparison does differ: decoys at the energy detector's 0.1% threshold.**
+  - At its own thresholds, 2016 flags 26 fewer of the 864 decoys (424 against 450): −3.0 points
+    (−5.3 to −0.7), p = 0.015. Pulses alone give p = 0.044.
+  - The 0.1% thresholds rest on about 4 of 4,096 calibration windows, and 2016's energy
+    threshold came out higher (3.77 against 3.59).
+  - With 2020's threshold on both sessions, the gap shrinks to 19 decoys (431 against 450):
+    −2.2 points (−4.5 to +0.1), p = 0.081. The shared threshold removes 7 of the 26.
+  - So the difference is reduced, and what remains isn't significant in this comparison. It
+    isn't shown to be absent: the interval allows a difference between the sessions' windows of
+    up to 4.5 points. Threshold sampling noise is one contributor, not shown to be the only one.
   - Of the report's 36 comparisons at own thresholds (per class, and over all signals and all
-    decoys), two fall below p = 0.05: about what chance gives.
-- **Milestone 3 asked how far results from one session's windows would carry.** Here, the
-  difference between sessions is within the per-window intervals: a recovery measured on one
-  session's windows holds on the other.
+    decoys), two fall below p = 0.05, about what chance alone would give across 36 tests.
+- **Milestone 3 asked how far results from one session's windows would carry.** Here, the paired
+  intervals for overall recovery are a few points wide, much narrower than a single cell's 95%
+  interval (about ±7 to ±11 points with 72 injections). We found no sign, at the resolution of
+  the recovery curves, that recovery measured on one session's windows misleads about the other.
+  That's for this channel and these two sessions; it isn't a demonstration of equivalence.
 - **Shorter windows favour the energy detector.** With 16 frames (1,024 values per window), it
   reaches 90% at SNR 14, against SNR 20 with 49 frames (3,136 values). A signal of a given
   strength stands out further from the total noise power of fewer values. The de-Doppler search
@@ -580,5 +594,5 @@ recovery table.
 
 Environment: Python 3.13.17, NumPy 2.5.3. The windows' hashes are in
 [sessions.json](sessions.json), and the 2016 file's in [sessions.py](sessions.py) (SHA-256
-`c9a9a54f…`). Code fingerprint: `abbb0388dfd1044d`. A rebuild from the original files
+`c9a9a54f…`). Code fingerprint: `fbd2b42166aa3d06`. A rebuild from the original files
 reproduces every window exactly, and a rerun reproduces every table.

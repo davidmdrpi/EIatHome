@@ -349,7 +349,7 @@ EIatHome/
 - [x] Blinded signal recovery: synthetic signals injected into real off-source data, recovery against false alarms for the de-Doppler and energy baselines ([tracks/recovery](tracks/recovery/README.md), [issue #13](https://github.com/davidmdrpi/EIatHome/issues/13))
 - [x] Learned detectors in the recovery benchmark: Track A's next-frame GRU and the token model, scored against the baselines (issue #13, milestone 2)
 - [x] A browser work unit and a results page for signal recovery: the Live Lab's Recovery tab, with cards recomputed on submission (issue #13, milestone 3)
-- [x] Signal recovery across two observing sessions (2016 and 2020): thresholds and recovery carry over in a quiet coarse channel (issue #13, milestone 4)
+- [x] Signal recovery across two observing sessions (2016 and 2020): in a quiet coarse channel, thresholds hold their false-alarm rate on the other session and overall recovery shows no significant difference (issue #13, milestone 4)
 - [ ] Public volunteer pilot
 - [ ] Heavier work units on BOINC, if needed (for example via [BOINC Central](https://boinc.berkeley.edu/central/scientist.php))
 

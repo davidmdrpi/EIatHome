@@ -175,11 +175,31 @@ def mcnemar(only_first, only_second):
     return min(1.0, 2 * sum(math.comb(n, k) for k in range(min(only_first, only_second) + 1)) / 2 ** n) if n else 1.0
 
 
+def paired_difference(both, only_first, only_second, neither, z=1.96):
+    """How much more often the second session flags the same injections than the first, as a
+    fraction, with a 95% interval: Newcombe's hybrid score interval for paired proportions
+    (Statistics in Medicine 17, 2635, 1998, method 10), which combines the two sessions' Wilson
+    intervals allowing for the correlation between twins."""
+    n = both + only_first + only_second + neither
+    if not n:
+        return 0.0, [-1.0, 1.0]
+    k1, k2 = both + only_first, both + only_second
+    p1, p2 = k1 / n, k2 / n
+    (l1, u1), (l2, u2) = run.wilson(k1, n, z), run.wilson(k2, n, z)
+    margins = k1 * (n - k1) * k2 * (n - k2)
+    phi = (both * neither - only_first * only_second) / math.sqrt(margins) if margins else 0.0
+    d = p2 - p1
+    low = d - math.sqrt((p2 - l2) ** 2 - 2 * phi * (p2 - l2) * (u1 - p1) + (u1 - p1) ** 2)
+    high = d + math.sqrt((p1 - l1) ** 2 - 2 * phi * (p1 - l1) * (u2 - p2) + (u2 - p2) ** 2)
+    return d, [max(-1.0, low), min(1.0, high)]
+
+
 def across_sessions(outcomes):
     """Each injection against its twin in the other session, both at their own session's
     thresholds: per detector and rate, how many were flagged in both sessions, in one only, or in
-    neither, per class and strength, over each class, and over all signals and all decoys, with
-    McNemar p-values for the totals. outcomes: {session: (specs in dealing order, flags)}."""
+    neither, per class and strength, over each class, and over all signals and all decoys. The
+    totals add a McNemar p-value and the paired difference (second session minus first) with its
+    95% interval. outcomes: {session: (specs in dealing order, flags)}."""
     (first, (specs, a)), (second, (twins, b)) = outcomes.items()
     if specs != twins:
         raise ValueError("The sessions weren't dealt the same injections")
@@ -189,7 +209,10 @@ def across_sessions(outcomes):
     def split(x, y, mask, test=False):
         out = {"both": int(np.sum(x & y & mask)), f"{first} only": int(np.sum(x & ~y & mask)),
                f"{second} only": int(np.sum(~x & y & mask)), "neither": int(np.sum(~x & ~y & mask))}
-        return {**out, "p": mcnemar(out[f"{first} only"], out[f"{second} only"])} if test else out
+        if not test:
+            return out
+        difference, interval = paired_difference(out["both"], out[f"{first} only"], out[f"{second} only"], out["neither"])
+        return {**out, "p": mcnemar(out[f"{first} only"], out[f"{second} only"]), "difference": difference, "interval": interval}
 
     result = {}
     for name in a:
@@ -228,8 +251,9 @@ def table(pairs, across):
             lines.append(f"| {name} | {float(rate):.1%} | " + " | ".join(f"{pairs[f'thresholds {s}, test {s}']['thresholds'][name][rate]:.3f}" for s in SESSIONS) + " |")
     for variant, compared in across.items():
         lines.append(f"\n### The same injections in both sessions, at {'each session' + chr(39) + 's own' if variant == 'own thresholds' else 'the ' + variant.split()[0]} thresholds\n")
-        lines.append(f"| Detector | Rate | Injections | Flagged in {SESSIONS[0]} | Flagged in {SESSIONS[1]} | {SESSIONS[0]} only | {SESSIONS[1]} only | McNemar p |")
-        lines.append("|---|---|---|---:|---:|---:|---:|---:|")
+        lines.append(f"| Detector | Rate | Injections | Flagged in {SESSIONS[0]} | Flagged in {SESSIONS[1]} | {SESSIONS[0]} only | {SESSIONS[1]} only | McNemar p "
+                     f"| {SESSIONS[1]} minus {SESSIONS[0]}, points (95% interval) |")
+        lines.append("|---|---|---|---:|---:|---:|---:|---:|---:|")
         for name in names:
             for rate in rates:
                 groups = compared[name][rate]
@@ -237,10 +261,12 @@ def table(pairs, across):
                 if variant == "own thresholds":
                     rows += list(groups["classes"].items())
                 for label, c in rows:
-                    n = sum(v for k, v in c.items() if k != "p")
+                    n = c["both"] + c["neither"] + sum(c[f"{s} only"] for s in SESSIONS)
                     found = [c["both"] + c[f"{s} only"] for s in SESSIONS]
+                    low, high = c["interval"]
                     lines.append(f"| {name} | {float(rate):.1%} | {label} ({n:,}) | {found[0]:,} | {found[1]:,} | "
-                                 f"{c[f'{SESSIONS[0]} only']:,} | {c[f'{SESSIONS[1]} only']:,} | {c['p']:.2g} |")
+                                 f"{c[f'{SESSIONS[0]} only']:,} | {c[f'{SESSIONS[1]} only']:,} | {c['p']:.2g} | "
+                                 f"{100 * c['difference']:+.1f} ({100 * low:+.1f} to {100 * high:+.1f}) |")
     for key, report in pairs.items():
         lines.append(f"\n## Recovery: {key}\n{run.table(report)}")
     return "\n".join(lines) + "\n"

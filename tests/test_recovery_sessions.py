@@ -87,6 +87,34 @@ class AcrossSessionTests(unittest.TestCase):
         self.assertEqual(sessions.mcnemar(3, 9), sessions.mcnemar(9, 3))
         self.assertAlmostEqual(sessions.mcnemar(2, 8), 2 * (1 + 10 + 45) / 1024)
 
+    def test_paired_difference(self):
+        self.assertEqual(sessions.paired_difference(0, 0, 0, 0), (0.0, [-1.0, 1.0]))
+        # As many twins flagged in one session only as in the other: no difference, and an
+        # interval symmetric about it.
+        d, (low, high) = sessions.paired_difference(300, 40, 40, 300)
+        self.assertEqual(d, 0.0)
+        self.assertAlmostEqual(low, -high)
+        # Uncorrelated twins (both x neither = first only x second only): Newcombe's interval for
+        # independent proportions, the two Wilson intervals' half-widths added in quadrature.
+        both, first, second, neither = 40, 20, 40, 20
+        d, (low, high) = sessions.paired_difference(both, first, second, neither)
+        n, k1, k2 = 120, both + first, both + second
+        (l1, u1), (l2, u2) = sessions.run.wilson(k1, n), sessions.run.wilson(k2, n)
+        self.assertAlmostEqual(d, (k2 - k1) / n)
+        self.assertAlmostEqual(low, d - np.hypot(k2 / n - l2, u1 - k1 / n))
+        self.assertAlmostEqual(high, d + np.hypot(k1 / n - l1, u2 - k2 / n))
+        # With hundreds of discordant twins it agrees with the Wald interval, and correlated twins
+        # narrow it below the unpaired interval.
+        both, first, second, neither = 384, 66, 40, 374
+        n = both + first + second + neither
+        d, (low, high) = sessions.paired_difference(both, first, second, neither)
+        half = 1.96 * np.sqrt(first + second - (first - second) ** 2 / n) / n
+        self.assertAlmostEqual(d, -26 / 864)
+        self.assertAlmostEqual(low, d - half, delta=0.001)
+        self.assertAlmostEqual(high, d + half, delta=0.001)
+        p1, p2 = (both + first) / n, (both + second) / n
+        self.assertLess(high - low, 0.6 * 2 * 1.96 * np.sqrt(p1 * (1 - p1) / n + p2 * (1 - p2) / n))
+
     def evaluate(self, scale_2016):
         data = {"2020-calibration": windows(1200, 1), "2020-test": windows(1200, 2),
                 "2016-calibration": windows(1200, 3, scale_2016), "2016-test": windows(1200, 4, scale_2016)}
@@ -100,7 +128,10 @@ class AcrossSessionTests(unittest.TestCase):
             for name, rates in across[variant].items():
                 for rate, groups in rates.items():
                     signals = groups["signals"]
-                    self.assertEqual(sum(v for k, v in signals.items() if k != "p"), len(SIGNALS) * len(STRENGTHS) * 10)
+                    self.assertEqual(sum(signals[k] for k in ("both", "2020 only", "2016 only", "neither")), len(SIGNALS) * len(STRENGTHS) * 10)
+                    low, high = signals["interval"]
+                    self.assertLess(low, signals["difference"])
+                    self.assertGreater(high, signals["difference"])
                     self.assertEqual(sum(groups["cells"]["tone"][f"{s:g}"]["both"] for s in STRENGTHS), groups["classes"]["tone"]["both"])
                     self.assertGreater(signals["p"], 0.001, f"{variant} {name} {rate}: like sessions shouldn't differ")
                     flagged = pairs["thresholds 2020, test 2020"]["recovery"][name][rate]["tone"]
@@ -131,6 +162,7 @@ class AcrossSessionTests(unittest.TestCase):
         self.assertIn("at each session's own thresholds", text)
         self.assertIn("at the 2020 thresholds", text)
         self.assertIn("McNemar p", text)
+        self.assertIn("2016 minus 2020, points (95% interval)", text)
 
 
 if __name__ == "__main__":
