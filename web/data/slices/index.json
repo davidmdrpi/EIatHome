@@ -1,8 +1,116 @@
 {
   "format": "eiathome-slices",
-  "version": 1,
-  "extracted_by": "tools/extract_slices.py 0.3.0",
+  "version": 2,
+  "extracted_by": "tools/extract_slices.py 0.5.0",
   "slices": [
+    {
+      "id": "voyager1-57650-67573-carrier",
+      "family": "voyager",
+      "group": "carrier",
+      "file": "voyager1-57650-67573-carrier.bin",
+      "dtype": "float32-le",
+      "shape": [
+        16,
+        256
+      ],
+      "units": "noise sigma, bandpass-flattened",
+      "sha256": "8a6e34ca0a4a23e89257bc826d31613d0cb6255ba29c263cccb917b650664909",
+      "source": {
+        "file": "Voyager1.single_coarse.fine_res.h5",
+        "source_name": "Voyager1",
+        "tstart_mjd": 57650.78209490741,
+        "fch1_mhz": 8421.386717353016,
+        "foff_hz": -2.7939677238464355,
+        "tsamp_s": 18.253611008,
+        "first_channel": 747821,
+        "centre_freq_mhz": 8419.296973034483,
+        "drift_channels_per_step": 2.4718384246011893,
+        "drift_hz_per_s": -0.3783490715274009,
+        "snr": 985.8750610351562,
+        "sky": {
+          "ra_hours": 17.167773,
+          "dec_deg": 12.183,
+          "frame": "J2000, the telescope's pointing from the file header",
+          "epoch": "2016-09-19T18:46:13Z",
+          "constellation": "Ophiuchus",
+          "telescope": "Green Bank Telescope",
+          "distance_label": "\u2248136 AU from the Sun"
+        },
+        "url": "https://github.com/davidmdrpi/EIatHome/releases/download/v0.1/Voyager1.single_coarse.fine_res.h5"
+      }
+    },
+    {
+      "id": "voyager1-57650-67573-sideband-1",
+      "family": "voyager",
+      "group": "sideband",
+      "file": "voyager1-57650-67573-sideband-1.bin",
+      "dtype": "float32-le",
+      "shape": [
+        16,
+        256
+      ],
+      "units": "noise sigma, bandpass-flattened",
+      "sha256": "72a3891f3c3599cf897299a0cc69be57b9ea68c5ac8562956c9b69dd1946eb01",
+      "source": {
+        "file": "Voyager1.single_coarse.fine_res.h5",
+        "source_name": "Voyager1",
+        "tstart_mjd": 57650.78209490741,
+        "fch1_mhz": 8421.386717353016,
+        "foff_hz": -2.7939677238464355,
+        "tsamp_s": 18.253611008,
+        "first_channel": 755930,
+        "centre_freq_mhz": 8419.274316740555,
+        "drift_channels_per_step": 2.4813355008605162,
+        "drift_hz_per_s": -0.37980273045153584,
+        "snr": 120.635498046875,
+        "sky": {
+          "ra_hours": 17.167773,
+          "dec_deg": 12.183,
+          "frame": "J2000, the telescope's pointing from the file header",
+          "epoch": "2016-09-19T18:46:13Z",
+          "constellation": "Ophiuchus",
+          "telescope": "Green Bank Telescope",
+          "distance_label": "\u2248136 AU from the Sun"
+        },
+        "url": "https://github.com/davidmdrpi/EIatHome/releases/download/v0.1/Voyager1.single_coarse.fine_res.h5"
+      }
+    },
+    {
+      "id": "voyager1-57650-67573-sideband-2",
+      "family": "voyager",
+      "group": "sideband",
+      "file": "voyager1-57650-67573-sideband-2.bin",
+      "dtype": "float32-le",
+      "shape": [
+        16,
+        256
+      ],
+      "units": "noise sigma, bandpass-flattened",
+      "sha256": "a732ee2eda04a97723bfbeddd96c8b59d380541a8bcb71a68e12502526120971",
+      "source": {
+        "file": "Voyager1.single_coarse.fine_res.h5",
+        "source_name": "Voyager1",
+        "tstart_mjd": 57650.78209490741,
+        "fch1_mhz": 8421.386717353016,
+        "foff_hz": -2.7939677238464355,
+        "tsamp_s": 18.253611008,
+        "first_channel": 739826,
+        "centre_freq_mhz": 8419.319310438272,
+        "drift_channels_per_step": 2.487312127090107,
+        "drift_hz_per_s": -0.38071753578926615,
+        "snr": 117.60035705566406,
+        "sky": {
+          "ra_hours": 17.167773,
+          "dec_deg": 12.183,
+          "frame": "J2000, the telescope's pointing from the file header",
+          "epoch": "2016-09-19T18:46:13Z",
+          "constellation": "Ophiuchus",
+          "telescope": "Green Bank Telescope",
+          "distance_label": "\u2248136 AU from the Sun"
+        },
+        "url": "https://github.com/davidmdrpi/EIatHome/releases/download/v0.1/Voyager1.single_coarse.fine_res.h5"
+      }
+    },
     {
       "id": "voyager1-59046-80036-carrier",
       "family": "voyager",
@@ -27,6 +135,15 @@
         "drift_channels_per_step": 2.395725836084681,
         "drift_hz_per_s": -0.3666989867523763,
         "snr": 693.7583618164062,
+        "sky": {
+          "ra_hours": 17.211245,
+          "dec_deg": 12.403782,
+          "frame": "J2000, the telescope's pointing from the file header",
+          "epoch": "2020-07-16T22:13:56Z",
+          "constellation": "Ophiuchus",
+          "telescope": "Green Bank Telescope",
+          "distance_label": "\u2248150 AU from the Sun"
+        },
         "url": "https://bldata.berkeley.edu/voyager_2020/single_coarse_channel/single_coarse_guppi_59046_80036_DIAG_VOYAGER-1_0011.rawspec.0000.h5"
       }
     },
@@ -54,6 +171,15 @@
         "drift_channels_per_step": 2.330481213101523,
         "drift_hz_per_s": -0.35671239447265796,
         "snr": 84.57659912109375,
+        "sky": {
+          "ra_hours": 17.211245,
+          "dec_deg": 12.403782,
+          "frame": "J2000, the telescope's pointing from the file header",
+          "epoch": "2020-07-16T22:13:56Z",
+          "constellation": "Ophiuchus",
+          "telescope": "Green Bank Telescope",
+          "distance_label": "\u2248150 AU from the Sun"
+        },
         "url": "https://bldata.berkeley.edu/voyager_2020/single_coarse_channel/single_coarse_guppi_59046_80036_DIAG_VOYAGER-1_0011.rawspec.0000.h5"
       }
     },
@@ -81,6 +207,15 @@
         "drift_channels_per_step": 2.328687230891548,
         "drift_hz_per_s": -0.3564378006736761,
         "snr": 82.14545440673828,
+        "sky": {
+          "ra_hours": 17.211245,
+          "dec_deg": 12.403782,
+          "frame": "J2000, the telescope's pointing from the file header",
+          "epoch": "2020-07-16T22:13:56Z",
+          "constellation": "Ophiuchus",
+          "telescope": "Green Bank Telescope",
+          "distance_label": "\u2248150 AU from the Sun"
+        },
         "url": "https://bldata.berkeley.edu/voyager_2020/single_coarse_channel/single_coarse_guppi_59046_80036_DIAG_VOYAGER-1_0011.rawspec.0000.h5"
       }
     },
@@ -107,6 +242,15 @@
         "centre_freq_mhz": 8419.542562326826,
         "window_of": "voyager1-59046-80036-carrier",
         "snr": 4.3631181716918945,
+        "sky": {
+          "ra_hours": 17.211245,
+          "dec_deg": 13.403784,
+          "frame": "J2000, the telescope's pointing from the file header",
+          "epoch": "2020-07-16T22:19:14Z",
+          "constellation": "Hercules",
+          "telescope": "Green Bank Telescope",
+          "distance_label": "Empty sky, 1.0\u00b0 north of Voyager 1"
+        },
         "url": "https://bldata.berkeley.edu/voyager_2020/single_coarse_channel/single_coarse_guppi_59046_80354_DIAG_VOYAGER-1_0012.rawspec.0000.h5"
       }
     },
@@ -133,6 +277,15 @@
         "centre_freq_mhz": 8419.51990841798,
         "window_of": "voyager1-59046-80036-sideband-1",
         "snr": 3.9503493309020996,
+        "sky": {
+          "ra_hours": 17.211245,
+          "dec_deg": 13.403784,
+          "frame": "J2000, the telescope's pointing from the file header",
+          "epoch": "2020-07-16T22:19:14Z",
+          "constellation": "Hercules",
+          "telescope": "Green Bank Telescope",
+          "distance_label": "Empty sky, 1.0\u00b0 north of Voyager 1"
+        },
         "url": "https://bldata.berkeley.edu/voyager_2020/single_coarse_channel/single_coarse_guppi_59046_80354_DIAG_VOYAGER-1_0012.rawspec.0000.h5"
       }
     },
@@ -159,6 +312,15 @@
         "centre_freq_mhz": 8419.564903283981,
         "window_of": "voyager1-59046-80036-sideband-2",
         "snr": 4.001396656036377,
+        "sky": {
+          "ra_hours": 17.211245,
+          "dec_deg": 13.403784,
+          "frame": "J2000, the telescope's pointing from the file header",
+          "epoch": "2020-07-16T22:19:14Z",
+          "constellation": "Hercules",
+          "telescope": "Green Bank Telescope",
+          "distance_label": "Empty sky, 1.0\u00b0 north of Voyager 1"
+        },
         "url": "https://bldata.berkeley.edu/voyager_2020/single_coarse_channel/single_coarse_guppi_59046_80354_DIAG_VOYAGER-1_0012.rawspec.0000.h5"
       }
     },
@@ -186,6 +348,15 @@
         "drift_channels_per_step": 2.591078440261103,
         "drift_hz_per_s": -0.39660040574279193,
         "snr": 330.3290100097656,
+        "sky": {
+          "ra_hours": 17.211245,
+          "dec_deg": 12.403793,
+          "frame": "J2000, the telescope's pointing from the file header",
+          "epoch": "2020-07-16T22:24:32Z",
+          "constellation": "Ophiuchus",
+          "telescope": "Green Bank Telescope",
+          "distance_label": "\u2248150 AU from the Sun"
+        },
         "url": "https://bldata.berkeley.edu/voyager_2020/single_coarse_channel/single_coarse_guppi_59046_80672_DIAG_VOYAGER-1_0013.rawspec.0000.h5"
       }
     },
@@ -213,6 +384,15 @@
         "drift_channels_per_step": 2.5537280867633894,
         "drift_hz_per_s": -0.3908834173561581,
         "snr": 41.16608810424805,
+        "sky": {
+          "ra_hours": 17.211245,
+          "dec_deg": 12.403793,
+          "frame": "J2000, the telescope's pointing from the file header",
+          "epoch": "2020-07-16T22:24:32Z",
+          "constellation": "Ophiuchus",
+          "telescope": "Green Bank Telescope",
+          "distance_label": "\u2248150 AU from the Sun"
+        },
         "url": "https://bldata.berkeley.edu/voyager_2020/single_coarse_channel/single_coarse_guppi_59046_80672_DIAG_VOYAGER-1_0013.rawspec.0000.h5"
       }
     },
@@ -240,6 +420,15 @@
         "drift_channels_per_step": 2.6808463550306696,
         "drift_hz_per_s": -0.41034062713752006,
         "snr": 43.8419189453125,
+        "sky": {
+          "ra_hours": 17.211245,
+          "dec_deg": 12.403793,
+          "frame": "J2000, the telescope's pointing from the file header",
+          "epoch": "2020-07-16T22:24:32Z",
+          "constellation": "Ophiuchus",
+          "telescope": "Green Bank Telescope",
+          "distance_label": "\u2248150 AU from the Sun"
+        },
         "url": "https://bldata.berkeley.edu/voyager_2020/single_coarse_channel/single_coarse_guppi_59046_80672_DIAG_VOYAGER-1_0013.rawspec.0000.h5"
       }
     },
@@ -266,6 +455,15 @@
         "centre_freq_mhz": 8419.542310145967,
         "window_of": "voyager1-59046-80672-carrier",
         "snr": 3.942747116088867,
+        "sky": {
+          "ra_hours": 17.279504,
+          "dec_deg": 12.403769,
+          "frame": "J2000, the telescope's pointing from the file header",
+          "epoch": "2020-07-16T22:29:49Z",
+          "constellation": "Ophiuchus",
+          "telescope": "Green Bank Telescope",
+          "distance_label": "Empty sky, 1.0\u00b0 east of Voyager 1"
+        },
         "url": "https://bldata.berkeley.edu/voyager_2020/single_coarse_channel/single_coarse_guppi_59046_80989_DIAG_VOYAGER-1_0014.rawspec.0000.h5"
       }
     },
@@ -292,6 +490,15 @@
         "centre_freq_mhz": 8419.519654689955,
         "window_of": "voyager1-59046-80672-sideband-1",
         "snr": 4.003225803375244,
+        "sky": {
+          "ra_hours": 17.279504,
+          "dec_deg": 12.403769,
+          "frame": "J2000, the telescope's pointing from the file header",
+          "epoch": "2020-07-16T22:29:49Z",
+          "constellation": "Ophiuchus",
+          "telescope": "Green Bank Telescope",
+          "distance_label": "Empty sky, 1.0\u00b0 east of Voyager 1"
+        },
         "url": "https://bldata.berkeley.edu/voyager_2020/single_coarse_channel/single_coarse_guppi_59046_80989_DIAG_VOYAGER-1_0014.rawspec.0000.h5"
       }
     },
@@ -318,6 +525,15 @@
         "centre_freq_mhz": 8419.564962668466,
         "window_of": "voyager1-59046-80672-sideband-2",
         "snr": 4.2046027183532715,
+        "sky": {
+          "ra_hours": 17.279504,
+          "dec_deg": 12.403769,
+          "frame": "J2000, the telescope's pointing from the file header",
+          "epoch": "2020-07-16T22:29:49Z",
+          "constellation": "Ophiuchus",
+          "telescope": "Green Bank Telescope",
+          "distance_label": "Empty sky, 1.0\u00b0 east of Voyager 1"
+        },
         "url": "https://bldata.berkeley.edu/voyager_2020/single_coarse_channel/single_coarse_guppi_59046_80989_DIAG_VOYAGER-1_0014.rawspec.0000.h5"
       }
     },
@@ -345,6 +561,15 @@
         "drift_channels_per_step": 2.802078709015665,
         "drift_hz_per_s": -0.42889691629978793,
         "snr": 615.2271728515625,
+        "sky": {
+          "ra_hours": 17.211244,
+          "dec_deg": 12.40378,
+          "frame": "J2000, the telescope's pointing from the file header",
+          "epoch": "2020-07-16T22:35:10Z",
+          "constellation": "Ophiuchus",
+          "telescope": "Green Bank Telescope",
+          "distance_label": "\u2248150 AU from the Sun"
+        },
         "url": "https://bldata.berkeley.edu/voyager_2020/single_coarse_channel/single_coarse_guppi_59046_81310_DIAG_VOYAGER-1_0015.rawspec.0000.h5"
       }
     },
@@ -372,6 +597,15 @@
         "drift_channels_per_step": 2.7794697989856267,
         "drift_hz_per_s": -0.4254363098001978,
         "snr": 72.16787719726562,
+        "sky": {
+          "ra_hours": 17.211244,
+          "dec_deg": 12.40378,
+          "frame": "J2000, the telescope's pointing from the file header",
+          "epoch": "2020-07-16T22:35:10Z",
+          "constellation": "Ophiuchus",
+          "telescope": "Green Bank Telescope",
+          "distance_label": "\u2248150 AU from the Sun"
+        },
         "url": "https://bldata.berkeley.edu/voyager_2020/single_coarse_channel/single_coarse_guppi_59046_81310_DIAG_VOYAGER-1_0015.rawspec.0000.h5"
       }
     },
@@ -399,6 +633,15 @@
         "drift_channels_per_step": 2.7590834205063737,
         "drift_hz_per_s": -0.4223158925056588,
         "snr": 71.46287536621094,
+        "sky": {
+          "ra_hours": 17.211244,
+          "dec_deg": 12.40378,
+          "frame": "J2000, the telescope's pointing from the file header",
+          "epoch": "2020-07-16T22:35:10Z",
+          "constellation": "Ophiuchus",
+          "telescope": "Green Bank Telescope",
+          "distance_label": "\u2248150 AU from the Sun"
+        },
         "url": "https://bldata.berkeley.edu/voyager_2020/single_coarse_channel/single_coarse_guppi_59046_81310_DIAG_VOYAGER-1_0015.rawspec.0000.h5"
       }
     },
@@ -425,6 +668,15 @@
         "centre_freq_mhz": 8419.54203569191,
         "window_of": "voyager1-59046-81310-carrier",
         "snr": 3.5516185760498047,
+        "sky": {
+          "ra_hours": 17.211244,
+          "dec_deg": 11.403773,
+          "frame": "J2000, the telescope's pointing from the file header",
+          "epoch": "2020-07-16T22:40:28Z",
+          "constellation": "Ophiuchus",
+          "telescope": "Green Bank Telescope",
+          "distance_label": "Empty sky, 1.0\u00b0 south of Voyager 1"
+        },
         "url": "https://bldata.berkeley.edu/voyager_2020/single_coarse_channel/single_coarse_guppi_59046_81628_DIAG_VOYAGER-1_0016.rawspec.0000.h5"
       }
     },
@@ -451,6 +703,15 @@
         "centre_freq_mhz": 8419.519379416612,
         "window_of": "voyager1-59046-81310-sideband-1",
         "snr": 4.709339141845703,
+        "sky": {
+          "ra_hours": 17.211244,
+          "dec_deg": 11.403773,
+          "frame": "J2000, the telescope's pointing from the file header",
+          "epoch": "2020-07-16T22:40:28Z",
+          "constellation": "Ophiuchus",
+          "telescope": "Green Bank Telescope",
+          "distance_label": "Empty sky, 1.0\u00b0 south of Voyager 1"
+        },
         "url": "https://bldata.berkeley.edu/voyager_2020/single_coarse_channel/single_coarse_guppi_59046_81628_DIAG_VOYAGER-1_0016.rawspec.0000.h5"
       }
     },
@@ -477,6 +738,15 @@
         "centre_freq_mhz": 8419.564694221457,
         "window_of": "voyager1-59046-81310-sideband-2",
         "snr": 3.6823785305023193,
+        "sky": {
+          "ra_hours": 17.211244,
+          "dec_deg": 11.403773,
+          "frame": "J2000, the telescope's pointing from the file header",
+          "epoch": "2020-07-16T22:40:28Z",
+          "constellation": "Ophiuchus",
+          "telescope": "Green Bank Telescope",
+          "distance_label": "Empty sky, 1.0\u00b0 south of Voyager 1"
+        },
         "url": "https://bldata.berkeley.edu/voyager_2020/single_coarse_channel/single_coarse_guppi_59046_81628_DIAG_VOYAGER-1_0016.rawspec.0000.h5"
       }
     }

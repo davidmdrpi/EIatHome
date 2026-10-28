@@ -41,6 +41,7 @@
   <main>
     <!-- ================= Live Lab ================= -->
     <section id="tab-lab" class="tab" role="tabpanel">
+      <div id="lab-viewport" class="viewport-host" aria-label="Observatory viewport"></div>
       <div class="panel">
         <h2>1. Pick a signal</h2>
         <div id="families" class="switcher" role="radiogroup" aria-label="Signal family"></div>
@@ -217,6 +218,7 @@
 
     <!-- ================= Recovery ================= -->
     <section id="tab-recovery" class="tab" role="tabpanel" hidden>
+      <div id="rc-viewport" class="viewport-host" aria-label="Observatory viewport"></div>
       <div class="panel">
         <h2>Blinded signal recovery</h2>
         <p>Can a detector find a weak signal without raising more false alarms? A recovery unit hides 756 synthetic signals in real off-source data from a Voyager 1 observation, gives the windows to two standard detectors without saying which hold what, and only then checks which they found. Each detector’s threshold was fixed in advance on a different scan, so that it flags 1% (or 0.1%) of windows with nothing in them.</p>
@@ -303,6 +305,9 @@
         <p>A small model learns to predict the next spectrogram frame: a GRU, an LSTM or one layer of causal attention, each with about the same number of parameters. We compare it with simple baselines, look at its hidden states, and check whether its state encodes physical quantities such as drift rate.</p>
         <h3>Track B: is it language?</h3>
         <p>A tokenizer turns frames into discrete tokens, and we measure entropy, mutual information, compressibility and Zipf statistics against surrogates. The Rosetta control (real English text sent as FSK) checks that the pipeline can find language when it is there. A Zipf-like curve on its own proves nothing.</p>
+        <h3>The Observatory viewport</h3>
+        <p>The sky map above the Live Lab and Recovery tabs shows where each signal comes from: Voyager 1 as the Green Bank Telescope pointed at it in 2016 and 2020, the off-source positions 1° away, and a few well-known targets for reference. When you pick a signal or start a computation it slews there, and zooms toward the telescope’s beam as the work progresses. Synthetic signals are marked low over the Green Bank horizon, since they come from your browser, not the sky. Drag to look around, scroll to zoom, and click a marker to select its signal. Observatory mode fills the screen and can keep running work units.</p>
+        <p class="muted small">Star positions, magnitudes and colours: the Hipparcos catalogue (ESA 1997). Constellation figures, names and IAU boundaries: <a href="https://github.com/ofrohn/d3-celestial">d3-celestial</a> by Olaf Frohn (BSD-3-Clause). Pointings: the Breakthrough Listen files’ headers.</p>
         <h3>Blinded recovery</h3>
         <p>Before a model’s output can mean anything about unknown signals, we need to know which signals it would have found. The Recovery tab hides synthetic signals of known class and strength in real off-source data, gives them to detectors without the answers, and counts what they found at a false-alarm rate fixed in advance. When you submit a unit it’s recomputed, and then it joins the combined recovery curves.</p>
         <h3>Honest limits</h3>

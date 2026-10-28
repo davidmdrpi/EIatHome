@@ -724,7 +724,8 @@ async function runWorkUnit(unit) {
     slices: inputs.slices.length
       ? {
           dataset_id: await datasetId(inputs.slices),
-          slices: inputs.slices.map((s) => ({ id: s.id, family: s.family, sha256: s.sha256, start_mjd: Number.isFinite(s.startMjd) ? s.startMjd : null })),
+          // The dataset id hashes every slice's bytes and metadata; the ids say which they were.
+          slices: inputs.slices.map((s) => s.id),
         }
       : null,
   };

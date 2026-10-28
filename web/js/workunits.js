@@ -4,7 +4,7 @@
 import { ROSETTA_TEXT } from './signals.js';
 
 export const APP_VERSION = '0.3.0';
-export const RESULT_CARD_VERSION = 3;
+export const RESULT_CARD_VERSION = 4;
 export const SPEC = 'track-a/v0';
 const HIDDEN_GRID = [16, 32, 64];
 

@@ -73,6 +73,9 @@ export function validateCard(card, { published = null } = {}) {
   const slices = card.inputs?.slices;
   const usedPublished = slices != null && published != null && slices.dataset_id === published.datasetId;
   if (slices != null) {
+    if (typeof slices.dataset_id !== 'string' || !Array.isArray(slices.slices) || !slices.slices.every((id) => typeof id === 'string')) {
+      fail('`inputs.slices` needs the dataset id and the list of slice ids.');
+    }
     if (!published) fail('The card used real-data slices, but this site publishes none, so nobody could replicate it.');
     else if (!usedPublished) fail("The card used real-data slices that aren't the ones this site publishes, so nobody could replicate it.");
   }

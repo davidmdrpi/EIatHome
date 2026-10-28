@@ -26,6 +26,15 @@ def write_h5(path, data, fch1=8000.0, foff=-1e-6, tsamp=6.0, chunk=None, time_ch
         dset.attrs.update(fch1=fch1, foff=foff, tsamp=tsamp, tstart=60000.25, nchans=data.shape[1], source_name=b"TEST")
 
 
+import sys  # noqa: E402
+
+sys.path.insert(0, str(ROOT / "tools"))
+import skycoords  # noqa: E402
+
+ON_2020 = {"src_raj": 17.211244722222222, "src_dej": 12.403781666666667, "tstart": 59046.92634259259,
+           "source_name": "VOYAGER-1", "telescope_id": 6}
+
+
 class RangeServer:
     """Serves one file over HTTP, honouring Range requests unless told to ignore them."""
 
@@ -159,6 +168,50 @@ class ExtractorTests(unittest.TestCase):
         with mock.patch.object(x, "drift_trials", lambda n_t: np.arange(-4, 4.01, 0.25)):
             [(_, old)] = x.extract(path, args)
         self.assertGreater(old["source"]["first_channel"], 5000, "the fixed 0.25 grid picks the decoy")
+
+
+class SkyTests(unittest.TestCase):
+    def test_constellations_come_from_the_iau_boundaries(self):
+        cases = {
+            "Ophiuchus": (17.211245 * 15, 12.403782),  # Voyager 1, 2020
+            "Hercules": (17.211245 * 15, 13.403784),  # the off-source position 1 degree north
+            "Ursa Minor": (37.9546, 89.2641),  # Polaris, around the pole
+            "Octans": (317.195, -88.956),
+            "Serpens Caput": (236.067, 6.4256),  # Unukalhai: Serpens is in two parts
+            "Serpens Cauda": (275.327, -2.8988),
+        }
+        for name, (ra, dec) in cases.items():
+            self.assertEqual(skycoords.constellation_at(ra, dec), name)
+        with self.assertRaisesRegex(ValueError, "no constellation"):
+            skycoords.constellation_at(10, 10, boundaries=[])
+
+    def test_slices_record_where_the_telescope_pointed(self):
+        on = x.sky_of(ON_2020)
+        self.assertEqual((on["ra_hours"], on["dec_deg"]), (17.211245, 12.403782))
+        self.assertEqual(on["epoch"], "2020-07-16T22:13:56Z")
+        self.assertEqual(on["constellation"], "Ophiuchus")
+        self.assertEqual(on["telescope"], "Green Bank Telescope")
+        self.assertEqual(on["distance_label"], "≈150 AU from the Sun")
+        reference = {"source_name": "VOYAGER-1", "sky": on}
+        north = x.sky_of({**ON_2020, "src_dej": 13.403784444444447, "source_name": "VOYAGER-1 OFF"}, reference)
+        east = x.sky_of({**ON_2020, "src_raj": 17.279503611111107, "src_dej": 12.403769444444446, "source_name": "VOYAGER-1 OFF"}, reference)
+        self.assertEqual(north["distance_label"], "Empty sky, 1.0° north of Voyager 1")
+        self.assertEqual(north["constellation"], "Hercules")
+        self.assertEqual(east["distance_label"], "Empty sky, 1.0° east of Voyager 1")
+        self.assertIsNone(x.sky_of({"tstart": 60000.25, "source_name": "TEST"}), "no pointing in the header, no sky block")
+
+    def test_voyager_1_recedes_about_3_6_au_a_year(self):
+        self.assertEqual(x.voyager1_distance(57650.78), "≈136 AU from the Sun")  # 2016-09-19
+        self.assertEqual(x.voyager1_distance(59046.93), "≈150 AU from the Sun")  # 2020-07-16
+
+    def test_entries_carry_the_sky_block_but_not_the_reference(self):
+        args = argparse.Namespace(product=None, source_base_url=None)
+        header = {**ON_2020, "src_dej": 13.403784444444447, "source_name": "VOYAGER-1 OFF",
+                  "fch1": 8421.38671875, "foff": -2.7939677238464355e-06, "tsamp": 18.253611008}
+        _, entry = x.make_entry(Path("scan.h5"), args, header, np.zeros((16, 4), np.float32), "s", "offsource", "carrier window",
+                                {"reference": {"source_name": "VOYAGER-1", "sky": x.sky_of(ON_2020)}})
+        self.assertNotIn("reference", entry["source"])
+        self.assertEqual(entry["source"]["sky"]["distance_label"], "Empty sky, 1.0° north of Voyager 1")
 
 
 if __name__ == "__main__":

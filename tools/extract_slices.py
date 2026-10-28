@@ -18,6 +18,11 @@ Off-source scans of an on/off cadence (--off) give the control: for each signal 
 on-source scan, the window where that signal would have drifted to by the off-source scan. Same
 receiver, frequencies and processing, but nothing in the beam.
 
+Each slice records where the telescope pointed (manifest version 2): right ascension and
+declination from the file header, the scan's start, the constellation (IAU boundaries in
+web/data/sky/sky.json), and a distance label: Voyager 1's distance from the Sun on that date,
+or, for an off-source scan, how far and in which direction it pointed from the target.
+
 Inputs can also be https:// URLs, read with HTTP range requests. With --coarse-channel-at, only
 the coarse channel containing that frequency is read and processed, as if it were a
 single-coarse-channel file. Together they cut slices from a whole-node file (such as the
@@ -27,10 +32,14 @@ single-coarse-channel file. Together they cut slices from a whole-node file (suc
 import argparse
 from collections import OrderedDict
 from concurrent.futures import ThreadPoolExecutor
+from datetime import datetime, timedelta, timezone
 import hashlib
 import io
 import json
+import math
 from pathlib import Path, PurePosixPath
+import re
+import sys
 import time
 from urllib.parse import urlparse
 import urllib.request
@@ -39,7 +48,10 @@ import h5py
 import hdf5plugin  # noqa: F401  (registers the bitshuffle filter used in Breakthrough Listen files)
 import numpy as np
 
-VERSION = "0.4.0"
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from skycoords import constellation_at, separation  # noqa: E402
+
+VERSION = "0.5.0"
 SESSION_GAP_DAYS = 0.5  # as in web/js/splits.js
 COARSE_WIDTH = 1 << 20  # fine channels per coarse channel in the high-frequency-resolution products
 
@@ -241,6 +253,63 @@ def scan_label(header):
     return f"{day}-{round((tstart - day) * 86400):05d}"
 
 
+TELESCOPES = {6: "Green Bank Telescope", 4: "Parkes"}  # sigproc telescope_id
+TARGET_NAMES = {"voyager1": "Voyager 1"}
+MJD_EPOCH = datetime(1858, 11, 17, tzinfo=timezone.utc)
+
+
+def voyager1_distance(mjd):
+    """Voyager 1's distance from the Sun on a date, from NASA's figures: it crossed the heliopause
+    on 2012-08-25 at about 121.6 AU, and recedes at about 3.58 AU a year (17 km/s)."""
+    years = (MJD_EPOCH + timedelta(days=mjd) - datetime(2012, 8, 25, tzinfo=timezone.utc)).days / 365.25
+    return f"≈{121.6 + 3.58 * years:.0f} AU from the Sun"
+
+
+DISTANCES = {"voyager1": voyager1_distance}
+
+
+def target_key(name):
+    return re.sub(r"[^a-z0-9]", "", str(name).lower())
+
+
+def pointing(header):
+    """Where the telescope pointed, from the header: (RA in hours, Dec in degrees), or None."""
+    if "src_raj" not in header or "src_dej" not in header:
+        return None
+    return float(header["src_raj"]), float(header["src_dej"])
+
+
+def sky_of(header, reference=None):
+    """A slice's position on the sky. reference: the source block of the on-source slice an
+    off-source window mirrors, whose pointing gives the offset."""
+    where = pointing(header)
+    if where is None:
+        return None
+    ra, dec = where
+    mjd = float(header["tstart"])
+    sky = {
+        "ra_hours": round(ra, 6),
+        "dec_deg": round(dec, 6),
+        "frame": "J2000, the telescope's pointing from the file header",
+        "epoch": (MJD_EPOCH + timedelta(days=mjd)).strftime("%Y-%m-%dT%H:%M:%SZ"),
+        "constellation": constellation_at(ra * 15, dec),
+    }
+    telescope = TELESCOPES.get(int(header.get("telescope_id", -1)))
+    if telescope:
+        sky["telescope"] = telescope
+    if reference and reference.get("sky"):
+        on = reference["sky"]
+        off = separation(ra * 15, dec, on["ra_hours"] * 15, on["dec_deg"])
+        east = ((ra - on["ra_hours"] + 12) % 24 - 12) * 15 * math.cos(math.radians(on["dec_deg"]))
+        north = dec - on["dec_deg"]
+        direction = ("north" if north > 0 else "south") if abs(north) >= abs(east) else ("east" if east > 0 else "west")
+        name = TARGET_NAMES.get(target_key(reference["source_name"]), reference["source_name"])
+        sky["distance_label"] = f"Empty sky, {off:.1f}° {direction} of {name}"
+    elif target_key(header.get("source_name", "")) in DISTANCES:
+        sky["distance_label"] = DISTANCES[target_key(header["source_name"])](mjd)
+    return sky
+
+
 def prepare(path, coarse_at=None):
     """A file's bandpass-flattened spectrogram, its header, and its de-Doppler search."""
     data, header = load(path, coarse_at)
@@ -261,6 +330,9 @@ def make_entry(path, args, header, window, slice_id, family, group, source):
     }
     if "coarse_channel" in header:
         source["coarse_channel"] = int(header["coarse_channel"])
+    sky = sky_of(header, source.pop("reference", None))
+    if sky:
+        source["sky"] = sky
     if args.product:
         source["product"] = args.product
     if is_url(path):
@@ -353,6 +425,7 @@ def extract_off(path, args, references):
             "first_channel": first,
             "centre_freq_mhz": freq,
             "window_of": ref["id"],
+            "reference": src,
             # The strongest de-Doppler peak in the window: noise level when nothing is in the beam.
             "snr": peak,
         }))
@@ -409,7 +482,7 @@ def main():
 
     manifest = {
         "format": "eiathome-slices",
-        "version": 1,
+        "version": 2,
         "extracted_by": f"tools/extract_slices.py {VERSION}",
         "slices": sorted(entries, key=lambda e: e["id"]),
     }

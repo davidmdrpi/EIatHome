@@ -38,6 +38,16 @@ export const RECOVERY_DATA = {
     dedoppler: { '0.01': 4.9375, '0.001': 5.473214285714286 },
     energy: { '0.01': 3.6531712994267327, '0.001': 4.787324014731104 },
   },
+  // Where off-source scan 0016 pointed, from its header (as in the published slices of the same
+  // scan), for the sky map. Not part of a unit's arithmetic.
+  sky: {
+    ra_hours: 17.211244,
+    dec_deg: 11.403773,
+    epoch: '2020-07-16T22:40:28Z',
+    constellation: 'Ophiuchus',
+    distance_label: 'Empty sky, 1.0° south of Voyager 1',
+    telescope: 'Green Bank Telescope',
+  },
 };
 
 // Everything that determines a unit's results besides the published windows.
@@ -197,26 +207,31 @@ export function driftTrials(frames, maxDrift = 4) {
 
 // The conventional narrowband search: the strongest straight track, summed over frames and
 // divided by sqrt(frames), over every drift trial and start channel. Tracks never wrap.
-export function dedoppler(windows, n, frames, channels) {
-  const best = new Float64Array(n).fill(-Infinity);
+// onScored(count), if given, is called as windows are finished, every 32.
+export function dedoppler(windows, n, frames, channels, onScored) {
+  const tracks = [];
   for (const drift of driftTrials(frames)) {
     const offsets = Array.from({ length: frames }, (_, t) => roundHalfEven(drift * t));
     const first = -Math.min(...offsets);
     const end = channels - Math.max(...offsets);
-    if (end <= first) continue; // the track leaves the window at any start
-    const index = Int32Array.from(offsets, (o, t) => t * channels + o);
-    for (let w = 0; w < n; w++) {
-      const base = w * frames * channels;
-      let top = best[w];
+    if (end > first) tracks.push({ first, end, index: Int32Array.from(offsets, (o, t) => t * channels + o) });
+  }
+  const best = new Float64Array(n);
+  const root = Math.sqrt(frames);
+  for (let w = 0; w < n; w++) {
+    const base = w * frames * channels;
+    let top = -Infinity;
+    for (const { first, end, index } of tracks) {
       for (let s = first; s < end; s++) {
         let sum = 0;
         for (let t = 0; t < frames; t++) sum += windows[base + s + index[t]];
         if (sum > top) top = sum;
       }
-      best[w] = top;
     }
+    best[w] = top / root;
+    if (onScored && ((w + 1) % 32 === 0 || w === n - 1)) onScored(w + 1);
   }
-  return best.map((v) => v / Math.sqrt(frames));
+  return best;
 }
 
 // A radiometer: the window's power above what unit Gaussian noise would give, in units of
@@ -279,13 +294,35 @@ export function emptyWindowFlags(data, thresholds = RECOVERY_DATA.thresholds) {
 }
 
 // Runs unit `unit` on the published windows. The detectors see only the dealt windows; the
-// key is joined to their scores afterwards.
-export function runRecoveryUnit(unit, data) {
+// key is joined to their scores afterwards. onProgress(fraction, cells), if given, reports the
+// de-Doppler search's progress (most of the work) with the background windows just scored, for
+// display: the dealer's side knows them, the detectors don't.
+export function runRecoveryUnit(unit, data, { onProgress } = {}) {
   const config = recoveryConfig(unit);
   const { n, frames, channels } = data;
   const { windows, key } = deal(data.windows, n, frames, channels, design(config.per_cell, n), config.seed);
-  const scores = Object.fromEntries(Object.entries(DETECTORS).map(([name, detect]) => [name, detect(windows, n, frames, channels)]));
+  let reported = 0;
+  const onScored = onProgress && ((count) => {
+    onProgress(count / n, key.slice(reported, count).map((s) => s.background));
+    reported = count;
+  });
+  const scores = { dedoppler: dedoppler(windows, n, frames, channels, onScored), energy: energy(windows, n, frames, channels) };
   return { results: tally(key, scores, config.thresholds), key, scores };
+}
+
+// Each background window's outcome under one detector and false-alarm rate, as an index into
+// skymap.js's OUTCOMES: 0 empty, 1 signal found, 2 signal missed, 3 false alarm, 4 decoy
+// flagged, 5 decoy passed. Indexed by background window, which is the order along the band.
+export function windowOutcomes(key, scores, { detector = 'dedoppler', rate = '0.01' } = {}) {
+  const cut = RECOVERY_DATA.thresholds[detector][rate];
+  const codes = new Uint8Array(key.length);
+  key.forEach((spec, i) => {
+    const flagged = scores[detector][i] > cut;
+    if (spec.kind === 'none') codes[spec.background] = flagged ? 3 : 0;
+    else if (SIGNALS.includes(spec.kind)) codes[spec.background] = flagged ? 1 : 2;
+    else codes[spec.background] = flagged ? 4 : 5;
+  });
+  return codes;
 }
 
 export function recoveryCard(unit, results, { seconds, started }) {

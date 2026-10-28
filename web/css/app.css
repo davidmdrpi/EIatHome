@@ -539,3 +539,195 @@ textarea {
   color: var(--ink-2);
   margin: 4px 0;
 }
+
+/* ---------- Observatory viewport (js/skymap.js) ---------- */
+/* The sky is dark in either theme, like a photograph of it. */
+
+.viewport-host {
+  margin-bottom: 16px;
+}
+
+.viewport {
+  --sky-ink: #e8eef8;
+  --sky-dim: rgba(200, 215, 240, 0.72);
+  --sky-accent: #5cc8ff;
+  position: relative;
+  overflow: hidden;
+  border-radius: 12px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: #02040a;
+  color: var(--sky-ink);
+}
+
+.viewport canvas.sky {
+  display: block;
+  width: 100%;
+  height: 340px;
+  cursor: grab;
+  touch-action: none;
+}
+
+.viewport canvas.sky:focus-visible {
+  outline: 2px solid var(--sky-accent);
+  outline-offset: -2px;
+}
+
+.viewport .hud {
+  position: absolute;
+  font-size: 0.8rem;
+  line-height: 1.35;
+  pointer-events: none;
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.9);
+}
+
+.viewport .dim {
+  color: var(--sky-dim);
+}
+
+.viewport .hud-target {
+  top: 10px;
+  left: 12px;
+  max-width: min(60%, 560px);
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.viewport .hud-title {
+  font-size: 0.98rem;
+}
+
+.viewport .hud-view {
+  top: 10px;
+  right: 12px;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+.viewport .hud-status {
+  inset: 45% 0 auto;
+  text-align: center;
+}
+
+.viewport .hud-telemetry {
+  left: 12px;
+  bottom: 12px;
+  max-width: min(38%, 520px);
+  font-variant-numeric: tabular-nums;
+}
+
+.viewport .hud-progress {
+  width: min(280px, 100%);
+  height: 3px;
+  margin-top: 5px;
+  background: rgba(255, 255, 255, 0.16);
+  border-radius: 2px;
+  overflow: hidden;
+}
+
+.viewport .hud-progress i {
+  display: block;
+  height: 100%;
+  width: 0;
+  background: var(--sky-accent);
+  transition: width 0.25s ease-out;
+}
+
+.viewport .hud-legend {
+  left: 12px;
+  bottom: 62px;
+  max-width: min(38%, 520px);
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 12px;
+}
+
+.viewport .legend-title {
+  flex-basis: 100%;
+  color: var(--sky-dim);
+}
+
+.viewport .hud-legend .key {
+  border-radius: 2px;
+}
+
+.viewport .hud-controls {
+  right: 12px;
+  bottom: 10px;
+  pointer-events: auto;
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  align-items: center;
+  gap: 8px;
+}
+
+.viewport .hud-controls button {
+  color: var(--sky-ink);
+  background: rgba(8, 14, 28, 0.72);
+  border: 1px solid rgba(255, 255, 255, 0.22);
+  font-size: 0.8rem;
+  padding: 4px 9px;
+}
+
+.viewport .hud-controls button:hover:not(:disabled) {
+  border-color: var(--sky-accent);
+}
+
+.viewport .hud-controls .check {
+  padding: 0;
+  font-size: 0.8rem;
+  color: var(--sky-ink);
+}
+
+.viewport .hud-stats {
+  top: 34px;
+  right: 12px;
+  text-align: right;
+}
+
+.viewport:not(.observatory) .hud-stats {
+  display: none;
+}
+
+/* Observatory mode: the viewport fills the window, like a screensaver. */
+.viewport.observatory {
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+  border: 0;
+  border-radius: 0;
+}
+
+.viewport.observatory canvas.sky {
+  height: 100vh;
+  height: 100dvh;
+}
+
+.viewport.observatory .hud {
+  font-size: 0.92rem;
+}
+
+.viewport.observatory .hud-title {
+  font-size: 1.15rem;
+}
+
+@media (max-width: 560px) {
+  .viewport canvas.sky {
+    height: 260px;
+  }
+
+  .viewport .hud-view,
+  .viewport .hud-legend {
+    display: none;
+  }
+
+  .viewport .hud-target,
+  .viewport .hud-telemetry {
+    max-width: calc(100% - 24px);
+  }
+
+  .viewport .hud-telemetry {
+    bottom: 48px;
+  }
+}

@@ -296,17 +296,20 @@ fully determined by its spec and unit number.
 All inputs are captured when a unit starts, so loading new slices or text mid-run can't
 change them.
 
-**Result card (version 3):** a JSON object with `format: "eiathome-result"`, the spec, unit,
+**Result card (version 4):** a JSON object with `format: "eiathome-result"`, the spec, unit,
 full configuration, app and TensorFlow.js versions, compute backend, parameter count, run time,
 metrics, and an `inputs` block:
 
 - `rosetta_corpus`: the corpus id and the SHA-256 of the text actually used;
-- `slices`: `null`, or a `dataset_id` plus each slice's id, family, SHA-256 and scan start
-  time. Slice hashes are computed from the loaded bytes, and a slice whose manifest digest
-  doesn't match is rejected. The `dataset_id` hashes the slice hashes together with the
-  metadata that changes results (family, start time, shape, channel width, time step, drift
-  labels). Version 2 called this block `voyager`; version 3 renamed it when off-source slices
-  joined the dataset.
+- `slices`: `null`, or a `dataset_id` plus the ids of the slices used. Slice hashes are
+  computed from the loaded bytes, and a slice whose manifest digest doesn't match is rejected.
+  The `dataset_id` hashes the slice hashes together with the metadata that changes results
+  (family, start time, shape, channel width, time step, drift labels).
+
+Earlier versions: version 2 called the slices block `voyager`, and version 3 renamed it when
+off-source slices joined the dataset. Version 3 also listed each slice's family, SHA-256 and
+start time. The `dataset_id` already commits to all of them, and with a second observing session
+published (21 slices), that list pushed cards past GitHub's link limit. Version 4 keeps the ids.
 
 Runs of a unit are compared for replication only when they used the same `dataset_id`.
 

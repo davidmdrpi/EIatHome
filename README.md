@@ -297,7 +297,7 @@ OpenDiLoCo) is a stretch goal for later.
 EIatHome/
 ├── web/         # the Live Lab: a static site, deployed to GitHub Pages
 │   ├── js/      # signal generators, Track A engine, Track B metrics, UI
-│   ├── data/    # micro-slices of real observations, and the recovery windows
+│   ├── data/    # micro-slices of real observations, the recovery windows, and the star map
 │   └── vendor/  # TensorFlow.js, pinned and vendored
 ├── tools/       # extract_slices.py and other data tools
 ├── tracks/
@@ -350,6 +350,8 @@ EIatHome/
 - [x] Learned detectors in the recovery benchmark: Track A's next-frame GRU and the token model, scored against the baselines (issue #13, milestone 2)
 - [x] A browser work unit and a results page for signal recovery: the Live Lab's Recovery tab, with cards recomputed on submission (issue #13, milestone 3)
 - [x] Signal recovery across two observing sessions (2016 and 2020): in a quiet coarse channel, thresholds hold their false-alarm rate on the other session and overall recovery shows no significant difference (issue #13, milestone 4)
+- [x] A second Voyager 1 session (2016) in the Live Lab's data, with every slice's pointing on the sky (manifest version 2)
+- [x] The Observatory viewport: a sky map that slews to each signal's pointing and zooms toward the telescope beam while a computation runs, with an observatory mode for leaving the tab running
 - [ ] Public volunteer pilot
 - [ ] Heavier work units on BOINC, if needed (for example via [BOINC Central](https://boinc.berkeley.edu/central/scientist.php))
 

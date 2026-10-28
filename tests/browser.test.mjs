@@ -421,9 +421,9 @@ test('a card from a real work unit passes the checks the ingestion workflow runs
 
 test('a card too long for a link is put on the clipboard, for an issue with a json block to paste into', async () => {
   const { page, errors } = await openLab();
-  // Forty slices: the card lists every one, which makes it too long for a link.
+  // Forty slices with long ids: the card lists every id, which makes it too long for a link.
   await loadSlices(page, Array.from({ length: 40 }, (_, i) => ({
-    meta: { id: `voyager-session-${String(i).padStart(2, '0')}`, group: i % 3 ? 'sideband' : 'carrier', tstart: 57650.78 + Math.floor(i / 3) * 0.004 },
+    meta: { id: `voyager-session-${String(i).padStart(2, '0')}-${'carrier-window-'.repeat(7)}`, group: i % 3 ? 'sideband' : 'carrier', tstart: 57650.78 + Math.floor(i / 3) * 0.004 },
     bytes: lineSlice(2.4 + (i % 5) * 0.1, i + 1),
   })));
   const card = await runUnit(page, 0);
@@ -534,4 +534,78 @@ test('community recovery units are combined once per unit, apart from the replic
   } finally {
     overrides.clear();
   }
+});
+
+const viewportState = (page, host) =>
+  page.$eval(`#${host} canvas`, (c) => ({
+    center: c.dataset.center.split(',').map(Number),
+    fov: Number(c.dataset.fov),
+    beacons: Object.fromEntries((c.dataset.beacons ?? '').split(';').filter(Boolean).map((b) => {
+      const [id, x, y] = b.split(' ');
+      return [id, [Number(x), Number(y)]];
+    })),
+  }));
+
+test('the observatory viewport slews to a signal on the sky, and clicking a beacon selects its signal', async () => {
+  const { page, errors } = await openLab();
+  await waitForPublished(page);
+  await page.click('#families button[data-family="voyager"]');
+  // Voyager 1's 2020 pointing, from the manifest's sky block.
+  await page.waitForFunction(() => {
+    const [ra, dec] = document.querySelector('#lab-viewport canvas').dataset.center.split(',').map(Number);
+    return Math.abs(ra - 258.1687) < 0.01 && Math.abs(dec - 12.4038) < 0.01;
+  }, null, { timeout: 15000 });
+  assert.match(await page.textContent('#lab-viewport .hud-target'), /Voyager 1 · 2020-07-16[\s\S]*Ophiuchus[\s\S]*≈150 AU from the Sun/);
+
+  // Zoom in until the 1° nod separates the positions, then click the off-source one east of Voyager.
+  const canvas = await page.$('#lab-viewport canvas');
+  const box = await canvas.boundingBox();
+  await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+  await page.mouse.wheel(0, -1500);
+  await page.waitForFunction(() => Number(document.querySelector('#lab-viewport canvas').dataset.fov) < 4, null, { timeout: 10000 });
+  await page.waitForFunction(() => /offsource@17\.2795/.test(document.querySelector('#lab-viewport canvas').dataset.beacons), null, { timeout: 10000 });
+  const { beacons } = await viewportState(page, 'lab-viewport');
+  const [east] = Object.entries(beacons).filter(([id]) => id.startsWith('offsource@17.2795'));
+  assert.ok(east, JSON.stringify(beacons));
+  assert.ok(Object.keys(beacons).some((id) => id.startsWith('voyager@17.1678')), 'the 2016 pointing is in view too');
+  await page.mouse.click(box.x + east[1][0], box.y + east[1][1]);
+  await page.waitForFunction(() => document.querySelector('#families button[data-family="offsource"]').getAttribute('aria-checked') === 'true', null, { timeout: 10000 });
+  assert.match(await page.textContent('#lab-viewport .hud-target'), /Off-source · 2020-07-16[\s\S]*Empty sky, 1\.0° east of Voyager 1/);
+  assert.deepEqual(errors, []);
+  await page.close();
+});
+
+test('a recovery unit zooms to the telescope beam and colours each of the 1,024 windows by its outcome', async () => {
+  const { page, errors } = await openLab();
+  await runRecovery(page, 21);
+  await page.waitForFunction(() => Number(document.querySelector('#rc-viewport canvas').dataset.fov) < 2.1, null, { timeout: 15000 });
+  const { center } = await viewportState(page, 'rc-viewport');
+  assert.ok(Math.abs(center[0] - 258.1687) < 0.01 && Math.abs(center[1] - 11.4038) < 0.01, `centred on off-source scan 0016: ${center}`);
+  const legend = await page.textContent('#rc-viewport .hud-legend');
+  const counts = [...legend.matchAll(/(empty|found|missed|false alarm|decoy flagged|decoy passed) (\d+)/g)].map((m) => Number(m[2]));
+  assert.equal(counts.length, 6);
+  assert.equal(counts.reduce((a, b) => a + b), 1024);
+  assert.match(await page.textContent('#rc-viewport .hud-telemetry'), /Recovery unit 21 · de-Doppler found \d+ of 540 hidden signals/);
+  assert.deepEqual(errors, []);
+  await page.close();
+});
+
+test('observatory mode fills the window and keeps running units until it is closed', async () => {
+  const { page, errors } = await openLab();
+  await page.click('.tabs button[data-tab="recovery"]');
+  await page.waitForFunction(() => /^Ready/.test(document.getElementById('rc-status').textContent), null, { timeout: 30000 });
+  await page.click('#rc-viewport .obs-toggle');
+  const size = await page.$eval('#rc-viewport .viewport', (el) => [el.getBoundingClientRect().width, el.getBoundingClientRect().height, innerWidth, innerHeight]);
+  assert.deepEqual(size.slice(0, 2), size.slice(2), 'fills the window');
+  await page.check('#rc-viewport .auto-run input');
+  await page.waitForFunction(() => /This session: ([2-9]|\d{2,}) recovery units/.test(document.querySelector('#rc-viewport .hud-stats').textContent), null, { timeout: 30000 });
+  assert.equal(await page.isChecked('#rc-loop'), true);
+  await page.keyboard.press('Escape');
+  assert.equal(await page.$eval('#rc-viewport .viewport', (el) => el.classList.contains('observatory')), false);
+  assert.equal(await page.isChecked('#rc-loop'), false, 'leaving observatory mode stops auto-run');
+  const done = (await page.textContent('#rc-viewport .hud-stats')).match(/(\d+) recovery units/)[1];
+  await page.waitForTimeout(2500);
+  assert.equal((await page.textContent('#rc-viewport .hud-stats')).match(/(\d+) recovery units/)[1], done, 'no unit started after it stopped');
+  assert.deepEqual(errors, []);
+  await page.close();
 });

@@ -3,7 +3,9 @@
 A static, zero-install web app: pick a signal, train a small GRU on it in the browser, look at
 its predictions and hidden states, measure how language-like its radio tokens are, and run
 reproducible work units. The Recovery tab measures which weak signals two standard detectors
-find in real data, at a fixed false-alarm rate. Everything computes locally; there is no server.
+find in real data, at a fixed false-alarm rate. Above both, the Observatory viewport shows each
+signal's place on the sky and zooms in on it while the computation runs. Everything computes
+locally; there is no server.
 
 ## Run it locally
 
@@ -31,6 +33,8 @@ browsers don't run module workers from `file://` URLs.
 | `js/slices.js` | Loads real-data micro-slices (`data/slices/`) or user-dropped files, verifies their SHA-256 and computes the dataset identity |
 | `js/splits.js` | Groups a real family's slices into observing sessions and keeps training and evaluation on different sessions |
 | `js/workunits.js` | Versioned work-unit specs |
+| `js/skymap.js` | The Observatory viewport: a sky map on a canvas (stereographic projection, so stars stay round at any zoom). Slews along great circles to each signal's pointing, zooms from 60° to the 2° around the telescope beam with a computation's progress, and draws its live effects: wavefronts for Track A and B, and the 1,024-window grid for recovery units. Observatory mode fills the window and can keep running work units. The coordinate math has no DOM dependencies, so tests run it in Node |
+| `data/sky/` | The sky it draws (`tools/build_sky.py`): the 1,500 brightest Hipparcos stars with B−V colours, every Hipparcos star near the observed targets, constellation lines, names and IAU boundaries, and reference targets, from d3-celestial (BSD-3-Clause, notice in `LICENSE.d3-celestial.txt`) |
 | `js/recovery.js`, `js/recovery.worker.js` | The `recovery/v0` work unit (`tracks/recovery`, issue #13): injects synthetic signals into the real off-source windows in `data/recovery/`, deals them blind to the de-Doppler and energy detectors, and counts what each finds at thresholds pinned in the spec. Also checks recovery cards and adds units up |
 | `js/rng.js` | Seeded random numbers, so everything is reproducible |
 | `js/plots.js` | Small canvas charts with hover tooltips |
@@ -60,6 +64,9 @@ For Track B it checks that the tokenizer, surrogates and n-gram model never see 
 (including a Rosetta test text change end to end), that the n-gram fits the same data as the token
 model, that no statistic or compressed block crosses a segment boundary, and that real data holds
 out whole scans or sessions.
+`tests/skymap.test.mjs` checks the viewport's math and data: coordinates, galactic conversion,
+the projection and its inverse, slews, sidereal time, constellations from the IAU boundaries,
+and that the manifest records where every slice pointed.
 `tests/recovery.test.mjs` checks the recovery unit: the spec pins the published windows and
 thresholds, every class is injected at its strength inside the window, the dealer's key
 rebuilds every window, the de-Doppler search equals a brute-force search, units reproduce,
@@ -83,7 +90,10 @@ headless Chromium. It checks that:
 - token-model training can be stopped, and the controls come back;
 - a recovery unit run on the page gives a card that ingestion's checks accept, recomputation
   included, and community recovery units are combined once per unit, apart from the replicated
-  units.
+  units;
+- the viewport slews to a signal's pointing, and clicking a beacon selects its signal;
+- a recovery unit zooms the viewport to the telescope beam and colours each window by its outcome;
+- observatory mode fills the window, keeps running units, and stops when it's closed.
 
 CI runs both on every pull request.
 
@@ -99,6 +109,8 @@ manifest, a file or browser storage into `innerHTML`.
   segments and never looks across their boundaries, compute it for every stream in
   `analyzeSplits()`, and plot it in `renderTrackB()` in `js/main.js`. Anything fitted (like a
   codebook or a surrogate) must use the training split only.
+- **Rebuild the sky data:** `python tools/build_sky.py` (it downloads d3-celestial from npm and
+  checks it against its published hash); `--check` compares a rebuild with the committed files.
 - **Change the recovery windows or thresholds:** they're part of `recovery/v0`. Write them with
   `python -m tracks.recovery.browser --write`, then pin them in a new spec in `js/recovery.js`.
 - **Add a work-unit spec:** add a new versioned config in `js/workunits.js`. Never change an
