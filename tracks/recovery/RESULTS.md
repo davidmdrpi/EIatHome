@@ -447,7 +447,7 @@ are drawn from these windows, so combined units measure the same false alarms ov
 # Milestone 4: a second session, and evaluation across sessions
 
 Everything above comes from one observing session (2020-07-16). This milestone adds a second,
-four years earlier: Voyager 1 on 2016-09-26 (MJD 57650), the file turboSETI's tutorial uses
+four years earlier: Voyager 1 on 2016-09-19 (MJD 57650), the file turboSETI's tutorial uses
 (`Voyager1.single_coarse.fine_res.h5`). Both sessions come from the same telescope (Green Bank),
 the same receiver and the same coarse channel (8418.46 to 8421.39 MHz). The question: does a
 threshold set on one session hold on another, and do detectors recover the same signals there?
