@@ -761,6 +761,7 @@ function startViewports() {
     autoRunLabel: 'Auto-run recovery units',
     onAutoRun: (on) => {
       $('rc-loop').checked = on;
+      rc.autoStart = on && !rc.ready; // started once the windows are ready, if still ticked then
       if (on && rc.ready && !rc.running) runRecovery(randomUnit());
       if (!on) {
         clearTimeout(rc.timer);
@@ -805,6 +806,7 @@ const rc = {
   empty: null, // flags per detector and rate on the windows with nothing injected
   running: false,
   stopLoop: false,
+  autoStart: false, // observatory auto-run asked for before the windows were ready
   timer: null,
   card: null,
   issue: null,
@@ -841,6 +843,8 @@ function onRecoveryMessage(msg) {
     setRecoveryRunning(rc.running);
     recoveryStatus(`Ready: ${msg.windows.toLocaleString()} windows loaded, matching the spec’s SHA-256.`);
     renderCombined();
+    if (rc.autoStart && $('rc-loop').checked && !rc.running) runRecovery(randomUnit());
+    rc.autoStart = false;
   } else if (msg.type === 'progress') {
     viewports.recovery?.telemetry(`Recovery unit ${msg.unit} · de-Doppler search · ${Math.round(msg.fraction * 1024).toLocaleString()} of 1,024 windows scored`, msg.fraction);
     viewports.recovery?.scanned(msg.cells);
@@ -874,7 +878,7 @@ function onRecoveryResult(card, outcomes = []) {
   session.recovery += 1;
   session.recoverySeconds += card.seconds;
   const totals = recoveryTotals(card.results, card.config.per_cell, '0.01');
-  viewports.recovery?.outcomes(outcomes, OUTCOMES.map((outcome, i) => ({ outcome, count: outcomes.filter((c) => c === i).length })), 'Each cell is one window, in order along the band. De-Doppler at 1% false alarms:');
+  viewports.recovery?.outcomes(outcomes, OUTCOMES.map((outcome, i) => ({ outcome, count: outcomes.filter((c) => c === i).length })), 'Each cell is one frequency window of this one pointing, in order along the band (the layout is illustrative, not positions on the sky). De-Doppler at 1% false alarms:');
   viewports.recovery?.finishJob(`Recovery unit ${card.unit} · de-Doppler found ${totals.found.dedoppler} of ${totals.signals} hidden signals, the energy detector ${totals.found.energy} · ${card.seconds} s`);
   viewports.recovery?.setStats(sessionStats('recovery'));
   const again = $('rc-loop').checked && !rc.stopLoop;

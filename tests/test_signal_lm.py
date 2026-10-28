@@ -67,6 +67,35 @@ class PublishedDataTests(unittest.TestCase):
         entries = json.loads(MANIFEST.read_text())['slices']
         self.assertEqual(len(load_slices(MANIFEST)), len(entries))
 
+    def test_version_1_and_2_manifests_load_alike_and_version_2_needs_a_pointing(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            manifest = fixture_manifest(Path(tmp), scans=1, slices=1)
+            v1 = load_slices(manifest)
+            data = json.loads(manifest.read_text())
+            data['version'] = 2
+            for entry in data['slices']:
+                entry['source']['sky'] = {'ra_hours': 17.21, 'dec_deg': 12.4, 'constellation': 'Ophiuchus'}
+            manifest.write_text(json.dumps(data))
+            v2 = load_slices(manifest)
+            self.assertEqual([(r['entry']['id'], r['sha256'], r['frame_hash']) for r in v2],
+                             [(r['entry']['id'], r['sha256'], r['frame_hash']) for r in v1])
+            # Version 2 keeps every payload check.
+            first = manifest.parent / data['slices'][0]['file']
+            payload = first.read_bytes()
+            first.write_bytes(payload[:-1] + bytes([payload[-1] ^ 1]))
+            with self.assertRaisesRegex(ValueError, 'SHA-256'):
+                load_slices(manifest)
+            first.write_bytes(payload)
+            for sky in (None, {'ra_hours': 25.0, 'dec_deg': 12.4}, {'ra_hours': 17.21}):
+                broken = copy.deepcopy(data)
+                broken['slices'][0]['source']['sky'] = sky
+                manifest.write_text(json.dumps(broken))
+                with self.assertRaisesRegex(ValueError, 'source.sky'):
+                    load_slices(manifest)
+            manifest.write_text(json.dumps({**data, 'version': 3}))
+            with self.assertRaisesRegex(ValueError, 'version 1 or 2'):
+                load_slices(manifest)
+
     def test_long_window_manifest_integrity(self):
         # The 49-frame slices from the 6-second product, published for this track only.
         manifest = ROOT / 'tracks/llm/data/slices/index.json'

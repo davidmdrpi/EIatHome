@@ -24,10 +24,12 @@ let server;
 let browser;
 let base;
 const overrides = new Map(); // path -> body, to serve fixture data in place of the real file
+const holds = new Map(); // path -> promise the server waits for before answering, to delay a file
 
 before(async () => {
   server = createServer(async (req, res) => {
     const path = normalize(decodeURIComponent(new URL(req.url, 'http://x').pathname)).replace(/^(\.\.[/\\])+/, '');
+    await holds.get(path);
     if (overrides.has(path)) {
       res.writeHead(200, { 'content-type': TYPES[extname(path)] ?? 'application/json' });
       res.end(overrides.get(path));
@@ -53,8 +55,9 @@ after(async () => {
   server?.close();
 });
 
-async function openLab() {
+async function openLab(init) {
   const page = await browser.newPage();
+  if (init) await page.addInitScript(init);
   const errors = [];
   page.on('pageerror', (e) => errors.push(e.message));
   await page.goto(base);
@@ -608,4 +611,77 @@ test('observatory mode fills the window and keeps running units until it is clos
   assert.equal((await page.textContent('#rc-viewport .hud-stats')).match(/(\d+) recovery units/)[1], done, 'no unit started after it stopped');
   assert.deepEqual(errors, []);
   await page.close();
+});
+
+// Holds the recovery worker's results until window.__release() delivers them, so a unit can be
+// caught while it runs.
+function holdRecoveryResults() {
+  const held = [];
+  window.__release = () => held.splice(0).forEach((deliver) => deliver());
+  window.Worker = class extends window.Worker {
+    constructor(url, options) {
+      super(url, options);
+      this.hold = String(url).includes('recovery.worker');
+    }
+    get onmessage() {
+      return super.onmessage;
+    }
+    set onmessage(fn) {
+      super.onmessage = (e) => (this.hold && e.data?.type === 'result' ? held.push(() => fn(e)) : fn(e));
+    }
+  };
+}
+
+test('clicking another beacon while a recovery unit runs moves the view, not the unit', async () => {
+  const { page, errors } = await openLab(holdRecoveryResults);
+  await page.click('.tabs button[data-tab="recovery"]');
+  await page.waitForFunction(() => /^Ready/.test(document.getElementById('rc-status').textContent), null, { timeout: 30000 });
+  await page.fill('#rc-number', '7');
+  await page.click('#rc-run');
+  // Every window scored and the result held back: the unit is still running.
+  await page.waitForFunction(() => /1,024 of 1,024 windows scored/.test(document.querySelector('#rc-viewport .hud-telemetry').textContent), null, { timeout: 30000 });
+  assert.equal(await page.$eval('#rc-viewport canvas', (c) => c.dataset.job), 'recovery');
+
+  // Pull back until Barnard's Star is in view, and click it.
+  const canvas = await page.$('#rc-viewport canvas');
+  const box = await canvas.boundingBox();
+  await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+  await page.mouse.wheel(0, 2500);
+  await page.waitForFunction(() => /(^|;)barnard /.test(document.querySelector('#rc-viewport canvas').dataset.beacons), null, { timeout: 10000 });
+  const { beacons } = await viewportState(page, 'rc-viewport');
+  await page.mouse.click(box.x + beacons.barnard[0], box.y + beacons.barnard[1]);
+  await page.waitForFunction(() => document.querySelector('#rc-viewport .hud-title').textContent === "Barnard's Star", null, { timeout: 10000 });
+  assert.match(await page.textContent('#rc-status'), /^Unit 7: /, 'still running');
+  assert.equal(await page.$eval('#rc-viewport canvas', (c) => c.dataset.job), 'recovery', 'the unit stays drawn on its own windows');
+  assert.match(await page.textContent('#rc-viewport .hud-telemetry'), /Data from Recovery windows · 2020-07-16/);
+
+  await page.evaluate(() => window.__release());
+  await page.waitForFunction(() => document.getElementById('rc-status').textContent.startsWith('Unit 7 finished'), null, { timeout: 30000 });
+  assert.equal(await page.$eval('#rc-viewport canvas', (c) => c.dataset.job), 'recovery');
+  assert.match(await page.textContent('#rc-viewport .hud-telemetry'), /Data from Recovery windows · 2020-07-16[\s\S]*Recovery unit 7 · de-Doppler found/);
+  assert.equal(await page.textContent('#rc-viewport .hud-title'), "Barnard's Star", 'the view stays where it was taken');
+  assert.deepEqual(errors, []);
+  await page.close();
+});
+
+test('auto-run ticked in observatory mode while the windows are still loading starts once they are ready', async () => {
+  let release;
+  holds.set('/data/recovery/test.i8', new Promise((resolve) => { release = resolve; }));
+  try {
+    const { page, errors } = await openLab();
+    await page.click('.tabs button[data-tab="recovery"]');
+    await page.click('#rc-viewport .obs-toggle');
+    await page.check('#rc-viewport .auto-run input');
+    await page.waitForTimeout(500);
+    assert.match(await page.textContent('#rc-status'), /^Loading the windows/, 'the windows are held back');
+    assert.equal(await page.isChecked('#rc-loop'), true);
+    release();
+    await page.waitForFunction(() => /This session: [1-9]\d* recovery unit/.test(document.querySelector('#rc-viewport .hud-stats').textContent), null, { timeout: 30000 });
+    await page.keyboard.press('Escape');
+    assert.deepEqual(errors, []);
+    await page.close();
+  } finally {
+    holds.delete('/data/recovery/test.i8');
+    release?.();
+  }
 });

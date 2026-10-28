@@ -342,6 +342,7 @@ export class SkyMap {
       view: el('div', 'hud hud-view dim'),
       status: el('div', 'hud hud-status dim', 'Loading the sky…'),
       telemetry: el('div', 'hud hud-telemetry'),
+      source: el('div', 'dim'),
       line: el('span', 'hud-line'),
       bar: el('i'),
       legend: el('div', 'hud hud-legend'),
@@ -352,7 +353,7 @@ export class SkyMap {
     progress.append(this.hud.bar);
     this.hud.telemetry.setAttribute('role', 'status');
     this.hud.telemetry.setAttribute('aria-live', 'polite');
-    this.hud.telemetry.append(this.hud.line, progress);
+    this.hud.telemetry.append(this.hud.source, this.hud.line, progress);
     this.hud.telemetry.hidden = true;
     this.hud.legend.hidden = true;
 
@@ -552,6 +553,8 @@ export class SkyMap {
 
   // kind: 'train' | 'unit' | 'tokens' | 'analysis' | 'recovery'. The view slews to the target,
   // wide, then zooms in with progress. A job without progress ('analysis') keeps the framing.
+  // The job stays on the target whose data it computes on: selecting another target while it
+  // runs moves the view, not the job.
   startJob(kind, targetId, title) {
     const t = this.target(targetId) ?? this.selected;
     if (t && kind !== 'analysis') {
@@ -559,7 +562,8 @@ export class SkyMap {
       this.describe(t);
       this.goTo(t, WIDE_FOV);
     }
-    this.job = { kind, title, progress: kind === 'analysis' ? null : 0, started: performance.now(), done: false, rings: [], grid: null };
+    this.job = { kind, title, target: t, progress: kind === 'analysis' ? null : 0, started: performance.now(), done: false, rings: [], grid: null };
+    this.hud.source.textContent = t ? `Data from ${t.label}` : '';
     if (kind === 'recovery') this.job.grid = { states: new Uint8Array(1024), scanned: 0, outcomes: null, reveal: 0, pings: [] };
     this.hud.telemetry.hidden = false;
     this.hud.legend.hidden = kind !== 'recovery';
@@ -572,8 +576,13 @@ export class SkyMap {
     if (progress !== undefined && progress !== null) this.job.progress = Math.max(this.job.progress ?? 0, Math.min(1, progress));
     this.hud.line.textContent = text;
     this.hud.bar.style.width = `${Math.round((this.job.progress ?? 0) * 100)}%`;
-    if (this.job.progress !== null && !this.motion) this.fovGoal = computeFov(this.job.progress);
+    if (this.following() && !this.motion) this.fovGoal = computeFov(this.job.progress);
     this.request();
+  }
+
+  // Whether the view zooms with the job's progress: only while it's on the job's target.
+  following() {
+    return Boolean(this.job) && this.job.progress !== null && Boolean(this.selected) && this.selected.id === this.job.target?.id;
   }
 
   // Recovery: the background windows (cells, by position along the band) just scored. They come
@@ -637,7 +646,7 @@ export class SkyMap {
       [this.center, this.fov] = [view.center, view.fov];
       if (t >= 1) {
         this.motion = null;
-        if (this.job?.progress !== null && this.job) this.fovGoal = computeFov(this.job.progress);
+        if (this.following()) this.fovGoal = computeFov(this.job.progress);
       }
     } else if (this.fovGoal !== null) {
       const k = this.reduceMotion ? 1 : 1 - Math.exp(-dt * 2.5);
@@ -880,7 +889,8 @@ export class SkyMap {
 
   drawJob(ctx, cam, now) {
     const job = this.job;
-    const t = this.selected;
+    const t = job?.target;
+    this.canvas.dataset.job = t?.id ?? ''; // where the job is drawn: for tests
     if (!job || !t) return;
     const p = cam.project(t.v);
     if (!p) return;
@@ -908,7 +918,8 @@ export class SkyMap {
     if (job.grid) this.drawGridScan(ctx, cam, p, now);
   }
 
-  // Recovery: the 1,024 windows as a 32 x 32 grid of sub-beams around the off-source pointing,
+  // Recovery: the 1,024 frequency windows of the one off-source pointing, laid out as an
+  // illustrative 32 x 32 grid around it (the cells aren't positions on the sky),
   // in order along the band. Cells light as their window is scored, then show its outcome.
   drawGridScan(ctx, cam, p, now) {
     const grid = this.job.grid;

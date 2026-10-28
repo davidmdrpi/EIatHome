@@ -23,9 +23,16 @@ def load_slices(manifest_path, slice_id=None):
     """
     path = Path(manifest_path)
     manifest = json.loads(path.read_text())
-    if manifest.get("format") != "eiathome-slices" or manifest.get("version") != 1:
-        raise ValueError("Expected an eiathome-slices version 1 manifest")
+    version = manifest.get("version")
+    if manifest.get("format") != "eiathome-slices" or version not in (1, 2):
+        raise ValueError("Expected an eiathome-slices version 1 or 2 manifest")
     entries = manifest["slices"]
+    if version == 2:  # version 2 adds where the telescope pointed; nothing here uses it
+        for entry in entries:
+            sky = entry.get("source", {}).get("sky")
+            ra, dec = (sky.get("ra_hours"), sky.get("dec_deg")) if isinstance(sky, dict) else (None, None)
+            if not (isinstance(ra, (int, float)) and 0 <= ra < 24 and isinstance(dec, (int, float)) and -90 <= dec <= 90):
+                raise ValueError(f"A version 2 slice needs source.sky with ra_hours and dec_deg: {entry.get('id')}")
     if slice_id is not None:
         entries = [entry for entry in entries if entry.get("id") == slice_id]
         if len(entries) != 1:
