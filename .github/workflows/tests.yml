@@ -52,5 +52,11 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: '3.12'
+      # Node runs the Live Lab's recovery unit, which the Python port is checked against.
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
       - run: python -m pip install 'numpy>=1.24,<3'
       - run: python -m unittest discover -s tests -p 'test_recovery.py' -v
+      - run: python -m unittest discover -s tests -p 'test_recovery_browser.py' -v
+      - run: python -m unittest discover -s tests -p 'test_recovery_sessions.py' -v

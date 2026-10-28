@@ -1,6 +1,7 @@
-import { issueLink, submissionText, summarize } from './community.js';
+import { isRecoveryCard, issueLink, submissionText, summarize, validateCard } from './community.js';
 import { architectureLabel, tokenArchitectureLabel } from './models.js';
 import { fmt, heatmap, lineChart, scatterPanel } from './plots.js';
+import { DECOYS, KINDS, RECOVERY_SPEC, SIGNALS, STRENGTHS, combine, wilson } from './recovery.js';
 import { deriveSeed, makeRng } from './rng.js';
 import { forWorkers, loadPublishedSlices, loadSliceFiles } from './slices.js';
 import { C, FAMILIES, ROSETTA_TEXT, T, driftToHzPerS, familyById, makeSnippet, normalise, shuffleFrames } from './signals.js';
@@ -588,6 +589,271 @@ function download(name, data) {
   setTimeout(() => URL.revokeObjectURL(url), 1000);
 }
 
+// The submit link opens the issue in a new tab. The card also goes on the clipboard: a card too
+// long for a link is pasted from there, and so is any card GitHub drops while the volunteer signs
+// in. Compact, like the link: pretty-printed, a card ingestion accepts can exceed its size limit.
+function onSubmit(current, boxId, say) {
+  return () => {
+    const { card, issue } = current();
+    const text = submissionText(card);
+    const copied = navigator.clipboard ? navigator.clipboard.writeText(text) : Promise.reject(new Error('no clipboard'));
+    copied.then(
+      () => say(issue.prefilled
+        ? 'Opened a GitHub issue with the card filled in. The card is also on your clipboard, in case GitHub asks you to sign in first.'
+        : 'This card is too long to fill in automatically, so it’s on your clipboard: paste it into the empty json block of the GitHub issue.'),
+      () => {
+        if (issue.prefilled) return say('Opened a GitHub issue with the card filled in.');
+        const box = $(boxId);
+        box.value = text;
+        box.hidden = false;
+        box.select();
+        say('This card is too long to fill in automatically, and your browser blocked copying, so the text to paste is selected below: press Ctrl+C or ⌘C and paste it into the empty json block of the GitHub issue.', true);
+      },
+    );
+  };
+}
+
+function onCopy(current, preId, say) {
+  return () => {
+    navigator.clipboard.writeText(JSON.stringify(current(), null, 2)).then(
+      () => say('Result card copied.'),
+      () => {
+        getSelection().selectAllChildren($(preId));
+        say('Your browser blocked copying, so the card is selected: press Ctrl+C or ⌘C.');
+      },
+    );
+  };
+}
+
+// Two-step confirmation on the page itself (some hosts block confirm() dialogs).
+function onConfirmedClick(button, action) {
+  let timer;
+  const label = button.textContent;
+  return () => {
+    if (!button.dataset.armed) {
+      button.dataset.armed = 'yes';
+      button.textContent = 'Click again to delete all';
+      timer = setTimeout(() => {
+        delete button.dataset.armed;
+        button.textContent = label;
+      }, 4000);
+      return;
+    }
+    clearTimeout(timer);
+    delete button.dataset.armed;
+    button.textContent = label;
+    action();
+  };
+}
+
+// ---------- recovery units ----------
+
+const KIND_LABELS = {
+  tone: 'Drifting tone',
+  intermittent: 'Intermittent tone',
+  wideband: 'Wideband signal',
+  sidebands: 'Carrier with sidebands',
+  fsk: 'Frequency-shift keying',
+  stationary: 'Zero-drift line (decoy)',
+  pulse: 'Broadband pulse (decoy)',
+};
+const RECOVERY_SERIES = [
+  { id: 'dedoppler', name: 'de-Doppler search', color: '--series-1' },
+  { id: 'energy', name: 'Energy detector', color: '--series-2' },
+];
+const pct = (v, digits = 0) => `${(100 * v).toFixed(digits)}%`;
+const rateLabel = (rate) => pct(Number(rate), rate === '0.001' ? 1 : 0);
+
+const rc = {
+  worker: null,
+  ready: false,
+  windows: 0,
+  empty: null, // flags per detector and rate on the windows with nothing injected
+  running: false,
+  stopLoop: false,
+  timer: null,
+  card: null,
+  issue: null,
+  results: [].concat(store.get('recoveryResults', [])).filter((card) => isRecoveryCard(card) && !validateCard(card).length),
+  community: null, // the community's recovery results, once loaded
+  communityFailed: false,
+};
+
+function recoveryStatus(text, error = false) {
+  $('rc-status').textContent = text;
+  $('rc-status').classList.toggle('error', error);
+}
+
+function setRecoveryRunning(running, looping = false) {
+  rc.running = running;
+  $('rc-run').disabled = running || !rc.ready;
+  $('rc-random').disabled = running;
+  $('rc-stop').disabled = !running && !looping;
+}
+
+function startRecovery() {
+  if (rc.worker) return;
+  recoveryStatus('Loading the windows (3.2 MB) and checking their SHA-256…');
+  rc.worker = new Worker(new URL('./recovery.worker.js', import.meta.url), { type: 'module' });
+  rc.worker.onmessage = ({ data }) => onRecoveryMessage(data);
+  rc.worker.onerror = (event) => recoveryStatus(`The recovery worker couldn't start (${event.message || 'unknown error'}).`, true);
+}
+
+function onRecoveryMessage(msg) {
+  if (msg.type === 'error') {
+    recoveryStatus(`Couldn't load the windows: ${msg.message}.`, true);
+  } else if (msg.type === 'ready') {
+    Object.assign(rc, { ready: true, windows: msg.windows, empty: msg.empty });
+    setRecoveryRunning(rc.running);
+    recoveryStatus(`Ready: ${msg.windows.toLocaleString()} windows loaded, matching the spec’s SHA-256.`);
+    renderCombined();
+  } else if (msg.type === 'result') {
+    onRecoveryResult(msg.card);
+  }
+}
+
+function runRecovery(unit) {
+  clearTimeout(rc.timer);
+  rc.stopLoop = false;
+  $('rc-number').value = unit;
+  setRecoveryRunning(true);
+  recoveryStatus(`Unit ${unit}: dealing the windows and scoring them…`);
+  rc.worker.postMessage({ type: 'unit', unit });
+}
+
+function onRecoveryResult(card) {
+  rc.card = card;
+  rc.issue = issueLink(card, REPO);
+  $('rc-submit').href = rc.issue.url;
+  $('rc-submit-text').hidden = true;
+  rc.results = [card, ...rc.results.filter((c) => c.unit !== card.unit)].slice(0, 300);
+  store.set('recoveryResults', rc.results);
+  recoveryStatus(`Unit ${card.unit} finished in ${card.seconds} s.`);
+  $('rc-unit-panel').hidden = false;
+  $('rc-card').textContent = JSON.stringify(card, null, 2);
+  renderRecoveryUnit();
+  renderCombined();
+  const again = $('rc-loop').checked && !rc.stopLoop;
+  setRecoveryRunning(false, again);
+  if (again) rc.timer = setTimeout(() => runRecovery(randomUnit()), 1000);
+}
+
+// Signals found and decoys flagged in total, per detector, and the signals' paired outcomes.
+function recoveryTotals(results, perCell, rate) {
+  const sum = (kinds, table) => kinds.reduce((total, kind) => total + table[kind].reduce((a, b) => a + b, 0), 0);
+  const [a, b] = RECOVERY_SERIES.map((s) => s.id);
+  const found = Object.fromEntries(RECOVERY_SERIES.map((s) => [s.id, sum(SIGNALS, results.recovery[s.id][rate])]));
+  const both = sum(SIGNALS, results.both[rate]);
+  return {
+    signals: SIGNALS.length * STRENGTHS.length * perCell,
+    decoys: DECOYS.length * STRENGTHS.length * perCell,
+    found,
+    flagged: Object.fromEntries(RECOVERY_SERIES.map((s) => [s.id, sum(DECOYS, results.recovery[s.id][rate])])),
+    both,
+    onlyFirst: found[a] - both,
+    onlySecond: found[b] - both,
+  };
+}
+
+// What the volunteer's computation tested, and what it found.
+function recoverySummary(card, rate) {
+  const { results } = card;
+  const t = recoveryTotals(results, card.config.per_cell, rate);
+  const fa = results.false_alarms;
+  return `Unit ${card.unit} tested whether two standard detectors find weak signals in real data without extra false alarms, at thresholds that flag ${rateLabel(rate)} of empty windows on a separate scan. Of the ${t.signals} signals hidden, the de-Doppler search found ${t.found.dedoppler} (${pct(t.found.dedoppler / t.signals)}) and the energy detector ${t.found.energy} (${pct(t.found.energy / t.signals)}): ${t.both} by both, ${t.onlyFirst} by de-Doppler alone and ${t.onlySecond} by energy alone. On the ${results.signal_free} windows left empty, the de-Doppler search raised ${fa.dedoppler[rate]} false alarms and the energy detector ${fa.energy[rate]}.`;
+}
+
+function recoveryCharts(box, results, perCell, rate) {
+  if (!box.childElementCount) {
+    box.replaceChildren(
+      ...KINDS.map((kind) => {
+        const fig = document.createElement('figure');
+        const canvas = document.createElement('canvas');
+        canvas.dataset.height = '150';
+        canvas.setAttribute('aria-label', `${KIND_LABELS[kind]}: ${DECOYS.includes(kind) ? 'flagged' : 'found'} by strength`);
+        fig.append(element('figcaption', KIND_LABELS[kind]), canvas);
+        return fig;
+      }),
+    );
+    legend(box, RECOVERY_SERIES);
+  }
+  [...box.querySelectorAll('canvas')].forEach((canvas, j) => {
+    const kind = KINDS[j];
+    const series = RECOVERY_SERIES.map((s) => {
+      const counts = results.recovery[s.id][rate][kind];
+      const intervals = counts.map((k) => wilson(k, perCell));
+      return {
+        name: s.name,
+        color: s.color,
+        points: STRENGTHS.map((x, i) => [x, counts[i] / perCell]),
+        band: STRENGTHS.map((x, i) => [x, ...intervals[i]]),
+        describe: (i) => `${counts[i]} of ${perCell} (95%: ${pct(intervals[i][0])}–${pct(intervals[i][1])})`,
+      };
+    });
+    lineChart(canvas, series, { xLabel: 'SNR', yLabel: DECOYS.includes(kind) ? 'flagged' : 'found', yMin: 0, yMax: 1, logX: true, xTicks: STRENGTHS, markers: true, xFormat: String, yFormat: (v) => pct(v) });
+  });
+}
+
+function recoveryTable(table, results, perCell, signalFree, rate) {
+  const t = recoveryTotals(results, perCell, rate);
+  const cell = (k, n) => {
+    const [low, high] = wilson(k, n);
+    return `${k.toLocaleString()} of ${n.toLocaleString()}: ${pct(k / n, 1)} (95%: ${pct(low, 1)}–${pct(high, 1)})`;
+  };
+  fillTable(table, ['', ...RECOVERY_SERIES.map((s) => s.name)], [
+    ['False alarms: empty windows flagged', ...RECOVERY_SERIES.map((s) => cell(results.false_alarms[s.id][rate], signalFree))],
+    ['Signals found', ...RECOVERY_SERIES.map((s) => cell(t.found[s.id], t.signals))],
+    ['Signals found by this detector only', cell(t.onlyFirst, t.signals), cell(t.onlySecond, t.signals)],
+    ['Decoys flagged', ...RECOVERY_SERIES.map((s) => cell(t.flagged[s.id], t.decoys))],
+  ]);
+}
+
+function renderRecoveryUnit() {
+  if (!rc.card || $('rc-unit-panel').hidden) return;
+  const rate = $('rc-rate').value;
+  const { results, config } = rc.card;
+  $('rc-unit-title').textContent = `Unit ${rc.card.unit}`;
+  $('rc-summary').textContent = recoverySummary(rc.card, rate);
+  recoveryCharts($('rc-unit-charts'), results, config.per_cell, rate);
+  recoveryTable($('rc-unit-table'), results, config.per_cell, results.signal_free, rate);
+}
+
+function renderCombined() {
+  const rate = $('rc-rate').value;
+  const fromBrowser = $('rc-source').value === 'browser';
+  const status = $('rc-combined-status');
+  const clear = () => {
+    const box = $('rc-combined-charts');
+    if (box.previousElementSibling?.classList.contains('legend')) box.previousElementSibling.remove();
+    box.replaceChildren();
+    $('rc-combined-table').replaceChildren();
+  };
+  const e = rc.empty;
+  $('rc-empty-note').textContent = e
+    ? `With nothing injected, the de-Doppler search flags ${e.dedoppler[rate]} of the ${rc.windows.toLocaleString()} windows at this threshold and the energy detector ${e.energy[rate]}. Every unit’s empty windows are drawn from these, so however many units are combined, their false alarms approach ${pct(e.dedoppler[rate] / rc.windows, 1)} and ${pct(e.energy[rate] / rc.windows, 1)}.`
+    : '';
+  if (!fromBrowser && !rc.community) {
+    clear();
+    status.textContent = rc.communityFailed ? "Couldn't load community results." : 'Loading community results…';
+    return;
+  }
+  const runs = fromBrowser ? rc.results.map((card) => ({ card })) : rc.community;
+  const { units, perCell, signalFree, results } = combine(runs.map((r) => r.card));
+  if (!units) {
+    clear();
+    status.textContent = fromBrowser ? 'No recovery units run in this browser yet.' : 'No recovery units submitted yet. Run one and submit its card to be the first.';
+    return;
+  }
+  const volunteers = new Set(runs.map((r) => r.submitted_by)).size;
+  const count = (n, noun) => `${n.toLocaleString()} ${noun}${n === 1 ? '' : 's'}`;
+  status.textContent = fromBrowser
+    ? `${count(units, 'unit')} run in this browser: ${perCell.toLocaleString()} injections of each class at each strength.`
+    : `${count(units, 'unit')} from ${count(volunteers, 'volunteer')}, each recomputed when submitted: ${perCell.toLocaleString()} injections of each class at each strength.`;
+  if ($('tab-recovery').hidden) return;
+  recoveryCharts($('rc-combined-charts'), results, perCell, rate);
+  recoveryTable($('rc-combined-table'), results, perCell, signalFree, rate);
+}
+
 // ---------- community results ----------
 
 const STATUS_LABELS = { single: 'One volunteer so far', replicated: 'Replicated', disagree: 'Runs disagree' };
@@ -616,9 +882,14 @@ async function loadCommunity() {
     store = await response.json();
   } catch {
     status.textContent = "Couldn't load community results.";
+    rc.communityFailed = true;
+    renderCombined();
     return;
   }
-  const results = Array.isArray(store.results) ? store.results : [];
+  const all = Array.isArray(store.results) ? store.results : [];
+  rc.community = all.filter((r) => isRecoveryCard(r.card) && !validateCard(r.card).length);
+  renderCombined();
+  const results = all.filter((r) => !isRecoveryCard(r.card));
   if (!results.length) {
     status.textContent = 'No community results yet. Run a unit and submit its card to be the first.';
     return;
@@ -717,24 +988,35 @@ function redraw() {
   else renderPreview();
   renderTrackB();
   renderTokenModel();
+  if (!$('tab-recovery').hidden) {
+    renderRecoveryUnit();
+    renderCombined();
+  }
 }
 
 function showTab(name) {
   for (const b of document.querySelectorAll('.tabs button')) b.setAttribute('aria-selected', String(b.dataset.tab === name));
   for (const s of document.querySelectorAll('.tab')) s.hidden = s.id !== `tab-${name}`;
   if (name === 'lab') redraw();
+  if (name === 'recovery') {
+    startRecovery();
+    renderRecoveryUnit();
+    renderCombined();
+  }
 }
 
 // ---------- wiring ----------
 
 function init() {
   if (PREVIEW) {
-    for (const id of ['theme', 'wu-download', 'wu-download-all']) $(id).hidden = true;
+    for (const id of ['theme', 'wu-download', 'wu-download-all', 'rc-download', 'rc-download-all']) $(id).hidden = true;
   }
   applyTheme();
   $('backend').value = store.get('backend', 'auto');
   $('wu-spec').textContent = SPEC;
   $('wu-number').max = MAX_UNIT;
+  $('rc-spec').textContent = RECOVERY_SPEC;
+  $('rc-number').max = MAX_UNIT;
   $('rosetta-text').value = state.text || ROSETTA_TEXT;
 
   startTokens();
@@ -781,58 +1063,39 @@ function init() {
     engine.postMessage({ type: 'stop' });
   };
   $('wu-download').onclick = () => state.card && download(`eiathome-${state.card.spec.replace('/', '-')}-unit${state.card.unit}.json`, state.card);
-  // The link opens the issue in a new tab. The card also goes on the clipboard: a card too long
-  // for a link is pasted from there, and so is any card GitHub drops while the volunteer signs in.
-  // Compact, like the link: pretty-printed, a card ingestion accepts can exceed its size limit.
-  $('wu-submit').onclick = () => {
-    const text = submissionText(state.card);
-    const copied = navigator.clipboard ? navigator.clipboard.writeText(text) : Promise.reject(new Error('no clipboard'));
-    const { prefilled } = state.issue;
-    copied.then(
-      () => unitStatus(prefilled
-        ? 'Opened a GitHub issue with the card filled in. The card is also on your clipboard, in case GitHub asks you to sign in first.'
-        : 'This card is too long to fill in automatically, so it’s on your clipboard: paste it into the empty json block of the GitHub issue.'),
-      () => {
-        if (prefilled) return unitStatus('Opened a GitHub issue with the card filled in.');
-        const box = $('wu-submit-text');
-        box.value = text;
-        box.hidden = false;
-        box.select();
-        unitStatus('This card is too long to fill in automatically, and your browser blocked copying, so the text to paste is selected below: press Ctrl+C or ⌘C and paste it into the empty json block of the GitHub issue.', true);
-      },
-    );
-  };
-  $('wu-copy').onclick = () => {
-    navigator.clipboard.writeText(JSON.stringify(state.card, null, 2)).then(
-      () => unitStatus('Result card copied.'),
-      () => {
-        getSelection().selectAllChildren($('wu-card'));
-        unitStatus('Your browser blocked copying, so the card is selected: press Ctrl+C or ⌘C.');
-      },
-    );
-  };
+  $('wu-submit').onclick = onSubmit(() => ({ card: state.card, issue: state.issue }), 'wu-submit-text', unitStatus);
+  $('wu-copy').onclick = onCopy(() => state.card, 'wu-card', unitStatus);
   $('wu-download-all').onclick = () => download('eiathome-results.json', state.results);
-  // Two-step confirmation on the page itself (some hosts block confirm() dialogs).
-  let clearTimer;
-  $('wu-clear').onclick = () => {
-    const button = $('wu-clear');
-    if (!button.dataset.armed) {
-      button.dataset.armed = 'yes';
-      button.textContent = 'Click again to delete all';
-      clearTimer = setTimeout(() => {
-        delete button.dataset.armed;
-        button.textContent = 'Clear';
-      }, 4000);
-      return;
-    }
-    clearTimeout(clearTimer);
-    delete button.dataset.armed;
-    button.textContent = 'Clear';
+  $('wu-clear').onclick = onConfirmedClick($('wu-clear'), () => {
     state.results = [];
     store.set('results', []);
     renderHistory();
     unitStatus('Deleted the results stored in this browser.');
+  });
+
+  $('rc-random').onclick = () => ($('rc-number').value = randomUnit());
+  $('rc-run').onclick = () => runRecovery(Math.min(MAX_UNIT, Math.max(0, Math.floor(Number($('rc-number').value) || 0))));
+  $('rc-stop').onclick = () => {
+    rc.stopLoop = true;
+    clearTimeout(rc.timer);
+    setRecoveryRunning(rc.running);
+    recoveryStatus(rc.running ? 'Stopping after this unit…' : 'Stopped.');
   };
+  $('rc-rate').onchange = () => {
+    renderRecoveryUnit();
+    renderCombined();
+  };
+  $('rc-source').onchange = renderCombined;
+  $('rc-download').onclick = () => rc.card && download(`eiathome-recovery-unit${rc.card.unit}.json`, rc.card);
+  $('rc-submit').onclick = onSubmit(() => ({ card: rc.card, issue: rc.issue }), 'rc-submit-text', recoveryStatus);
+  $('rc-copy').onclick = onCopy(() => rc.card, 'rc-card', recoveryStatus);
+  $('rc-download-all').onclick = () => download('eiathome-recovery-results.json', rc.results);
+  $('rc-clear').onclick = onConfirmedClick($('rc-clear'), () => {
+    rc.results = [];
+    store.set('recoveryResults', []);
+    renderCombined();
+    recoveryStatus('Deleted the recovery cards stored in this browser.');
+  });
 
   $('slice-files').onchange = (e) => handleSliceFiles(e.target.files);
   const drop = $('drop');

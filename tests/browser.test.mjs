@@ -9,6 +9,7 @@ import { fileURLToPath } from 'node:url';
 
 import { MAX_ISSUE_URL, extractCard, submissionText, validateCard } from '../web/js/community.js';
 import { matchedSize, matchedTokenWidth, parameterCount, tokenParameterCount } from '../web/js/models.js';
+import { parseRecoveryWindows, recoveryCard, runRecoveryUnit, verifyRecoveryCard } from '../web/js/recovery.js';
 import { RESULT_CARD_VERSION } from '../web/js/workunits.js';
 import { describeDataset } from '../web/js/slices.js';
 import { sessions } from '../web/js/splits.js';
@@ -468,6 +469,66 @@ test('community results are summarized, with volunteer names shown as text', asy
     const names = await page.$$eval('#community-volunteers tbody tr td:first-child', (tds) => tds.map((td) => td.textContent));
     assert.ok(names.includes('<b>eve</b>'));
     assert.equal(await page.locator('#community-volunteers b').count(), 0);
+    assert.deepEqual(errors, []);
+    await page.close();
+  } finally {
+    overrides.clear();
+  }
+});
+
+async function recoveryWindows() {
+  const bytes = await readFile(join(WEB, 'data/recovery/test.i8'));
+  return parseRecoveryWindows(bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength));
+}
+
+async function runRecovery(page, unit) {
+  await page.click('.tabs button[data-tab="recovery"]');
+  await page.waitForFunction(() => /^Ready/.test(document.getElementById('rc-status').textContent), null, { timeout: 30000 });
+  await page.fill('#rc-number', String(unit));
+  await page.click('#rc-run');
+  await page.waitForFunction((u) => document.getElementById('rc-status').textContent.startsWith(`Unit ${u} finished`), unit, { timeout: 30000 });
+  return JSON.parse(await page.textContent('#rc-card'));
+}
+
+test('a recovery unit runs in the browser, and its card passes the checks ingestion runs, recomputation included', async () => {
+  const { page, errors } = await openLab();
+  const card = await runRecovery(page, 12);
+  assert.deepEqual(validateCard(card), []);
+  assert.deepEqual(verifyRecoveryCard(card, await recoveryWindows()), [], 'Node recomputes the same counts');
+  assert.match(await page.textContent('#rc-summary'), /^Unit 12 tested whether two standard detectors find weak signals in real data/);
+  assert.equal(await page.locator('#rc-unit-charts canvas').count(), 7, 'one chart per class');
+  const href = await page.getAttribute('#rc-submit', 'href');
+  assert.ok(href.length <= MAX_ISSUE_URL, `${href.length} characters`);
+  assert.deepEqual(extractCard(new URL(href).searchParams.get('body')), card);
+
+  await page.selectOption('#rc-source', 'browser');
+  assert.match(await page.textContent('#rc-combined-status'), /^1 unit run in this browser: 18 injections/);
+  await page.selectOption('#rc-rate', '0.001');
+  assert.match(await page.textContent('#rc-summary'), /flag 0\.1% of empty windows/);
+  await page.selectOption('#rc-source', 'community');
+  assert.match(await page.textContent('#rc-combined-status'), /No recovery units submitted yet/);
+  assert.deepEqual(errors, []);
+  await page.close();
+});
+
+test('community recovery units are combined once per unit, apart from the replicated units', async () => {
+  const data = await recoveryWindows();
+  const run = (issue, by, unit) => ({ issue, submitted_by: by, submitted_at: '2026-10-27T01:00:00Z', card: recoveryCard(unit, runRecoveryUnit(unit, data).results, { seconds: 0.6, started: '2026-10-27T00:00:00.000Z' }) });
+  const results = [run(31, 'alice', 3), run(32, 'bob', 3), run(33, '<b>eve</b>', 8)];
+  overrides.set('/data/community_results.json', JSON.stringify({ format: 'eiathome-community-results', version: 1, results }));
+  try {
+    const { page, errors } = await openLab();
+    // Load the community results while the tab is hidden: the status line is then already set
+    // when the tab opens, so wait for the table itself, drawn once the tab shows.
+    await page.waitForFunction(() => document.getElementById('community-status').textContent !== '', null, { timeout: 30000 });
+    await page.click('.tabs button[data-tab="recovery"]');
+    await page.waitForFunction(() => !document.getElementById('tab-recovery').hidden && document.querySelectorAll('#rc-combined-table tbody tr').length === 4, null, { timeout: 30000 });
+    assert.match(await page.textContent('#rc-combined-status'), /^2 units from 3 volunteers, each recomputed when submitted: 36 injections of each class at each strength/);
+    const found = await page.$$eval('#rc-combined-table tbody tr', (trs) => trs.map((tr) => [...tr.cells].map((td) => td.textContent)));
+    assert.match(found[0][1], / of 536: /, 'false alarms among both units’ empty windows');
+    await page.waitForFunction(() => /flags \d+ of the 1,024 windows/.test(document.getElementById('rc-empty-note').textContent), null, { timeout: 30000 });
+    await page.click('.tabs button[data-tab="units"]');
+    assert.match(await page.textContent('#community-status'), /No community results yet/, 'recovery cards are not replicated units');
     assert.deepEqual(errors, []);
     await page.close();
   } finally {

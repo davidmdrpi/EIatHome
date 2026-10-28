@@ -6,7 +6,10 @@
 // Statuses: accepted (appended), recorded (this issue's card was stored by an earlier run that
 // didn't finish), duplicate, rejected, error. The comment for accepted and recorded is the same.
 //
-// Usage: node tools/ingest_result.mjs <event.json> <comment.md> [results.json] [slices folder]
+// Recovery cards (web/js/recovery.js) are also recomputed on the published windows: only a card
+// whose counts match is recorded.
+//
+// Usage: node tools/ingest_result.mjs <event.json> <comment.md> [results.json] [slices folder] [recovery folder]
 //
 // The issue text is untrusted: this script only parses it as JSON and validates it. Nothing
 // from the issue is executed, and the reply comment never repeats strings from the card.
@@ -15,10 +18,11 @@ import { createHash } from 'node:crypto';
 import { appendFileSync, existsSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 
-import { AGREEMENT_TOLERANCE, RESULTS_FORMAT, cardDataset, extractCard, summarize, validateCard } from '../web/js/community.js';
+import { AGREEMENT_TOLERANCE, RESULTS_FORMAT, cardDataset, extractCard, isRecoveryCard, summarize, validateCard } from '../web/js/community.js';
+import { RECOVERY_DATA, combine, parseRecoveryWindows, verifyRecoveryCard } from '../web/js/recovery.js';
 import { describeDataset, parseSlice } from '../web/js/slices.js';
 
-const [eventPath, commentPath, resultsPath = 'web/data/community_results.json', slicesDir = 'web/data/slices'] = process.argv.slice(2);
+const [eventPath, commentPath, resultsPath = 'web/data/community_results.json', slicesDir = 'web/data/slices', recoveryDir = 'web/data/recovery'] = process.argv.slice(2);
 
 const readArrayBuffer = (path) => {
   const bytes = readFileSync(path);
@@ -32,6 +36,8 @@ async function publishedDataset() {
   const slices = await Promise.all((manifest.slices ?? []).map((entry) => parseSlice(entry, readArrayBuffer(join(slicesDir, entry.file)))));
   return describeDataset(slices);
 }
+
+const recoveryWindows = () => parseRecoveryWindows(readArrayBuffer(join(recoveryDir, RECOVERY_DATA.url.split('/').pop())));
 
 function loadResults() {
   if (!existsSync(resultsPath)) return { format: RESULTS_FORMAT, version: 1, results: [] };
@@ -53,6 +59,11 @@ function finish(status, comment) {
 // What the volunteer is told once their card is stored: the unit's replication status on the
 // card's own dataset (runs on other datasets, such as slices published earlier, are separate).
 function storedMessage(card, results) {
+  if (isRecoveryCard(card)) {
+    const recovery = results.filter((r) => isRecoveryCard(r.card));
+    const volunteers = new Set(recovery.map((r) => r.submitted_by)).size;
+    return `Thanks for running a recovery work unit! Unit ${card.unit} (\`${card.spec}\`) was recomputed on the published windows and its counts match, so it's recorded. It will appear in the Live Lab's Recovery tab shortly.\n\nThe community results now combine ${combine(recovery.map((r) => r.card)).units} unit(s) from ${volunteers} volunteer(s).`;
+  }
   const unit = summarize(results).units.find((u) => u.spec === card.spec && u.unit === card.unit && u.dataset_id === cardDataset(card));
   return `Thanks for running a work unit! Unit ${card.unit} (\`${card.spec}\`, ${card.backend}) is recorded and will appear in the Live Lab's community results shortly.\n\nThis unit now has ${unit.runs} run(s) from ${unit.volunteers.length} volunteer(s). ${STATUS_TEXT[unit.status]}`;
 }
@@ -71,9 +82,10 @@ async function main() {
   try {
     card = extractCard(issue.body);
   } catch (err) {
-    return finish('rejected', `Thanks for running a work unit! This issue couldn't be recorded: ${err.message}\n\nUse **Submit as a GitHub issue** in the Live Lab's Work units tab, which fills in the card for you.`);
+    return finish('rejected', `Thanks for running a work unit! This issue couldn't be recorded: ${err.message}\n\nUse **Submit as a GitHub issue** in the Live Lab's Work units or Recovery tab, which fills in the card for you.`);
   }
   const errors = validateCard(card, { published: await publishedDataset() });
+  if (!errors.length && isRecoveryCard(card)) errors.push(...verifyRecoveryCard(card, await recoveryWindows()));
   if (errors.length) {
     return finish('rejected', `Thanks for running a work unit! This card couldn't be recorded because it doesn't match its spec:\n\n${errors.map((e) => `- ${e}`).join('\n')}\n\nRe-run the unit in the current [Live Lab](https://davidmdrpi.github.io/EIatHome/) and submit the new card.`);
   }
@@ -83,7 +95,10 @@ async function main() {
   const copy = store.results.find((r) => r.card_sha256 === entry.card_sha256);
   if (copy) return finish('duplicate', `An identical card was already recorded from #${copy.issue}, so this one wasn't counted again.`);
   const again = store.results.find((r) => r.submitted_by === login && r.card.spec === card.spec && r.card.unit === card.unit && sameDataset(r));
-  if (again) return finish('duplicate', `Thanks! You already submitted unit ${card.unit} in #${again.issue}. Replications count runs from different volunteers, so this one wasn't added. Try a different unit number.`);
+  if (again) {
+    const why = isRecoveryCard(card) ? 'Each unit counts once' : 'Replications count runs from different volunteers';
+    return finish('duplicate', `Thanks! You already submitted unit ${card.unit} in #${again.issue}. ${why}, so this one wasn't added. Try a different unit number.`);
+  }
 
   store.results.push(entry);
   store.results.sort((a, b) => a.issue - b.issue);

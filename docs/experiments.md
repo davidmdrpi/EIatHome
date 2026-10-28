@@ -356,6 +356,28 @@ redeploys the Live Lab. The Work units tab shows each unit's status. A unit is *
 when runs from at least two volunteers agree within 0.02 on every metric, and marked **runs
 disagree** when they don't. Each volunteer's first run of a unit is the one compared.
 
+**`recovery/v0`** (`web/js/recovery.js`, issue #13) measures which weak signals two standard
+detectors find at a fixed false-alarm rate. It's `tracks/recovery`'s blinded comparison as a
+work unit:
+
+- **Windows:** 1,024 real off-source windows (49 frames x 64 channels), every 4th window of
+  the test scan, quantized to steps of 1/16 noise sigma. The spec pins their SHA-256.
+- **Injections:** per unit, 18 of each of five signal classes and two decoys at six strengths
+  (the optimal matched-filter SNR), plus 268 windows left empty. The seed is derived from the
+  unit number.
+- **Blinding:** the de-Doppler search and the energy detector score the shuffled windows
+  before the key is joined.
+- **Thresholds:** set on the whole calibration scan at 1% and 0.1% false alarms per window,
+  and pinned in the spec.
+- **Card (version 1):** the counts flagged per detector, false-alarm rate, class and strength,
+  and the counts flagged by both detectors.
+
+The arithmetic is plain float64 in a fixed order, so a unit's counts are identical everywhere.
+Ingestion reruns the unit and records the card only if its counts match, so recovery cards are
+checked by recomputation, not replication. The Recovery tab adds up recorded units, one card
+per unit number. `tracks/recovery/browser.py` ports the unit to Python, and its tests check that
+both implementations give the same signals, scores and counts.
+
 ### 9.2 BOINC work units (later, if needed)
 
 For heavier jobs such as raw voltages or long sweeps:

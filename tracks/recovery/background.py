@@ -47,17 +47,21 @@ def extractor():
     return module
 
 
-def slots(n_chan, width=WIDTH):
-    """First channels of the non-overlapping windows that avoid the edges and the DC region."""
+def slots(n_chan, width=WIDTH, exclude=()):
+    """First channels of the non-overlapping windows that avoid the edges and the DC region, and
+    any channel range [low, high) in exclude."""
     edge = int(n_chan * EDGE_FRACTION)
     mid = n_chan // 2
     starts = np.arange(edge, n_chan - edge - width + 1, width)
-    return starts[(starts + width <= mid - DC_GUARD) | (starts >= mid + DC_GUARD)]
+    keep = (starts + width <= mid - DC_GUARD) | (starts >= mid + DC_GUARD)
+    for low, high in exclude:
+        keep &= (starts + width <= low) | (starts >= high)
+    return starts[keep]
 
 
-def cut(z, count, seed, width=WIDTH):
+def cut(z, count, seed, width=WIDTH, exclude=()):
     """count windows at seeded, sorted, non-overlapping positions of a flattened spectrogram."""
-    available = slots(z.shape[1], width)
+    available = slots(z.shape[1], width, exclude)
     if count > len(available):
         raise ValueError(f"Only {len(available)} windows fit; asked for {count}")
     first = np.sort(np.random.default_rng(seed).choice(available, count, replace=False))

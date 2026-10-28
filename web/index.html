@@ -33,6 +33,7 @@
   <nav class="tabs" role="tablist">
     <button role="tab" data-tab="lab" aria-selected="true">Live Lab</button>
     <button role="tab" data-tab="units" aria-selected="false">Work units</button>
+    <button role="tab" data-tab="recovery" aria-selected="false">Recovery</button>
     <button role="tab" data-tab="data" aria-selected="false">Data</button>
     <button role="tab" data-tab="about" aria-selected="false">About</button>
   </nav>
@@ -214,6 +215,60 @@
       </div>
     </section>
 
+    <!-- ================= Recovery ================= -->
+    <section id="tab-recovery" class="tab" role="tabpanel" hidden>
+      <div class="panel">
+        <h2>Blinded signal recovery</h2>
+        <p>Can a detector find a weak signal without raising more false alarms? A recovery unit hides 756 synthetic signals in real off-source data from a Voyager 1 observation, gives the windows to two standard detectors without saying which hold what, and only then checks which they found. Each detector’s threshold was fixed in advance on a different scan, so that it flags 1% (or 0.1%) of windows with nothing in them.</p>
+        <p class="muted small">Spec <code id="rc-spec"></code>. The windows: 1,024 cuts of 49 frames × 64 channels from an off-source scan (2020-07-16, Green Bank), with their real noise and interference. The signals: five classes (drifting tones, intermittent tones, wideband signals, a carrier with sidebands, frequency-shift keying) and two interference-like decoys (a zero-drift line, a one-frame broadband pulse), 18 of each at six strengths, plus 268 windows left empty. Strength is the SNR of a matched filter that knows the exact signal. Every unit number draws different signals into the same windows.</p>
+        <div class="controls">
+          <label class="field"><span>Unit number</span><input id="rc-number" type="number" min="0" max="9999" value="0"></label>
+          <div class="buttons">
+            <button id="rc-random" type="button">Random unit</button>
+            <button id="rc-run" class="primary" type="button" disabled>Run recovery unit</button>
+            <button id="rc-stop" type="button" disabled>Stop</button>
+          </div>
+          <label class="check"><input id="rc-loop" type="checkbox"> Keep going with random units</label>
+          <label class="field"><span>False-alarm rate</span>
+            <select id="rc-rate"><option value="0.01" selected>1% of empty windows</option><option value="0.001">0.1% of empty windows</option></select></label>
+        </div>
+        <p id="rc-status" class="status" role="status" aria-live="polite">Open this tab to load the windows.</p>
+      </div>
+
+      <div class="panel" id="rc-unit-panel" hidden>
+        <h2 id="rc-unit-title">Your unit</h2>
+        <p id="rc-summary"></p>
+        <div id="rc-unit-charts" class="multiples recovery-charts"></div>
+        <div class="table-wrap"><table id="rc-unit-table"></table></div>
+        <h3>Result card</h3>
+        <pre id="rc-card" class="card"></pre>
+        <div class="buttons">
+          <button id="rc-download" type="button">Download JSON</button>
+          <button id="rc-copy" type="button">Copy</button>
+          <a id="rc-submit" class="button" target="_blank" rel="noopener">Submit as a GitHub issue</a>
+        </div>
+        <textarea id="rc-submit-text" rows="4" readonly spellcheck="false" aria-label="Result card to paste into the GitHub issue" hidden></textarea>
+        <p class="muted small">Submitting opens a GitHub issue with the card filled in, for you to review before posting, and copies the card to your clipboard. It needs a GitHub account. The card holds only the unit, its settings and the counts. When it’s submitted, the unit is recomputed and recorded only if the counts match.</p>
+      </div>
+
+      <div class="panel">
+        <h2>Combined results</h2>
+        <p class="muted small">Adding up units narrows the intervals over the injected signals. Every unit uses the same 1,024 windows from one scan, so the intervals don’t cover how other windows, scans or receivers would differ. The shaded bands are 95% Wilson intervals.</p>
+        <div class="controls">
+          <label class="field"><span>Units</span>
+            <select id="rc-source"><option value="community" selected>Submitted by volunteers (recomputed)</option><option value="browser">Run in this browser</option></select></label>
+          <div class="buttons">
+            <button id="rc-download-all" type="button">Download this browser’s cards</button>
+            <button id="rc-clear" type="button">Clear this browser’s cards</button>
+          </div>
+        </div>
+        <p id="rc-combined-status" class="status" role="status"></p>
+        <div id="rc-combined-charts" class="multiples recovery-charts"></div>
+        <div class="table-wrap"><table id="rc-combined-table"></table></div>
+        <p id="rc-empty-note" class="muted small"></p>
+      </div>
+    </section>
+
     <!-- ================= Data ================= -->
     <section id="tab-data" class="tab" role="tabpanel" hidden>
       <div class="panel">
@@ -248,6 +303,8 @@
         <p>A small model learns to predict the next spectrogram frame: a GRU, an LSTM or one layer of causal attention, each with about the same number of parameters. We compare it with simple baselines, look at its hidden states, and check whether its state encodes physical quantities such as drift rate.</p>
         <h3>Track B: is it language?</h3>
         <p>A tokenizer turns frames into discrete tokens, and we measure entropy, mutual information, compressibility and Zipf statistics against surrogates. The Rosetta control (real English text sent as FSK) checks that the pipeline can find language when it is there. A Zipf-like curve on its own proves nothing.</p>
+        <h3>Blinded recovery</h3>
+        <p>Before a model’s output can mean anything about unknown signals, we need to know which signals it would have found. The Recovery tab hides synthetic signals of known class and strength in real off-source data, gives them to detectors without the answers, and counts what they found at a false-alarm rate fixed in advance. When you submit a unit it’s recomputed, and then it joins the combined recovery curves.</p>
         <h3>Honest limits</h3>
         <ul>
           <li>Voyager is a positive control, not a candidate: we know exactly what it is. The off-source scans are its negative control.</li>

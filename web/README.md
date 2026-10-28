@@ -2,7 +2,8 @@
 
 A static, zero-install web app: pick a signal, train a small GRU on it in the browser, look at
 its predictions and hidden states, measure how language-like its radio tokens are, and run
-reproducible work units. Everything computes locally; there is no server.
+reproducible work units. The Recovery tab measures which weak signals two standard detectors
+find in real data, at a fixed false-alarm rate. Everything computes locally; there is no server.
 
 ## Run it locally
 
@@ -30,6 +31,7 @@ browsers don't run module workers from `file://` URLs.
 | `js/slices.js` | Loads real-data micro-slices (`data/slices/`) or user-dropped files, verifies their SHA-256 and computes the dataset identity |
 | `js/splits.js` | Groups a real family's slices into observing sessions and keeps training and evaluation on different sessions |
 | `js/workunits.js` | Versioned work-unit specs |
+| `js/recovery.js`, `js/recovery.worker.js` | The `recovery/v0` work unit (`tracks/recovery`, issue #13): injects synthetic signals into the real off-source windows in `data/recovery/`, deals them blind to the de-Doppler and energy detectors, and counts what each finds at thresholds pinned in the spec. Also checks recovery cards and adds units up |
 | `js/rng.js` | Seeded random numbers, so everything is reproducible |
 | `js/plots.js` | Small canvas charts with hover tooltips |
 | `vendor/tfjs/` | TensorFlow.js 4.22.0, vendored unmodified (see its README) |
@@ -58,6 +60,10 @@ For Track B it checks that the tokenizer, surrogates and n-gram model never see 
 (including a Rosetta test text change end to end), that the n-gram fits the same data as the token
 model, that no statistic or compressed block crosses a segment boundary, and that real data holds
 out whole scans or sessions.
+`tests/recovery.test.mjs` checks the recovery unit: the spec pins the published windows and
+thresholds, every class is injected at its strength inside the window, the dealer's key
+rebuilds every window, the de-Doppler search equals a brute-force search, units reproduce,
+and tampered cards are caught by their form or by recomputation.
 `tests/community.test.mjs` checks card validation, replication summaries and the ingestion
 script, and `tests/ingest_issues.test.mjs` runs the ingestion driver against a local git
 remote and a fake `gh`. `tests/browser.test.mjs` serves this folder and drives the Live Lab in
@@ -74,7 +80,10 @@ headless Chromium. It checks that:
   stays within its trained positions;
 - attention is causal (later tokens or frames never change earlier outputs, and a prefix pass
   matches the full pass), and the custom layer norm matches TF.js's in outputs and gradients;
-- token-model training can be stopped, and the controls come back.
+- token-model training can be stopped, and the controls come back;
+- a recovery unit run on the page gives a card that ingestion's checks accept, recomputation
+  included, and community recovery units are combined once per unit, apart from the replicated
+  units.
 
 CI runs both on every pull request.
 
@@ -90,6 +99,8 @@ manifest, a file or browser storage into `innerHTML`.
   segments and never looks across their boundaries, compute it for every stream in
   `analyzeSplits()`, and plot it in `renderTrackB()` in `js/main.js`. Anything fitted (like a
   codebook or a surrogate) must use the training split only.
+- **Change the recovery windows or thresholds:** they're part of `recovery/v0`. Write them with
+  `python -m tracks.recovery.browser --write`, then pin them in a new spec in `js/recovery.js`.
 - **Add a work-unit spec:** add a new versioned config in `js/workunits.js`. Never change an
   existing spec, because published result cards refer to it. Make a `v1` instead.
 - **Publish real data:** see `data/slices/README.md`. A new real family also needs an entry
@@ -134,3 +145,6 @@ Things to know as a maintainer:
   get GitHub's failed-workflow notice.
 - Anyone can open an issue, so the stored results are claims. The page only calls a unit
   replicated when different volunteers agree, comparing runs only on the same slice dataset.
+- Recovery cards (`recovery/v0`) are different: `tools/ingest_result.mjs` reruns the unit on
+  the published windows (`data/recovery/`) and records the card only if its counts match. The
+  Recovery tab adds up the recorded units, counting each unit number once.
