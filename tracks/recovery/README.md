@@ -4,9 +4,10 @@ Can a method recover a weak signal without raising false alarms? This track meas
 Synthetic signals of known class and strength are injected into real off-source data, dealt
 blind to detectors, and scored at a fixed false-alarm rate against fixed baselines. The plan
 and milestones are in [issue #13](https://github.com/davidmdrpi/EIatHome/issues/13). The
-measurements are in [RESULTS.md](RESULTS.md): the baselines, then the project's learned
-models, then the browser work unit. The Live Lab's **Recovery** tab runs the comparison in a
-browser (see [In the browser](#in-the-browser)).
+measurements are in [RESULTS.md](RESULTS.md): the baselines, the project's learned models, the
+browser work unit, and a second observing session. The Live Lab's **Recovery** tab runs the
+comparison in a browser (see [In the browser](#in-the-browser)), and
+[Across sessions](#across-sessions) compares two sessions four years apart.
 
 ## Run it
 
@@ -111,7 +112,31 @@ tuning one.
 - **Changes after scoring:** a method changed after seeing test-scan results is a new method.
   Its test-scan score goes next to the earlier one, not in place of it.
 
-A second observing session (milestone 4) will give a test that no development has seen at all.
+The second observing session (milestone 4, [Across sessions](#across-sessions)) gives a test
+that no development has seen at all.
+
+## Across sessions
+
+[sessions.py](sessions.py) runs the benchmark on two sessions of the same coarse channel, in the
+high-frequency-resolution product (16 frames of 18.25 s):
+
+- **2020:** off-source scans 0014 (calibration) and 0016 (test).
+- **2016:** Voyager 1 on-source, the file turboSETI's tutorial uses, from this repository's v0.1
+  release. Windows within 180 kHz of Voyager's carrier are left out, and the rest alternate
+  between calibration and test.
+
+Thresholds from each session are applied to both sessions' test windows. Both test sets get the
+same injections, so each injection is compared with its twin in the other session (exact
+McNemar tests). The comparison is done at each session's own thresholds and at the first
+session's for both.
+
+```bash
+python -m tracks.recovery.sessions build --cache data/recovery   # ~100 MB of range reads and a 50 MB download, once
+python -m tracks.recovery.sessions run --cache data/recovery --seed 0 --output runs/sessions
+```
+
+[sessions.json](sessions.json) records each window's position and each role's SHA-256, as
+[backgrounds.json](backgrounds.json) does for the 49-frame windows.
 
 ## In the browser
 
@@ -146,6 +171,12 @@ need Node as well, to run the JavaScript unit they compare against:
 
 ```bash
 python -m unittest discover -s tests -p 'test_recovery_browser.py' -v
+```
+
+The cross-session tests need only `numpy`:
+
+```bash
+python -m unittest discover -s tests -p 'test_recovery_sessions.py' -v
 ```
 
 The learned detectors' tests need PyTorch too:
@@ -186,3 +217,12 @@ The numpy-only tests cover:
   the JavaScript unit deal identical signals, and give the same scores and counts. The
   published windows match their index and refuse a changed byte, and quantizing refuses to
   clip. With the background cache, a rebuild reproduces the published files exactly.
+- **Across sessions** (`test_recovery_sessions.py`):
+  - windows skip an excluded band, and nothing changes without one;
+  - the committed manifest covers both sessions, and keeps the 2016 windows alternating and
+    clear of Voyager's carrier;
+  - the 2016 file is downloaded once and checked against its SHA-256;
+  - every pairing of thresholds and test windows gets the same injections, and every twin is
+    counted;
+  - a session made noisier shows up in its false alarms and its recovery;
+  - McNemar p-values are exact.

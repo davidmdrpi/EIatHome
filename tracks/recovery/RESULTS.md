@@ -443,3 +443,142 @@ are drawn from these windows, so combined units measure the same false alarms ov
   trained in the browser would be too costly to recompute and will need replication instead.
 - Everything in the earlier limitations still applies: one session, one receiver and one coarse
   channel, idealized injections, and window-level detection only.
+
+# Milestone 4: a second session, and evaluation across sessions
+
+Everything above comes from one observing session (2020-07-16). This milestone adds a second,
+four years earlier: Voyager 1 on 2016-09-26 (MJD 57650), the file turboSETI's tutorial uses
+(`Voyager1.single_coarse.fine_res.h5`). Both sessions come from the same telescope (Green Bank),
+the same receiver and the same coarse channel (8418.46 to 8421.39 MHz). The question: does a
+threshold set on one session hold on another, and do detectors recover the same signals there?
+Code: [sessions.py](sessions.py).
+
+## Setup
+
+- **Product:** the 2016 file exists only as a high-frequency-resolution product (16 frames of
+  18.25 s, 2.79 Hz channels), so both sessions use that product.
+  - Windows are 16 frames × 64 channels, not the 49 × 64 of milestones 1 to 3.
+  - These numbers compare with each other, not with the earlier milestones'.
+- **2020** (MJD 59046): the high-resolution files of off-source scans 0014 (calibration) and
+  0016 (test), 4,096 windows each.
+- **2016** (MJD 57650): one on-source scan, downloaded from this repository's v0.1 release and
+  checked against its SHA-256. Voyager's signals are in the band:
+  - **carrier:** at 8419.29703 MHz, the strongest de-Doppler track (SNR 986);
+  - **telemetry sidebands:** at ±22.5 kHz (SNR 118 and 121);
+  - **third harmonics:** at ±67.5 kHz (SNR 17 and 15);
+  - **fifth and seventh harmonics:** at noise level (SNR about 5, as in control regions far from
+    the carrier).
+
+  Windows within 180 kHz of the carrier are left out. Of the 8,192 cut, alternate windows go to
+  calibration and test.
+- **Noise:** away from Voyager, the 2016 data has a mean of 0.037 sigma and a standard
+  deviation of 1.004, its largest value 6.5. The 2020 off-source scans have 0.036 and 1.004, the
+  largest 6.0. Both are quiet.
+- **Injections:** seed 0, 72 per class and strength, the design of milestone 1.
+  - The dealer's draws don't depend on the windows, so both test sets get the same injections.
+    Every injection has a **twin** in the other session: the same signal, in the window at the
+    same position of the other session's test set.
+  - The key fingerprint `4d7a2ba7d178a86f` is the same in all four pairings below.
+- **Thresholds:** set on each session's calibration windows at 1% and 0.1%, and applied to both
+  sessions' test windows.
+- **Comparison across sessions:** each injection against its twin, with exact McNemar tests,
+  done twice:
+  - **at each session's own thresholds:** the whole difference between the sessions;
+  - **at 2020's thresholds for both:** only the difference between their windows.
+
+```bash
+python -m tracks.recovery.sessions build --cache data/recovery   # rebuild and verify the windows (about 3 minutes)
+python -m tracks.recovery.sessions run --cache data/recovery --seed 0 --output runs/sessions
+```
+
+## Results
+
+The thresholds:
+
+| Detector | Rate | 2020 | 2016 |
+|---|---|---:|---:|
+| de-Doppler | 1% | 4.594 | 4.590 |
+| de-Doppler | 0.1% | 5.019 | 5.031 |
+| energy | 1% | 2.846 | 2.858 |
+| energy | 0.1% | 3.585 | 3.773 |
+
+False alarms on each test set's 1,072 empty windows, with thresholds from either session:
+
+| Detector | Rate | Thresholds from | Test 2020 | Test 2016 |
+|---|---|---|---:|---:|
+| de-Doppler | 1% | 2020 | 11 (1.0%) | 6 (0.6%) |
+| de-Doppler | 1% | 2016 | 11 (1.0%) | 6 (0.6%) |
+| de-Doppler | 0.1% | 2020 | 3 (0.3%) | 1 (0.1%) |
+| de-Doppler | 0.1% | 2016 | 2 (0.2%) | 1 (0.1%) |
+| energy | 1% | 2020 | 6 (0.6%) | 11 (1.0%) |
+| energy | 1% | 2016 | 4 (0.4%) | 10 (0.9%) |
+| energy | 0.1% | 2020 | 1 (0.1%) | 0 (0%) |
+| energy | 0.1% | 2016 | 0 (0%) | 0 (0%) |
+
+**Where recovery reaches 90%:** at 1%, every class reaches it at the same strength in both
+sessions, for both detectors:
+
+- **de-Doppler search:** SNR 10 for tones, wideband signals and carriers with sidebands; SNR 14
+  for intermittent and FSK signals; SNR 7 for zero-drift lines; never for pulses.
+- **Energy detector:** SNR 14 for every class.
+
+At 0.1%, only wideband signals and carriers with sidebands differ: they cross 90% at SNR 10 in
+one session and at SNR 14 in the other, from cells of 86% to 93% at SNR 10.
+
+**The same injections in both sessions:**
+
+| Detector | Rate | Thresholds | Injections | Flagged in 2020 | Flagged in 2016 | McNemar p |
+|---|---|---|---|---:|---:|---:|
+| de-Doppler | 1% | own | 2,160 signals | 1,629 | 1,634 | 0.80 |
+| de-Doppler | 1% | own | 864 decoys | 428 | 441 | 0.26 |
+| de-Doppler | 0.1% | own | 2,160 signals | 1,499 | 1,494 | 0.79 |
+| energy | 1% | own | 2,160 signals | 1,232 | 1,254 | 0.22 |
+| energy | 0.1% | own | 2,160 signals | 1,082 | 1,058 | 0.13 |
+| energy | 0.1% | own | 864 decoys | 450 | 424 | 0.015 |
+| energy | 0.1% | 2020's | 2,160 signals | 1,082 | 1,100 | 0.28 |
+| energy | 0.1% | 2020's | 864 decoys | 450 | 431 | 0.081 |
+
+The report has the rest: each class, the other rows at 2020's thresholds, and every pairing's
+recovery table.
+
+## What this shows
+
+- **In this coarse channel, the benchmark carries over between sessions four years apart.**
+  - The thresholds agree: 4.594 and 4.590 for the de-Doppler search at 1%.
+  - Each session's thresholds hold their false-alarm rate on the other session's windows.
+  - The same injections are recovered equally. Over all 2,160 signals at 1%, the de-Doppler
+    search finds 1,629 in 2020 and 1,634 in 2016 (p = 0.80), and the energy detector 1,232 and
+    1,254 (p = 0.22).
+- **The only differences come from estimating a 0.1% threshold.**
+  - That threshold rests on about 4 of 4,096 calibration windows. 2016's energy threshold came
+    out higher (3.77 against 3.59).
+  - At its own thresholds, 2016 flags fewer decoys (p = 0.015) and fewer pulses (p = 0.044).
+  - With 2020's thresholds on both sessions, the difference disappears (decoys p = 0.081,
+    signals p = 0.28): the difference comes from the threshold estimate, not the data.
+  - Of the report's 36 comparisons at own thresholds (per class, and over all signals and all
+    decoys), two fall below p = 0.05: about what chance gives.
+- **Milestone 3 asked how far results from one session's windows would carry.** Here, the
+  difference between sessions is within the per-window intervals: a recovery measured on one
+  session's windows holds on the other.
+- **Shorter windows favour the energy detector.** With 16 frames (1,024 values per window), it
+  reaches 90% at SNR 14, against SNR 20 with 49 frames (3,136 values). A signal of a given
+  strength stands out further from the total noise power of fewer values. The de-Doppler search
+  reaches 90% at the same strengths as with 49 frames.
+
+## Limitations
+
+- **A quiet channel.** Both sessions' windows are close to the noise model, with no strong
+  interference. Bands crowded with interference may not carry over this well.
+- **One telescope, one receiver, one coarse channel.**
+  - The 2016 windows come from an on-source scan, away from Voyager's lines. The 2020 windows
+    come from off-source scans.
+  - Within 2016, the calibration and test windows alternate along one scan. 2020's come from two
+    scans 11 minutes apart.
+- **The fixed baselines only.** The learned detectors of milestone 2 were trained on 49-frame
+  windows. Comparing them across sessions needs retraining on 16-frame windows.
+- **The browser unit (milestone 3) still uses 2020's windows only.**
+
+Environment: Python 3.13.17, NumPy 2.5.3. The windows' hashes are in
+[sessions.json](sessions.json), and the 2016 file's in [sessions.py](sessions.py) (SHA-256
+`c9a9a54f…`). Code fingerprint: `abbb0388dfd1044d`. A rebuild from the original files
+reproduces every window exactly, and a rerun reproduces every table.
