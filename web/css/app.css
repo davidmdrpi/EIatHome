@@ -584,13 +584,47 @@ textarea {
   color: var(--sky-dim);
 }
 
-.viewport .hud-target {
-  top: 10px;
+/* Two bars hold the HUD's corners and wrap on narrow screens (see SkyMap.build). */
+.viewport .hud-bar {
   left: 12px;
+  right: 12px;
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: 8px 16px;
+}
+
+.viewport .hud-top {
+  top: 10px;
+  align-items: flex-start;
+}
+
+.viewport .hud-bottom {
+  bottom: 10px;
+  align-items: flex-end;
+}
+
+.viewport .hud-target {
   max-width: min(60%, 560px);
   display: flex;
   flex-direction: column;
   gap: 2px;
+}
+
+.viewport .hud-corner {
+  margin-left: auto;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 2px;
+  text-align: right;
+}
+
+.viewport .hud-readout {
+  max-width: min(32%, 460px);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
 }
 
 .viewport .hud-title {
@@ -598,9 +632,6 @@ textarea {
 }
 
 .viewport .hud-view {
-  top: 10px;
-  right: 12px;
-  text-align: right;
   font-variant-numeric: tabular-nums;
 }
 
@@ -610,9 +641,6 @@ textarea {
 }
 
 .viewport .hud-telemetry {
-  left: 12px;
-  bottom: 12px;
-  max-width: min(38%, 520px);
   font-variant-numeric: tabular-nums;
 }
 
@@ -634,9 +662,6 @@ textarea {
 }
 
 .viewport .hud-legend {
-  left: 12px;
-  bottom: 62px;
-  max-width: min(38%, 520px);
   display: flex;
   flex-wrap: wrap;
   gap: 4px 12px;
@@ -652,8 +677,7 @@ textarea {
 }
 
 .viewport .hud-controls {
-  right: 12px;
-  bottom: 10px;
+  margin-left: auto;
   pointer-events: auto;
   display: flex;
   flex-wrap: wrap;
@@ -674,6 +698,11 @@ textarea {
   border-color: var(--sky-accent);
 }
 
+.viewport .hud-controls button.attention {
+  border-color: var(--sky-accent);
+  box-shadow: 0 0 0 1px var(--sky-accent);
+}
+
 .viewport .hud-controls .check {
   padding: 0;
   font-size: 0.8rem;
@@ -681,9 +710,7 @@ textarea {
 }
 
 .viewport .hud-stats {
-  top: 34px;
-  right: 12px;
-  text-align: right;
+  max-width: 34em;
 }
 
 .viewport:not(.observatory) .hud-stats {
@@ -714,7 +741,11 @@ textarea {
 
 @media (max-width: 560px) {
   .viewport canvas.sky {
-    height: 260px;
+    height: 300px;
+  }
+
+  .viewport:not(.observatory) .hud-target .dim {
+    display: none;
   }
 
   .viewport .hud-view,
@@ -723,11 +754,68 @@ textarea {
   }
 
   .viewport .hud-target,
-  .viewport .hud-telemetry {
-    max-width: calc(100% - 24px);
+  .viewport .hud-readout {
+    max-width: 100%;
   }
 
-  .viewport .hud-telemetry {
-    bottom: 48px;
+  /* The readout sits over the map on a phone: give it a backing to stay legible. */
+  .viewport .hud-readout:has(> :not([hidden])) {
+    padding: 4px 6px;
+    border-radius: 6px;
+    background: rgba(2, 4, 10, 0.62);
   }
+
+  .viewport .hud-corner {
+    align-items: flex-start;
+    margin-left: 0;
+    text-align: left;
+  }
+}
+
+/* The review of results computed in this browser: a modal dialog, so it sits above the
+   full-window observatory too. */
+dialog.review {
+  width: min(880px, calc(100vw - 32px));
+  max-height: calc(100vh - 48px);
+  padding: 18px 20px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--surface);
+  color: var(--ink);
+}
+
+dialog.review::backdrop {
+  background: rgba(0, 0, 0, 0.55);
+}
+
+.review-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 12px;
+}
+
+.review-head h2 {
+  margin: 0;
+}
+
+.review-counts {
+  font-weight: 600;
+}
+
+.review .chip {
+  display: inline-block;
+  padding: 1px 8px;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  font-size: 0.8rem;
+  white-space: nowrap;
+}
+
+.review .chip.accepted {
+  border-color: var(--series-3);
+}
+
+.review .chip.opened {
+  border-color: var(--accent);
 }

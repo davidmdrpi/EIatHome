@@ -5,8 +5,8 @@ import { matchedSize, matchedTokenWidth, parameterCount, tokenParameterCount } f
 import { deriveSeed, makeRng } from '../web/js/rng.js';
 import { C, T, makeSnippet, normalise, rosettaSymbols } from '../web/js/signals.js';
 import { canonicalOrder, datasetId, parseSlice } from '../web/js/slices.js';
-import { holdoutSplits, sessionPools } from '../web/js/splits.js';
-import { analyzeSplits, compressedBitsPerToken, conditionalEntropies, fitMarkov, fitNgram, heldOutCrossEntropy, mutualInformation, sampleMarkov, shuffleWithin, targetCount } from '../web/js/trackb.js';
+import { holdoutSplits, mjdDate, sessionPools } from '../web/js/splits.js';
+import { analyzeSplits, compressedBitsPerToken, conditionalEntropies, controlProfile, fitMarkov, fitNgram, heldOutCrossEntropy, mutualInformation, sampleMarkov, shuffleWithin, targetCount } from '../web/js/trackb.js';
 import { rosettaSplits } from '../web/js/trackb-splits.js';
 import { ROSETTA_CORPUS, workUnitConfig } from '../web/js/workunits.js';
 import { entry, lineSlice, publishedSlices, sha256, sliceBytes } from './fixtures.mjs';
@@ -275,6 +275,14 @@ test('real-data token statistics hold out whole scans, or whole sessions once th
   const sessions = holdoutSplits(await load([scan('a', DAY_1, 1), scan('b', DAY_3, 2), scan('c', DAY_6, 3)]), 'voyager');
   assert.deepEqual([sessions.unit, sessions.independent], ['session', true]);
 
+  // Two sessions are too few to hold out whole sessions, so whole scans are held out, and the
+  // split says which sessions each part draws on (as with Voyager in 2016 and 2020).
+  const two = holdoutSplits(await load([scan('a', DAY_1, 1), scan('b', DAY_6, 2), scan('c', DAY_6 + minutes(10), 3), scan('d', DAY_6 + minutes(20), 4)]), 'voyager');
+  assert.deepEqual([two.unit, two.independent, two.units], ['scan', false, 4]);
+  assert.deepEqual(two.sessions.map(mjdDate), ['2016-09-19', '2016-09-24']);
+  assert.deepEqual(two.sessionsOf, { train: [0, 1], validation: [1], test: [1] }, 'the held-out scans share the later session with a training scan');
+  assert.deepEqual(byScan.sessions.length, 1);
+
   assert.match(holdoutSplits(await load([scan('a', DAY_1, 1), scan('b', DAY_1 + minutes(10), 2)]), 'voyager').error, /at least 3 scans/);
   assert.match(holdoutSplits(await load([scan('a', null, 1), scan('b', DAY_3, 2), scan('c', DAY_6, 3)]), 'voyager').error, /no start time/);
 });
@@ -301,4 +309,15 @@ test('the work-unit Rosetta corpus is pinned by its hash', () => {
   const digest = sha256(new TextEncoder().encode(ROSETTA_CORPUS.text).buffer);
   assert.equal(digest, ROSETTA_CORPUS.sha256, 'editing the built-in text changes track-a/v0: define a new spec instead');
   assert.equal(workUnitConfig(5).rosettaCorpus, ROSETTA_CORPUS.id);
+});
+
+test('the control profile says where another family’s frames fall on this codebook', () => {
+  // Three centroids of two values: a flat one, and two with a peak.
+  const centroids = Float32Array.from([0.1, 0.2, 5, 0.1, 0.3, 4]);
+  const control = [Uint8Array.from([0, 0, 0, 2]), Uint8Array.from([0, 1])];
+  const train = [Uint8Array.from([0, 1, 1, 2, 0, 0])];
+  const p = controlProfile(control, train, centroids, 3, 2);
+  assert.deepEqual(p, { token: 0, frames: 6, share: 4 / 6, typesUsed: 3, trainShare: 3 / 6, trainCommonest: true, flattest: true });
+  const other = controlProfile([Uint8Array.from([1, 1, 2])], train, centroids, 3, 2);
+  assert.deepEqual([other.token, other.trainCommonest, other.flattest], [1, false, false]);
 });

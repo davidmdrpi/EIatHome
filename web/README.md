@@ -33,7 +33,8 @@ browsers don't run module workers from `file://` URLs.
 | `js/slices.js` | Loads real-data micro-slices (`data/slices/`) or user-dropped files, verifies their SHA-256 and computes the dataset identity |
 | `js/splits.js` | Groups a real family's slices into observing sessions and keeps training and evaluation on different sessions |
 | `js/workunits.js` | Versioned work-unit specs |
-| `js/skymap.js` | The Observatory viewport: a sky map on a canvas (stereographic projection, so stars stay round at any zoom). Slews along great circles to each signal's pointing, zooms from 60° to the 2° around the telescope beam with a computation's progress, and draws its live effects: wavefronts for Track A and B, and the 1,024-window grid for recovery units. Observatory mode fills the window and can keep running work units. The coordinate math has no DOM dependencies, so tests run it in Node |
+| `js/contributions.js` | What became of the result cards computed in this browser (computed here, saved to a file, opened on GitHub, accepted into the community results), and the rule for keeping them: a card is dropped to make room only if it's accepted or saved |
+| `js/skymap.js` | The Observatory viewport: a sky map on a canvas (stereographic projection, so stars stay round at any zoom). Slews along great circles to each signal's pointing, zooms from 60° to the 2° around the telescope beam with a computation's progress, and draws its live effects: wavefronts for Track A and B, and the 1,024-window grid for recovery units. Observatory mode fills the window and can keep running work units. A running job stays on the target whose data it uses, and the HUD names that data. The coordinate math has no DOM dependencies, so tests run it in Node |
 | `data/sky/` | The sky it draws (`tools/build_sky.py`): the 1,500 brightest Hipparcos stars with B−V colours, every Hipparcos star near the observed targets, constellation lines, names and IAU boundaries, and reference targets, from d3-celestial (BSD-3-Clause, notice in `LICENSE.d3-celestial.txt`) |
 | `js/recovery.js`, `js/recovery.worker.js` | The `recovery/v0` work unit (`tracks/recovery`, issue #13): injects synthetic signals into the real off-source windows in `data/recovery/`, deals them blind to the de-Doppler and energy detectors, and counts what each finds at thresholds pinned in the spec. Also checks recovery cards and adds units up |
 | `js/rng.js` | Seeded random numbers, so everything is reproducible |
@@ -93,7 +94,16 @@ headless Chromium. It checks that:
   units;
 - the viewport slews to a signal's pointing, and clicking a beacon selects its signal;
 - a recovery unit zooms the viewport to the telescope beam and colours each window by its outcome;
-- observatory mode fills the window, keeps running units, and stops when it's closed.
+- observatory mode fills the window, keeps running units, and stops when it's closed; auto-run
+  ticked while the recovery windows load starts once they're ready, and clicking another beacon
+  mid-unit moves the view, not the unit;
+- the review lists the cards computed here by status (accepted ones are matched against the
+  community results), submits a card and marks it, and opens when observatory mode is left with
+  cards to submit; a browser full of cards that exist nowhere else pauses auto-run instead of
+  dropping one, until they're saved or accepted;
+- Track B describes a real family's sessions as loaded (Voyager 1's four scans span 2016 and
+  2020, two sessions, so its held-out scans share a session with training), and explains the
+  control row from the run's own numbers.
 
 CI runs both on every pull request.
 
@@ -117,6 +127,24 @@ manifest, a file or browser storage into `innerHTML`.
   existing spec, because published result cards refer to it. Make a `v1` instead.
 - **Publish real data:** see `data/slices/README.md`. A new real family also needs an entry
   with `real: true` in `FAMILIES` and a generator that calls `sliceWindow()`.
+
+## Your results in this browser
+
+Units computed here are kept in browser storage (up to 200 Track A work units and 300 recovery
+units) until you delete them. The viewport's **Review and submit** button, also offered when
+you leave observatory mode, lists them with what became of each:
+
+| Status | Meaning |
+|---|---|
+| Computed here | Only this browser has the card |
+| Saved to a file | You downloaded it |
+| Opened on GitHub | You opened its submission issue; it's recorded once the issue is posted and checked |
+| Accepted | Its exact card is in `data/community_results.json` |
+
+To make room for a new card, the oldest cards that are accepted or saved are dropped. A card that
+exists nowhere else is never dropped: when every kept card is like that, auto-run pauses and the
+review opens, so you can submit or download them. The HUD counts units computed this session,
+cards awaiting submission and cards accepted. Nothing about this leaves the browser.
 
 ## Deploying
 

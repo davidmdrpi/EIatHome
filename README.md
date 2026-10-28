@@ -352,6 +352,7 @@ EIatHome/
 - [x] Signal recovery across two observing sessions (2016 and 2020): in a quiet coarse channel, thresholds hold their false-alarm rate on the other session and overall recovery shows no significant difference (issue #13, milestone 4)
 - [x] A second Voyager 1 session (2016) in the Live Lab's data, with every slice's pointing on the sky (manifest version 2)
 - [x] The Observatory viewport: a sky map that slews to each signal's pointing and zooms toward the telescope beam while a computation runs, with an observatory mode for leaving the tab running
+- [x] A review of the results computed in a browser, from the viewport and observatory mode: what each unit measured, which cards await submission, and which were accepted into the community results; cards that exist nowhere else are never dropped to make room
 - [ ] Public volunteer pilot
 - [ ] Heavier work units on BOINC, if needed (for example via [BOINC Central](https://boinc.berkeley.edu/central/scientist.php))
 
