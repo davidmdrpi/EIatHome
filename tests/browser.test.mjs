@@ -518,9 +518,12 @@ test('community recovery units are combined once per unit, apart from the replic
   overrides.set('/data/community_results.json', JSON.stringify({ format: 'eiathome-community-results', version: 1, results }));
   try {
     const { page, errors } = await openLab();
+    // Load the community results while the tab is hidden: the status line is then already set
+    // when the tab opens, so wait for the table itself, drawn once the tab shows.
+    await page.waitForFunction(() => document.getElementById('community-status').textContent !== '', null, { timeout: 30000 });
     await page.click('.tabs button[data-tab="recovery"]');
-    await page.waitForFunction(() => /^2 units from 3 volunteers, each recomputed/.test(document.getElementById('rc-combined-status').textContent), null, { timeout: 30000 });
-    assert.match(await page.textContent('#rc-combined-status'), /36 injections of each class at each strength/);
+    await page.waitForFunction(() => !document.getElementById('tab-recovery').hidden && document.querySelectorAll('#rc-combined-table tbody tr').length === 4, null, { timeout: 30000 });
+    assert.match(await page.textContent('#rc-combined-status'), /^2 units from 3 volunteers, each recomputed when submitted: 36 injections of each class at each strength/);
     const found = await page.$$eval('#rc-combined-table tbody tr', (trs) => trs.map((tr) => [...tr.cells].map((td) => td.textContent)));
     assert.match(found[0][1], / of 536: /, 'false alarms among both units’ empty windows');
     await page.waitForFunction(() => /flags \d+ of the 1,024 windows/.test(document.getElementById('rc-empty-note').textContent), null, { timeout: 30000 });
