@@ -56,8 +56,8 @@ async function publishedCard(unit, extraSlices = 0) {
   const slices = await publishedSlices();
   const published = await describeDataset(slices);
   const card = await makeCard(unit, { dataset: published });
-  const listed = slices.map((s) => ({ id: s.id, family: s.family, sha256: s.sha256, start_mjd: s.startMjd }));
-  for (let i = 0; i < extraSlices; i++) listed.push({ ...listed[i % listed.length], id: `${listed[i % listed.length].id}-more-${i}` });
+  const ids = slices.map((s) => s.id);
+  const listed = [...ids, ...Array.from({ length: extraSlices }, (_, i) => `${ids[i % ids.length]}-more-${i}`)];
   card.inputs.slices.slices = listed;
   card.metrics.drift_probe.voyager = ['carrier', 'sideband', 'sideband'].map((group) => ({
     group, measured_hz_per_s: -0.4297, readout_hz_per_s: -0.3812, readout_sd: 0.0412, untrained_readout_hz_per_s: 0.0123,
@@ -81,8 +81,8 @@ test('the submit link carries a card on the published slices, and ingestion read
 });
 
 test('a card too long for a link opens an issue with an empty json block to paste it into', async () => {
-  // Ten more slices (a second session would add nine) push it over the limit.
-  const { card, published } = await publishedCard(4, 10);
+  // A hundred more slice ids push it over the limit.
+  const { card, published } = await publishedCard(4, 100);
   const { url, prefilled } = issueLink(card, 'https://github.com/davidmdrpi/EIatHome');
   assert.equal(prefilled, false);
   assert.ok(url.length <= MAX_ISSUE_URL);
@@ -97,7 +97,7 @@ test('a card too long for a link opens an issue with an empty json block to past
 });
 
 test('the text pasted for a large card is compact, so ingestion accepts a card it would reject pretty-printed', async () => {
-  const { card } = await publishedCard(4, 60);
+  const { card } = await publishedCard(4, 280);
   const bytes = (text) => new TextEncoder().encode(text).length;
   assert.ok(bytes(JSON.stringify(card, null, 2)) > MAX_CARD_BYTES, 'pretty-printed, over the ingestion limit');
   assert.ok(bytes(submissionText(card)) < MAX_CARD_BYTES, 'compact, under it');

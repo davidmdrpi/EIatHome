@@ -1,10 +1,11 @@
 import { isRecoveryCard, issueLink, submissionText, summarize, validateCard } from './community.js';
 import { architectureLabel, tokenArchitectureLabel } from './models.js';
 import { fmt, heatmap, lineChart, scatterPanel } from './plots.js';
-import { DECOYS, KINDS, RECOVERY_SPEC, SIGNALS, STRENGTHS, combine, wilson } from './recovery.js';
+import { DECOYS, KINDS, RECOVERY_DATA, RECOVERY_SPEC, SIGNALS, STRENGTHS, combine, wilson } from './recovery.js';
 import { deriveSeed, makeRng } from './rng.js';
 import { forWorkers, loadPublishedSlices, loadSliceFiles } from './slices.js';
 import { C, FAMILIES, ROSETTA_TEXT, T, driftToHzPerS, familyById, makeSnippet, normalise, shuffleFrames } from './signals.js';
+import { GREEN_BANK, OUTCOMES, SkyMap, constellationAt, horizonToEquatorial, loadSky, siderealHours } from './skymap.js';
 import { MAX_UNIT, SPEC, workUnitConfig } from './workunits.js';
 
 const REPO = 'https://github.com/davidmdrpi/EIatHome';
@@ -132,6 +133,7 @@ function onEngineMessage(msg) {
       state.losses.push([msg.epoch, msg.loss]);
       state.lastEpoch = msg;
       labStatus(`${architectureLabel(msg.arch)}, ${msg.parameters.toLocaleString()} parameters · epoch ${msg.epoch} of ${msg.epochs} · ${Math.round(msg.ms)} ms per epoch on ${BACKEND_NAMES[msg.backend] ?? msg.backend}`);
+      viewports.lab?.telemetry(`Track A · ${architectureLabel(msg.arch)} · epoch ${msg.epoch} of ${msg.epochs} · loss ${fmt(msg.loss, 4)} · ${Math.round(msg.ms)} ms per epoch`, msg.epoch / msg.epochs);
       renderLab();
       break;
     case 'trained':
@@ -144,11 +146,13 @@ function onEngineMessage(msg) {
           `Done: ${architectureLabel(msg.arch)}, ${msg.parameters.toLocaleString()} parameters. ${msg.reconstruction} So the ${familyById[state.trainedFamily].label} score measures how well the model reconstructs data it trained on, not how well it generalizes.`,
         );
       else labStatus(`Done: ${architectureLabel(msg.arch)}, ${msg.parameters.toLocaleString()} parameters. Compare it with the baselines, then try another signal or model.`);
+      viewports.lab?.finishJob(msg.stopped ? 'Track A · stopped' : `Track A · done: ${architectureLabel(msg.arch)}, ${msg.parameters.toLocaleString()} parameters. See its prediction gains below.`);
       renderProbe();
       break;
     case 'wu-progress':
       $('wu-progress').value = msg.epoch / msg.epochs;
       unitStatus(`Unit ${msg.unit}: epoch ${msg.epoch} of ${msg.epochs}, training loss ${fmt(msg.loss, 3)}`);
+      viewports.lab?.telemetry(`Work unit ${msg.unit} · ${SPEC} · epoch ${msg.epoch} of ${msg.epochs} · loss ${fmt(msg.loss, 3)}`, msg.epoch / msg.epochs);
       break;
     case 'wu-result':
       onWorkUnitResult(msg.card);
@@ -156,9 +160,11 @@ function onEngineMessage(msg) {
     case 'wu-stopped':
       setRunning(null);
       unitStatus(`Unit ${msg.unit} stopped.`);
+      viewports.lab?.finishJob(`Work unit ${msg.unit} · stopped`);
       break;
     case 'token-lm-progress':
       $('tb-lm-status').textContent = `Training on the ${STREAM_NAMES[msg.stream]} stream (${tokenArchitectureLabel(msg.arch)}): epoch ${msg.epoch} of ${msg.epochs}…`;
+      viewports.lab?.telemetry(`Track B · token ${tokenArchitectureLabel(msg.arch)} on the ${STREAM_NAMES[msg.stream]} stream · epoch ${msg.epoch} of ${msg.epochs}`, msg.epoch / msg.epochs);
       break;
     case 'token-lm-result':
       setRunning(null);
@@ -166,9 +172,11 @@ function onEngineMessage(msg) {
       $('tb-lm-status').textContent = msg.stopped
         ? 'Stopped.'
         : `Done: ${tokenArchitectureLabel(msg.arch)}, ${msg.parameters.toLocaleString()} parameters. Lower is better; compare the real stream with its surrogates.`;
+      viewports.lab?.finishJob(msg.stopped ? 'Track B · token model stopped' : `Track B · token ${tokenArchitectureLabel(msg.arch)} trained. Its held-out scores are in the Track B panel.`);
       renderTokenModel();
       break;
     case 'error':
+      viewports.lab?.finishJob(`Stopped: ${msg.message}`);
       if (state.running === 'unit') unitStatus(msg.message, true);
       else if (state.running === 'tokens') {
         $('tb-lm-status').textContent = msg.message;
@@ -217,9 +225,11 @@ function renderFamilies() {
   $('family-about').textContent = familyById[state.family].about;
 }
 
-function selectFamily(id) {
+// fromMap: the viewport already selected the clicked pointing, so don't slew elsewhere.
+function selectFamily(id, { fromMap = false } = {}) {
   state.family = id;
   renderFamilies();
+  if (!fromMap) viewports.lab?.select(targetForFamily(id));
   if (!state.running) renderPreview();
   analyzeTokens();
 }
@@ -376,6 +386,7 @@ function startTraining() {
   renderProbe();
   setRunning('lab');
   labStatus('Building snippets and baselines…');
+  viewports.lab?.startJob('train', targetForFamily(config.target), `Track A · ${architectureLabel(config.arch)} learning ${familyById[config.target].label}: building snippets…`);
   engine.postMessage({ type: 'train', config });
 }
 
@@ -385,6 +396,7 @@ function analyzeTokens() {
   if (!familyAvailable(state.family)) return;
   const id = ++analyzeId;
   $('tb-status').textContent = 'Tokenizing…';
+  if (!state.running) viewports.lab?.startJob('analysis', targetForFamily(state.family), `Track B · tokenizing ${familyById[state.family].label} into radio tokens…`);
   $('tb-status').classList.remove('error');
   tokens.postMessage({
     type: 'analyze',
@@ -411,6 +423,7 @@ function onTrackB(msg) {
     return;
   }
   state.trackb = msg;
+  if (!state.running) viewports.lab?.finishJob(`Track B · ${msg.nTokens.toLocaleString()} tokens of ${familyById[msg.family].label}, ${msg.used} of ${msg.k} token types used`);
   if (state.tokenLm?.analysis !== msg) {
     state.tokenLm = null; // the token model belongs to the previous token stream
     if (state.running !== 'tokens') $('tb-lm-status').textContent = '';
@@ -493,6 +506,7 @@ function startTokenModel() {
   $('tb-lm-status').classList.remove('error');
   $('tb-lm-status').textContent = 'Starting…';
   setRunning('tokens');
+  viewports.lab?.startJob('tokens', targetForFamily(r.family), `Track B · training a token ${tokenArchitectureLabel($('tb-lm-arch').value)}…`);
   engine.postMessage({
     type: 'token-lm',
     arch: $('tb-lm-arch').value,
@@ -544,6 +558,7 @@ function runUnit(unit) {
   $('wu-progress').value = 0;
   setRunning('unit');
   unitStatus(`Unit ${unit}: building snippets…`);
+  viewports.lab?.startJob('unit', targetForFamily('voyager'), `Work unit ${unit} · ${SPEC}: trains on synthetic tones, tests on every signal…`);
   engine.postMessage({ type: 'workunit', unit });
 }
 
@@ -562,7 +577,12 @@ function onWorkUnitResult(card) {
   state.results = [card, ...state.results].slice(0, 200);
   store.set('results', state.results);
   renderHistory();
-  if ($('wu-loop').checked && !state.stopLoop) setTimeout(() => !state.running && runUnit(randomUnit()), 1000);
+  session.units += 1;
+  session.seconds += card.seconds;
+  viewports.lab?.finishJob(`Work unit ${card.unit} · done in ${card.seconds} s · GRU gain on tones ${fmt(card.metrics?.prediction_gain?.tone?.gru)}`);
+  viewports.lab?.setStats(sessionStats('lab'));
+  // The loop is checked again when the timer fires: it may have been turned off meanwhile.
+  if ($('wu-loop').checked && !state.stopLoop) setTimeout(() => $('wu-loop').checked && !state.stopLoop && !state.running && runUnit(randomUnit()), 1000);
 }
 
 function renderHistory() {
@@ -646,6 +666,121 @@ function onConfirmedClick(button, action) {
   };
 }
 
+// ---------- observatory viewport ----------
+
+const viewports = { lab: null, recovery: null };
+const session = { units: 0, seconds: 0, recovery: 0, recoverySeconds: 0 };
+let skyData = null;
+
+const plural = (n, word) => `${n.toLocaleString()} ${word}${n === 1 ? '' : 's'}`;
+const sessionStats = (kind) =>
+  kind === 'recovery'
+    ? `This session: ${plural(session.recovery, 'recovery unit')} (${fmt(session.recoverySeconds, 1)} s of compute)`
+    : `This session: ${plural(session.units, 'Track A work unit')} (${fmt(session.seconds, 1)} s of compute)`;
+
+// The compass direction of position b seen from a, for short labels ("Off N").
+function compass(a, b) {
+  const east = ((((b.ra_hours - a.ra_hours + 12) % 24) + 24) % 24 - 12) * 15 * Math.cos((a.dec_deg * Math.PI) / 180);
+  const north = b.dec_deg - a.dec_deg;
+  return Math.abs(north) >= Math.abs(east) ? (north > 0 ? 'N' : 'S') : east > 0 ? 'E' : 'W';
+}
+
+const skyFields = ({ ra_hours, dec_deg, constellation, distance_label, epoch, telescope }) => ({ ra_hours, dec_deg, constellation, distance_label, epoch, telescope });
+
+// Where the telescope pointed for the loaded slices (manifest version 2): one target per
+// family, position and date.
+function pointings() {
+  const seen = new Map();
+  for (const s of state.slices) {
+    const sky = s.source?.sky;
+    if (!sky || !Number.isFinite(sky.ra_hours) || !Number.isFinite(sky.dec_deg) || !familyById[s.family]) continue;
+    const date = String(sky.epoch ?? '').slice(0, 10);
+    const id = `${s.family}@${sky.ra_hours.toFixed(4)},${sky.dec_deg.toFixed(3)}@${date}`;
+    if (!seen.has(id)) seen.set(id, { id, family: s.family, kind: s.family === 'offsource' ? 'off' : 'signal', date, ...skyFields(sky) });
+  }
+  const list = [...seen.values()];
+  for (const t of list) {
+    const on = list.find((o) => o.kind === 'signal' && o.date === t.date);
+    t.label = t.kind === 'off' ? `Off-source · ${t.date}` : `${familyById[t.family].label} · ${t.date}`;
+    t.short = t.kind === 'off' ? (on ? `Off ${compass(on, t)}` : 'Off-source') : `${familyById[t.family].label} ${t.date.slice(0, 4)}`;
+  }
+  return list;
+}
+
+// Synthetic signals don't come from the sky: their marker sits low over the Green Bank horizon,
+// where a local transmitter would be, and moves with the time of day.
+function localTarget() {
+  const [ra, dec] = horizonToEquatorial(12, 160, GREEN_BANK.lat, siderealHours(new Date(), GREEN_BANK.lon));
+  return {
+    id: 'local',
+    kind: 'local',
+    label: 'Synthetic signals',
+    short: 'Local (synthetic)',
+    ra_hours: ra / 15,
+    dec_deg: dec,
+    constellation: skyData ? constellationAt(ra, dec, skyData.boundaries) : null,
+    distance_label: 'Generated in this browser, not received',
+    note: 'Marked low over the Green Bank horizon, where a local transmitter would be',
+  };
+}
+
+const recoveryTarget = () => ({ id: 'recovery', kind: 'off', label: 'Recovery windows · 2020-07-16', short: 'Recovery windows', ...RECOVERY_DATA.sky });
+const near = (a, b) => Math.abs(a.ra_hours - b.ra_hours) < 1e-3 && Math.abs(a.dec_deg - b.dec_deg) < 1e-2;
+
+function refreshTargets() {
+  const references = (skyData?.references ?? []).map((r) => ({ ...r, kind: 'reference', short: r.label }));
+  const all = pointings();
+  viewports.lab?.setTargets([...all, localTarget(), ...references]);
+  viewports.recovery?.setTargets([...all.filter((t) => !near(t, RECOVERY_DATA.sky)), recoveryTarget(), ...references]);
+}
+
+// The target a family's computations point at: its latest pointing (for off-source, the one the
+// recovery windows come from, if loaded), or the local marker for synthetic signals.
+function targetForFamily(id) {
+  if (!familyById[id]?.real) return 'local';
+  const own = pointings().filter((t) => t.family === id).sort((a, b) => b.date.localeCompare(a.date) || Number(near(b, RECOVERY_DATA.sky)) - Number(near(a, RECOVERY_DATA.sky)));
+  return own[0]?.id ?? null;
+}
+
+function onSkySelect(t) {
+  if (state.running) return;
+  if (t.family && t.family !== state.family && familyAvailable(t.family)) selectFamily(t.family, { fromMap: true });
+  else if (t.kind === 'local' && familyById[state.family].real) selectFamily('tone', { fromMap: true });
+}
+
+function startViewports() {
+  viewports.lab = new SkyMap($('lab-viewport'), {
+    onSelect: onSkySelect,
+    autoRunLabel: 'Auto-run Track A work units',
+    onAutoRun: (on) => {
+      $('wu-loop').checked = on;
+      if (on && !state.running) runUnit(randomUnit());
+    },
+  });
+  viewports.recovery = new SkyMap($('rc-viewport'), {
+    autoRunLabel: 'Auto-run recovery units',
+    onAutoRun: (on) => {
+      $('rc-loop').checked = on;
+      rc.autoStart = on && !rc.ready; // started once the windows are ready, if still ticked then
+      if (on && rc.ready && !rc.running) runRecovery(randomUnit());
+      if (!on) {
+        clearTimeout(rc.timer);
+        setRecoveryRunning(rc.running);
+      }
+    },
+  });
+  viewports.lab.setStats(sessionStats('lab'));
+  viewports.recovery.setStats(sessionStats('recovery'));
+  loadSky()
+    .then((sky) => {
+      skyData = sky;
+      refreshTargets();
+      viewports.lab.select(targetForFamily(state.family), 60);
+      viewports.recovery.select('recovery', 60);
+    })
+    .catch(() => {}); // the viewport reports it
+}
+
 // ---------- recovery units ----------
 
 const KIND_LABELS = {
@@ -671,6 +806,7 @@ const rc = {
   empty: null, // flags per detector and rate on the windows with nothing injected
   running: false,
   stopLoop: false,
+  autoStart: false, // observatory auto-run asked for before the windows were ready
   timer: null,
   card: null,
   issue: null,
@@ -707,8 +843,13 @@ function onRecoveryMessage(msg) {
     setRecoveryRunning(rc.running);
     recoveryStatus(`Ready: ${msg.windows.toLocaleString()} windows loaded, matching the spec’s SHA-256.`);
     renderCombined();
+    if (rc.autoStart && $('rc-loop').checked && !rc.running) runRecovery(randomUnit());
+    rc.autoStart = false;
+  } else if (msg.type === 'progress') {
+    viewports.recovery?.telemetry(`Recovery unit ${msg.unit} · de-Doppler search · ${Math.round(msg.fraction * 1024).toLocaleString()} of 1,024 windows scored`, msg.fraction);
+    viewports.recovery?.scanned(msg.cells);
   } else if (msg.type === 'result') {
-    onRecoveryResult(msg.card);
+    onRecoveryResult(msg.card, msg.outcomes);
   }
 }
 
@@ -718,10 +859,11 @@ function runRecovery(unit) {
   $('rc-number').value = unit;
   setRecoveryRunning(true);
   recoveryStatus(`Unit ${unit}: dealing the windows and scoring them…`);
+  viewports.recovery?.startJob('recovery', 'recovery', `Recovery unit ${unit} · dealing 756 hidden signals into 1,024 windows…`);
   rc.worker.postMessage({ type: 'unit', unit });
 }
 
-function onRecoveryResult(card) {
+function onRecoveryResult(card, outcomes = []) {
   rc.card = card;
   rc.issue = issueLink(card, REPO);
   $('rc-submit').href = rc.issue.url;
@@ -733,9 +875,15 @@ function onRecoveryResult(card) {
   $('rc-card').textContent = JSON.stringify(card, null, 2);
   renderRecoveryUnit();
   renderCombined();
+  session.recovery += 1;
+  session.recoverySeconds += card.seconds;
+  const totals = recoveryTotals(card.results, card.config.per_cell, '0.01');
+  viewports.recovery?.outcomes(outcomes, OUTCOMES.map((outcome, i) => ({ outcome, count: outcomes.filter((c) => c === i).length })), 'Each cell is one frequency window of this one pointing, in order along the band (the layout is illustrative, not positions on the sky). De-Doppler at 1% false alarms:');
+  viewports.recovery?.finishJob(`Recovery unit ${card.unit} · de-Doppler found ${totals.found.dedoppler} of ${totals.signals} hidden signals, the energy detector ${totals.found.energy} · ${card.seconds} s`);
+  viewports.recovery?.setStats(sessionStats('recovery'));
   const again = $('rc-loop').checked && !rc.stopLoop;
   setRecoveryRunning(false, again);
-  if (again) rc.timer = setTimeout(() => runRecovery(randomUnit()), 1000);
+  if (again) rc.timer = setTimeout(() => $('rc-loop').checked && !rc.stopLoop && !rc.running && runRecovery(randomUnit()), 1000);
 }
 
 // Signals found and decoys flagged in total, per detector, and the signals' paired outcomes.
@@ -933,6 +1081,7 @@ function setSlices(slices, source) {
   state.slices = slices;
   state.sliceSource = source;
   broadcast({ type: 'slices', slices: forWorkers(slices) });
+  refreshTargets();
   if (familyAvailable(state.family)) renderFamilies();
   else selectFamily('tone');
   const status = $('slice-status');
@@ -1021,6 +1170,7 @@ function init() {
 
   startTokens();
   startEngine();
+  startViewports();
   renderFamilies();
   renderHistory();
 

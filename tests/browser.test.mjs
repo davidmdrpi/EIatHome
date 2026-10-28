@@ -24,10 +24,12 @@ let server;
 let browser;
 let base;
 const overrides = new Map(); // path -> body, to serve fixture data in place of the real file
+const holds = new Map(); // path -> promise the server waits for before answering, to delay a file
 
 before(async () => {
   server = createServer(async (req, res) => {
     const path = normalize(decodeURIComponent(new URL(req.url, 'http://x').pathname)).replace(/^(\.\.[/\\])+/, '');
+    await holds.get(path);
     if (overrides.has(path)) {
       res.writeHead(200, { 'content-type': TYPES[extname(path)] ?? 'application/json' });
       res.end(overrides.get(path));
@@ -53,8 +55,9 @@ after(async () => {
   server?.close();
 });
 
-async function openLab() {
+async function openLab(init) {
   const page = await browser.newPage();
+  if (init) await page.addInitScript(init);
   const errors = [];
   page.on('pageerror', (e) => errors.push(e.message));
   await page.goto(base);
@@ -421,9 +424,9 @@ test('a card from a real work unit passes the checks the ingestion workflow runs
 
 test('a card too long for a link is put on the clipboard, for an issue with a json block to paste into', async () => {
   const { page, errors } = await openLab();
-  // Forty slices: the card lists every one, which makes it too long for a link.
+  // Forty slices with long ids: the card lists every id, which makes it too long for a link.
   await loadSlices(page, Array.from({ length: 40 }, (_, i) => ({
-    meta: { id: `voyager-session-${String(i).padStart(2, '0')}`, group: i % 3 ? 'sideband' : 'carrier', tstart: 57650.78 + Math.floor(i / 3) * 0.004 },
+    meta: { id: `voyager-session-${String(i).padStart(2, '0')}-${'carrier-window-'.repeat(7)}`, group: i % 3 ? 'sideband' : 'carrier', tstart: 57650.78 + Math.floor(i / 3) * 0.004 },
     bytes: lineSlice(2.4 + (i % 5) * 0.1, i + 1),
   })));
   const card = await runUnit(page, 0);
@@ -533,5 +536,152 @@ test('community recovery units are combined once per unit, apart from the replic
     await page.close();
   } finally {
     overrides.clear();
+  }
+});
+
+const viewportState = (page, host) =>
+  page.$eval(`#${host} canvas`, (c) => ({
+    center: c.dataset.center.split(',').map(Number),
+    fov: Number(c.dataset.fov),
+    beacons: Object.fromEntries((c.dataset.beacons ?? '').split(';').filter(Boolean).map((b) => {
+      const [id, x, y] = b.split(' ');
+      return [id, [Number(x), Number(y)]];
+    })),
+  }));
+
+test('the observatory viewport slews to a signal on the sky, and clicking a beacon selects its signal', async () => {
+  const { page, errors } = await openLab();
+  await waitForPublished(page);
+  await page.click('#families button[data-family="voyager"]');
+  // Voyager 1's 2020 pointing, from the manifest's sky block.
+  await page.waitForFunction(() => {
+    const [ra, dec] = document.querySelector('#lab-viewport canvas').dataset.center.split(',').map(Number);
+    return Math.abs(ra - 258.1687) < 0.01 && Math.abs(dec - 12.4038) < 0.01;
+  }, null, { timeout: 15000 });
+  assert.match(await page.textContent('#lab-viewport .hud-target'), /Voyager 1 · 2020-07-16[\s\S]*Ophiuchus[\s\S]*≈150 AU from the Sun/);
+
+  // Zoom in until the 1° nod separates the positions, then click the off-source one east of Voyager.
+  const canvas = await page.$('#lab-viewport canvas');
+  const box = await canvas.boundingBox();
+  await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+  await page.mouse.wheel(0, -1500);
+  await page.waitForFunction(() => Number(document.querySelector('#lab-viewport canvas').dataset.fov) < 4, null, { timeout: 10000 });
+  await page.waitForFunction(() => /offsource@17\.2795/.test(document.querySelector('#lab-viewport canvas').dataset.beacons), null, { timeout: 10000 });
+  const { beacons } = await viewportState(page, 'lab-viewport');
+  const [east] = Object.entries(beacons).filter(([id]) => id.startsWith('offsource@17.2795'));
+  assert.ok(east, JSON.stringify(beacons));
+  assert.ok(Object.keys(beacons).some((id) => id.startsWith('voyager@17.1678')), 'the 2016 pointing is in view too');
+  await page.mouse.click(box.x + east[1][0], box.y + east[1][1]);
+  await page.waitForFunction(() => document.querySelector('#families button[data-family="offsource"]').getAttribute('aria-checked') === 'true', null, { timeout: 10000 });
+  assert.match(await page.textContent('#lab-viewport .hud-target'), /Off-source · 2020-07-16[\s\S]*Empty sky, 1\.0° east of Voyager 1/);
+  assert.deepEqual(errors, []);
+  await page.close();
+});
+
+test('a recovery unit zooms to the telescope beam and colours each of the 1,024 windows by its outcome', async () => {
+  const { page, errors } = await openLab();
+  await runRecovery(page, 21);
+  await page.waitForFunction(() => Number(document.querySelector('#rc-viewport canvas').dataset.fov) < 2.1, null, { timeout: 15000 });
+  const { center } = await viewportState(page, 'rc-viewport');
+  assert.ok(Math.abs(center[0] - 258.1687) < 0.01 && Math.abs(center[1] - 11.4038) < 0.01, `centred on off-source scan 0016: ${center}`);
+  const legend = await page.textContent('#rc-viewport .hud-legend');
+  const counts = [...legend.matchAll(/(empty|found|missed|false alarm|decoy flagged|decoy passed) (\d+)/g)].map((m) => Number(m[2]));
+  assert.equal(counts.length, 6);
+  assert.equal(counts.reduce((a, b) => a + b), 1024);
+  assert.match(await page.textContent('#rc-viewport .hud-telemetry'), /Recovery unit 21 · de-Doppler found \d+ of 540 hidden signals/);
+  assert.deepEqual(errors, []);
+  await page.close();
+});
+
+test('observatory mode fills the window and keeps running units until it is closed', async () => {
+  const { page, errors } = await openLab();
+  await page.click('.tabs button[data-tab="recovery"]');
+  await page.waitForFunction(() => /^Ready/.test(document.getElementById('rc-status').textContent), null, { timeout: 30000 });
+  await page.click('#rc-viewport .obs-toggle');
+  const size = await page.$eval('#rc-viewport .viewport', (el) => [el.getBoundingClientRect().width, el.getBoundingClientRect().height, innerWidth, innerHeight]);
+  assert.deepEqual(size.slice(0, 2), size.slice(2), 'fills the window');
+  await page.check('#rc-viewport .auto-run input');
+  await page.waitForFunction(() => /This session: ([2-9]|\d{2,}) recovery units/.test(document.querySelector('#rc-viewport .hud-stats').textContent), null, { timeout: 30000 });
+  assert.equal(await page.isChecked('#rc-loop'), true);
+  await page.keyboard.press('Escape');
+  assert.equal(await page.$eval('#rc-viewport .viewport', (el) => el.classList.contains('observatory')), false);
+  assert.equal(await page.isChecked('#rc-loop'), false, 'leaving observatory mode stops auto-run');
+  const done = (await page.textContent('#rc-viewport .hud-stats')).match(/(\d+) recovery units/)[1];
+  await page.waitForTimeout(2500);
+  assert.equal((await page.textContent('#rc-viewport .hud-stats')).match(/(\d+) recovery units/)[1], done, 'no unit started after it stopped');
+  assert.deepEqual(errors, []);
+  await page.close();
+});
+
+// Holds the recovery worker's results until window.__release() delivers them, so a unit can be
+// caught while it runs.
+function holdRecoveryResults() {
+  const held = [];
+  window.__release = () => held.splice(0).forEach((deliver) => deliver());
+  window.Worker = class extends window.Worker {
+    constructor(url, options) {
+      super(url, options);
+      this.hold = String(url).includes('recovery.worker');
+    }
+    get onmessage() {
+      return super.onmessage;
+    }
+    set onmessage(fn) {
+      super.onmessage = (e) => (this.hold && e.data?.type === 'result' ? held.push(() => fn(e)) : fn(e));
+    }
+  };
+}
+
+test('clicking another beacon while a recovery unit runs moves the view, not the unit', async () => {
+  const { page, errors } = await openLab(holdRecoveryResults);
+  await page.click('.tabs button[data-tab="recovery"]');
+  await page.waitForFunction(() => /^Ready/.test(document.getElementById('rc-status').textContent), null, { timeout: 30000 });
+  await page.fill('#rc-number', '7');
+  await page.click('#rc-run');
+  // Every window scored and the result held back: the unit is still running.
+  await page.waitForFunction(() => /1,024 of 1,024 windows scored/.test(document.querySelector('#rc-viewport .hud-telemetry').textContent), null, { timeout: 30000 });
+  assert.equal(await page.$eval('#rc-viewport canvas', (c) => c.dataset.job), 'recovery');
+
+  // Pull back until Barnard's Star is in view, and click it.
+  const canvas = await page.$('#rc-viewport canvas');
+  const box = await canvas.boundingBox();
+  await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+  await page.mouse.wheel(0, 2500);
+  await page.waitForFunction(() => /(^|;)barnard /.test(document.querySelector('#rc-viewport canvas').dataset.beacons), null, { timeout: 10000 });
+  const { beacons } = await viewportState(page, 'rc-viewport');
+  await page.mouse.click(box.x + beacons.barnard[0], box.y + beacons.barnard[1]);
+  await page.waitForFunction(() => document.querySelector('#rc-viewport .hud-title').textContent === "Barnard's Star", null, { timeout: 10000 });
+  assert.match(await page.textContent('#rc-status'), /^Unit 7: /, 'still running');
+  assert.equal(await page.$eval('#rc-viewport canvas', (c) => c.dataset.job), 'recovery', 'the unit stays drawn on its own windows');
+  assert.match(await page.textContent('#rc-viewport .hud-telemetry'), /Data from Recovery windows · 2020-07-16/);
+
+  await page.evaluate(() => window.__release());
+  await page.waitForFunction(() => document.getElementById('rc-status').textContent.startsWith('Unit 7 finished'), null, { timeout: 30000 });
+  assert.equal(await page.$eval('#rc-viewport canvas', (c) => c.dataset.job), 'recovery');
+  assert.match(await page.textContent('#rc-viewport .hud-telemetry'), /Data from Recovery windows · 2020-07-16[\s\S]*Recovery unit 7 · de-Doppler found/);
+  assert.equal(await page.textContent('#rc-viewport .hud-title'), "Barnard's Star", 'the view stays where it was taken');
+  assert.deepEqual(errors, []);
+  await page.close();
+});
+
+test('auto-run ticked in observatory mode while the windows are still loading starts once they are ready', async () => {
+  let release;
+  holds.set('/data/recovery/test.i8', new Promise((resolve) => { release = resolve; }));
+  try {
+    const { page, errors } = await openLab();
+    await page.click('.tabs button[data-tab="recovery"]');
+    await page.click('#rc-viewport .obs-toggle');
+    await page.check('#rc-viewport .auto-run input');
+    await page.waitForTimeout(500);
+    assert.match(await page.textContent('#rc-status'), /^Loading the windows/, 'the windows are held back');
+    assert.equal(await page.isChecked('#rc-loop'), true);
+    release();
+    await page.waitForFunction(() => /This session: [1-9]\d* recovery unit/.test(document.querySelector('#rc-viewport .hud-stats').textContent), null, { timeout: 30000 });
+    await page.keyboard.press('Escape');
+    assert.deepEqual(errors, []);
+    await page.close();
+  } finally {
+    holds.delete('/data/recovery/test.i8');
+    release?.();
   }
 });

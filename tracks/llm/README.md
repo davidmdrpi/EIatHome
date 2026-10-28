@@ -40,13 +40,18 @@ python -m tracks.llm.train --manifest tracks/llm/data/slices/index.json --allow-
   --position rope --train-stride 1 --output runs/voyager-6s-rope
 ```
 
-**The current eighteen slices come from one session.** Without `--allow-within-session`,
-training refuses to run until the chosen family spans at least **three independent sessions**
-(one each for train, validation and test). The explicit smoke mode holds out whole scans,
-keeps carrier/sidebands together, and reports `within_session_scan_holdout`. It cannot establish
-generalization across observing sessions. With the Live Lab's 16-frame slices each split has
-48 frames and 45 next-token targets; with the 49-frame slices, 147 frames and 144 targets.
-More epochs do not make either dataset larger.
+**The Live Lab's slices come from two sessions.** Voyager 1 has one on-source scan from 2016
+and three from 2020; the off-source controls are 2020's three scans. Without
+`--allow-within-session`, training refuses to run until the chosen family spans at least
+**three independent sessions** (one each for train, validation and test). The explicit smoke
+mode holds out whole scans, keeps carrier/sidebands together, and reports
+`within_session_scan_holdout`. It cannot establish generalization across observing sessions.
+With the Live Lab's 16-frame slices, validation and test each get one 2020 scan (48 frames and
+45 next-token targets); training gets the rest (Voyager: the 2016 scan and the first 2020 scan,
+96 frames and 90 targets; off-source: 48 and 45). The 49-frame slices come from 2020 only, with
+147 frames and 144 targets per split. More epochs do not make either dataset larger.
+`load_slices` reads manifest versions 1 and 2; version 2 adds each slice's pointing on the sky,
+which training doesn't use.
 
 For three or more sessions, export a manifest using `tools/extract_slices.py`, then:
 
