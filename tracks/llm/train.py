@@ -9,11 +9,26 @@ import platform
 import numpy as np
 import torch
 
+from .anchor import ANCHORS, load_anchor
 from .data import SPLITS, Tokenizer, digest, load_slices, markov_probabilities, split_records, split_sizes, surrogate, unique_records
 from .model import evaluate, fit, generate, validate_config
 from .runtime import atomic_output, require_new_output, training_runtime
 
 ROOT = Path(__file__).resolve().parents[2]
+MODEL_DEFAULTS = dict(vocab_size=16, context=15, width=128, layers=4, heads=4, dropout=0.1, position="absolute")
+
+
+def model_config(args, anchor=None):
+    """The model's settings: the defaults, or an anchor's, overridden by any given explicitly.
+    An anchor's can't be overridden: θ₀ only fits its own shapes."""
+    base = anchor.spec["model"] if anchor else MODEL_DEFAULTS
+    config = {}
+    for key, default in base.items():
+        given = getattr(args, key)
+        if anchor is not None and given is not None and given != default:
+            raise ValueError(f"--{key.replace('_', '-')} {given} conflicts with anchor {anchor.name} ({default})")
+        config[key] = default if given is None else given
+    return config
 
 
 def window_starts(model, sequences, batch_size):
@@ -53,8 +68,9 @@ def baseline_scores(train, test, k):
 
 def run(args):
     require_new_output(args.output)
-    config = dict(vocab_size=args.vocab_size, context=args.context, width=args.width,
-                  layers=args.layers, heads=args.heads, dropout=args.dropout, position=args.position)
+    anchor = load_anchor(args.anchor) if getattr(args, "anchor", None) else None
+    config = model_config(args, anchor)
+    vars(args).update(config)  # the rest of the run, and its report, use the resolved settings
     validate_config(**config)
     if min(args.epochs, args.batch_size, args.patience, args.threads) < 1:
         raise ValueError("Epochs, batch size, patience and threads must be positive")
@@ -65,22 +81,28 @@ def run(args):
     if args.device == "cuda" and not torch.cuda.is_available():
         raise ValueError("CUDA requested but unavailable; use --device cpu")
     with training_runtime(args.threads, args.device), atomic_output(args.output) as output:
-        return _run(args, config, output)
+        return _run(args, config, output, anchor)
 
 
-def _run(args, config, output):
+def _run(args, config, output, anchor=None):
     records = load_slices(args.manifest)
     partitions, independent = split_records(records, args.family, args.allow_within_session)
     if args.context > max(len(r["frames"]) - 1 for r in partitions["train"]):
         raise ValueError("Context exceeds the longest training sequence's next-token span; reduce --context")
-    tokenizer = Tokenizer.fit([r["frames"] for r in partitions["train"]], args.vocab_size, args.seed)
+    if anchor is not None:
+        # Every run from an anchor tokenizes with its pinned codebook, so token IDs mean the
+        # same frames in every run, and starts from θ₀, so their task vectors line up.
+        codebook_frames = anchor.check_data(records, partitions)
+        tokenizer = anchor.tokenizer
+    else:
+        tokenizer = Tokenizer.fit([r["frames"] for r in partitions["train"]], args.vocab_size, args.seed)
     streams = {name: [tokenizer.encode(r["frames"]) for r in partitions[name]] for name in SPLITS}
     probabilities = markov_probabilities(streams["train"], args.vocab_size)
     provenance = {name: [r["entry"] for r in partitions[name]] for name in SPLITS}
     identity = [{"sha256": r["sha256"], "entry": r["entry"]} for r in records]
     dataset_sha = digest(json.dumps(identity, sort_keys=True).encode())
     code_sha = digest(b"".join((Path(__file__).parent / name).read_bytes()
-                               for name in ("data.py", "model.py", "train.py", "runtime.py")))
+                               for name in ("data.py", "model.py", "train.py", "runtime.py", "anchor.py")))
     report = {
         "format": "eiathome-signal-lm", "version": 1,
         "evaluation": "independent_sessions" if independent else "within_session_scan_holdout",
@@ -94,8 +116,15 @@ def _run(args, config, output):
         "training": {k: str(v) if isinstance(v, Path) else v for k, v in vars(args).items()},
         "versions": {"python": platform.python_version(), "numpy": np.__version__, "torch": str(torch.__version__)},
         "model": config, "variants": {},
-        "tokenizer": {"fit_split": "train", "training_frames": sum(len(s) for s in streams["train"]),
+        "tokenizer": {"fit_split": "anchor" if anchor else "train", "training_frames": sum(len(s) for s in streams["train"]),
                       "sha256": digest(json.dumps(tokenizer.state(), sort_keys=True).encode())},
+        "anchor": None if anchor is None else {
+            **anchor.identity(), "init": "theta0",
+            "codebook_fit_frames": anchor.codebook["fit"]["frames"],
+            # The codebook saw the first scan of each family, the control family's too: it's
+            # scored as a control, never trained on, but its tokens aren't all unseen frames.
+            "codebook_frames_in_this_manifest": codebook_frames,
+        },
     }
     print(report["evaluation"] + ": " + report["limitation"], flush=True)
     for variant in ("real", "shuffled", "markov"):
@@ -104,7 +133,7 @@ def _run(args, config, output):
                 for i, name in enumerate(SPLITS)}
         model, history, best_epoch = fit(data["train"], data["validation"], config, args.epochs,
                                          args.batch_size, args.lr, args.patience, args.seed, args.device,
-                                         args.train_stride)
+                                         args.train_stride, init_state=anchor.theta0 if anchor else None)
         # Test is consulted only after model selection, once per final variant.
         score = evaluate(model, data["test"], args.batch_size)
         score.update(baseline_scores(data["train"], data["test"], args.vocab_size))
@@ -143,6 +172,7 @@ def _run(args, config, output):
             "tokenizer": tokenizer.state(), "dataset_sha256": dataset_sha,
             "code_sha256": code_sha, "splits": provenance,
             "evaluation": report["evaluation"], "best_epoch": best_epoch,
+            "anchor": None if anchor is None else anchor.identity(),
         }
         torch.save(checkpoint, output / f"{variant}.pt")
         starts = result["test_window_starts"]
@@ -159,14 +189,16 @@ def parser():
     p.add_argument("--output", type=Path, default=ROOT / "runs/signal-lm")
     p.add_argument("--family", choices=("voyager", "offsource"), default="voyager")
     p.add_argument("--allow-within-session", action="store_true", help="Explicitly allow a labelled whole-scan smoke test")
-    p.add_argument("--vocab-size", type=int, default=16)
-    p.add_argument("--context", type=int, default=15)
-    p.add_argument("--width", type=int, default=128)
-    p.add_argument("--layers", type=int, default=4)
-    p.add_argument("--heads", type=int, default=4)
-    p.add_argument("--dropout", type=float, default=0.1)
-    p.add_argument("--position", choices=("absolute", "rope"), default="absolute",
-                   help="learned absolute position embeddings, or rotary (RoPE), which depend only on relative offsets")
+    p.add_argument("--anchor", choices=list(ANCHORS), default=None,
+                   help="start from this shared anchor (pinned codebook and θ₀) so runs can be merged; it sets the model's size")
+    p.add_argument("--vocab-size", type=int, default=None, help=f"default {MODEL_DEFAULTS['vocab_size']}")
+    p.add_argument("--context", type=int, default=None, help=f"default {MODEL_DEFAULTS['context']}")
+    p.add_argument("--width", type=int, default=None, help=f"default {MODEL_DEFAULTS['width']}")
+    p.add_argument("--layers", type=int, default=None, help=f"default {MODEL_DEFAULTS['layers']}")
+    p.add_argument("--heads", type=int, default=None, help=f"default {MODEL_DEFAULTS['heads']}")
+    p.add_argument("--dropout", type=float, default=None, help=f"default {MODEL_DEFAULTS['dropout']}")
+    p.add_argument("--position", choices=("absolute", "rope"), default=None,
+                   help="learned absolute position embeddings (default), or rotary (RoPE), which depend only on relative offsets")
     p.add_argument("--train-stride", type=int, default=None,
                    help="frames between training-window starts (default: the context, no overlap); 1 trains on every start")
     p.add_argument("--epochs", type=int, default=50)

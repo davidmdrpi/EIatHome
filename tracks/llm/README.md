@@ -69,6 +69,41 @@ disagree. Copies within a split or the other-family control are counted once. Al
 boundaries; only the chosen family trains the model. This conservative rule does not establish
 independence of targets, observing hardware, or adjacent frequency bands.
 
+## Training from a shared anchor, so runs can be merged
+
+[Issue #20](https://github.com/davidmdrpi/EIatHome/issues/20) merges small runs from many
+volunteers into stronger models. Adding or averaging weights only makes sense if every run
+tokenizes the same way and starts from the same weights. Without that, token 3 means different
+frames in different runs, and their hidden units start in different places. `--anchor v1` fixes
+both (see [anchors/](anchors/README.md)):
+
+```bash
+python -m tracks.llm.train --anchor v1 --manifest tracks/llm/data/slices/index.json \
+  --allow-within-session --seed 42 --output runs/w42
+python -m tracks.llm.anchor delta runs/w42/real.pt --output runs/w42/tau.npz   # τ = θ − θ₀
+```
+
+- **Tokens:** the run tokenizes with the anchor's pinned codebook instead of fitting its own, so
+  its report's tokenizer digest is the anchor's.
+- **Start:** the model starts from the anchor's θ₀ and takes its size. A conflicting size option
+  is refused. The seed still sets data order and dropout.
+- **Refused data:**
+  - another data product (v1 is defined on the 49-frame 6-second slices; the Live Lab's 16-frame
+    slices are another product);
+  - validation or test frames the codebook was fitted on.
+- **Recorded:** the anchor's hashes go in the report and checkpoints. The report also counts the
+  manifest's frames the codebook saw: the first scan of each family, the control family's too.
+- **Task vectors:** `tracks.llm.anchor.checkpoint_task_vector` gives a checkpoint's τ in
+  parameter order, refusing one trained from another anchor or with another tokenizer.
+  `flatten` and `apply` convert between τ and weights.
+
+**What seeds alone give.** Three runs from `v1` (seeds 42, 43, 44, default training, Voyager)
+score 1.92 bits per token on the test scan, against 3.78 for θ₀ untrained. Their task vectors
+are almost the same: cosine similarity 0.996, and 98.5% of parameters change in the same
+direction. With the same data and the same start, a seed only changes data order and dropout,
+so merging seed runs has little to add. Merging can only matter for runs that saw different
+data, which milestone 2's shards provide. All three still improved at the 50-epoch limit.
+
 ## What the pipeline learns
 
 1. Verify each slice's SHA-256, shape, finite samples and start time. Take one fixed central
