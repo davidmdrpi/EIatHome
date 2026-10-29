@@ -6,12 +6,13 @@ and both started from the same weights. Then each run's change, its task vector 
 in the same coordinates as every other run's. An anchor fixes both:
 
 - the codebook: k-means with K tokens, fitted once on the training scans of a declared corpus,
-  and pinned by the SHA-256 of its state (the digest train.py reports for any tokenizer). A
+  and pinned twice: by the SHA-256 of its state (the digest train.py reports for any tokenizer),
+  and by the SHA-256 of its whole record, including the slices it was fitted on. A
   rebuild matches it to float32 rounding, with the same tokens, but not always bit for bit:
   numpy's SIMD kernels (AVX-512 or not) can move a centroid by one rounding;
 - θ₀: SignalLM weights drawn from a PCG64 stream with uniform initializers only, so it rebuilds
-  bit-exactly anywhere. It's committed as raw little-endian float32, with the parameters'
-  names and shapes and its SHA-256.
+  bit-exactly anywhere. It's committed as raw little-endian float32, decoded in the model's own
+  parameter order: its header must give exactly that layout.
 
 Both hashes are also pinned here, so an edited file is refused, not trusted.
 
@@ -50,6 +51,7 @@ ANCHORS = {
         # (milestone 2): 26,496 parameters, 63% of them in the feed-forward blocks.
         "model": dict(vocab_size=16, context=15, width=32, layers=2, heads=4, dropout=0.1, position="rope"),
         "codebook_sha256": "19ce2a0dcbb116854f6cebc3388a0d2e9c5a37e403688dd90af00a02df297aec",
+        "codebook_record_sha256": "22bf3d37b1ab89698bb64bfc481a7b1617bc2b6e29dbcba0e4d5fbe26fa05b00",
         "theta0_sha256": "9f3093e53322d17a892b5f0576b7c173084fc68fd4f3f2c43594dbd2cecc7287",
     },
 }
@@ -58,6 +60,12 @@ ANCHORS = {
 def codebook_digest(state):
     """The tokenizer digest train.py reports, so any run's tokenizer compares with an anchor's."""
     return digest(json.dumps(state, sort_keys=True).encode())
+
+
+def codebook_record_digest(codebook):
+    """The digest of a codebook's whole record but its own tokenizer digest: format, anchor, the
+    slices it was fitted on (which the holdout guard relies on) and the tokenizer itself."""
+    return digest(json.dumps({k: v for k, v in codebook.items() if k != "sha256"}, sort_keys=True).encode())
 
 
 def fit_records(spec, records=None):
@@ -146,16 +154,25 @@ def build_theta0(spec):
     return tensors
 
 
+def canonical_layout(config):
+    """Where each parameter sits in θ₀'s bytes: the model's own order, contiguous."""
+    offset, layout = 0, []
+    for name, value in SignalLM(**config).state_dict().items():
+        count = int(value.numel())
+        layout.append({"name": name, "shape": list(value.shape), "offset": offset, "count": count})
+        offset += count
+    return layout, offset
+
+
 def theta0_files(spec, tensors):
     """The committed form of θ₀: raw little-endian float32 in parameter order, and a header."""
+    layout, parameters = canonical_layout(spec["model"])
+    if [(t["name"], tuple(t["shape"])) for t in layout] != [(k, v.shape) for k, v in tensors.items()]:
+        raise ValueError("θ₀'s tensors aren't in the model's parameter order")
     data = b"".join(np.ascontiguousarray(t, dtype="<f4").tobytes() for t in tensors.values())
-    offset, layout = 0, []
-    for name, t in tensors.items():
-        layout.append({"name": name, "shape": list(t.shape), "offset": offset, "count": int(t.size)})
-        offset += int(t.size)
     header = {
         "format": "eiathome-signal-lm-anchor", "version": 1, "anchor": spec["id"], "model": spec["model"],
-        "seed": spec["theta_seed"], "dtype": "float32-le", "parameters": offset, "tensors": layout,
+        "seed": spec["theta_seed"], "dtype": "float32-le", "parameters": parameters, "tensors": layout,
         "init": "PCG64 uniform: embeddings ±√3; linear ±1/√fan_in; qkv Xavier, zero bias; out zero bias; layer norms 1, 0",
         "sha256": digest(data),
     }
@@ -172,7 +189,7 @@ class Anchor:
 
     def identity(self):
         return {"anchor": self.spec["id"], "codebook_sha256": self.spec["codebook_sha256"],
-                "theta0_sha256": self.spec["theta0_sha256"]}
+                "codebook_record_sha256": self.spec["codebook_record_sha256"], "theta0_sha256": self.spec["theta0_sha256"]}
 
     def model(self):
         model = SignalLM(**self.spec["model"])
@@ -206,19 +223,22 @@ def load_anchor(name="v1", directory=None):
         raise ValueError(f"{folder / 'codebook.json'} isn't anchor {name}'s codebook")
     if not codebook_digest(codebook["tokenizer"]) == codebook["sha256"] == spec["codebook_sha256"]:
         raise ValueError(f"Anchor {name}'s codebook doesn't match its pinned SHA-256")
+    # The record's digest covers the slices it was fitted on, which the holdout guard trusts.
+    if codebook_record_digest(codebook) != spec["codebook_record_sha256"]:
+        raise ValueError(f"Anchor {name}'s codebook record (its fitted slices) doesn't match its pinned SHA-256")
     header = json.loads((folder / "theta0.json").read_text())
     data = (folder / "theta0.bin").read_bytes()
-    if header.get("format") != "eiathome-signal-lm-anchor" or header.get("anchor") != spec["id"] or header.get("model") != spec["model"]:
+    if header.get("format") != "eiathome-signal-lm-anchor" or header.get("version") != 1 or header.get("anchor") != spec["id"] or header.get("model") != spec["model"]:
         raise ValueError(f"{folder / 'theta0.json'} isn't anchor {name}'s θ₀")
     if not digest(data) == header["sha256"] == spec["theta0_sha256"]:
         raise ValueError(f"Anchor {name}'s θ₀ doesn't match its pinned SHA-256")
+    # The bytes are decoded in the model's own order: a header can't move them, only describe them.
+    layout, parameters = canonical_layout(spec["model"])
     values = np.frombuffer(data, dtype="<f4")
-    expected = {k: tuple(v.shape) for k, v in SignalLM(**spec["model"]).state_dict().items()}
-    layout = {t["name"]: tuple(t["shape"]) for t in header["tensors"]}
-    if layout != expected or len(values) != header["parameters"] or list(layout) != list(expected):
-        raise ValueError(f"Anchor {name}'s θ₀ doesn't have the model's parameters")
+    if header.get("dtype") != "float32-le" or header.get("tensors") != layout or header.get("parameters") != parameters or len(values) != parameters:
+        raise ValueError(f"Anchor {name}'s θ₀ header doesn't give the model's layout")
     theta0 = OrderedDict((t["name"], torch.from_numpy(values[t["offset"]:t["offset"] + t["count"]].reshape(t["shape"]).copy()))
-                         for t in header["tensors"])
+                         for t in layout)
     return Anchor(name, spec, Tokenizer(**codebook["tokenizer"]), theta0, codebook)
 
 
@@ -270,11 +290,14 @@ def main(argv=None):
                 (folder / "codebook.json").write_text(json.dumps(codebook, indent=1) + "\n")
                 (folder / "theta0.json").write_text(json.dumps(header, indent=1) + "\n")
                 (folder / "theta0.bin").write_bytes(data)
-                print(f"wrote {folder}: codebook {codebook['sha256']}, θ₀ {header['sha256']} ({header['parameters']:,} parameters)")
+                print(f"wrote {folder}: codebook {codebook['sha256']} (record {codebook_record_digest(codebook)}), "
+                      f"θ₀ {header['sha256']} ({header['parameters']:,} parameters)")
                 return
             committed = load_anchor(args.anchor)
             if data != (folder / "theta0.bin").read_bytes():
                 raise ValueError("The rebuilt θ₀ differs from the committed one")
+            if codebook["fit"] != committed.codebook["fit"]:
+                raise ValueError("The rebuilt codebook was fitted on different slices from the committed one")
             frames = np.concatenate([r["frames"] for r in load_slices(ROOT / spec["manifest"])])
             check = compare_codebook(codebook["tokenizer"], committed, frames)
             if not check["agrees"]:

@@ -101,8 +101,9 @@ python -m tracks.llm.anchor delta runs/w42/real.pt --output runs/w42/tau.npz   #
 score 1.92 bits per token on the test scan, against 3.78 for θ₀ untrained. Their task vectors
 are almost the same: cosine similarity 0.996, and 98.5% of parameters change in the same
 direction. With the same data and the same start, a seed only changes data order and dropout,
-so merging seed runs has little to add. Merging can only matter for runs that saw different
-data, which milestone 2's shards provide. All three still improved at the 50-epoch limit.
+so seed runs give a merge little diversity to combine. That's a reason to try runs on
+different data, milestone 2's shards; it doesn't show that merging seed runs can't help.
+Milestone 2 measures both. All three still improved at the 50-epoch limit.
 
 ## What the pipeline learns
 

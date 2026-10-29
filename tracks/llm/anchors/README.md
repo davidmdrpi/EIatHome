@@ -4,14 +4,14 @@ An anchor is what every run must share before runs can be merged
 ([issue #20](https://github.com/davidmdrpi/EIatHome/issues/20)): a pinned codebook, so a token
 means the same frames in every run, and a starting checkpoint θ₀, so every run's change
 τ = θ − θ₀ is in the same coordinates. Each folder is one anchor, defined in `ANCHORS` in
-[`anchor.py`](../anchor.py), which also pins both files' SHA-256. A changed definition is a new
+[`anchor.py`](../anchor.py), which also pins the files' hashes. A changed definition is a new
 version, never an edit.
 
 | File | Contents |
 |---|---|
-| `codebook.json` | The k-means tokenizer (mean, scale, K centroids of 64 channels), the slices it was fitted on, and the SHA-256 of its state (the digest `train.py` reports for any tokenizer) |
-| `theta0.bin` | θ₀: raw little-endian float32, the model's parameters in order |
-| `theta0.json` | θ₀'s model settings, seed, each tensor's name, shape and offset, and the SHA-256 of `theta0.bin` |
+| `codebook.json` | The k-means tokenizer (mean, scale, K centroids of 64 channels), the slices it was fitted on, and the SHA-256 of its state (the digest `train.py` reports for any tokenizer). Two digests are pinned: the state's, and the whole record's, which covers the fitted slices the holdout guard relies on |
+| `theta0.bin` | θ₀: raw little-endian float32, the model's parameters in order. Its SHA-256 is pinned |
+| `theta0.json` | θ₀'s model settings, seed, each tensor's name, shape and offset. The bytes are decoded in the model's own order, so the header must give exactly that layout; it can't move a tensor |
 
 ## v1
 

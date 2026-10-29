@@ -85,6 +85,36 @@ class CommittedAnchorTests(unittest.TestCase):
             with self.assertRaisesRegex(ValueError, 'codebook doesn.t match its pinned SHA-256'):
                 load_anchor('v1', folder)
 
+    def test_an_edited_header_or_provenance_is_refused(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            folder = Path(tmp)
+            for name in ('codebook.json', 'theta0.json', 'theta0.bin'):
+                shutil.copy(anchors.ANCHOR_DIR / 'v1' / name, folder / name)
+            original = (folder / 'theta0.json').read_text()
+
+            # Swapped offsets would decode a layer norm's weight as zeros and its bias as ones,
+            # under the same identity: refused.
+            header = json.loads(original)
+            weight, bias = (next(t for t in header['tensors'] if t['name'] == f'blocks.0.norm1.{p}') for p in ('weight', 'bias'))
+            weight['offset'], bias['offset'] = bias['offset'], weight['offset']
+            (folder / 'theta0.json').write_text(json.dumps(header))
+            with self.assertRaisesRegex(ValueError, "θ₀ header doesn.t give the model.s layout"):
+                load_anchor('v1', folder)
+            for edit in ({'dtype': 'float16'}, {'parameters': 26495}, {'version': 2}):
+                (folder / 'theta0.json').write_text(json.dumps({**json.loads(original), **edit}))
+                with self.assertRaises(ValueError, msg=edit):
+                    load_anchor('v1', folder)
+            (folder / 'theta0.json').write_text(original)
+
+            # The slices the codebook was fitted on are what the holdout guard trusts: emptying
+            # them keeps the tokenizer's digest but changes the pinned record.
+            codebook = json.loads((folder / 'codebook.json').read_text())
+            codebook['fit']['slices'] = []
+            (folder / 'codebook.json').write_text(json.dumps(codebook))
+            self.assertEqual(codebook_digest(codebook['tokenizer']), SPEC['codebook_sha256'])
+            with self.assertRaisesRegex(ValueError, 'codebook record .its fitted slices. doesn.t match its pinned SHA-256'):
+                load_anchor('v1', folder)
+
 
 class WorkerTests(unittest.TestCase):
     """Two workers train from the anchor with different seeds, as volunteers would."""
