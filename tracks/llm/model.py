@@ -134,13 +134,17 @@ def evaluate(model, sequences, batch_size=32):
     return {"bits_per_token": bits, "perplexity": 2 ** bits, "targets": count}
 
 
-def fit(sequences, validation, config, epochs, batch_size, lr, patience, seed, device, stride=None):
+def fit(sequences, validation, config, epochs, batch_size, lr, patience, seed, device, stride=None, init_state=None):
     """Train on windows `stride` frames apart (default: the context, so no overlap); validation
-    always scores each target once."""
+    always scores each target once. init_state, if given, replaces the seeded initialization
+    (a shared anchor θ₀): the seed then only sets data order and dropout."""
     torch.random.default_generator.manual_seed(seed)
     if str(device).startswith("cuda"):
         torch.cuda.manual_seed_all(seed)
-    model = SignalLM(**config).to(device)
+    model = SignalLM(**config)
+    if init_state is not None:
+        model.load_state_dict(init_state)
+    model = model.to(device)
     optimizer = torch.optim.AdamW(model.parameters(), lr=lr, weight_decay=0.01)
     examples = windows(sequences, config["context"], stride)
     rng = np.random.default_rng(seed)

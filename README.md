@@ -353,6 +353,8 @@ EIatHome/
 - [x] A second Voyager 1 session (2016) in the Live Lab's data, with every slice's pointing on the sky (manifest version 2)
 - [x] The Observatory viewport: a sky map that slews to each signal's pointing and zooms toward the telescope beam while a computation runs, with an observatory mode for leaving the tab running
 - [x] A review of the results computed in a browser, from the viewport and observatory mode: what each unit measured, which cards await submission, and which were accepted into the community results; cards that exist nowhere else are never dropped to make room
+- [x] A shared anchor for signal-LM runs: a pinned codebook and a deterministic starting checkpoint θ₀, so runs' task vectors line up ([issue #20](https://github.com/davidmdrpi/EIatHome/issues/20), milestone 1)
+- [ ] Merging volunteer runs: DARE-TIES with a validation gate and DiLoCo, then a mixture-of-experts SignalLM upcycled from family specialists (issue #20, milestones 2 to 5)
 - [ ] Public volunteer pilot
 - [ ] Heavier work units on BOINC, if needed (for example via [BOINC Central](https://boinc.berkeley.edu/central/scientist.php))
 
