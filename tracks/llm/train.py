@@ -11,6 +11,7 @@ import torch
 
 from .anchor import ANCHORS, load_anchor
 from .data import SPLITS, Tokenizer, digest, load_slices, markov_probabilities, split_records, split_sizes, surrogate, unique_records
+from .merge import load_round, parse_shard, shard_records
 from .model import evaluate, fit, generate, validate_config
 from .runtime import atomic_output, require_new_output, training_runtime
 
@@ -69,6 +70,12 @@ def baseline_scores(train, test, k):
 def run(args):
     require_new_output(args.output)
     anchor = load_anchor(args.anchor) if getattr(args, "anchor", None) else None
+    if anchor is None and (getattr(args, "shard", None) or getattr(args, "start", None)):
+        raise ValueError("--shard and --start make a worker in a merge round, which needs --anchor")
+    if getattr(args, "shard", None):
+        parse_shard(args.shard)
+    if "real" not in getattr(args, "variants", ("real",)):
+        raise ValueError("--variants must include real")
     config = model_config(args, anchor)
     vars(args).update(config)  # the rest of the run, and its report, use the resolved settings
     validate_config(**config)
@@ -87,6 +94,15 @@ def run(args):
 def _run(args, config, output, anchor=None):
     records = load_slices(args.manifest)
     partitions, independent = split_records(records, args.family, args.allow_within_session)
+    start_state, start_round, start_sha = None, None, None
+    if anchor is not None:
+        # A worker in a merge round: round 1 starts from θ₀, later rounds from the last merge.
+        start_state, start_round, start_sha = (load_round(anchor, args.start) if getattr(args, "start", None)
+                                               else (anchor.theta0, 0, anchor.spec["theta0_sha256"]))
+    shard = parse_shard(args.shard) if getattr(args, "shard", None) else None
+    if shard:
+        # Only training is sharded: every worker is selected and scored on the same validation and test.
+        partitions = {**partitions, "train": shard_records(partitions["train"], *shard)}
     if args.context > max(len(r["frames"]) - 1 for r in partitions["train"]):
         raise ValueError("Context exceeds the longest training sequence's next-token span; reduce --context")
     if anchor is not None:
@@ -102,7 +118,7 @@ def _run(args, config, output, anchor=None):
     identity = [{"sha256": r["sha256"], "entry": r["entry"]} for r in records]
     dataset_sha = digest(json.dumps(identity, sort_keys=True).encode())
     code_sha = digest(b"".join((Path(__file__).parent / name).read_bytes()
-                               for name in ("data.py", "model.py", "train.py", "runtime.py", "anchor.py")))
+                               for name in ("data.py", "model.py", "train.py", "runtime.py", "anchor.py", "merge.py")))
     report = {
         "format": "eiathome-signal-lm", "version": 1,
         "evaluation": "independent_sessions" if independent else "within_session_scan_holdout",
@@ -119,21 +135,27 @@ def _run(args, config, output, anchor=None):
         "tokenizer": {"fit_split": "anchor" if anchor else "train", "training_frames": sum(len(s) for s in streams["train"]),
                       "sha256": digest(json.dumps(tokenizer.state(), sort_keys=True).encode())},
         "anchor": None if anchor is None else {
-            **anchor.identity(), "init": "theta0",
+            **anchor.identity(), "init": "theta0" if start_round == 0 else f"round {start_round}",
             "codebook_fit_frames": anchor.codebook["fit"]["frames"],
             # The codebook saw the first scan of each family, the control family's too: it's
             # scored as a control, never trained on, but its tokens aren't all unseen frames.
             "codebook_frames_in_this_manifest": codebook_frames,
         },
+        # What a merge round needs to place this run: its round, what it started from, its shard
+        # of the training slices, its seed, and how many training targets weight it.
+        "merge": None if anchor is None else {
+            "round": start_round + 1, "start_sha256": start_sha, "shard": list(shard) if shard else None,
+            "seed": args.seed, "training_targets": sum(len(s) - 1 for s in streams["train"]),
+        },
     }
     print(report["evaluation"] + ": " + report["limitation"], flush=True)
-    for variant in ("real", "shuffled", "markov"):
+    for variant in (v for v in ("real", "shuffled", "markov") if v in getattr(args, "variants", ("real", "shuffled", "markov"))):
         # Separate deterministic randomness for each split; never shuffle across partitions.
         data = {name: surrogate(streams[name], variant, args.seed + 1000 + i, probabilities)
                 for i, name in enumerate(SPLITS)}
         model, history, best_epoch = fit(data["train"], data["validation"], config, args.epochs,
                                          args.batch_size, args.lr, args.patience, args.seed, args.device,
-                                         args.train_stride, init_state=anchor.theta0 if anchor else None)
+                                         args.train_stride, init_state=start_state)
         # Test is consulted only after model selection, once per final variant.
         score = evaluate(model, data["test"], args.batch_size)
         score.update(baseline_scores(data["train"], data["test"], args.vocab_size))
@@ -173,6 +195,7 @@ def _run(args, config, output, anchor=None):
             "code_sha256": code_sha, "splits": provenance,
             "evaluation": report["evaluation"], "best_epoch": best_epoch,
             "anchor": None if anchor is None else anchor.identity(),
+            "merge": report["merge"],
         }
         torch.save(checkpoint, output / f"{variant}.pt")
         starts = result["test_window_starts"]
@@ -199,6 +222,12 @@ def parser():
     p.add_argument("--dropout", type=float, default=None, help=f"default {MODEL_DEFAULTS['dropout']}")
     p.add_argument("--position", choices=("absolute", "rope"), default=None,
                    help="learned absolute position embeddings (default), or rotary (RoPE), which depend only on relative offsets")
+    p.add_argument("--shard", default=None, metavar="I/N",
+                   help="with --anchor: train on shard I of N of the training slices, as one worker in a merge round")
+    p.add_argument("--start", type=Path, default=None,
+                   help="with --anchor: start from this merged round's checkpoint (merge.py) instead of θ₀")
+    p.add_argument("--variants", nargs="+", choices=("real", "shuffled", "markov"), default=["real", "shuffled", "markov"],
+                   help="streams to train: the real tokens and the surrogate controls (default all three)")
     p.add_argument("--train-stride", type=int, default=None,
                    help="frames between training-window starts (default: the context, no overlap); 1 trains on every start")
     p.add_argument("--epochs", type=int, default=50)

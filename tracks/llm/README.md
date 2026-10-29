@@ -105,6 +105,45 @@ so seed runs give a merge little diversity to combine. That's a reason to try ru
 different data, milestone 2's shards; it doesn't show that merging seed runs can't help.
 Milestone 2 measures both. All three still improved at the 50-epoch limit.
 
+### Merging shard workers
+
+Milestone 2 starts with the plainest merge: rounds of workers trained on disjoint shards, each
+checked and gated on validation, then averaged by training samples
+([merge.py](merge.py); results in [MERGE_RESULTS.md](MERGE_RESULTS.md)).
+
+```bash
+M=tracks/llm/data/slices/index.json
+for i in 1 2 3; do
+  python -m tracks.llm.train --anchor v1 --manifest $M --allow-within-session --variants real \
+    --shard $i/3 --output runs/r1-w$i
+done
+python -m tracks.llm.merge round --output runs/round1 runs/r1-w*/real.pt
+# Round 2: the workers start from round 1's merge.
+python -m tracks.llm.train ... --start runs/round1/merged.pt --shard 1/3 --output runs/r2-w1
+python -m tracks.llm.merge round --start runs/round1/merged.pt --output runs/round2 runs/r2-w*/real.pt
+python -m tracks.llm.merge replay runs/round1/round.json   # recompute the round from its record
+python -m tracks.llm.merge score runs/round1/merged.pt     # test and the control, for reporting only
+```
+
+- **Workers:** `--shard i/n` trains on every n-th training slice in a fixed order by content,
+  so shards are disjoint and don't depend on the manifest's order. Validation and test aren't
+  sharded. `--start` continues from a merged round (round 1 starts from θ₀). `--variants real`
+  skips the surrogate controls. Each worker records its round, its start's digest, its shard,
+  its seed and its number of training targets.
+- **Refused before the gate:**
+  - another anchor, tokenizer or model size;
+  - another round or start;
+  - a surrogate stream;
+  - non-finite changes, or any change over 10;
+  - a split that isn't the round's;
+  - the same shard and seed twice, which counts once.
+- **The gate:** each worker, then the average, must score within 0.02 bits per token of the
+  incumbent on validation. A round never reads the test split.
+- **The record:** `round.json` names every contributor by file hash, its fate and why, the
+  weights and rule, and the merged weights' digest. `replay` recomputes the round from the same
+  files and refuses any difference. A merged checkpoint loads with `sample.py`, and only starts
+  a round if its weights match its recorded digest.
+
 ## What the pipeline learns
 
 1. Verify each slice's SHA-256, shape, finite samples and start time. Take one fixed central

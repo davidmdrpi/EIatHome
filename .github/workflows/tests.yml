@@ -35,6 +35,7 @@ jobs:
       - run: python -m unittest discover -s tests -p 'test_signal_lm.py' -v
       - run: python -m unittest discover -s tests -p 'test_recovery_learned.py' -v
       - run: python -m unittest discover -s tests -p 'test_llm_anchor.py' -v
+      - run: python -m unittest discover -s tests -p 'test_llm_merge.py' -v
 
   extract-slices:
     runs-on: ubuntu-latest
