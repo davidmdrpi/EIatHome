@@ -803,6 +803,16 @@ dialog.review::backdrop {
   font-weight: 600;
 }
 
+.review-opened {
+  padding: 6px 10px;
+  border-left: 3px solid var(--accent);
+}
+
+.review [aria-pressed="true"] {
+  border-color: var(--accent);
+  box-shadow: inset 0 0 0 1px var(--accent);
+}
+
 .review .chip {
   display: inline-block;
   padding: 1px 8px;

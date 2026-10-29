@@ -1062,7 +1062,11 @@ const contributions = {
   marks: store.get('contributionMarks', {}),
   accepted: new Set(),
   kind: 'lab', // whose cards the review shows: 'lab' (Track A work units) or 'recovery'
+  view: 'pending', // 'pending' (not yet accepted) or 'all'
+  shown: 0, // rows listed before "Show more"
+  pendingSave: null, // cards downloaded but not yet confirmed saved: { kind, cards }
   offered: { lab: 0, recovery: 0 }, // units computed when the review was last offered
+  checked: 0, // when the community results were last loaded
 };
 const KEEP = { lab: 200, recovery: 300 };
 const KIND_NAMES = { lab: 'Track A work units', recovery: 'recovery units' };
@@ -1074,7 +1078,7 @@ const statusOf = (card) => cardStatus(card, contributions.marks, contributions.a
 // cards are over their limit because none could be dropped.
 function keep(kind, card) {
   const replaces = kind === 'recovery' ? (c) => c.unit === card.unit : undefined; // one card per recovery unit
-  const { cards, full } = keepCard(keptCards(kind), card, KEEP[kind], (c) => safeToDrop(statusOf(c)), replaces);
+  const { cards, full } = keepCard(keptCards(kind), card, KEEP[kind], (c) => safeToDrop(c, contributions.marks, contributions.accepted), replaces);
   if (kind === 'recovery') rc.results = cards;
   else state.results = cards;
   store.set(kind === 'recovery' ? 'recoveryResults' : 'results', cards);
@@ -1094,11 +1098,6 @@ function markCards(cards, what) {
   }
   saveMarks();
   refreshContributions();
-}
-
-function saveCards(cards, name, data = cards) {
-  download(name, data);
-  markCards(cards, 'saved');
 }
 
 // The review buttons, the HUD's contribution counts and, if it's open, the review.
@@ -1125,8 +1124,12 @@ function pauseForReview(kind) {
 function openReview(kind) {
   contributions.kind = kind;
   contributions.offered[kind] = kind === 'recovery' ? session.recovery : session.units;
+  const { total, accepted } = tally(keptCards(kind), contributions.marks, contributions.accepted);
+  contributions.view = total > accepted ? 'pending' : 'all';
+  contributions.shown = REVIEW_SHOWN;
   $('review-status').textContent = '';
   $('review-submit-text').hidden = true;
+  $('review-confirm').hidden = contributions.pendingSave?.kind !== kind;
   renderReview();
   if (!$('review').open) $('review').showModal();
 }
@@ -1154,11 +1157,25 @@ function renderReview() {
   $('review-counts').textContent = cards.length
     ? `${plural(t.total, 'result')} kept here, ${thisSession.toLocaleString()} computed this session: ${t.awaiting.toLocaleString()} awaiting submission, ${t.opened.toLocaleString()} opened on GitHub, ${t.accepted.toLocaleString()} accepted into community results.`
     : 'No results in this browser yet.';
+  // Opening an issue is a draft: say so wherever cards are still only opened.
+  $('review-opened').hidden = !t.opened;
+  $('review-opened').textContent = t.opened
+    ? `${plural(t.opened, 'card')} opened on GitHub ${t.opened === 1 ? 'isn’t' : 'aren’t'} submitted yet: post each issue to submit it. Its status changes to Accepted once the automatic check records it; use “Check for accepted cards” to look again.`
+    : '';
   $('review-outcome').textContent = cards.length ? (kind === 'recovery' ? recoveryOutcome(cards[0]) : workUnitOutcome(cards[0])) : 'Run a unit to see what it measures.';
+  const pending = cards.filter((c) => statusOf(c) !== 'accepted');
+  const listed = contributions.view === 'pending' ? pending : cards;
+  $('review-view-pending').textContent = `Not yet accepted (${pending.length.toLocaleString()})`;
+  $('review-view-all').textContent = `All (${cards.length.toLocaleString()})`;
+  $('review-view-pending').setAttribute('aria-pressed', String(contributions.view === 'pending'));
+  $('review-view-all').setAttribute('aria-pressed', String(contributions.view === 'all'));
   fillTable($('review-table'), ['Unit', 'Started', kind === 'recovery' ? 'Signals found at 1% false alarms' : 'GRU gain: drifting tones', 'Status', ''], []);
-  $('review-table').tBodies[0].append(...cards.slice(0, REVIEW_SHOWN).map((card) => reviewRow(kind, card)));
-  $('review-more').textContent = cards.length > REVIEW_SHOWN ? `…and ${plural(cards.length - REVIEW_SHOWN, 'older result')}. Download all to keep a copy of every card.` : '';
-  $('review-keep').textContent = `This browser keeps up to ${KEEP[kind]} ${KIND_NAMES[kind]} (${cards.length.toLocaleString()} now). To make room it drops only cards that are accepted or saved to a file; if every kept card is neither, auto-run pauses until you submit or download some.`;
+  $('review-table').tBodies[0].append(...listed.slice(0, contributions.shown).map((card) => reviewRow(kind, card)));
+  const shown = Math.min(listed.length, contributions.shown);
+  $('review-more').textContent = listed.length ? `Showing ${shown.toLocaleString()} of ${listed.length.toLocaleString()}, newest first.` : 'Nothing to list here.';
+  $('review-show-more').hidden = shown >= listed.length;
+  $('review-show-more').textContent = `Show ${Math.min(REVIEW_SHOWN, listed.length - shown).toLocaleString()} more`;
+  $('review-keep').textContent = `This browser keeps up to ${KEEP[kind]} ${KIND_NAMES[kind]} (${cards.length.toLocaleString()} now). To make room it drops only cards that are accepted, or that you downloaded and confirmed saving; if every kept card is neither, auto-run pauses until you submit or save some.`;
 }
 
 function reviewRow(kind, card) {
@@ -1243,6 +1260,7 @@ async function loadCommunity() {
   }
   const all = Array.isArray(store.results) ? store.results : [];
   contributions.accepted = acceptedCards(all);
+  contributions.checked = Date.now();
   refreshContributions();
   rc.community = all.filter((r) => isRecoveryCard(r.card) && !validateCard(r.card).length);
   renderCombined();
@@ -1367,7 +1385,7 @@ function showTab(name) {
 
 function init() {
   if (PREVIEW) {
-    for (const id of ['theme', 'wu-download', 'wu-download-all', 'rc-download', 'rc-download-all']) $(id).hidden = true;
+    for (const id of ['theme', 'wu-download', 'wu-download-all', 'rc-download', 'rc-download-all', 'review-download']) $(id).hidden = true;
   }
   applyTheme();
   $('backend').value = store.get('backend', 'auto');
@@ -1421,14 +1439,14 @@ function init() {
     state.stopLoop = true;
     engine.postMessage({ type: 'stop' });
   };
-  $('wu-download').onclick = () => state.card && saveCards([state.card], `eiathome-${state.card.spec.replace('/', '-')}-unit${state.card.unit}.json`, state.card);
+  $('wu-download').onclick = () => state.card && download(`eiathome-${state.card.spec.replace('/', '-')}-unit${state.card.unit}.json`, state.card);
   const submitUnit = onSubmit(() => ({ card: state.card, issue: state.issue }), 'wu-submit-text', unitStatus);
   $('wu-submit').onclick = () => {
     submitUnit();
     markCards([state.card], 'opened');
   };
   $('wu-copy').onclick = onCopy(() => state.card, 'wu-card', unitStatus);
-  $('wu-download-all').onclick = () => saveCards(state.results, 'eiathome-results.json');
+  $('wu-download-all').onclick = () => download('eiathome-results.json', state.results);
   $('wu-clear').onclick = onConfirmedClick($('wu-clear'), () => {
     state.results = [];
     store.set('results', []);
@@ -1451,14 +1469,14 @@ function init() {
     renderCombined();
   };
   $('rc-source').onchange = renderCombined;
-  $('rc-download').onclick = () => rc.card && saveCards([rc.card], `eiathome-recovery-unit${rc.card.unit}.json`, rc.card);
+  $('rc-download').onclick = () => rc.card && download(`eiathome-recovery-unit${rc.card.unit}.json`, rc.card);
   const submitRecovery = onSubmit(() => ({ card: rc.card, issue: rc.issue }), 'rc-submit-text', recoveryStatus);
   $('rc-submit').onclick = () => {
     submitRecovery();
     markCards([rc.card], 'opened');
   };
   $('rc-copy').onclick = onCopy(() => rc.card, 'rc-card', recoveryStatus);
-  $('rc-download-all').onclick = () => saveCards(rc.results, 'eiathome-recovery-results.json');
+  $('rc-download-all').onclick = () => download('eiathome-recovery-results.json', rc.results);
   $('rc-clear').onclick = onConfirmedClick($('rc-clear'), () => {
     rc.results = [];
     store.set('recoveryResults', []);
@@ -1468,11 +1486,51 @@ function init() {
     recoveryStatus('Deleted the recovery cards stored in this browser.');
   });
   $('review-close').onclick = () => $('review').close();
+  // A download can be blocked or cancelled without the page knowing, so the cards count as saved
+  // (and can make room for new ones) only once the volunteer confirms having the file.
   $('review-download').onclick = () => {
     const kind = contributions.kind;
-    saveCards(keptCards(kind), kind === 'recovery' ? 'eiathome-recovery-results.json' : 'eiathome-results.json');
-    reviewStatus('Downloaded every card kept here. Those cards can now make room for new ones; they stay listed until they need to.');
+    const cards = [...keptCards(kind)];
+    download(kind === 'recovery' ? 'eiathome-recovery-results.json' : 'eiathome-results.json', cards);
+    contributions.pendingSave = { kind, cards };
+    $('review-confirm').hidden = false;
+    reviewStatus(`Asked your browser to download ${plural(cards.length, 'card')}. They count as saved only once you confirm you have the file.`);
   };
+  $('review-saved').onclick = () => {
+    const pending = contributions.pendingSave;
+    contributions.pendingSave = null;
+    $('review-confirm').hidden = true;
+    if (!pending) return;
+    markCards(pending.cards, 'saved');
+    reviewStatus(`${plural(pending.cards.length, 'card')} marked as saved to your file. They can now make room for new results; they stay listed until they need to.`);
+  };
+  $('review-view-pending').onclick = () => {
+    contributions.view = 'pending';
+    contributions.shown = REVIEW_SHOWN;
+    renderReview();
+  };
+  $('review-view-all').onclick = () => {
+    contributions.view = 'all';
+    contributions.shown = REVIEW_SHOWN;
+    renderReview();
+  };
+  $('review-show-more').onclick = () => {
+    contributions.shown += REVIEW_SHOWN;
+    renderReview();
+  };
+  $('review-refresh').onclick = async () => {
+    reviewStatus('Checking the community results…');
+    const before = contributions.checked;
+    await loadCommunity();
+    if (contributions.checked === before) return reviewStatus('Couldn’t load the community results. Try again in a moment.', true);
+    const { accepted } = tally(keptCards(contributions.kind), contributions.marks, contributions.accepted);
+    reviewStatus(`Checked the community results: ${plural(accepted, 'card')} from this browser accepted. A posted card appears a few minutes after its issue is checked.`);
+  };
+  // Back from GitHub: look again for accepted cards, at most once a minute, if any were opened.
+  document.addEventListener('visibilitychange', () => {
+    if (document.hidden || Date.now() - contributions.checked < 60000) return;
+    if ([state.results, rc.results].some((cards) => cards.some((c) => statusOf(c) === 'opened'))) loadCommunity();
+  });
 
   $('slice-files').onchange = (e) => handleSliceFiles(e.target.files);
   const drop = $('drop');

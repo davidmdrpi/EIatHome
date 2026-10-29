@@ -17,6 +17,7 @@ export const cardKey = (card) => `${card.spec}#${card.unit}@${card.started}`;
 export const acceptedCards = (results) => new Set(results.map((r) => JSON.stringify(r.card)));
 
 // marks: { [cardKey]: { saved?, opened? } }, the times a card was saved or opened for submission.
+// Shown as the furthest step: accepted, then opened, then saved.
 export function cardStatus(card, marks, accepted) {
   if (accepted.has(JSON.stringify(card))) return 'accepted';
   const mark = marks[cardKey(card)] ?? {};
@@ -26,8 +27,9 @@ export function cardStatus(card, marks, accepted) {
 }
 
 // A card can be dropped to make room only if it exists somewhere else: in the community
-// results, or in a file the volunteer saved.
-export const safeToDrop = (status) => status === 'accepted' || status === 'saved';
+// results, or in a file the volunteer confirmed saving. Decided from those facts, not from the
+// status shown (opening an issue after saving the card doesn't make it any less saved).
+export const safeToDrop = (card, marks, accepted) => accepted.has(JSON.stringify(card)) || Boolean(marks[cardKey(card)]?.saved);
 
 // Adds a new card, newest first, keeping at most `cap`. Over the cap, the oldest cards that are
 // safe to drop go first; a card that exists nowhere else is never dropped. replaces(card) marks

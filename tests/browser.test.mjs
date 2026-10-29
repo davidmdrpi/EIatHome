@@ -31,7 +31,7 @@ before(async () => {
     const path = normalize(decodeURIComponent(new URL(req.url, 'http://x').pathname)).replace(/^(\.\.[/\\])+/, '');
     await holds.get(path);
     if (overrides.has(path)) {
-      res.writeHead(200, { 'content-type': TYPES[extname(path)] ?? 'application/json' });
+      res.writeHead(200, { 'content-type': path.endsWith('/') ? TYPES['.html'] : TYPES[extname(path)] ?? 'application/json' });
       res.end(overrides.get(path));
       return;
     }
@@ -641,8 +641,11 @@ test('the review lists the cards computed here by what became of them, and submi
     assert.match(await page.textContent('#rc-viewport .hud-stats'), /This session: 0 recovery units computed · In this browser: 1 awaiting submission, 1 accepted into community results/);
     await page.click('#rc-viewport .review');
     assert.equal(await page.$eval('#review', (d) => d.open), true);
-    const rows = await page.$$eval('#review-table tbody tr', (trs) => trs.map((tr) => [...tr.cells].map((td) => td.textContent)));
-    assert.deepEqual(rows.map((r) => [r[0], r[3], r[4]]), [['4', 'Computed here', 'Submit'], ['3', 'Accepted', '']]);
+    const rows = () => page.$$eval('#review-table tbody tr', (trs) => trs.map((tr) => [...tr.cells].map((td) => td.textContent)));
+    assert.deepEqual((await rows()).map((r) => [r[0], r[3], r[4]]), [['4', 'Computed here', 'Submit']], 'the list starts with what isn’t accepted yet');
+    assert.equal(await page.textContent('#review-view-pending'), 'Not yet accepted (1)');
+    await page.click('#review-view-all');
+    assert.deepEqual((await rows()).map((r) => [r[0], r[3], r[4]]), [['4', 'Computed here', 'Submit'], ['3', 'Accepted', '']]);
     assert.match(await page.textContent('#review-counts'), /^2 results kept here, 0 computed this session: 1 awaiting submission, 0 opened on GitHub, 1 accepted into community results\./);
     const outcome = await page.textContent('#review-outcome');
     assert.match(outcome, /^Unit 4 measured how well two standard detectors recover synthetic signals hidden in archived telescope data/);
@@ -656,6 +659,7 @@ test('the review lists the cards computed here by what became of them, and submi
     await issue.close();
     await page.waitForFunction(() => document.querySelector('#review-table tbody tr:first-child .chip').textContent === 'Opened on GitHub', null, { timeout: 10000 });
     assert.match(await page.textContent('#review-status'), /^Opened a GitHub issue/);
+    assert.match(await page.textContent('#review-opened'), /^1 card opened on GitHub isn’t submitted yet: post each issue to submit it\./);
     assert.equal(await page.textContent('#rc-viewport .review'), 'Review results');
     await page.click('#review-close');
     assert.equal(await page.$eval('#review', (d) => d.open), false);
@@ -682,20 +686,78 @@ test('no card that exists only here is dropped: a full browser pauses auto-run a
   await page.waitForTimeout(1500);
   assert.match(await page.textContent('#rc-viewport .hud-stats'), /This session: 1 recovery unit computed · In this browser: 301 awaiting submission/, 'and no unit started after');
 
-  // Saving every card to a file lets the oldest make room.
+  // A download the page can't confirm (blocked, cancelled, or not yet checked) lets no card go.
   const [file] = await Promise.all([page.waitForEvent('download'), page.click('#review-download')]);
   assert.equal(file.suggestedFilename(), 'eiathome-recovery-results.json');
+  assert.equal(await page.isVisible('#review-confirm'), true);
   await page.click('#review-close');
   await page.fill('#rc-number', '8');
   await page.click('#rc-run');
-  await page.waitForFunction(() => document.getElementById('rc-status').textContent.startsWith('Unit 8 finished'), null, { timeout: 30000 });
+  await page.waitForFunction(() => document.getElementById('rc-status').textContent.includes('none of the kept cards'), null, { timeout: 30000 });
+  assert.equal((await kept()).length, 302, 'still nothing dropped');
+  assert.equal(await page.$eval('#review', (d) => d.open), true, 'the review opens again');
+
+  // Confirming the file makes the downloaded cards safe to drop, oldest first.
+  assert.equal(await page.isVisible('#review-confirm'), true, 'the confirmation is still offered');
+  await page.click('#review-saved');
+  assert.match(await page.textContent('#review-status'), /^301 cards marked as saved to your file/);
+  await page.click('#review-close');
+  await page.fill('#rc-number', '9');
+  await page.click('#rc-run');
+  await page.waitForFunction(() => document.getElementById('rc-status').textContent.startsWith('Unit 9 finished'), null, { timeout: 30000 });
   const units = await kept();
   assert.equal(units.length, 300);
-  assert.deepEqual(units.slice(0, 2), [8, 7]);
-  assert.ok(!units.includes(1299) && !units.includes(1298), 'the two oldest, saved cards made room');
+  assert.deepEqual(units.slice(0, 3), [9, 8, 7]);
+  assert.ok([1297, 1298, 1299].every((u) => !units.includes(u)), 'the three oldest saved cards made room');
   assert.equal(await page.$eval('#review', (d) => d.open), false);
   assert.deepEqual(errors, []);
   await page.close();
+});
+
+test('every kept card can be submitted from the review, beyond the first 50', async () => {
+  const cards = await storedRecoveryCards(Array.from({ length: 51 }, (_, i) => 1000 + i), (i) => new Date(Date.UTC(2026, 9, 2, 0, 59 - i)).toISOString());
+  const { page, errors } = await openLab(seedRecoveryCards, cards);
+  await page.click('.tabs button[data-tab="recovery"]');
+  await page.waitForFunction(() => document.querySelector('#rc-viewport .review').textContent === 'Review and submit (51)', null, { timeout: 30000 });
+  await page.click('#rc-viewport .review');
+  const units = () => page.$$eval('#review-table tbody tr', (trs) => trs.map((tr) => Number(tr.cells[0].textContent)));
+  assert.equal((await units()).length, 50);
+  assert.ok(!(await units()).includes(1050));
+  assert.equal(await page.textContent('#review-more'), 'Showing 50 of 51, newest first.');
+  assert.equal(await page.textContent('#review-show-more'), 'Show 1 more');
+  await page.click('#review-show-more');
+  assert.deepEqual((await units()).slice(-1), [1050]);
+  assert.equal(await page.isVisible('#review-show-more'), false);
+
+  // Submit the 51st card; the newer ones stay.
+  await page.context().route('https://github.com/**', (route) => route.fulfill({ status: 200, contentType: 'text/html', body: 'stub' }));
+  const [issue] = await Promise.all([page.waitForEvent('popup'), page.click('#review-table tbody tr:last-child a')]);
+  assert.equal(extractCard(new URL(issue.url()).searchParams.get('body')).unit, 1050);
+  await issue.close();
+  await page.waitForFunction(() => document.querySelector('#review-table tbody tr:last-child .chip')?.textContent === 'Opened on GitHub', null, { timeout: 10000 });
+  assert.equal(await page.evaluate(() => JSON.parse(localStorage.getItem('eiathome.recoveryResults')).length), 51);
+  assert.equal(await page.textContent('#rc-viewport .review'), 'Review and submit (50)');
+  assert.deepEqual(errors, []);
+  await page.close();
+});
+
+test('in the claude.ai preview, which blocks downloads, the review offers none to rely on', async () => {
+  overrides.set('/', (await readFile(join(WEB, 'index.html'), 'utf8')).replace('<head>', '<head>\n  <meta name="eiathome-host" content="claude-artifact">'));
+  try {
+    const cards = await storedRecoveryCards([1000], () => '2026-10-02T00:00:00.000Z');
+    const { page, errors } = await openLab(seedRecoveryCards, cards);
+    await page.click('.tabs button[data-tab="recovery"]');
+    await page.waitForFunction(() => document.querySelector('#rc-viewport .review').textContent === 'Review and submit (1)', null, { timeout: 30000 });
+    await page.click('#rc-viewport .review');
+    assert.equal(await page.isVisible('#review-download'), false);
+    assert.equal(await page.isVisible('#review-confirm'), false);
+    assert.equal(await page.isVisible('#rc-download-all'), false);
+    assert.match(await page.textContent('#review-table tbody tr td:last-child'), /^Submit$/, 'submitting still works');
+    assert.deepEqual(errors, []);
+    await page.close();
+  } finally {
+    overrides.clear();
+  }
 });
 
 test('leaving observatory mode offers the review of the units it computed', async () => {

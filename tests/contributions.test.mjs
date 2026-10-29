@@ -15,7 +15,24 @@ test('a card is accepted only when its exact text is in the community results', 
   assert.equal(cardStatus({ ...a, seconds: 1 }, marks, accepted), 'computed', 'the same unit run again is a different card');
   assert.equal(cardStatus(card(3), { [cardKey(card(3))]: { saved: 'x' } }, accepted), 'saved');
   assert.equal(cardStatus(card(3), { [cardKey(card(3))]: { saved: 'x', opened: 'y' } }, accepted), 'opened');
-  assert.deepEqual(['computed', 'saved', 'opened', 'accepted'].map(safeToDrop), [false, true, false, true]);
+
+  // Dropping is safe when the card is accepted or saved, whatever the status shown.
+  const both = card(4);
+  const savedOpened = { [cardKey(both)]: { saved: 'x', opened: 'y' } };
+  assert.equal(cardStatus(both, savedOpened, accepted), 'opened');
+  assert.equal(safeToDrop(both, savedOpened, accepted), true, 'saved, then opened');
+  assert.equal(safeToDrop(both, { [cardKey(both)]: { opened: 'y', saved: 'z' } }, accepted), true, 'opened, then saved');
+  assert.equal(safeToDrop(b, marks, accepted), false, 'opened only');
+  assert.equal(safeToDrop(a, {}, accepted), true, 'accepted');
+  assert.equal(safeToDrop(card(5), {}, accepted), false, 'computed only');
+});
+
+test('saved cards make room even after their issue was opened', () => {
+  const cards = [card(3), card(2), card(1)];
+  const marks = { [cardKey(cards[2])]: { opened: 'a', saved: 'b' }, [cardKey(cards[1])]: { saved: 'c', opened: 'd' }, [cardKey(cards[0])]: { opened: 'e' } };
+  const kept = keepCard(cards, card(4), 2, (c) => safeToDrop(c, marks, new Set()));
+  assert.deepEqual(kept.cards.map((c) => c.unit), [4, 3]);
+  assert.equal(kept.full, false);
 });
 
 test('kept cards make room only by dropping cards that exist somewhere else', () => {

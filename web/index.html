@@ -330,15 +330,24 @@
       <button id="review-close" class="ghost" type="button">Close</button>
     </div>
     <p id="review-counts" class="review-counts"></p>
-    <p class="muted small"><b>Computed here</b>: your browser ran the unit and holds its result card; nobody else has it yet. <b>Opened on GitHub</b>: you opened the card’s submission issue. Once it’s posted, an automatic check validates the card (recovery units are recomputed) and records it. <b>Accepted</b>: the card is in the community results. Downloading the cards keeps a copy of your own.</p>
+    <p id="review-opened" class="review-opened" hidden></p>
+    <p class="muted small"><b>Computed here</b>: your browser ran the unit and holds its result card; nobody else has it yet. <b>Opened on GitHub</b>: you opened the card’s submission issue, which isn’t a submission until you post it. Once it’s posted, an automatic check validates the card (recovery units are recomputed) and records it. <b>Accepted</b>: the card is in the community results. <b>Saved to a file</b>: you downloaded the cards and confirmed you have the file.</p>
     <h3>What your latest unit measured</h3>
     <p id="review-outcome"></p>
+    <div class="buttons" role="group" aria-label="Which results to list">
+      <button id="review-view-pending" class="ghost" type="button" aria-pressed="true">Not yet accepted</button>
+      <button id="review-view-all" class="ghost" type="button" aria-pressed="false">All</button>
+    </div>
     <div class="table-wrap"><table id="review-table"></table></div>
-    <p id="review-more" class="muted small"></p>
+    <p class="review-more"><span id="review-more" class="muted small"></span> <button id="review-show-more" type="button" hidden>Show 50 more</button></p>
     <p id="review-keep" class="muted small"></p>
     <p id="review-status" class="status" role="status" aria-live="polite"></p>
     <textarea id="review-submit-text" rows="4" readonly spellcheck="false" aria-label="Result card to paste into the GitHub issue" hidden></textarea>
-    <div class="buttons"><button id="review-download" type="button">Download all (JSON)</button></div>
+    <p id="review-confirm" hidden>Once the file is on your computer, confirm it, so these cards can make room for new ones: <button id="review-saved" type="button">I have the file</button></p>
+    <div class="buttons">
+      <button id="review-download" type="button">Download all (JSON)</button>
+      <button id="review-refresh" type="button">Check for accepted cards</button>
+    </div>
   </dialog>
 
   <div id="tooltip" class="tooltip" hidden></div>

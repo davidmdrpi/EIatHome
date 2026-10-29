@@ -98,9 +98,11 @@ headless Chromium. It checks that:
   ticked while the recovery windows load starts once they're ready, and clicking another beacon
   mid-unit moves the view, not the unit;
 - the review lists the cards computed here by status (accepted ones are matched against the
-  community results), submits a card and marks it, and opens when observatory mode is left with
-  cards to submit; a browser full of cards that exist nowhere else pauses auto-run instead of
-  dropping one, until they're saved or accepted;
+  community results), submits a card and marks it, reaches the 51st card with **Show more**,
+  and opens when observatory mode is left with cards to submit; a browser full of cards that
+  exist nowhere else pauses auto-run instead of dropping one, an unconfirmed download frees
+  nothing, and a confirmed one lets the oldest saved cards make room; the claude.ai preview
+  offers no download;
 - Track B describes a real family's sessions as loaded (Voyager 1's four scans span 2016 and
   2020, two sessions, so its held-out scans share a session with training), and explains the
   control row from the run's own numbers.
@@ -137,14 +139,22 @@ you leave observatory mode, lists them with what became of each:
 | Status | Meaning |
 |---|---|
 | Computed here | Only this browser has the card |
-| Saved to a file | You downloaded it |
-| Opened on GitHub | You opened its submission issue; it's recorded once the issue is posted and checked |
+| Saved to a file | You downloaded the cards from the review and confirmed you have the file |
+| Opened on GitHub | You opened its submission issue: a draft until you post it, after which it's checked and recorded |
 | Accepted | Its exact card is in `data/community_results.json` |
 
-To make room for a new card, the oldest cards that are accepted or saved are dropped. A card that
-exists nowhere else is never dropped: when every kept card is like that, auto-run pauses and the
-review opens, so you can submit or download them. The HUD counts units computed this session,
-cards awaiting submission and cards accepted. Nothing about this leaves the browser.
+The review lists the cards not yet accepted (or all of them), 50 at a time with **Show more**, so
+every kept card can be submitted. **Check for accepted cards** reloads the community results;
+the page also does this on its own when you come back to the tab with cards opened on GitHub.
+
+To make room for a new card, the oldest cards that are accepted, or saved and confirmed, are
+dropped, whatever their status shows (a saved card stays safe to drop after its issue is
+opened). A download only counts once you confirm you have the file, because the page can't see
+whether the browser saved it; in the claude.ai preview, which blocks downloads, the review
+offers none. A card that exists nowhere else is never dropped: when every kept card is like
+that, auto-run pauses and the review opens, so you can submit or save them. The HUD counts units
+computed this session, cards awaiting submission and cards accepted. Nothing about this leaves
+the browser.
 
 ## Deploying
 
