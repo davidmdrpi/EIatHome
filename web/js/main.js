@@ -1,9 +1,11 @@
 import { isRecoveryCard, issueLink, submissionText, summarize, validateCard } from './community.js';
+import { STATUSES, acceptedCards, cardKey, cardStatus, keepCard, pruneMarks, safeToDrop, tally } from './contributions.js';
 import { architectureLabel, tokenArchitectureLabel } from './models.js';
 import { fmt, heatmap, lineChart, scatterPanel } from './plots.js';
 import { DECOYS, KINDS, RECOVERY_DATA, RECOVERY_SPEC, SIGNALS, STRENGTHS, combine, wilson } from './recovery.js';
 import { deriveSeed, makeRng } from './rng.js';
 import { forWorkers, loadPublishedSlices, loadSliceFiles } from './slices.js';
+import { SCAN_GAP_DAYS, groups, mjdDate, sessions } from './splits.js';
 import { C, FAMILIES, ROSETTA_TEXT, T, driftToHzPerS, familyById, makeSnippet, normalise, shuffleFrames } from './signals.js';
 import { GREEN_BANK, OUTCOMES, SkyMap, constellationAt, horizonToEquatorial, loadSky, siderealHours } from './skymap.js';
 import { MAX_UNIT, SPEC, workUnitConfig } from './workunits.js';
@@ -386,7 +388,7 @@ function startTraining() {
   renderProbe();
   setRunning('lab');
   labStatus('Building snippets and baselines…');
-  viewports.lab?.startJob('train', targetForFamily(config.target), `Track A · ${architectureLabel(config.arch)} learning ${familyById[config.target].label}: building snippets…`);
+  viewports.lab?.startJob('train', targetForFamily(config.target), `Track A · ${architectureLabel(config.arch)} learning ${familyById[config.target].label}: building snippets…`, dataSource(config.target));
   engine.postMessage({ type: 'train', config });
 }
 
@@ -396,7 +398,7 @@ function analyzeTokens() {
   if (!familyAvailable(state.family)) return;
   const id = ++analyzeId;
   $('tb-status').textContent = 'Tokenizing…';
-  if (!state.running) viewports.lab?.startJob('analysis', targetForFamily(state.family), `Track B · tokenizing ${familyById[state.family].label} into radio tokens…`);
+  if (!state.running) viewports.lab?.startJob('analysis', targetForFamily(state.family), `Track B · tokenizing ${familyById[state.family].label} into radio tokens…`, dataSource(state.family));
   $('tb-status').classList.remove('error');
   tokens.postMessage({
     type: 'analyze',
@@ -468,6 +470,8 @@ function renderTrackB() {
   const rows = STREAMS.map((s) => [s.name, ...r.crossEntropy[s.id].map((e) => fmt(e.bits)), r.sizes.test.targets.toLocaleString()]);
   if (r.control) rows.push([controlName(r), ...r.control.crossEntropy.map((e) => fmt(e.bits)), r.control.targets.toLocaleString()]);
   fillTable($('tb-entropy-table'), ['Context', ...r.crossEntropy.real.map((e) => e.context), 'Tokens scored'], rows);
+  $('tb-control-note').textContent = r.control?.profile ? controlNote(r) : '';
+  $('tb-control-note').hidden = !r.control?.profile;
   fillTable(
     $('tb-plugin-table'),
     ['Context', ...r.entropy.real.map((e) => e.n - 1)],
@@ -493,6 +497,33 @@ const STREAM_NAMES = Object.fromEntries(STREAMS.map((s) => [s.id, s.name]));
 // The other real family's frames, tokenized and scored with this family's models.
 const controlName = (r) => `${familyById[r.control.family].label} (control)`;
 
+// Why the control row sits where it does: how its frames fall on this family's codebook, and
+// what context adds for it and for this family.
+function controlNote(r) {
+  const p = r.control.profile;
+  const name = familyById[r.control.family].label;
+  const own = familyById[r.family].label;
+  const control = r.control.crossEntropy.map((e) => e.bits);
+  const real = r.crossEntropy.real.map((e) => e.bits);
+  const inTraining = p.trainCommonest ? `${own}’s commonest training token (${pct(p.trainShare)})` : `${pct(p.trainShare)} of ${own}’s training tokens`;
+  const parts = [
+    p.share >= 0.5
+      ? `${pct(p.share)} of ${name}’s ${p.frames} frames land on one token type${p.flattest ? ', the codebook’s flattest frame (the one plain noise is nearest)' : ''}. It is also ${inTraining}.`
+      : `${name}’s ${p.frames} frames use ${p.typesUsed} of the ${r.k} token types. The commonest takes ${pct(p.share)} of them and is ${inTraining}.`,
+  ];
+  if (control[0] < real[0]) {
+    parts.push(`Frames concentrated on few token types are cheap to predict, so ${name} costs less than ${own} with no context (${fmt(control[0])} against ${fmt(real[0])} bits), with no structure behind it.`);
+  }
+  const gain = (bits) => bits[0] - Math.min(...bits.slice(1));
+  const says = (bits) => {
+    const best = Math.min(...bits.slice(1));
+    return gain(bits) > 0.005 ? `improves by ${fmt(gain(bits))} bits at best (${fmt(bits[0])} → ${fmt(best)})` : `doesn’t improve (${fmt(bits[0])} bits with none, ${fmt(best)} at best)`;
+  };
+  const drift = r.family === 'voyager' && gain(real) > 0.3 ? ', as its carrier and sidebands drift steadily across the window from frame to frame' : '';
+  parts.push(`Context is the test. With up to ${real.length - 1} tokens of it, ${name} ${says(control)}, ${gain(real) > 0.005 ? 'while' : 'and'} ${own} ${says(real)}${drift}.`);
+  return parts.join(' ');
+}
+
 function startTokenModel() {
   if (state.running) return;
   if (!state.trackb) {
@@ -506,7 +537,7 @@ function startTokenModel() {
   $('tb-lm-status').classList.remove('error');
   $('tb-lm-status').textContent = 'Starting…';
   setRunning('tokens');
-  viewports.lab?.startJob('tokens', targetForFamily(r.family), `Track B · training a token ${tokenArchitectureLabel($('tb-lm-arch').value)}…`);
+  viewports.lab?.startJob('tokens', targetForFamily(r.family), `Track B · training a token ${tokenArchitectureLabel($('tb-lm-arch').value)}…`, dataSource(r.family));
   engine.postMessage({
     type: 'token-lm',
     arch: $('tb-lm-arch').value,
@@ -558,7 +589,7 @@ function runUnit(unit) {
   $('wu-progress').value = 0;
   setRunning('unit');
   unitStatus(`Unit ${unit}: building snippets…`);
-  viewports.lab?.startJob('unit', targetForFamily('voyager'), `Work unit ${unit} · ${SPEC}: trains on synthetic tones, tests on every signal…`);
+  viewports.lab?.startJob('unit', targetForFamily('voyager'), `Work unit ${unit} · ${SPEC}: trains on synthetic tones, tests on every signal…`, unitDataSource());
   engine.postMessage({ type: 'workunit', unit });
 }
 
@@ -574,13 +605,12 @@ function onWorkUnitResult(card) {
   state.issue = issueLink(card, REPO);
   $('wu-submit').href = state.issue.url;
   $('wu-submit-text').hidden = true;
-  state.results = [card, ...state.results].slice(0, 200);
-  store.set('results', state.results);
+  const full = keep('lab', card);
   renderHistory();
   session.units += 1;
-  session.seconds += card.seconds;
   viewports.lab?.finishJob(`Work unit ${card.unit} · done in ${card.seconds} s · GRU gain on tones ${fmt(card.metrics?.prediction_gain?.tone?.gru)}`);
-  viewports.lab?.setStats(sessionStats('lab'));
+  if (full) pauseForReview('lab');
+  refreshContributions();
   // The loop is checked again when the timer fires: it may have been turned off meanwhile.
   if ($('wu-loop').checked && !state.stopLoop) setTimeout(() => $('wu-loop').checked && !state.stopLoop && !state.running && runUnit(randomUnit()), 1000);
 }
@@ -669,14 +699,17 @@ function onConfirmedClick(button, action) {
 // ---------- observatory viewport ----------
 
 const viewports = { lab: null, recovery: null };
-const session = { units: 0, seconds: 0, recovery: 0, recoverySeconds: 0 };
+const session = { units: 0, recovery: 0 }; // units computed since the page opened
 let skyData = null;
 
 const plural = (n, word) => `${n.toLocaleString()} ${word}${n === 1 ? '' : 's'}`;
-const sessionStats = (kind) =>
-  kind === 'recovery'
-    ? `This session: ${plural(session.recovery, 'recovery unit')} (${fmt(session.recoverySeconds, 1)} s of compute)`
-    : `This session: ${plural(session.units, 'Track A work unit')} (${fmt(session.seconds, 1)} s of compute)`;
+// What the volunteer's compute became: units computed this session, and of the cards kept in
+// this browser, how many await submission and how many the community results accepted.
+const sessionStats = (kind) => {
+  const t = tally(keptCards(kind), contributions.marks, contributions.accepted);
+  const computed = kind === 'recovery' ? plural(session.recovery, 'recovery unit') : plural(session.units, 'Track A work unit');
+  return `This session: ${computed} computed · In this browser: ${t.awaiting.toLocaleString()} awaiting submission, ${t.accepted.toLocaleString()} accepted into community results`;
+};
 
 // The compass direction of position b seen from a, for short labels ("Off N").
 function compass(a, b) {
@@ -734,6 +767,23 @@ function refreshTargets() {
   viewports.recovery?.setTargets([...all.filter((t) => !near(t, RECOVERY_DATA.sky)), recoveryTarget(), ...references]);
 }
 
+// What a real family's loaded slices span, for the map's "Data from" line: every observing
+// session, not just the one its beacon marks. null when one session (the beacon's label says it).
+function dataSource(id) {
+  const dated = state.slices.filter((s) => s.family === id && Number.isFinite(s.startMjd));
+  const byDate = sessions(dated).map((g) => mjdDate(Math.min(...g.map((s) => s.startMjd))));
+  if (byDate.length < 2) return null;
+  const scans = groups(dated, SCAN_GAP_DAYS).length;
+  return `Data from ${familyById[id].label} · ${byDate.slice(0, -1).join(', ')} and ${byDate.at(-1)}: ${scans} scans in ${byDate.length} observing sessions`;
+}
+
+// A work unit trains on synthetic tones and tests on every family, the loaded real ones too.
+function unitDataSource() {
+  const dates = [...new Set(state.slices.filter((s) => Number.isFinite(s.startMjd)).map((s) => mjdDate(s.startMjd)))].sort();
+  const real = dates.length ? `, with real data from ${dates.slice(0, -1).join(', ')}${dates.length > 1 ? ' and ' : ''}${dates.at(-1)}` : '';
+  return `Trains on synthetic tones; tests on every family${real}`;
+}
+
 // The target a family's computations point at: its latest pointing (for off-source, the one the
 // recovery windows come from, if loaded), or the local marker for synthetic signals.
 function targetForFamily(id) {
@@ -756,6 +806,8 @@ function startViewports() {
       $('wu-loop').checked = on;
       if (on && !state.running) runUnit(randomUnit());
     },
+    onReview: () => openReview('lab'),
+    onObservatory: (on) => !on && offerReview('lab'),
   });
   viewports.recovery = new SkyMap($('rc-viewport'), {
     autoRunLabel: 'Auto-run recovery units',
@@ -768,9 +820,10 @@ function startViewports() {
         setRecoveryRunning(rc.running);
       }
     },
+    onReview: () => openReview('recovery'),
+    onObservatory: (on) => !on && offerReview('recovery'),
   });
-  viewports.lab.setStats(sessionStats('lab'));
-  viewports.recovery.setStats(sessionStats('recovery'));
+  refreshContributions();
   loadSky()
     .then((sky) => {
       skyData = sky;
@@ -868,19 +921,18 @@ function onRecoveryResult(card, outcomes = []) {
   rc.issue = issueLink(card, REPO);
   $('rc-submit').href = rc.issue.url;
   $('rc-submit-text').hidden = true;
-  rc.results = [card, ...rc.results.filter((c) => c.unit !== card.unit)].slice(0, 300);
-  store.set('recoveryResults', rc.results);
+  const full = keep('recovery', card);
   recoveryStatus(`Unit ${card.unit} finished in ${card.seconds} s.`);
   $('rc-unit-panel').hidden = false;
   $('rc-card').textContent = JSON.stringify(card, null, 2);
   renderRecoveryUnit();
   renderCombined();
   session.recovery += 1;
-  session.recoverySeconds += card.seconds;
   const totals = recoveryTotals(card.results, card.config.per_cell, '0.01');
   viewports.recovery?.outcomes(outcomes, OUTCOMES.map((outcome, i) => ({ outcome, count: outcomes.filter((c) => c === i).length })), 'Each cell is one frequency window of this one pointing, in order along the band (the layout is illustrative, not positions on the sky). De-Doppler at 1% false alarms:');
   viewports.recovery?.finishJob(`Recovery unit ${card.unit} · de-Doppler found ${totals.found.dedoppler} of ${totals.signals} hidden signals, the energy detector ${totals.found.energy} · ${card.seconds} s`);
-  viewports.recovery?.setStats(sessionStats('recovery'));
+  if (full) pauseForReview('recovery');
+  refreshContributions();
   const again = $('rc-loop').checked && !rc.stopLoop;
   setRecoveryRunning(false, again);
   if (again) rc.timer = setTimeout(() => $('rc-loop').checked && !rc.stopLoop && !rc.running && runRecovery(randomUnit()), 1000);
@@ -1002,6 +1054,178 @@ function renderCombined() {
   recoveryTable($('rc-combined-table'), results, perCell, signalFree, rate);
 }
 
+// ---------- your contributions ----------
+
+// What happened to the cards computed here (see contributions.js): marks record when a card was
+// saved to a file or opened as a GitHub issue; accepted holds the community results' cards.
+const contributions = {
+  marks: store.get('contributionMarks', {}),
+  accepted: new Set(),
+  kind: 'lab', // whose cards the review shows: 'lab' (Track A work units) or 'recovery'
+  view: 'pending', // 'pending' (not yet accepted) or 'all'
+  shown: 0, // rows listed before "Show more"
+  pendingSave: null, // cards downloaded but not yet confirmed saved: { kind, cards }
+  offered: { lab: 0, recovery: 0 }, // units computed when the review was last offered
+  checked: 0, // when the community results were last loaded
+};
+const KEEP = { lab: 200, recovery: 300 };
+const KIND_NAMES = { lab: 'Track A work units', recovery: 'recovery units' };
+const REVIEW_SHOWN = 50;
+const keptCards = (kind) => (kind === 'recovery' ? rc.results : state.results);
+const statusOf = (card) => cardStatus(card, contributions.marks, contributions.accepted);
+
+// Keeps a new card without dropping one that exists nowhere else. Returns true when the kept
+// cards are over their limit because none could be dropped.
+function keep(kind, card) {
+  const replaces = kind === 'recovery' ? (c) => c.unit === card.unit : undefined; // one card per recovery unit
+  const { cards, full } = keepCard(keptCards(kind), card, KEEP[kind], (c) => safeToDrop(c, contributions.marks, contributions.accepted), replaces);
+  if (kind === 'recovery') rc.results = cards;
+  else state.results = cards;
+  store.set(kind === 'recovery' ? 'recoveryResults' : 'results', cards);
+  saveMarks();
+  return full;
+}
+
+function saveMarks() {
+  contributions.marks = pruneMarks(contributions.marks, [state.results, rc.results]);
+  store.set('contributionMarks', contributions.marks);
+}
+
+function markCards(cards, what) {
+  const now = new Date().toISOString();
+  for (const card of cards) {
+    if (card) contributions.marks[cardKey(card)] = { ...contributions.marks[cardKey(card)], [what]: now };
+  }
+  saveMarks();
+  refreshContributions();
+}
+
+// The review buttons, the HUD's contribution counts and, if it's open, the review.
+function refreshContributions() {
+  for (const kind of ['lab', 'recovery']) {
+    const t = tally(keptCards(kind), contributions.marks, contributions.accepted);
+    viewports[kind]?.setReview(t.total ? (t.awaiting ? `Review and submit (${t.awaiting.toLocaleString()})` : 'Review results') : null, t.awaiting > 0);
+    viewports[kind]?.setStats(sessionStats(kind));
+  }
+  if ($('review').open) renderReview();
+}
+
+// Every kept card exists nowhere else: stop auto-run rather than drop one, and show the review.
+function pauseForReview(kind) {
+  const box = kind === 'recovery' ? $('rc-loop') : $('wu-loop');
+  const looping = box.checked;
+  box.checked = false;
+  viewports[kind]?.setAutoRun(false);
+  const say = kind === 'recovery' ? recoveryStatus : unitStatus;
+  say(`This browser keeps up to ${KEEP[kind]} ${KIND_NAMES[kind]}, and none of the kept cards is accepted into community results or saved to a file yet${looping ? ', so auto-run has paused' : ''}. Submit or download some to make room: no card is dropped until it’s accepted or saved.`);
+  openReview(kind);
+}
+
+function openReview(kind) {
+  contributions.kind = kind;
+  contributions.offered[kind] = kind === 'recovery' ? session.recovery : session.units;
+  const { total, accepted } = tally(keptCards(kind), contributions.marks, contributions.accepted);
+  contributions.view = total > accepted ? 'pending' : 'all';
+  contributions.shown = REVIEW_SHOWN;
+  $('review-status').textContent = '';
+  $('review-submit-text').hidden = true;
+  $('review-confirm').hidden = contributions.pendingSave?.kind !== kind;
+  renderReview();
+  if (!$('review').open) $('review').showModal();
+}
+
+// Leaving observatory mode ends a viewing session: offer the review if units computed since it
+// was last offered left cards to submit. Deferred, so the Escape that closed the observatory
+// doesn't also close the review.
+function offerReview(kind) {
+  const computed = kind === 'recovery' ? session.recovery : session.units;
+  const { awaiting } = tally(keptCards(kind), contributions.marks, contributions.accepted);
+  if (computed > contributions.offered[kind] && awaiting) setTimeout(() => openReview(kind));
+}
+
+function reviewStatus(text, error = false) {
+  $('review-status').textContent = text;
+  $('review-status').classList.toggle('error', error);
+}
+
+function renderReview() {
+  const kind = contributions.kind;
+  const cards = keptCards(kind);
+  const t = tally(cards, contributions.marks, contributions.accepted);
+  const thisSession = kind === 'recovery' ? session.recovery : session.units;
+  $('review-title').textContent = `Your ${KIND_NAMES[kind]} in this browser`;
+  $('review-counts').textContent = cards.length
+    ? `${plural(t.total, 'result')} kept here, ${thisSession.toLocaleString()} computed this session: ${t.awaiting.toLocaleString()} awaiting submission, ${t.opened.toLocaleString()} opened on GitHub, ${t.accepted.toLocaleString()} accepted into community results.`
+    : 'No results in this browser yet.';
+  // Opening an issue is a draft: say so wherever cards are still only opened.
+  $('review-opened').hidden = !t.opened;
+  $('review-opened').textContent = t.opened
+    ? `${plural(t.opened, 'card')} opened on GitHub ${t.opened === 1 ? 'isn’t' : 'aren’t'} submitted yet: post each issue to submit it. Its status changes to Accepted once the automatic check records it; use “Check for accepted cards” to look again.`
+    : '';
+  $('review-outcome').textContent = cards.length ? (kind === 'recovery' ? recoveryOutcome(cards[0]) : workUnitOutcome(cards[0])) : 'Run a unit to see what it measures.';
+  const pending = cards.filter((c) => statusOf(c) !== 'accepted');
+  const listed = contributions.view === 'pending' ? pending : cards;
+  $('review-view-pending').textContent = `Not yet accepted (${pending.length.toLocaleString()})`;
+  $('review-view-all').textContent = `All (${cards.length.toLocaleString()})`;
+  $('review-view-pending').setAttribute('aria-pressed', String(contributions.view === 'pending'));
+  $('review-view-all').setAttribute('aria-pressed', String(contributions.view === 'all'));
+  fillTable($('review-table'), ['Unit', 'Started', kind === 'recovery' ? 'Signals found at 1% false alarms' : 'GRU gain: drifting tones', 'Status', ''], []);
+  $('review-table').tBodies[0].append(...listed.slice(0, contributions.shown).map((card) => reviewRow(kind, card)));
+  const shown = Math.min(listed.length, contributions.shown);
+  $('review-more').textContent = listed.length ? `Showing ${shown.toLocaleString()} of ${listed.length.toLocaleString()}, newest first.` : 'Nothing to list here.';
+  $('review-show-more').hidden = shown >= listed.length;
+  $('review-show-more').textContent = `Show ${Math.min(REVIEW_SHOWN, listed.length - shown).toLocaleString()} more`;
+  $('review-keep').textContent = `This browser keeps up to ${KEEP[kind]} ${KIND_NAMES[kind]} (${cards.length.toLocaleString()} now). To make room it drops only cards that are accepted, or that you downloaded and confirmed saving; if every kept card is neither, auto-run pauses until you submit or save some.`;
+}
+
+function reviewRow(kind, card) {
+  const status = statusOf(card);
+  const started = new Date(card.started);
+  const tr = makeRow([card.unit, Number.isNaN(started.getTime()) ? '' : started.toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' }), cardOutcome(kind, card)]);
+  const chip = document.createElement('td');
+  chip.append(element('span', STATUSES[status], `chip ${status}`));
+  const action = document.createElement('td');
+  if (status !== 'accepted') {
+    const issue = issueLink(card, REPO);
+    const a = link(status === 'opened' ? 'Open again' : 'Submit', issue.url);
+    a.className = 'button';
+    a.onclick = () => {
+      onSubmit(() => ({ card, issue }), 'review-submit-text', reviewStatus)();
+      setTimeout(() => markCards([card], 'opened')); // after the link opens: marking redraws the table
+    };
+    action.append(a);
+  }
+  tr.append(chip, action);
+  return tr;
+}
+
+function cardOutcome(kind, card) {
+  if (kind === 'recovery') {
+    const t = recoveryTotals(card.results, card.config.per_cell, '0.01');
+    return `de-Doppler ${t.found.dedoppler} of ${t.signals} · energy ${t.found.energy}`;
+  }
+  const g = card.metrics?.prediction_gain?.tone ?? {};
+  return `${fmt(g.gru)} (linear ${fmt(g.linear)})`;
+}
+
+// What a recovery unit measured, in plain words, with the two detectors side by side.
+function recoveryOutcome(card) {
+  const t = recoveryTotals(card.results, card.config.per_cell, '0.01');
+  const fa = card.results.false_alarms;
+  return `Unit ${card.unit} measured how well two standard detectors recover synthetic signals hidden in archived telescope data: ${(t.signals + t.decoys).toLocaleString()} signals and interference-like decoys, injected into real windows of a Green Bank off-source scan (2020-07-16). ` +
+    `At thresholds that flag 1% of empty windows, the de-Doppler search (the usual search for drifting signals) found ${t.found.dedoppler} of the ${t.signals} signals (${pct(t.found.dedoppler / t.signals)}), and the energy detector (a simpler baseline that measures excess power) found ${t.found.energy} (${pct(t.found.energy / t.signals)}). ` +
+    `The energy detector caught ${t.onlySecond} that the de-Doppler search missed, against ${t.onlyFirst} the other way. On the ${card.results.signal_free} windows left empty they raised ${fa.dedoppler['0.01']} and ${fa.energy['0.01']} false alarms.`;
+}
+
+// What a Track A work unit measured, against its baselines.
+function workUnitOutcome(card) {
+  const g = card.metrics?.prediction_gain ?? {};
+  const line = (id) => g[id] && `${familyById[id].label} ${fmt(g[id].gru)} (linear ${fmt(g[id].linear)}, persistence ${fmt(g[id].persistence)})`;
+  const real = ['voyager', 'offsource'].map(line).filter(Boolean);
+  return `Unit ${card.unit} trained a small GRU (hidden size ${card.config?.hidden}) on noise and synthetic drifting tones, then measured how well it predicts each signal’s next frame against two simple baselines: a linear predictor, and persistence (the next frame repeats this one). ` +
+    `A prediction gain of 0 is no better than predicting the average frame; 1 is perfect. Drifting tones: ${line('tone') ?? 'not measured'}.${real.length ? ` Real data it never trained on: ${real.join('; ')}.` : ''}`;
+}
+
 // ---------- community results ----------
 
 const STATUS_LABELS = { single: 'One volunteer so far', replicated: 'Replicated', disagree: 'Runs disagree' };
@@ -1035,6 +1259,9 @@ async function loadCommunity() {
     return;
   }
   const all = Array.isArray(store.results) ? store.results : [];
+  contributions.accepted = acceptedCards(all);
+  contributions.checked = Date.now();
+  refreshContributions();
   rc.community = all.filter((r) => isRecoveryCard(r.card) && !validateCard(r.card).length);
   renderCombined();
   const results = all.filter((r) => !isRecoveryCard(r.card));
@@ -1158,7 +1385,7 @@ function showTab(name) {
 
 function init() {
   if (PREVIEW) {
-    for (const id of ['theme', 'wu-download', 'wu-download-all', 'rc-download', 'rc-download-all']) $(id).hidden = true;
+    for (const id of ['theme', 'wu-download', 'wu-download-all', 'rc-download', 'rc-download-all', 'review-download']) $(id).hidden = true;
   }
   applyTheme();
   $('backend').value = store.get('backend', 'auto');
@@ -1213,13 +1440,19 @@ function init() {
     engine.postMessage({ type: 'stop' });
   };
   $('wu-download').onclick = () => state.card && download(`eiathome-${state.card.spec.replace('/', '-')}-unit${state.card.unit}.json`, state.card);
-  $('wu-submit').onclick = onSubmit(() => ({ card: state.card, issue: state.issue }), 'wu-submit-text', unitStatus);
+  const submitUnit = onSubmit(() => ({ card: state.card, issue: state.issue }), 'wu-submit-text', unitStatus);
+  $('wu-submit').onclick = () => {
+    submitUnit();
+    markCards([state.card], 'opened');
+  };
   $('wu-copy').onclick = onCopy(() => state.card, 'wu-card', unitStatus);
   $('wu-download-all').onclick = () => download('eiathome-results.json', state.results);
   $('wu-clear').onclick = onConfirmedClick($('wu-clear'), () => {
     state.results = [];
     store.set('results', []);
     renderHistory();
+    saveMarks();
+    refreshContributions();
     unitStatus('Deleted the results stored in this browser.');
   });
 
@@ -1237,14 +1470,66 @@ function init() {
   };
   $('rc-source').onchange = renderCombined;
   $('rc-download').onclick = () => rc.card && download(`eiathome-recovery-unit${rc.card.unit}.json`, rc.card);
-  $('rc-submit').onclick = onSubmit(() => ({ card: rc.card, issue: rc.issue }), 'rc-submit-text', recoveryStatus);
+  const submitRecovery = onSubmit(() => ({ card: rc.card, issue: rc.issue }), 'rc-submit-text', recoveryStatus);
+  $('rc-submit').onclick = () => {
+    submitRecovery();
+    markCards([rc.card], 'opened');
+  };
   $('rc-copy').onclick = onCopy(() => rc.card, 'rc-card', recoveryStatus);
   $('rc-download-all').onclick = () => download('eiathome-recovery-results.json', rc.results);
   $('rc-clear').onclick = onConfirmedClick($('rc-clear'), () => {
     rc.results = [];
     store.set('recoveryResults', []);
     renderCombined();
+    saveMarks();
+    refreshContributions();
     recoveryStatus('Deleted the recovery cards stored in this browser.');
+  });
+  $('review-close').onclick = () => $('review').close();
+  // A download can be blocked or cancelled without the page knowing, so the cards count as saved
+  // (and can make room for new ones) only once the volunteer confirms having the file.
+  $('review-download').onclick = () => {
+    const kind = contributions.kind;
+    const cards = [...keptCards(kind)];
+    download(kind === 'recovery' ? 'eiathome-recovery-results.json' : 'eiathome-results.json', cards);
+    contributions.pendingSave = { kind, cards };
+    $('review-confirm').hidden = false;
+    reviewStatus(`Asked your browser to download ${plural(cards.length, 'card')}. They count as saved only once you confirm you have the file.`);
+  };
+  $('review-saved').onclick = () => {
+    const pending = contributions.pendingSave;
+    contributions.pendingSave = null;
+    $('review-confirm').hidden = true;
+    if (!pending) return;
+    markCards(pending.cards, 'saved');
+    reviewStatus(`${plural(pending.cards.length, 'card')} marked as saved to your file. They can now make room for new results; they stay listed until they need to.`);
+  };
+  $('review-view-pending').onclick = () => {
+    contributions.view = 'pending';
+    contributions.shown = REVIEW_SHOWN;
+    renderReview();
+  };
+  $('review-view-all').onclick = () => {
+    contributions.view = 'all';
+    contributions.shown = REVIEW_SHOWN;
+    renderReview();
+  };
+  $('review-show-more').onclick = () => {
+    contributions.shown += REVIEW_SHOWN;
+    renderReview();
+  };
+  $('review-refresh').onclick = async () => {
+    reviewStatus('Checking the community results…');
+    const before = contributions.checked;
+    await loadCommunity();
+    if (contributions.checked === before) return reviewStatus('Couldn’t load the community results. Try again in a moment.', true);
+    const { accepted } = tally(keptCards(contributions.kind), contributions.marks, contributions.accepted);
+    reviewStatus(`Checked the community results: ${plural(accepted, 'card')} from this browser accepted. A posted card appears a few minutes after its issue is checked.`);
+  };
+  // Back from GitHub: look again for accepted cards, at most once a minute, if any were opened.
+  document.addEventListener('visibilitychange', () => {
+    if (document.hidden || Date.now() - contributions.checked < 60000) return;
+    if ([state.results, rc.results].some((cards) => cards.some((c) => statusOf(c) === 'opened'))) loadCommunity();
   });
 
   $('slice-files').onchange = (e) => handleSliceFiles(e.target.files);

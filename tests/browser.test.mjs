@@ -9,7 +9,7 @@ import { fileURLToPath } from 'node:url';
 
 import { MAX_ISSUE_URL, extractCard, submissionText, validateCard } from '../web/js/community.js';
 import { matchedSize, matchedTokenWidth, parameterCount, tokenParameterCount } from '../web/js/models.js';
-import { parseRecoveryWindows, recoveryCard, runRecoveryUnit, verifyRecoveryCard } from '../web/js/recovery.js';
+import { parseRecoveryWindows, recoveryCard, recoveryConfig, runRecoveryUnit, verifyRecoveryCard } from '../web/js/recovery.js';
 import { RESULT_CARD_VERSION } from '../web/js/workunits.js';
 import { describeDataset } from '../web/js/slices.js';
 import { sessions } from '../web/js/splits.js';
@@ -31,7 +31,7 @@ before(async () => {
     const path = normalize(decodeURIComponent(new URL(req.url, 'http://x').pathname)).replace(/^(\.\.[/\\])+/, '');
     await holds.get(path);
     if (overrides.has(path)) {
-      res.writeHead(200, { 'content-type': TYPES[extname(path)] ?? 'application/json' });
+      res.writeHead(200, { 'content-type': path.endsWith('/') ? TYPES['.html'] : TYPES[extname(path)] ?? 'application/json' });
       res.end(overrides.get(path));
       return;
     }
@@ -55,9 +55,9 @@ after(async () => {
   server?.close();
 });
 
-async function openLab(init) {
+async function openLab(init, arg) {
   const page = await browser.newPage();
-  if (init) await page.addInitScript(init);
+  if (init) await page.addInitScript(init, arg);
   const errors = [];
   page.on('pageerror', (e) => errors.push(e.message));
   await page.goto(base);
@@ -182,7 +182,13 @@ test('Track B finds held-out structure in Voyager data but not in off-source noi
 
   await page.click('#families button[data-family="voyager"]');
   const voyager = await entropyTable('Voyager');
-  assert.match(await page.textContent('#tb-status'), /whole scans .* 45 test tokens scored/);
+  assert.match(await page.textContent('#tb-status'), /whole scans \(4 scans from 2 observing sessions, 2016-09-19 and 2020-07-16; holding out whole sessions needs 3\); 45 test tokens scored/);
+  assert.match(await page.textContent('#tb-notes'), /Training scans come from 2016-09-19 and 2020-07-16, validation and test scans from 2020-07-16\. The validation and test scans share a session with training scans, so this is a within-session holdout\./);
+  assert.match(await page.textContent('#lab-viewport .hud-telemetry'), /Data from Voyager 1 · 2016-09-19 and 2020-07-16: 4 scans in 2 observing sessions/);
+  // Why the control row starts low and what context adds, from this run's numbers.
+  const note = await page.textContent('#tb-control-note');
+  assert.match(note, /Off-source’s 144 frames/);
+  assert.match(note, new RegExp(`Context is the test\\. With up to 3 tokens of it, Off-source .* while Voyager 1 improves by ${(voyager.real[0] - Math.min(...voyager.real.slice(1))).toFixed(2)} bits at best`));
   assert.ok(voyager.real[3] < voyager.real[0] - 1, `context predicts Voyager's next token: ${voyager.real}`);
   assert.ok(voyager.shuffled[3] > voyager.shuffled[0] - 0.25, `but not once its order is shuffled: ${voyager.shuffled}`);
   const control = voyager['Off-source (control)'];
@@ -197,6 +203,7 @@ test('Track B finds held-out structure in Voyager data but not in off-source noi
 
   await page.click('#families button[data-family="offsource"]');
   const offsource = await entropyTable('Off-source');
+  assert.match(await page.textContent('#tb-status'), /whole scans \(3 scans, all from one observing session\)/);
   assert.ok(offsource.real[3] > offsource.real[0] - 0.25, `no held-out structure in off-source noise: ${offsource.real}`);
   assert.deepEqual(errors, []);
   await page.close();
@@ -609,6 +616,170 @@ test('observatory mode fills the window and keeps running units until it is clos
   const done = (await page.textContent('#rc-viewport .hud-stats')).match(/(\d+) recovery units/)[1];
   await page.waitForTimeout(2500);
   assert.equal((await page.textContent('#rc-viewport .hud-stats')).match(/(\d+) recovery units/)[1], done, 'no unit started after it stopped');
+  assert.deepEqual(errors, []);
+  await page.close();
+});
+
+// Recovery cards to seed a browser's storage with. Storage checks a card's form, not its counts,
+// so one real card serves for many unit numbers.
+async function storedRecoveryCards(units, started) {
+  const real = recoveryCard(units[0], runRecoveryUnit(units[0], await recoveryWindows()).results, { seconds: 0.5, started: started(0) });
+  return units.map((unit, i) => ({ ...real, unit, config: recoveryConfig(unit), started: started(i) }));
+}
+const seedRecoveryCards = (cards) => localStorage.setItem('eiathome.recoveryResults', JSON.stringify(cards));
+
+test('the review lists the cards computed here by what became of them, and submits them', async () => {
+  const data = await recoveryWindows();
+  const card = (unit, started) => recoveryCard(unit, runRecoveryUnit(unit, data).results, { seconds: 0.5, started });
+  const accepted = card(3, '2026-10-28T01:00:00.000Z');
+  const waiting = card(4, '2026-10-28T02:00:00.000Z');
+  overrides.set('/data/community_results.json', JSON.stringify({ format: 'eiathome-community-results', version: 1, results: [{ issue: 40, submitted_by: 'alice', submitted_at: '2026-10-28T03:00:00Z', card: accepted }] }));
+  try {
+    const { page, errors } = await openLab(seedRecoveryCards, [waiting, accepted]);
+    await page.click('.tabs button[data-tab="recovery"]');
+    await page.waitForFunction(() => document.querySelector('#rc-viewport .review').textContent === 'Review and submit (1)', null, { timeout: 30000 });
+    assert.match(await page.textContent('#rc-viewport .hud-stats'), /This session: 0 recovery units computed · In this browser: 1 awaiting submission, 1 accepted into community results/);
+    await page.click('#rc-viewport .review');
+    assert.equal(await page.$eval('#review', (d) => d.open), true);
+    const rows = () => page.$$eval('#review-table tbody tr', (trs) => trs.map((tr) => [...tr.cells].map((td) => td.textContent)));
+    assert.deepEqual((await rows()).map((r) => [r[0], r[3], r[4]]), [['4', 'Computed here', 'Submit']], 'the list starts with what isn’t accepted yet');
+    assert.equal(await page.textContent('#review-view-pending'), 'Not yet accepted (1)');
+    await page.click('#review-view-all');
+    assert.deepEqual((await rows()).map((r) => [r[0], r[3], r[4]]), [['4', 'Computed here', 'Submit'], ['3', 'Accepted', '']]);
+    assert.match(await page.textContent('#review-counts'), /^2 results kept here, 0 computed this session: 1 awaiting submission, 0 opened on GitHub, 1 accepted into community results\./);
+    const outcome = await page.textContent('#review-outcome');
+    assert.match(outcome, /^Unit 4 measured how well two standard detectors recover synthetic signals hidden in archived telescope data/);
+    assert.match(outcome, /the de-Doppler search \(the usual search for drifting signals\) found \d+ of the 540 signals .* the energy detector \(a simpler baseline that measures excess power\) found \d+/);
+    assert.match(await page.textContent('#review-keep'), /keeps up to 300 recovery units \(2 now\)/);
+
+    // Submitting opens the card's issue (stubbed here) and marks it.
+    await page.context().route('https://github.com/**', (route) => route.fulfill({ status: 200, contentType: 'text/html', body: 'stub' }));
+    const [issue] = await Promise.all([page.waitForEvent('popup'), page.click('#review-table tbody tr:first-child a')]);
+    assert.deepEqual(extractCard(new URL(issue.url()).searchParams.get('body')), waiting);
+    await issue.close();
+    await page.waitForFunction(() => document.querySelector('#review-table tbody tr:first-child .chip').textContent === 'Opened on GitHub', null, { timeout: 10000 });
+    assert.match(await page.textContent('#review-status'), /^Opened a GitHub issue/);
+    assert.match(await page.textContent('#review-opened'), /^1 card opened on GitHub isn’t submitted yet: post each issue to submit it\./);
+    assert.equal(await page.textContent('#rc-viewport .review'), 'Review results');
+    await page.click('#review-close');
+    assert.equal(await page.$eval('#review', (d) => d.open), false);
+    assert.deepEqual(errors, []);
+    await page.close();
+  } finally {
+    overrides.clear();
+  }
+});
+
+test('no card that exists only here is dropped: a full browser pauses auto-run and opens the review', async () => {
+  const cards = await storedRecoveryCards(Array.from({ length: 300 }, (_, i) => 1000 + i), (i) => new Date(Date.UTC(2026, 9, 1, 0, i)).toISOString());
+  const { page, errors } = await openLab(seedRecoveryCards, cards);
+  const kept = () => page.evaluate(() => JSON.parse(localStorage.getItem('eiathome.recoveryResults')).map((c) => c.unit));
+  await page.click('.tabs button[data-tab="recovery"]');
+  await page.waitForFunction(() => /^Ready/.test(document.getElementById('rc-status').textContent), null, { timeout: 30000 });
+  await page.check('#rc-loop');
+  await page.fill('#rc-number', '7');
+  await page.click('#rc-run');
+  await page.waitForFunction(() => document.getElementById('review').open, null, { timeout: 30000 });
+  assert.equal(await page.isChecked('#rc-loop'), false, 'auto-run paused');
+  assert.match(await page.textContent('#rc-status'), /none of the kept cards is accepted into community results or saved to a file yet, so auto-run has paused/);
+  assert.equal((await kept()).length, 301, 'nothing dropped');
+  await page.waitForTimeout(1500);
+  assert.match(await page.textContent('#rc-viewport .hud-stats'), /This session: 1 recovery unit computed · In this browser: 301 awaiting submission/, 'and no unit started after');
+
+  // A download the page can't confirm (blocked, cancelled, or not yet checked) lets no card go.
+  const [file] = await Promise.all([page.waitForEvent('download'), page.click('#review-download')]);
+  assert.equal(file.suggestedFilename(), 'eiathome-recovery-results.json');
+  assert.equal(await page.isVisible('#review-confirm'), true);
+  await page.click('#review-close');
+  await page.fill('#rc-number', '8');
+  await page.click('#rc-run');
+  await page.waitForFunction(() => document.getElementById('rc-status').textContent.includes('none of the kept cards'), null, { timeout: 30000 });
+  assert.equal((await kept()).length, 302, 'still nothing dropped');
+  assert.equal(await page.$eval('#review', (d) => d.open), true, 'the review opens again');
+
+  // Confirming the file makes the downloaded cards safe to drop, oldest first.
+  assert.equal(await page.isVisible('#review-confirm'), true, 'the confirmation is still offered');
+  await page.click('#review-saved');
+  assert.match(await page.textContent('#review-status'), /^301 cards marked as saved to your file/);
+  await page.click('#review-close');
+  await page.fill('#rc-number', '9');
+  await page.click('#rc-run');
+  await page.waitForFunction(() => document.getElementById('rc-status').textContent.startsWith('Unit 9 finished'), null, { timeout: 30000 });
+  const units = await kept();
+  assert.equal(units.length, 300);
+  assert.deepEqual(units.slice(0, 3), [9, 8, 7]);
+  assert.ok([1297, 1298, 1299].every((u) => !units.includes(u)), 'the three oldest saved cards made room');
+  assert.equal(await page.$eval('#review', (d) => d.open), false);
+  assert.deepEqual(errors, []);
+  await page.close();
+});
+
+test('every kept card can be submitted from the review, beyond the first 50', async () => {
+  const cards = await storedRecoveryCards(Array.from({ length: 51 }, (_, i) => 1000 + i), (i) => new Date(Date.UTC(2026, 9, 2, 0, 59 - i)).toISOString());
+  const { page, errors } = await openLab(seedRecoveryCards, cards);
+  await page.click('.tabs button[data-tab="recovery"]');
+  await page.waitForFunction(() => document.querySelector('#rc-viewport .review').textContent === 'Review and submit (51)', null, { timeout: 30000 });
+  await page.click('#rc-viewport .review');
+  const units = () => page.$$eval('#review-table tbody tr', (trs) => trs.map((tr) => Number(tr.cells[0].textContent)));
+  assert.equal((await units()).length, 50);
+  assert.ok(!(await units()).includes(1050));
+  assert.equal(await page.textContent('#review-more'), 'Showing 50 of 51, newest first.');
+  assert.equal(await page.textContent('#review-show-more'), 'Show 1 more');
+  await page.click('#review-show-more');
+  assert.deepEqual((await units()).slice(-1), [1050]);
+  assert.equal(await page.isVisible('#review-show-more'), false);
+
+  // Submit the 51st card; the newer ones stay.
+  await page.context().route('https://github.com/**', (route) => route.fulfill({ status: 200, contentType: 'text/html', body: 'stub' }));
+  const [issue] = await Promise.all([page.waitForEvent('popup'), page.click('#review-table tbody tr:last-child a')]);
+  assert.equal(extractCard(new URL(issue.url()).searchParams.get('body')).unit, 1050);
+  await issue.close();
+  await page.waitForFunction(() => document.querySelector('#review-table tbody tr:last-child .chip')?.textContent === 'Opened on GitHub', null, { timeout: 10000 });
+  assert.equal(await page.evaluate(() => JSON.parse(localStorage.getItem('eiathome.recoveryResults')).length), 51);
+  assert.equal(await page.textContent('#rc-viewport .review'), 'Review and submit (50)');
+  assert.deepEqual(errors, []);
+  await page.close();
+});
+
+test('in the claude.ai preview, which blocks downloads, the review offers none to rely on', async () => {
+  overrides.set('/', (await readFile(join(WEB, 'index.html'), 'utf8')).replace('<head>', '<head>\n  <meta name="eiathome-host" content="claude-artifact">'));
+  try {
+    const cards = await storedRecoveryCards([1000], () => '2026-10-02T00:00:00.000Z');
+    const { page, errors } = await openLab(seedRecoveryCards, cards);
+    await page.click('.tabs button[data-tab="recovery"]');
+    await page.waitForFunction(() => document.querySelector('#rc-viewport .review').textContent === 'Review and submit (1)', null, { timeout: 30000 });
+    await page.click('#rc-viewport .review');
+    assert.equal(await page.isVisible('#review-download'), false);
+    assert.equal(await page.isVisible('#review-confirm'), false);
+    assert.equal(await page.isVisible('#rc-download-all'), false);
+    assert.match(await page.textContent('#review-table tbody tr td:last-child'), /^Submit$/, 'submitting still works');
+    assert.deepEqual(errors, []);
+    await page.close();
+  } finally {
+    overrides.clear();
+  }
+});
+
+test('leaving observatory mode offers the review of the units it computed', async () => {
+  const { page, errors } = await openLab();
+  await page.click('.tabs button[data-tab="recovery"]');
+  await page.waitForFunction(() => /^Ready/.test(document.getElementById('rc-status').textContent), null, { timeout: 30000 });
+  await page.click('#rc-viewport .obs-toggle');
+  await page.check('#rc-viewport .auto-run input');
+  await page.waitForFunction(() => document.querySelector('#rc-viewport .review').textContent.startsWith('Review and submit'), null, { timeout: 30000 });
+  assert.equal(await page.isVisible('#rc-viewport .review'), true, 'the review is one click away in the full-window view');
+  await page.keyboard.press('Escape');
+  await page.waitForFunction(() => document.getElementById('review').open, null, { timeout: 10000 });
+  assert.match(await page.textContent('#review-title'), /Your recovery units in this browser/);
+  assert.equal(await page.$eval('#rc-viewport .viewport', (el) => el.classList.contains('observatory')), false);
+
+  // Opened over observatory mode, the review closes with Escape and leaves the observatory open.
+  await page.click('#review-close');
+  await page.click('#rc-viewport .obs-toggle');
+  await page.click('#rc-viewport .review');
+  await page.keyboard.press('Escape');
+  assert.equal(await page.$eval('#review', (d) => d.open), false);
+  assert.equal(await page.$eval('#rc-viewport .viewport', (el) => el.classList.contains('observatory')), true);
   assert.deepEqual(errors, []);
   await page.close();
 });

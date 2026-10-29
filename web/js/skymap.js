@@ -300,7 +300,7 @@ function prepareSky(sky) {
   return { raw: sky, count: stars.length, vecs, mags, bins, sprites, lines, labels, names, milky };
 }
 
-// options: { title, onSelect(target), onObservatory(on), onAutoRun(on), autoRunLabel }
+// options: { title, onSelect(target), onObservatory(on), onAutoRun(on), autoRunLabel, onReview() }
 export class SkyMap {
   constructor(container, options = {}) {
     this.options = options;
@@ -334,19 +334,19 @@ export class SkyMap {
     canvas.tabIndex = 0;
     canvas.setAttribute('role', 'img');
     canvas.setAttribute('aria-label', 'Sky map');
-    const target = el('div', 'hud hud-target');
+    const target = el('div', 'hud-target');
     this.hud = {
       title: el('b', 'hud-title', this.options.title ?? 'Observatory'),
       place: el('span', 'hud-line'),
       detail: el('span', 'hud-line dim'),
-      view: el('div', 'hud hud-view dim'),
+      view: el('div', 'hud-view dim'),
       status: el('div', 'hud hud-status dim', 'Loading the sky…'),
-      telemetry: el('div', 'hud hud-telemetry'),
+      telemetry: el('div', 'hud-telemetry'),
       source: el('div', 'dim'),
       line: el('span', 'hud-line'),
       bar: el('i'),
-      legend: el('div', 'hud hud-legend'),
-      stats: el('div', 'hud hud-stats dim'),
+      legend: el('div', 'hud-legend'),
+      stats: el('div', 'hud-stats dim'),
     };
     target.append(this.hud.title, this.hud.place, this.hud.detail);
     const progress = el('div', 'hud-progress');
@@ -357,7 +357,7 @@ export class SkyMap {
     this.hud.telemetry.hidden = true;
     this.hud.legend.hidden = true;
 
-    const controls = el('div', 'hud hud-controls');
+    const controls = el('div', 'hud-controls');
     const wide = el('button', 'ghost', 'Wide view');
     wide.type = 'button';
     wide.onclick = () => this.goTo(this.selected ?? { ra_hours: radec(this.center)[0] / 15, dec_deg: radec(this.center)[1] }, WIDE_FOV);
@@ -373,9 +373,25 @@ export class SkyMap {
     auto.hidden = true;
     this.autoLabel = auto;
     this.obsButton = observatory;
-    controls.append(wide, observatory, auto);
+    // Opens the page's review of the results computed in this browser (setReview labels it).
+    const review = el('button', 'ghost review', '');
+    review.type = 'button';
+    review.hidden = true;
+    review.onclick = () => this.options.onReview?.();
+    this.reviewButton = review;
+    controls.append(review, wide, observatory, auto);
 
-    root.append(canvas, target, this.hud.view, controls, this.hud.status, this.hud.telemetry, this.hud.legend, this.hud.stats);
+    // The HUD's corners flow in two bars, so they wrap rather than overlap on narrow screens:
+    // the target and the view along the top, the readout and the controls along the bottom.
+    const top = el('div', 'hud hud-bar hud-top');
+    const corner = el('div', 'hud-corner');
+    corner.append(this.hud.view, this.hud.stats);
+    top.append(target, corner);
+    const bottom = el('div', 'hud hud-bar hud-bottom');
+    const readout = el('div', 'hud-readout');
+    readout.append(this.hud.legend, this.hud.telemetry);
+    bottom.append(readout, controls);
+    root.append(canvas, top, this.hud.status, bottom);
     container.append(root);
     this.root = root;
     this.canvas = canvas;
@@ -389,7 +405,8 @@ export class SkyMap {
       }).observe(canvas);
     }
     document.addEventListener('visibilitychange', () => !document.hidden && this.request());
-    document.addEventListener('keydown', (e) => e.key === 'Escape' && this.observatory && this.setObservatory(false));
+    // Escape leaves observatory mode, unless it's closing a dialog opened over it.
+    document.addEventListener('keydown', (e) => e.key === 'Escape' && this.observatory && !document.querySelector('dialog[open]') && this.setObservatory(false));
     this.resize();
   }
 
@@ -505,6 +522,18 @@ export class SkyMap {
     this.hud.stats.textContent = text;
   }
 
+  // The review button's label, or null to hide it; attention when results await submission.
+  setReview(text, attention = false) {
+    this.reviewButton.hidden = !text;
+    this.reviewButton.textContent = text ?? '';
+    this.reviewButton.classList.toggle('attention', attention);
+  }
+
+  // Ticks or unticks the auto-run box without calling onAutoRun (the page changed it).
+  setAutoRun(on) {
+    this.autoBox.checked = on;
+  }
+
   // ----- targets and motion -----
 
   // targets: [{ id, label, kind: 'signal' | 'off' | 'reference' | 'local', ra_hours, dec_deg,
@@ -554,8 +583,9 @@ export class SkyMap {
   // kind: 'train' | 'unit' | 'tokens' | 'analysis' | 'recovery'. The view slews to the target,
   // wide, then zooms in with progress. A job without progress ('analysis') keeps the framing.
   // The job stays on the target whose data it computes on: selecting another target while it
-  // runs moves the view, not the job.
-  startJob(kind, targetId, title) {
+  // runs moves the view, not the job. source describes the data when the target's own label
+  // doesn't say all of it (data from several sessions, say).
+  startJob(kind, targetId, title, source) {
     const t = this.target(targetId) ?? this.selected;
     if (t && kind !== 'analysis') {
       this.selected = t;
@@ -563,7 +593,7 @@ export class SkyMap {
       this.goTo(t, WIDE_FOV);
     }
     this.job = { kind, title, target: t, progress: kind === 'analysis' ? null : 0, started: performance.now(), done: false, rings: [], grid: null };
-    this.hud.source.textContent = t ? `Data from ${t.label}` : '';
+    this.hud.source.textContent = source ?? (t ? `Data from ${t.label}` : '');
     if (kind === 'recovery') this.job.grid = { states: new Uint8Array(1024), scanned: 0, outcomes: null, reveal: 0, pings: [] };
     this.hud.telemetry.hidden = false;
     this.hud.legend.hidden = kind !== 'recovery';

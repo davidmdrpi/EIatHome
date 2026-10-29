@@ -325,6 +325,31 @@ export async function compressedBitsPerToken(segments) {
 
 const MAX_LAG = 24;
 
+// How a control family's frames fall on this family's codebook: its commonest token, the share
+// of its frames on it, how common that token is in this family's training tokens, and whether
+// it's the codebook's flattest frame (the smallest peak), the one plain noise is nearest.
+export function controlProfile(controlSegments, trainSegments, centroids, k, dim) {
+  const count = (segments) => {
+    const c = new Array(k).fill(0);
+    for (const s of segments) for (const token of s) c[token]++;
+    return c;
+  };
+  const control = count(controlSegments);
+  const train = count(trainSegments);
+  const frames = control.reduce((a, b) => a + b, 0);
+  const token = control.indexOf(Math.max(...control));
+  const peaks = Array.from({ length: k }, (_, j) => Math.max(...centroids.subarray(j * dim, (j + 1) * dim).map(Math.abs)));
+  return {
+    token,
+    frames,
+    share: control[token] / frames,
+    typesUsed: control.filter(Boolean).length,
+    trainShare: train[token] / train.reduce((a, b) => a + b, 0),
+    trainCommonest: train[token] === Math.max(...train),
+    flattest: peaks[token] === Math.min(...peaks),
+  };
+}
+
 // Everything Track B reports for one family, from frames already split into training,
 // validation and test segments. `control` holds another family's frame segments, encoded with
 // this family's codebook and scored with its n-gram model.
@@ -357,7 +382,9 @@ export async function analyzeSplits(frameSplits, { k, dim, rng, control = [] }) 
     entropy,
     crossEntropy,
     compression,
-    control: extra.length ? { segments: extra, targets: targetCount(extra), crossEntropy: ngramBits(fitNgram(tokens, k), extra) } : null,
+    control: extra.length
+      ? { segments: extra, targets: targetCount(extra), crossEntropy: ngramBits(fitNgram(tokens, k), extra), profile: controlProfile(extra, tokens.train, centroids, k, dim) }
+      : null,
     zipf: {
       unigram: { real: rankFrequency(all, 1, k), shuffled: rankFrequency(pooled(streams.shuffled), 1, k) },
       bigram: { real: rankFrequency(all, 2, k), shuffled: rankFrequency(pooled(streams.shuffled), 2, k) },

@@ -17,6 +17,9 @@ export const SESSION_GAP_DAYS = 0.5;
 // Scans: slices cut from the same scan share its start time exactly.
 export const SCAN_GAP_DAYS = 1e-8;
 
+// The UTC date (YYYY-MM-DD) of a modified Julian date.
+export const mjdDate = (mjd) => new Date(Math.round((mjd - 40587) * 86400000)).toISOString().slice(0, 10);
+
 // Group slices into observing sessions. Returns one array of slices per session, in a
 // canonical order (earliest start first), so the result doesn't depend on the order slices
 // were listed.
@@ -70,17 +73,20 @@ export function sessionPools(slices, evalFraction = 0.3) {
 }
 
 // Train/validation/test slices of one real family for held-out token statistics (Track B).
-// Whole sessions are held out when the family has at least three; otherwise whole scans, which
-// share an observing session (a within-session holdout, labelled as such). Units are found
-// from every real slice, so another family's scan can link two sessions. Chronological 60/20/20
-// split, with at least one unit in each part; a copy never counts twice.
+// Whole sessions are held out when the family has at least three; otherwise whole scans, so
+// a held-out scan can share an observing session with training scans (a within-session
+// holdout, labelled as such). Units are found from every real slice, so another family's scan
+// can link two sessions. Chronological 60/20/20 split, with at least one unit in each part; a
+// copy never counts twice. Also reports the family's sessions (their start times) and which of
+// them each part draws on.
 export function holdoutSplits(slices, family) {
   const own = slices.filter((s) => s.family === family);
   if (own.some((s) => !Number.isFinite(s.startMjd))) return { error: 'A slice has no start time, so whole scans can’t be held out.' };
   const dated = slices.filter((s) => Number.isFinite(s.startMjd));
   const unitsOf = (gap) => groups(dated, gap).map((g) => g.filter((s) => s.family === family)).filter((g) => g.length);
+  const bySession = unitsOf(SESSION_GAP_DAYS);
   let unit = 'session';
-  let units = unitsOf(SESSION_GAP_DAYS);
+  let units = bySession;
   if (units.length < 3) {
     unit = 'scan';
     units = unitsOf(SCAN_GAP_DAYS);
@@ -91,12 +97,19 @@ export function holdoutSplits(slices, family) {
     const seen = new Set();
     return part.flat().filter((s) => !seen.has(s.sha256) && seen.add(s.sha256));
   };
+  const parts = {
+    train: unique(units.slice(0, -2 * nEval)),
+    validation: unique(units.slice(-2 * nEval, -nEval)),
+    test: unique(units.slice(-nEval)),
+  };
+  const sessionOf = new Map(bySession.flatMap((g, i) => g.map((s) => [s.sha256, i])));
+  const sessionsIn = (part) => [...new Set(part.map((s) => sessionOf.get(s.sha256)))].sort((a, b) => a - b);
   return {
     unit,
     independent: unit === 'session',
     units: units.length,
-    train: unique(units.slice(0, -2 * nEval)),
-    validation: unique(units.slice(-2 * nEval, -nEval)),
-    test: unique(units.slice(-nEval)),
+    ...parts,
+    sessions: bySession.map((g) => Math.min(...g.map((s) => s.startMjd))),
+    sessionsOf: Object.fromEntries(Object.entries(parts).map(([name, part]) => [name, sessionsIn(part)])),
   };
 }

@@ -8,6 +8,7 @@ import { C, T, familyById } from './signals.js';
 import { canonicalOrder } from './slices.js';
 import { analyzeSplits } from './trackb.js';
 import { realSplits, rosettaSplits, syntheticSplits } from './trackb-splits.js';
+import { mjdDate } from './splits.js';
 
 let slices = [];
 
@@ -39,16 +40,10 @@ async function analyze({ family, k, nFrames, seed, text }) {
   } else if (familyById[family].real) {
     const r = realSplits(slices, family);
     ({ frameSplits, control, controlFamily } = r);
-    const { unit, units, independent } = r.split;
-    evaluation = {
-      unit,
-      independent,
-      description: independent
-        ? `whole observing sessions (${units} sessions)`
-        : `whole scans (${units} scans, all from one observing session)`,
-    };
+    const { unit, independent } = r.split;
+    evaluation = { unit, independent, sessions: r.split.sessions.length, description: describeHoldout(r.split) };
     notes.push(`Real data: one fixed window per slice, holding out whole ${unit}s.`);
-    if (!independent) notes.push('The scans share an observing session, so this is a within-session holdout. It doesn’t show that structure carries over to other sessions.');
+    if (!independent) notes.push(...withinSessionNotes(r.split));
   } else {
     frameSplits = syntheticSplits(family, nSnippets, seed);
     evaluation = { unit: 'snippet', description: 'independent snippets drawn separately for each split' };
@@ -70,4 +65,31 @@ async function analyze({ family, k, nFrames, seed, text }) {
     preview: Array.from(result.streams.real.train.flatMap((s) => [...s]).slice(0, 48)),
     notes,
   };
+}
+
+const listJoin = (items) => (items.length < 2 ? items.join('') : `${items.slice(0, -1).join(', ')} and ${items.at(-1)}`);
+
+// What a real family's split holds out, for the status line.
+function describeHoldout({ independent, units, sessions }) {
+  if (independent) return `whole observing sessions (${units} sessions)`;
+  if (sessions.length === 1) return `whole scans (${units} scans, all from one observing session)`;
+  return `whole scans (${units} scans from ${sessions.length} observing sessions, ${listJoin(sessions.map(mjdDate))}; holding out whole sessions needs 3)`;
+}
+
+// Which sessions a scan-level split's parts come from, and whether held-out scans share one
+// with training scans.
+function withinSessionNotes({ sessions, sessionsOf }) {
+  if (sessions.length === 1) return ['The scans share an observing session, so this is a within-session holdout. It doesn’t show that structure carries over to other sessions.'];
+  const dates = (part) => listJoin(sessionsOf[part].map((i) => mjdDate(sessions[i])));
+  const from = dates('validation') === dates('test')
+    ? `validation and test scans from ${dates('test')}`
+    : `validation scans from ${dates('validation')} and test scans from ${dates('test')}`;
+  const shared = ['validation', 'test'].filter((part) => sessionsOf[part].some((i) => sessionsOf.train.includes(i)));
+  return [
+    `Training scans come from ${dates('train')}, ${from}.`,
+    shared.length
+      ? `The ${listJoin(shared)} scans share a session with training scans, so this is a within-session holdout. It doesn’t show that structure carries over to other sessions.`
+      : 'No held-out scan shares a session with a training scan.',
+    `Holding out whole sessions needs 3; ${sessions.length} are loaded.`,
+  ];
 }
