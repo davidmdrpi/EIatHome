@@ -12,7 +12,7 @@ import torch
 
 from tracks.llm import anchor as anchors
 from tracks.llm.anchor import (ANCHORS, apply, build_codebook, build_theta0, checkpoint_task_vector, codebook_digest,
-                               flatten, load_anchor, task_vector, theta0_files)
+                               compare_codebook, flatten, load_anchor, task_vector, theta0_files)
 from tracks.llm.data import load_slices, split_records
 from tracks.llm.model import SignalLM, fit
 from tracks.llm.train import model_config, parser, run
@@ -23,12 +23,20 @@ SPEC = ANCHORS['v1']
 
 
 class CommittedAnchorTests(unittest.TestCase):
-    def test_the_committed_anchor_verifies_and_rebuilds_bit_exactly(self):
+    def test_the_committed_anchor_verifies_and_rebuilds(self):
         anchor = load_anchor('v1')
+        # θ₀ is uniform draws and exactly rounded arithmetic: the same bytes anywhere.
         header, data = theta0_files(SPEC, build_theta0(SPEC))
         self.assertEqual(data, (anchors.ANCHOR_DIR / 'v1' / 'theta0.bin').read_bytes())
         self.assertEqual(header['sha256'], SPEC['theta0_sha256'])
-        self.assertEqual(build_codebook(SPEC)['sha256'], SPEC['codebook_sha256'])
+        # k-means goes through numpy's SIMD kernels, which differ by CPU (AVX-512 or not) in a
+        # float32 rounding: the rebuilt codebook agrees to that, with the same token for every
+        # frame, but its digest can differ. The committed file is the pinned codebook.
+        frames = np.concatenate([r['frames'] for r in load_slices(SLICES)])
+        check = compare_codebook(build_codebook(SPEC)['tokenizer'], anchor, frames)
+        self.assertTrue(check['same_tokens'])
+        self.assertLessEqual(check['max_difference'], 1e-5)
+        self.assertTrue(check['agrees'])
         model = anchor.model()
         self.assertEqual(sum(p.numel() for p in model.parameters()), 26496)
         for name, value in model.state_dict().items():
@@ -183,3 +191,18 @@ class GuardTests(unittest.TestCase):
 
 if __name__ == '__main__':
     unittest.main()
+
+
+class CodebookComparisonTests(unittest.TestCase):
+    def test_a_different_codebook_doesnt_agree(self):
+        anchor = load_anchor('v1')
+        frames = np.concatenate([r['frames'] for r in load_slices(SLICES)])
+        state = anchor.tokenizer.state()
+        self.assertEqual(compare_codebook(state, anchor, frames), {'exact': True, 'max_difference': 0.0, 'same_tokens': True, 'agrees': True})
+        nudged = json.loads(json.dumps(state))
+        nudged['centroids'][3][7] += 2e-7  # a float32 rounding: agrees
+        check = compare_codebook(nudged, anchor, frames)
+        self.assertEqual((check['exact'], check['agrees']), (False, True))
+        moved = json.loads(json.dumps(state))
+        moved['centroids'][3] = moved['centroids'][5]  # a different codebook
+        self.assertFalse(compare_codebook(moved, anchor, frames)['agrees'])

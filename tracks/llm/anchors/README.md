@@ -26,13 +26,15 @@ version, never an edit.
   rounded bounds (embeddings uniform ±√3, so unit variance, instead of normal). The bytes
   rebuild the same on any platform.
 
-Check that the committed files rebuild exactly, or rewrite them for a new version:
+Check that the committed files rebuild, or write them for a new version:
 
 ```bash
 python -m tracks.llm.anchor build --anchor v1
 python -m tracks.llm.anchor build --anchor v1 --write   # only when defining a new anchor
 ```
 
-The codebook's k-means uses floating-point matrix products, so a rebuild on unusual hardware
-could differ in a centroid's last bit. The committed file, checked against its pinned hash, is
-what runs use.
+θ₀ rebuilds bit for bit anywhere. The codebook rebuilds to float32 rounding, with the same token
+for every frame, but not always bit for bit: numpy's SIMD kernels differ by CPU. Without AVX-512,
+for example, a centroid moves by up to 1.8 × 10⁻⁷, which changes its digest. So the check
+compares the rebuilt codebook's values and tokens, not its digest. Runs always use the committed
+codebook, which is checked against its pinned hash.

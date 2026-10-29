@@ -6,7 +6,9 @@ and both started from the same weights. Then each run's change, its task vector 
 in the same coordinates as every other run's. An anchor fixes both:
 
 - the codebook: k-means with K tokens, fitted once on the training scans of a declared corpus,
-  and pinned by the SHA-256 of its state (the digest train.py reports for any tokenizer);
+  and pinned by the SHA-256 of its state (the digest train.py reports for any tokenizer). A
+  rebuild matches it to float32 rounding, with the same tokens, but not always bit for bit:
+  numpy's SIMD kernels (AVX-512 or not) can move a centroid by one rounding;
 - θ₀: SignalLM weights drawn from a PCG64 stream with uniform initializers only, so it rebuilds
   bit-exactly anywhere. It's committed as raw little-endian float32, with the parameters'
   names and shapes and its SHA-256.
@@ -86,6 +88,22 @@ def build_codebook(spec, records=None):
         "tokenizer": state,
         "sha256": codebook_digest(state),
     }
+
+
+# A rebuilt codebook agrees with the committed one when every centroid, the mean and the scale
+# are within this (float32 rounding, accumulated over k-means) and every frame gets the same token.
+CODEBOOK_TOLERANCE = 1e-5
+
+
+def compare_codebook(state, anchor, frames):
+    """How a rebuilt codebook's state compares with the committed, pinned one, on these frames."""
+    rebuilt = Tokenizer(**state)
+    committed = anchor.tokenizer
+    difference = max(float(np.abs(rebuilt.centroids - committed.centroids).max()),
+                     abs(rebuilt.mean - committed.mean), abs(rebuilt.scale - committed.scale))
+    same_tokens = bool(np.array_equal(rebuilt.encode(frames), committed.encode(frames)))
+    return {"exact": codebook_digest(state) == anchor.spec["codebook_sha256"], "max_difference": difference,
+            "same_tokens": same_tokens, "agrees": difference <= CODEBOOK_TOLERANCE and same_tokens}
 
 
 def build_theta0(spec):
@@ -255,11 +273,16 @@ def main(argv=None):
                 print(f"wrote {folder}: codebook {codebook['sha256']}, θ₀ {header['sha256']} ({header['parameters']:,} parameters)")
                 return
             committed = load_anchor(args.anchor)
-            if codebook["sha256"] != committed.spec["codebook_sha256"]:
-                raise ValueError("The rebuilt codebook differs from the committed one")
             if data != (folder / "theta0.bin").read_bytes():
                 raise ValueError("The rebuilt θ₀ differs from the committed one")
-            print(f"anchor {args.anchor} rebuilds exactly: codebook {codebook['sha256'][:16]}, θ₀ {header['sha256'][:16]}")
+            frames = np.concatenate([r["frames"] for r in load_slices(ROOT / spec["manifest"])])
+            check = compare_codebook(codebook["tokenizer"], committed, frames)
+            if not check["agrees"]:
+                raise ValueError(f"The rebuilt codebook differs from the committed one (by up to {check['max_difference']:.3g}"
+                                 f"{'' if check['same_tokens'] else ', with different tokens'})")
+            how = "exactly" if check["exact"] else f"to within {check['max_difference']:.2g}, with the same tokens"
+            print(f"anchor {args.anchor} rebuilds: θ₀ exactly ({header['sha256'][:16]}), the codebook {how}. "
+                  f"Runs use the committed codebook ({committed.spec['codebook_sha256'][:16]}).")
             return
         if args.checkpoint is None or args.output is None:
             p.error("delta needs a checkpoint and --output")
