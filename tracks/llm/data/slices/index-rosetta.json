@@ -1,0 +1,782 @@
+{
+ "format": "eiathome-slices",
+ "version": 1,
+ "extracted_by": "tools/extract_slices.py 0.4.0",
+ "synthetic_by": "tracks/llm/synthetic.py",
+ "slices": [
+  {
+   "id": "voyager1-6s-59046-80036-carrier",
+   "family": "voyager",
+   "group": "carrier",
+   "file": "voyager1-6s-59046-80036-carrier.bin",
+   "dtype": "float32-le",
+   "shape": [
+    49,
+    256
+   ],
+   "units": "noise sigma, bandpass-flattened",
+   "sha256": "619eb2895e6155403dfd11af5c4bc07f184c168f6ec2ed9e7fe42d71d4c66450",
+   "source": {
+    "file": "blc23_guppi_59046_80036_DIAG_VOYAGER-1_0011.rawspec.0000.h5",
+    "source_name": "VOYAGER-1",
+    "tstart_mjd": 59046.92634259259,
+    "fch1_mhz": 8421.38671875,
+    "foff_hz": -2.7939677238464355,
+    "tsamp_s": 6.084537002666661,
+    "first_channel": 659879,
+    "centre_freq_mhz": 8419.542680146062,
+    "drift_channels_per_step": 0.7981453794888684,
+    "drift_hz_per_s": -0.3665015806875244,
+    "snr": 1317.6680908203125,
+    "coarse_channel": 6,
+    "product": "6_sec_integration",
+    "url": "https://bldata.berkeley.edu/voyager_2020/6_sec_integration/blc23_guppi_59046_80036_DIAG_VOYAGER-1_0011.rawspec.0000.h5"
+   }
+  },
+  {
+   "id": "voyager1-6s-59046-80036-sideband-1",
+   "family": "voyager",
+   "group": "sideband",
+   "file": "voyager1-6s-59046-80036-sideband-1.bin",
+   "dtype": "float32-le",
+   "shape": [
+    49,
+    256
+   ],
+   "units": "noise sigma, bandpass-flattened",
+   "sha256": "295f93f8e638b1e081c4e6c5d8334e8ce4b18543583733a1f699d4e03f6491b2",
+   "source": {
+    "file": "blc23_guppi_59046_80036_DIAG_VOYAGER-1_0011.rawspec.0000.h5",
+    "source_name": "VOYAGER-1",
+    "tstart_mjd": 59046.92634259259,
+    "fch1_mhz": 8421.38671875,
+    "foff_hz": -2.7939677238464355,
+    "tsamp_s": 6.084537002666661,
+    "first_channel": 667874,
+    "centre_freq_mhz": 8419.520342398404,
+    "drift_channels_per_step": 0.8106440263621306,
+    "drift_hz_per_s": -0.37224085319755174,
+    "snr": 125.33488464355469,
+    "coarse_channel": 6,
+    "product": "6_sec_integration",
+    "url": "https://bldata.berkeley.edu/voyager_2020/6_sec_integration/blc23_guppi_59046_80036_DIAG_VOYAGER-1_0011.rawspec.0000.h5"
+   }
+  },
+  {
+   "id": "voyager1-6s-59046-80036-sideband-2",
+   "family": "voyager",
+   "group": "sideband",
+   "file": "voyager1-6s-59046-80036-sideband-2.bin",
+   "dtype": "float32-le",
+   "shape": [
+    49,
+    256
+   ],
+   "units": "noise sigma, bandpass-flattened",
+   "sha256": "afa5158b800d4b5e63d29104279cd95f7a010cb726137b1056dfcbe33ee976eb",
+   "source": {
+    "file": "blc23_guppi_59046_80036_DIAG_VOYAGER-1_0011.rawspec.0000.h5",
+    "source_name": "VOYAGER-1",
+    "tstart_mjd": 59046.92634259259,
+    "fch1_mhz": 8421.38671875,
+    "foff_hz": -2.7939677238464355,
+    "tsamp_s": 6.084537002666661,
+    "first_channel": 651884,
+    "centre_freq_mhz": 8419.565018516272,
+    "drift_channels_per_step": 0.8023037802248536,
+    "drift_hz_per_s": -0.36841108299379194,
+    "snr": 127.65914154052734,
+    "coarse_channel": 6,
+    "product": "6_sec_integration",
+    "url": "https://bldata.berkeley.edu/voyager_2020/6_sec_integration/blc23_guppi_59046_80036_DIAG_VOYAGER-1_0011.rawspec.0000.h5"
+   }
+  },
+  {
+   "id": "voyager1-6s-59046-80354-off-carrier",
+   "family": "offsource",
+   "group": "carrier window",
+   "file": "voyager1-6s-59046-80354-off-carrier.bin",
+   "dtype": "float32-le",
+   "shape": [
+    49,
+    256
+   ],
+   "units": "noise sigma, bandpass-flattened",
+   "sha256": "b0155c92f918c3e37a728220edf003372e0d19179e23e3e46b01f15e094fe01e",
+   "source": {
+    "file": "blc23_guppi_59046_80354_DIAG_VOYAGER-1_0012.rawspec.0000.h5",
+    "source_name": "VOYAGER-1",
+    "tstart_mjd": 59046.93002314815,
+    "fch1_mhz": 8421.38671875,
+    "foff_hz": -2.7939677238464355,
+    "tsamp_s": 6.084537002666661,
+    "first_channel": 659921,
+    "centre_freq_mhz": 8419.54256359856,
+    "window_of": "voyager1-6s-59046-80036-carrier",
+    "snr": 4.770462512969971,
+    "coarse_channel": 6,
+    "product": "6_sec_integration",
+    "url": "https://bldata.berkeley.edu/voyager_2020/6_sec_integration/blc23_guppi_59046_80354_DIAG_VOYAGER-1_0012.rawspec.0000.h5"
+   }
+  },
+  {
+   "id": "voyager1-6s-59046-80354-off-sideband-1",
+   "family": "offsource",
+   "group": "sideband window",
+   "file": "voyager1-6s-59046-80354-off-sideband-1.bin",
+   "dtype": "float32-le",
+   "shape": [
+    49,
+    256
+   ],
+   "units": "noise sigma, bandpass-flattened",
+   "sha256": "f2a6594987cc286985bf18c1eb73b99609ef51adc6c316daa52ca1833a832aac",
+   "source": {
+    "file": "blc23_guppi_59046_80354_DIAG_VOYAGER-1_0012.rawspec.0000.h5",
+    "source_name": "VOYAGER-1",
+    "tstart_mjd": 59046.93002314815,
+    "fch1_mhz": 8421.38671875,
+    "foff_hz": -2.7939677238464355,
+    "tsamp_s": 6.084537002666661,
+    "first_channel": 667916,
+    "centre_freq_mhz": 8419.520224025813,
+    "window_of": "voyager1-6s-59046-80036-sideband-1",
+    "snr": 5.128026485443115,
+    "coarse_channel": 6,
+    "product": "6_sec_integration",
+    "url": "https://bldata.berkeley.edu/voyager_2020/6_sec_integration/blc23_guppi_59046_80354_DIAG_VOYAGER-1_0012.rawspec.0000.h5"
+   }
+  },
+  {
+   "id": "voyager1-6s-59046-80354-off-sideband-2",
+   "family": "offsource",
+   "group": "sideband window",
+   "file": "voyager1-6s-59046-80354-off-sideband-2.bin",
+   "dtype": "float32-le",
+   "shape": [
+    49,
+    256
+   ],
+   "units": "noise sigma, bandpass-flattened",
+   "sha256": "8bcd0308c92cde628ca97a4ce5f6b78cc2c085407d3cf763c5501947ba212e13",
+   "source": {
+    "file": "blc23_guppi_59046_80354_DIAG_VOYAGER-1_0012.rawspec.0000.h5",
+    "source_name": "VOYAGER-1",
+    "tstart_mjd": 59046.93002314815,
+    "fch1_mhz": 8421.38671875,
+    "foff_hz": -2.7939677238464355,
+    "tsamp_s": 6.084537002666661,
+    "first_channel": 651926,
+    "centre_freq_mhz": 8419.564901361548,
+    "window_of": "voyager1-6s-59046-80036-sideband-2",
+    "snr": 4.54919958114624,
+    "coarse_channel": 6,
+    "product": "6_sec_integration",
+    "url": "https://bldata.berkeley.edu/voyager_2020/6_sec_integration/blc23_guppi_59046_80354_DIAG_VOYAGER-1_0012.rawspec.0000.h5"
+   }
+  },
+  {
+   "id": "voyager1-6s-59046-80672-carrier",
+   "family": "voyager",
+   "group": "carrier",
+   "file": "voyager1-6s-59046-80672-carrier.bin",
+   "dtype": "float32-le",
+   "shape": [
+    49,
+    256
+   ],
+   "units": "noise sigma, bandpass-flattened",
+   "sha256": "2a1d6d800b3f2fd6b9d9820e5f1400389a19d97a7dcf679f1c09937403c67470",
+   "source": {
+    "file": "blc23_guppi_59046_80672_DIAG_VOYAGER-1_0013.rawspec.0000.h5",
+    "source_name": "VOYAGER-1",
+    "tstart_mjd": 59046.933703703704,
+    "fch1_mhz": 8421.38671875,
+    "foff_hz": -2.7939677238464355,
+    "tsamp_s": 6.084537002666661,
+    "first_channel": 659966,
+    "centre_freq_mhz": 8419.542437145488,
+    "drift_channels_per_step": 0.8674421335133923,
+    "drift_hz_per_s": -0.3983220616915829,
+    "snr": 523.4544067382812,
+    "coarse_channel": 6,
+    "product": "6_sec_integration",
+    "url": "https://bldata.berkeley.edu/voyager_2020/6_sec_integration/blc23_guppi_59046_80672_DIAG_VOYAGER-1_0013.rawspec.0000.h5"
+   }
+  },
+  {
+   "id": "voyager1-6s-59046-80672-sideband-1",
+   "family": "voyager",
+   "group": "sideband",
+   "file": "voyager1-6s-59046-80672-sideband-1.bin",
+   "dtype": "float32-le",
+   "shape": [
+    49,
+    256
+   ],
+   "units": "noise sigma, bandpass-flattened",
+   "sha256": "416e5ddb2d493e98cd9f85545d7eff330ccecda4ee8dd5519804dd083725dc51",
+   "source": {
+    "file": "blc23_guppi_59046_80672_DIAG_VOYAGER-1_0013.rawspec.0000.h5",
+    "source_name": "VOYAGER-1",
+    "tstart_mjd": 59046.933703703704,
+    "fch1_mhz": 8421.38671875,
+    "foff_hz": -2.7939677238464355,
+    "tsamp_s": 6.084537002666661,
+    "first_channel": 667961,
+    "centre_freq_mhz": 8419.520099238935,
+    "drift_channels_per_step": 0.8830172357040689,
+    "drift_hz_per_s": -0.40547401635917524,
+    "snr": 56.87160873413086,
+    "coarse_channel": 6,
+    "product": "6_sec_integration",
+    "url": "https://bldata.berkeley.edu/voyager_2020/6_sec_integration/blc23_guppi_59046_80672_DIAG_VOYAGER-1_0013.rawspec.0000.h5"
+   }
+  },
+  {
+   "id": "voyager1-6s-59046-80672-sideband-2",
+   "family": "voyager",
+   "group": "sideband",
+   "file": "voyager1-6s-59046-80672-sideband-2.bin",
+   "dtype": "float32-le",
+   "shape": [
+    49,
+    256
+   ],
+   "units": "noise sigma, bandpass-flattened",
+   "sha256": "109e59b3637d451e45f7bab0f12783961aa937e96b722bb44f41c655c1d9fc98",
+   "source": {
+    "file": "blc23_guppi_59046_80672_DIAG_VOYAGER-1_0013.rawspec.0000.h5",
+    "source_name": "VOYAGER-1",
+    "tstart_mjd": 59046.933703703704,
+    "fch1_mhz": 8421.38671875,
+    "foff_hz": -2.7939677238464355,
+    "tsamp_s": 6.084537002666661,
+    "first_channel": 651857,
+    "centre_freq_mhz": 8419.565093784639,
+    "drift_channels_per_step": 0.8910112933666705,
+    "drift_hz_per_s": -0.4091448197550766,
+    "snr": 56.491539001464844,
+    "coarse_channel": 6,
+    "product": "6_sec_integration",
+    "url": "https://bldata.berkeley.edu/voyager_2020/6_sec_integration/blc23_guppi_59046_80672_DIAG_VOYAGER-1_0013.rawspec.0000.h5"
+   }
+  },
+  {
+   "id": "voyager1-6s-59046-80989-off-carrier",
+   "family": "offsource",
+   "group": "carrier window",
+   "file": "voyager1-6s-59046-80989-off-carrier.bin",
+   "dtype": "float32-le",
+   "shape": [
+    49,
+    256
+   ],
+   "units": "noise sigma, bandpass-flattened",
+   "sha256": "604d390a79cb2f0a1ef229f58abba419457cdeede533ec771a16069f10548f9c",
+   "source": {
+    "file": "blc23_guppi_59046_80989_DIAG_VOYAGER-1_0014.rawspec.0000.h5",
+    "source_name": "VOYAGER-1",
+    "tstart_mjd": 59046.937372685185,
+    "fch1_mhz": 8421.38671875,
+    "foff_hz": -2.7939677238464355,
+    "tsamp_s": 6.084537002666661,
+    "first_channel": 660011,
+    "centre_freq_mhz": 8419.542310877394,
+    "window_of": "voyager1-6s-59046-80672-carrier",
+    "snr": 4.4352521896362305,
+    "coarse_channel": 6,
+    "product": "6_sec_integration",
+    "url": "https://bldata.berkeley.edu/voyager_2020/6_sec_integration/blc23_guppi_59046_80989_DIAG_VOYAGER-1_0014.rawspec.0000.h5"
+   }
+  },
+  {
+   "id": "voyager1-6s-59046-80989-off-sideband-1",
+   "family": "offsource",
+   "group": "sideband window",
+   "file": "voyager1-6s-59046-80989-off-sideband-1.bin",
+   "dtype": "float32-le",
+   "shape": [
+    49,
+    256
+   ],
+   "units": "noise sigma, bandpass-flattened",
+   "sha256": "734d1f8fac5b6adb46fbb01d414c198b3883915eaaac40e4ed33bedc848abd12",
+   "source": {
+    "file": "blc23_guppi_59046_80989_DIAG_VOYAGER-1_0014.rawspec.0000.h5",
+    "source_name": "VOYAGER-1",
+    "tstart_mjd": 59046.937372685185,
+    "fch1_mhz": 8421.38671875,
+    "foff_hz": -2.7939677238464355,
+    "tsamp_s": 6.084537002666661,
+    "first_channel": 668007,
+    "centre_freq_mhz": 8419.519970703672,
+    "window_of": "voyager1-6s-59046-80672-sideband-1",
+    "snr": 4.6047163009643555,
+    "coarse_channel": 6,
+    "product": "6_sec_integration",
+    "url": "https://bldata.berkeley.edu/voyager_2020/6_sec_integration/blc23_guppi_59046_80989_DIAG_VOYAGER-1_0014.rawspec.0000.h5"
+   }
+  },
+  {
+   "id": "voyager1-6s-59046-80989-off-sideband-2",
+   "family": "offsource",
+   "group": "sideband window",
+   "file": "voyager1-6s-59046-80989-off-sideband-2.bin",
+   "dtype": "float32-le",
+   "shape": [
+    49,
+    256
+   ],
+   "units": "noise sigma, bandpass-flattened",
+   "sha256": "60c3bdfdfc8f89c23948c6683821095e0778900a139bdf9c7484d9c5c25c0243",
+   "source": {
+    "file": "blc23_guppi_59046_80989_DIAG_VOYAGER-1_0014.rawspec.0000.h5",
+    "source_name": "VOYAGER-1",
+    "tstart_mjd": 59046.937372685185,
+    "fch1_mhz": 8421.38671875,
+    "foff_hz": -2.7939677238464355,
+    "tsamp_s": 6.084537002666661,
+    "first_channel": 651903,
+    "centre_freq_mhz": 8419.56496408573,
+    "window_of": "voyager1-6s-59046-80672-sideband-2",
+    "snr": 4.050791263580322,
+    "coarse_channel": 6,
+    "product": "6_sec_integration",
+    "url": "https://bldata.berkeley.edu/voyager_2020/6_sec_integration/blc23_guppi_59046_80989_DIAG_VOYAGER-1_0014.rawspec.0000.h5"
+   }
+  },
+  {
+   "id": "voyager1-6s-59046-81310-carrier",
+   "family": "voyager",
+   "group": "carrier",
+   "file": "voyager1-6s-59046-81310-carrier.bin",
+   "dtype": "float32-le",
+   "shape": [
+    49,
+    256
+   ],
+   "units": "noise sigma, bandpass-flattened",
+   "sha256": "121e5d63560eb36bf512073613a6250eb269d7cfd941ee498b966e75a50c7e83",
+   "source": {
+    "file": "blc23_guppi_59046_81310_DIAG_VOYAGER-1_0015.rawspec.0000.h5",
+    "source_name": "VOYAGER-1",
+    "tstart_mjd": 59046.941087962965,
+    "fch1_mhz": 8421.38671875,
+    "foff_hz": -2.7939677238464355,
+    "tsamp_s": 6.084537002666661,
+    "first_channel": 660060,
+    "centre_freq_mhz": 8419.542173413722,
+    "drift_channels_per_step": 0.9361849420902468,
+    "drift_hz_per_s": -0.4298881756499842,
+    "snr": 813.4976196289062,
+    "coarse_channel": 6,
+    "product": "6_sec_integration",
+    "url": "https://bldata.berkeley.edu/voyager_2020/6_sec_integration/blc23_guppi_59046_81310_DIAG_VOYAGER-1_0015.rawspec.0000.h5"
+   }
+  },
+  {
+   "id": "voyager1-6s-59046-81310-sideband-1",
+   "family": "voyager",
+   "group": "sideband",
+   "file": "voyager1-6s-59046-81310-sideband-1.bin",
+   "dtype": "float32-le",
+   "shape": [
+    49,
+    256
+   ],
+   "units": "noise sigma, bandpass-flattened",
+   "sha256": "787563d929c76d5e02b5ee3c9e927af928fea7fbeac79ded02e1e79a2f5fb49c",
+   "source": {
+    "file": "blc23_guppi_59046_81310_DIAG_VOYAGER-1_0015.rawspec.0000.h5",
+    "source_name": "VOYAGER-1",
+    "tstart_mjd": 59046.941087962965,
+    "fch1_mhz": 8421.38671875,
+    "foff_hz": -2.7939677238464355,
+    "tsamp_s": 6.084537002666661,
+    "first_channel": 668170,
+    "centre_freq_mhz": 8419.519516702943,
+    "drift_channels_per_step": 0.9497269799188512,
+    "drift_hz_per_s": -0.4361065644265905,
+    "snr": 93.32543182373047,
+    "coarse_channel": 6,
+    "product": "6_sec_integration",
+    "url": "https://bldata.berkeley.edu/voyager_2020/6_sec_integration/blc23_guppi_59046_81310_DIAG_VOYAGER-1_0015.rawspec.0000.h5"
+   }
+  },
+  {
+   "id": "voyager1-6s-59046-81310-sideband-2",
+   "family": "voyager",
+   "group": "sideband",
+   "file": "voyager1-6s-59046-81310-sideband-2.bin",
+   "dtype": "float32-le",
+   "shape": [
+    49,
+    256
+   ],
+   "units": "noise sigma, bandpass-flattened",
+   "sha256": "f6a1c5a9aec1ee9e88b7310411b4cad1fb6bb1efbfdc041b1476c4e72053c21b",
+   "source": {
+    "file": "blc23_guppi_59046_81310_DIAG_VOYAGER-1_0015.rawspec.0000.h5",
+    "source_name": "VOYAGER-1",
+    "tstart_mjd": 59046.941087962965,
+    "fch1_mhz": 8421.38671875,
+    "foff_hz": -2.7939677238464355,
+    "tsamp_s": 6.084537002666661,
+    "first_channel": 651951,
+    "centre_freq_mhz": 8419.564830392766,
+    "drift_channels_per_step": 0.9142730396855449,
+    "drift_hz_per_s": -0.41982641613402116,
+    "snr": 92.08531951904297,
+    "coarse_channel": 6,
+    "product": "6_sec_integration",
+    "url": "https://bldata.berkeley.edu/voyager_2020/6_sec_integration/blc23_guppi_59046_81310_DIAG_VOYAGER-1_0015.rawspec.0000.h5"
+   }
+  },
+  {
+   "id": "voyager1-6s-59046-81628-off-carrier",
+   "family": "offsource",
+   "group": "carrier window",
+   "file": "voyager1-6s-59046-81628-off-carrier.bin",
+   "dtype": "float32-le",
+   "shape": [
+    49,
+    256
+   ],
+   "units": "noise sigma, bandpass-flattened",
+   "sha256": "6ba2e7815e28c672234ef6c98015b31cc6b492c145f07b1845ba7af0e8373185",
+   "source": {
+    "file": "blc23_guppi_59046_81628_DIAG_VOYAGER-1_0016.rawspec.0000.h5",
+    "source_name": "VOYAGER-1",
+    "tstart_mjd": 59046.944768518515,
+    "fch1_mhz": 8421.38671875,
+    "foff_hz": -2.7939677238464355,
+    "tsamp_s": 6.084537002666661,
+    "first_channel": 660109,
+    "centre_freq_mhz": 8419.542036709283,
+    "window_of": "voyager1-6s-59046-81310-carrier",
+    "snr": 4.279469013214111,
+    "coarse_channel": 6,
+    "product": "6_sec_integration",
+    "url": "https://bldata.berkeley.edu/voyager_2020/6_sec_integration/blc23_guppi_59046_81628_DIAG_VOYAGER-1_0016.rawspec.0000.h5"
+   }
+  },
+  {
+   "id": "voyager1-6s-59046-81628-off-sideband-1",
+   "family": "offsource",
+   "group": "sideband window",
+   "file": "voyager1-6s-59046-81628-off-sideband-1.bin",
+   "dtype": "float32-le",
+   "shape": [
+    49,
+    256
+   ],
+   "units": "noise sigma, bandpass-flattened",
+   "sha256": "36065e0aad8ec0c561635e064f5f2dda5b5cf75c6a5947953a3ce4cb0a75808b",
+   "source": {
+    "file": "blc23_guppi_59046_81628_DIAG_VOYAGER-1_0016.rawspec.0000.h5",
+    "source_name": "VOYAGER-1",
+    "tstart_mjd": 59046.944768518515,
+    "fch1_mhz": 8421.38671875,
+    "foff_hz": -2.7939677238464355,
+    "tsamp_s": 6.084537002666661,
+    "first_channel": 668219,
+    "centre_freq_mhz": 8419.519378021056,
+    "window_of": "voyager1-6s-59046-81310-sideband-1",
+    "snr": 4.725617408752441,
+    "coarse_channel": 6,
+    "product": "6_sec_integration",
+    "url": "https://bldata.berkeley.edu/voyager_2020/6_sec_integration/blc23_guppi_59046_81628_DIAG_VOYAGER-1_0016.rawspec.0000.h5"
+   }
+  },
+  {
+   "id": "voyager1-6s-59046-81628-off-sideband-2",
+   "family": "offsource",
+   "group": "sideband window",
+   "file": "voyager1-6s-59046-81628-off-sideband-2.bin",
+   "dtype": "float32-le",
+   "shape": [
+    49,
+    256
+   ],
+   "units": "noise sigma, bandpass-flattened",
+   "sha256": "9fe9cd19130f016688b7a07abd13e3063da37a0875b5049cb51c7b1d9650509f",
+   "source": {
+    "file": "blc23_guppi_59046_81628_DIAG_VOYAGER-1_0016.rawspec.0000.h5",
+    "source_name": "VOYAGER-1",
+    "tstart_mjd": 59046.944768518515,
+    "fch1_mhz": 8421.38671875,
+    "foff_hz": -2.7939677238464355,
+    "tsamp_s": 6.084537002666661,
+    "first_channel": 651999,
+    "centre_freq_mhz": 8419.564696887966,
+    "window_of": "voyager1-6s-59046-81310-sideband-2",
+    "snr": 4.801369667053223,
+    "coarse_channel": 6,
+    "product": "6_sec_integration",
+    "url": "https://bldata.berkeley.edu/voyager_2020/6_sec_integration/blc23_guppi_59046_81628_DIAG_VOYAGER-1_0016.rawspec.0000.h5"
+   }
+  },
+  {
+   "id": "rosetta-fsk-scan1-part1",
+   "family": "rosetta",
+   "group": "fsk",
+   "file": "rosetta-fsk-scan1-part1.bin",
+   "dtype": "float32-le",
+   "shape": [
+    49,
+    64
+   ],
+   "units": "noise sigma",
+   "sha256": "974d9ec530a22297268b2db5db7f86893f3c79dcf2d494cfd8e06271f0ec1aec",
+   "source": {
+    "product": "synthetic",
+    "generator": "tracks/llm/synthetic.py",
+    "modulation": "16-tone FSK, one 4-bit symbol per frame at channel 8 + 3 x symbol",
+    "corpus": "en-gettysburg-bliss+us-preamble/v1",
+    "corpus_sha256": "e2369a7f60ca396a402206a1f9b8d5d8bf2c375069debcc8527422552cc8e854",
+    "symbols": [
+     0,
+     49
+    ],
+    "flux": 130.04179095717473,
+    "line_width_channels": 0.6,
+    "seed": 0,
+    "slice": 0,
+    "tstart_mjd": 0.0
+   }
+  },
+  {
+   "id": "rosetta-fsk-scan1-part2",
+   "family": "rosetta",
+   "group": "fsk",
+   "file": "rosetta-fsk-scan1-part2.bin",
+   "dtype": "float32-le",
+   "shape": [
+    49,
+    64
+   ],
+   "units": "noise sigma",
+   "sha256": "d400fb2f3522aad3c5aea6b32ecba7d26feacf54bfa019fe6c3f665712e832cb",
+   "source": {
+    "product": "synthetic",
+    "generator": "tracks/llm/synthetic.py",
+    "modulation": "16-tone FSK, one 4-bit symbol per frame at channel 8 + 3 x symbol",
+    "corpus": "en-gettysburg-bliss+us-preamble/v1",
+    "corpus_sha256": "e2369a7f60ca396a402206a1f9b8d5d8bf2c375069debcc8527422552cc8e854",
+    "symbols": [
+     49,
+     98
+    ],
+    "flux": 97.25207117784788,
+    "line_width_channels": 0.6,
+    "seed": 0,
+    "slice": 1,
+    "tstart_mjd": 0.0
+   }
+  },
+  {
+   "id": "rosetta-fsk-scan1-part3",
+   "family": "rosetta",
+   "group": "fsk",
+   "file": "rosetta-fsk-scan1-part3.bin",
+   "dtype": "float32-le",
+   "shape": [
+    49,
+    64
+   ],
+   "units": "noise sigma",
+   "sha256": "92e580b8a82aeb072636cb3b1d0afb0a15885544275f4bad02c4cca8c8b9095c",
+   "source": {
+    "product": "synthetic",
+    "generator": "tracks/llm/synthetic.py",
+    "modulation": "16-tone FSK, one 4-bit symbol per frame at channel 8 + 3 x symbol",
+    "corpus": "en-gettysburg-bliss+us-preamble/v1",
+    "corpus_sha256": "e2369a7f60ca396a402206a1f9b8d5d8bf2c375069debcc8527422552cc8e854",
+    "symbols": [
+     98,
+     147
+    ],
+    "flux": 100.17343837707361,
+    "line_width_channels": 0.6,
+    "seed": 0,
+    "slice": 2,
+    "tstart_mjd": 0.0
+   }
+  },
+  {
+   "id": "rosetta-fsk-scan2-part1",
+   "family": "rosetta",
+   "group": "fsk",
+   "file": "rosetta-fsk-scan2-part1.bin",
+   "dtype": "float32-le",
+   "shape": [
+    49,
+    64
+   ],
+   "units": "noise sigma",
+   "sha256": "6c28322d775ca752755d67c02dc4ea8bc8356e7f4edb22d17ba2753188dbdb1b",
+   "source": {
+    "product": "synthetic",
+    "generator": "tracks/llm/synthetic.py",
+    "modulation": "16-tone FSK, one 4-bit symbol per frame at channel 8 + 3 x symbol",
+    "corpus": "en-gettysburg-bliss+us-preamble/v1",
+    "corpus_sha256": "e2369a7f60ca396a402206a1f9b8d5d8bf2c375069debcc8527422552cc8e854",
+    "symbols": [
+     147,
+     196
+    ],
+    "flux": 77.68297987420843,
+    "line_width_channels": 0.6,
+    "seed": 0,
+    "slice": 3,
+    "tstart_mjd": 0.01
+   }
+  },
+  {
+   "id": "rosetta-fsk-scan2-part2",
+   "family": "rosetta",
+   "group": "fsk",
+   "file": "rosetta-fsk-scan2-part2.bin",
+   "dtype": "float32-le",
+   "shape": [
+    49,
+    64
+   ],
+   "units": "noise sigma",
+   "sha256": "74ae500d37771894582d7b2706534ac2f6db748080220aeeb38e1331eaf3d2b8",
+   "source": {
+    "product": "synthetic",
+    "generator": "tracks/llm/synthetic.py",
+    "modulation": "16-tone FSK, one 4-bit symbol per frame at channel 8 + 3 x symbol",
+    "corpus": "en-gettysburg-bliss+us-preamble/v1",
+    "corpus_sha256": "e2369a7f60ca396a402206a1f9b8d5d8bf2c375069debcc8527422552cc8e854",
+    "symbols": [
+     196,
+     245
+    ],
+    "flux": 79.77076843257177,
+    "line_width_channels": 0.6,
+    "seed": 0,
+    "slice": 4,
+    "tstart_mjd": 0.01
+   }
+  },
+  {
+   "id": "rosetta-fsk-scan2-part3",
+   "family": "rosetta",
+   "group": "fsk",
+   "file": "rosetta-fsk-scan2-part3.bin",
+   "dtype": "float32-le",
+   "shape": [
+    49,
+    64
+   ],
+   "units": "noise sigma",
+   "sha256": "a11e6afd42472c2e99f2852aae8174b48e4965401a3fb2ba61c036b96a0467c2",
+   "source": {
+    "product": "synthetic",
+    "generator": "tracks/llm/synthetic.py",
+    "modulation": "16-tone FSK, one 4-bit symbol per frame at channel 8 + 3 x symbol",
+    "corpus": "en-gettysburg-bliss+us-preamble/v1",
+    "corpus_sha256": "e2369a7f60ca396a402206a1f9b8d5d8bf2c375069debcc8527422552cc8e854",
+    "symbols": [
+     245,
+     294
+    ],
+    "flux": 42.555511330128624,
+    "line_width_channels": 0.6,
+    "seed": 0,
+    "slice": 5,
+    "tstart_mjd": 0.01
+   }
+  },
+  {
+   "id": "rosetta-fsk-scan3-part1",
+   "family": "rosetta",
+   "group": "fsk",
+   "file": "rosetta-fsk-scan3-part1.bin",
+   "dtype": "float32-le",
+   "shape": [
+    49,
+    64
+   ],
+   "units": "noise sigma",
+   "sha256": "5839370ad9fa15b52056036b4960847bb8a05f679182f9f656c006e0577d7b1a",
+   "source": {
+    "product": "synthetic",
+    "generator": "tracks/llm/synthetic.py",
+    "modulation": "16-tone FSK, one 4-bit symbol per frame at channel 8 + 3 x symbol",
+    "corpus": "en-gettysburg-bliss+us-preamble/v1",
+    "corpus_sha256": "e2369a7f60ca396a402206a1f9b8d5d8bf2c375069debcc8527422552cc8e854",
+    "symbols": [
+     294,
+     343
+    ],
+    "flux": 30.2656235303603,
+    "line_width_channels": 0.6,
+    "seed": 0,
+    "slice": 6,
+    "tstart_mjd": 0.02
+   }
+  },
+  {
+   "id": "rosetta-fsk-scan3-part2",
+   "family": "rosetta",
+   "group": "fsk",
+   "file": "rosetta-fsk-scan3-part2.bin",
+   "dtype": "float32-le",
+   "shape": [
+    49,
+    64
+   ],
+   "units": "noise sigma",
+   "sha256": "446947a0c27182ac76d5499e8bfeed79f3724907f8075ebc0d53b5704a838032",
+   "source": {
+    "product": "synthetic",
+    "generator": "tracks/llm/synthetic.py",
+    "modulation": "16-tone FSK, one 4-bit symbol per frame at channel 8 + 3 x symbol",
+    "corpus": "en-gettysburg-bliss+us-preamble/v1",
+    "corpus_sha256": "e2369a7f60ca396a402206a1f9b8d5d8bf2c375069debcc8527422552cc8e854",
+    "symbols": [
+     343,
+     392
+    ],
+    "flux": 33.839228852910246,
+    "line_width_channels": 0.6,
+    "seed": 0,
+    "slice": 7,
+    "tstart_mjd": 0.02
+   }
+  },
+  {
+   "id": "rosetta-fsk-scan3-part3",
+   "family": "rosetta",
+   "group": "fsk",
+   "file": "rosetta-fsk-scan3-part3.bin",
+   "dtype": "float32-le",
+   "shape": [
+    49,
+    64
+   ],
+   "units": "noise sigma",
+   "sha256": "86a6bc8eb0b0a253510aeed98d1d6e66d2f95bc034f4faa52bd2ecf735a30e17",
+   "source": {
+    "product": "synthetic",
+    "generator": "tracks/llm/synthetic.py",
+    "modulation": "16-tone FSK, one 4-bit symbol per frame at channel 8 + 3 x symbol",
+    "corpus": "en-gettysburg-bliss+us-preamble/v1",
+    "corpus_sha256": "e2369a7f60ca396a402206a1f9b8d5d8bf2c375069debcc8527422552cc8e854",
+    "symbols": [
+     392,
+     441
+    ],
+    "flux": 147.1307181144134,
+    "line_width_channels": 0.6,
+    "seed": 0,
+    "slice": 8,
+    "tstart_mjd": 0.02
+   }
+  }
+ ]
+}

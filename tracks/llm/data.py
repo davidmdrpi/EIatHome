@@ -8,6 +8,8 @@ import numpy as np
 
 CHANNELS = 64
 SPLITS = ("train", "validation", "test")
+# Real families, and the synthetic Rosetta control (tracks/llm/synthetic.py), in the same units.
+FAMILIES = ("voyager", "offsource", "rosetta")
 SESSION_GAP_DAYS = 0.5  # as in web/js/splits.js and tools/extract_slices.py
 SCAN_GAP_DAYS = 1e-8
 
@@ -59,8 +61,8 @@ def load_slices(manifest_path, slice_id=None):
         valid_start = isinstance(start, (int, float)) and np.isfinite(start)
         if slice_id is None and not valid_start:
             raise ValueError("Every slice needs a finite source.tstart_mjd for splitting")
-        if slice_id is None and entry.get("family") not in ("voyager", "offsource"):
-            raise ValueError("Unknown real-data family")
+        if slice_id is None and entry.get("family") not in FAMILIES:
+            raise ValueError("Unknown signal family")
         first = (shape[1] - CHANNELS) // 2
         frames = raw[:, first:first + CHANNELS].copy()
         records.append({"entry": entry, "sha256": sha, "start": float(start) if valid_start else None,
@@ -105,6 +107,13 @@ def dataset_digest(records):
     """The manifest's slices by content and entry: the dataset_sha256 a run records."""
     identity = [{"sha256": r["sha256"], "entry": r["entry"]} for r in records]
     return digest(json.dumps(identity, sort_keys=True).encode())
+
+
+def control_family(records, family):
+    """The family a run on `family` is scored on as a control: another family in the manifest,
+    off-source first (real noise, nothing in the beam). None if there isn't one."""
+    others = sorted({r["entry"]["family"] for r in records} - {family})
+    return "offsource" if "offsource" in others else (others[0] if others else None)
 
 
 def unique_records(records):

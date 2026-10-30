@@ -1,0 +1,255 @@
+{
+ "format": "eiathome-signal-lm-anchor",
+ "version": 1,
+ "anchor": "signal-lm-anchor/v2",
+ "model": {
+  "vocab_size": 32,
+  "context": 15,
+  "width": 32,
+  "layers": 2,
+  "heads": 4,
+  "dropout": 0.1,
+  "position": "rope"
+ },
+ "seed": 0,
+ "dtype": "float32-le",
+ "parameters": 27520,
+ "tensors": [
+  {
+   "name": "token.weight",
+   "shape": [
+    32,
+    32
+   ],
+   "offset": 0,
+   "count": 1024
+  },
+  {
+   "name": "blocks.0.norm1.weight",
+   "shape": [
+    32
+   ],
+   "offset": 1024,
+   "count": 32
+  },
+  {
+   "name": "blocks.0.norm1.bias",
+   "shape": [
+    32
+   ],
+   "offset": 1056,
+   "count": 32
+  },
+  {
+   "name": "blocks.0.norm2.weight",
+   "shape": [
+    32
+   ],
+   "offset": 1088,
+   "count": 32
+  },
+  {
+   "name": "blocks.0.norm2.bias",
+   "shape": [
+    32
+   ],
+   "offset": 1120,
+   "count": 32
+  },
+  {
+   "name": "blocks.0.qkv.weight",
+   "shape": [
+    96,
+    32
+   ],
+   "offset": 1152,
+   "count": 3072
+  },
+  {
+   "name": "blocks.0.qkv.bias",
+   "shape": [
+    96
+   ],
+   "offset": 4224,
+   "count": 96
+  },
+  {
+   "name": "blocks.0.out.weight",
+   "shape": [
+    32,
+    32
+   ],
+   "offset": 4320,
+   "count": 1024
+  },
+  {
+   "name": "blocks.0.out.bias",
+   "shape": [
+    32
+   ],
+   "offset": 5344,
+   "count": 32
+  },
+  {
+   "name": "blocks.0.feed.0.weight",
+   "shape": [
+    128,
+    32
+   ],
+   "offset": 5376,
+   "count": 4096
+  },
+  {
+   "name": "blocks.0.feed.0.bias",
+   "shape": [
+    128
+   ],
+   "offset": 9472,
+   "count": 128
+  },
+  {
+   "name": "blocks.0.feed.3.weight",
+   "shape": [
+    32,
+    128
+   ],
+   "offset": 9600,
+   "count": 4096
+  },
+  {
+   "name": "blocks.0.feed.3.bias",
+   "shape": [
+    32
+   ],
+   "offset": 13696,
+   "count": 32
+  },
+  {
+   "name": "blocks.1.norm1.weight",
+   "shape": [
+    32
+   ],
+   "offset": 13728,
+   "count": 32
+  },
+  {
+   "name": "blocks.1.norm1.bias",
+   "shape": [
+    32
+   ],
+   "offset": 13760,
+   "count": 32
+  },
+  {
+   "name": "blocks.1.norm2.weight",
+   "shape": [
+    32
+   ],
+   "offset": 13792,
+   "count": 32
+  },
+  {
+   "name": "blocks.1.norm2.bias",
+   "shape": [
+    32
+   ],
+   "offset": 13824,
+   "count": 32
+  },
+  {
+   "name": "blocks.1.qkv.weight",
+   "shape": [
+    96,
+    32
+   ],
+   "offset": 13856,
+   "count": 3072
+  },
+  {
+   "name": "blocks.1.qkv.bias",
+   "shape": [
+    96
+   ],
+   "offset": 16928,
+   "count": 96
+  },
+  {
+   "name": "blocks.1.out.weight",
+   "shape": [
+    32,
+    32
+   ],
+   "offset": 17024,
+   "count": 1024
+  },
+  {
+   "name": "blocks.1.out.bias",
+   "shape": [
+    32
+   ],
+   "offset": 18048,
+   "count": 32
+  },
+  {
+   "name": "blocks.1.feed.0.weight",
+   "shape": [
+    128,
+    32
+   ],
+   "offset": 18080,
+   "count": 4096
+  },
+  {
+   "name": "blocks.1.feed.0.bias",
+   "shape": [
+    128
+   ],
+   "offset": 22176,
+   "count": 128
+  },
+  {
+   "name": "blocks.1.feed.3.weight",
+   "shape": [
+    32,
+    128
+   ],
+   "offset": 22304,
+   "count": 4096
+  },
+  {
+   "name": "blocks.1.feed.3.bias",
+   "shape": [
+    32
+   ],
+   "offset": 26400,
+   "count": 32
+  },
+  {
+   "name": "norm.weight",
+   "shape": [
+    32
+   ],
+   "offset": 26432,
+   "count": 32
+  },
+  {
+   "name": "norm.bias",
+   "shape": [
+    32
+   ],
+   "offset": 26464,
+   "count": 32
+  },
+  {
+   "name": "head.weight",
+   "shape": [
+    32,
+    32
+   ],
+   "offset": 26496,
+   "count": 1024
+  }
+ ],
+ "init": "PCG64 uniform: embeddings \u00b1\u221a3; linear \u00b11/\u221afan_in; qkv Xavier, zero bias; out zero bias; layer norms 1, 0",
+ "sha256": "ac600b9458ab5f7d329d0ba0732d142ddc6591262384c8a5974f41f43b4880d0"
+}

@@ -54,7 +54,30 @@ ANCHORS = {
         "codebook_record_sha256": "22bf3d37b1ab89698bb64bfc481a7b1617bc2b6e29dbcba0e4d5fbe26fa05b00",
         "theta0_sha256": "9f3093e53322d17a892b5f0576b7c173084fc68fd4f3f2c43594dbd2cecc7287",
     },
+    # Milestone 3: v1's slices plus the Rosetta control (tracks/llm/synthetic.py), so one
+    # codebook covers the families a mixture of experts upcycles. 32 tokens: the smallest of
+    # 16, 24, 32 and 48 for which a Rosetta training frame's token gives its FSK symbol for at
+    # least 95% of frames, and neither real family's training frames use fewer tokens than
+    # under v1 (Voyager 12, off-source 6). The second condition was added after seeing that at
+    # 16 tokens every off-source frame gets the same one. 27,520 parameters.
+    "v2": {
+        "id": "signal-lm-anchor/v2",
+        "manifest": "tracks/llm/data/slices/index-rosetta.json",
+        "product": ["6_sec_integration", "synthetic"],
+        "families": ("voyager", "offsource", "rosetta"),
+        "codebook_seed": 0,
+        "theta_seed": 0,
+        "model": dict(vocab_size=32, context=15, width=32, layers=2, heads=4, dropout=0.1, position="rope"),
+        "codebook_sha256": "57465a05c3e9997a8d5a3510c12e1b1c76d5d18ab80d7516c9ee3a3a93b3298d",
+        "codebook_record_sha256": "7b041732635e4a12e7d6a3c760d0f5698c94219b4ec25063552a11ed42a6101b",
+        "theta0_sha256": "ac600b9458ab5f7d329d0ba0732d142ddc6591262384c8a5974f41f43b4880d0",
+    },
 }
+
+
+def products(spec):
+    """The data products an anchor's codebook is defined on."""
+    return set(spec["product"]) if isinstance(spec["product"], list) else {spec["product"]}
 
 
 def codebook_digest(state):
@@ -81,7 +104,7 @@ def fit_records(spec, records=None):
 
 def build_codebook(spec, records=None):
     fit = fit_records(spec, records)
-    if any(r["entry"].get("source", {}).get("product") != spec["product"] for r in fit):
+    if any(r["entry"].get("source", {}).get("product") not in products(spec) for r in fit):
         raise ValueError(f"The codebook's slices must all come from the {spec['product']} product")
     tokenizer = Tokenizer.fit([r["frames"] for r in fit], spec["model"]["vocab_size"], spec["codebook_seed"])
     state = tokenizer.state()
@@ -200,10 +223,10 @@ class Anchor:
         """Refuses data the anchor doesn't fit: slices of another product, and validation or test
         frames the codebook was fitted on. Returns how many control-family frames the codebook
         saw (other families are scored as a control, never trained on)."""
-        products = {r["entry"].get("source", {}).get("product") for r in records}
-        if products != {self.spec["product"]}:
+        seen = {r["entry"].get("source", {}).get("product") for r in records}
+        if not seen <= products(self.spec):
             raise ValueError(f"Anchor {self.name} is defined on the {self.spec['product']} product; this manifest's slices "
-                             f"are {', '.join(sorted(str(p) for p in products))}. Its codebook would tokenize them meaninglessly.")
+                             f"are {', '.join(sorted(str(p) for p in seen))}. Its codebook would tokenize them meaninglessly.")
         fitted = {s["frame_sha256"] for s in self.codebook["fit"]["slices"]}
         held_out = [r for name in ("validation", "test") for r in partitions[name] if r["frame_hash"] in fitted]
         if held_out:

@@ -54,3 +54,27 @@ python tools/extract_slices.py --append $common --off $(f 80354 0012) $(f 80989 
 Each scan takes a couple of minutes. Local copies of the files work too: pass their paths
 instead of the URLs. The format is the Live Lab's (`index.json` plus raw little-endian float32
 `.bin` files in noise-sigma units), with `shape` `[49, 256]`.
+
+## The Rosetta control (`index-rosetta.json`)
+
+Milestone 3 of [issue #20](https://github.com/davidmdrpi/EIatHome/issues/20) adds a third
+family, synthetic, for upcycling specialists into a mixture of experts.
+
+- **What it is:** the Live Lab's Rosetta control, English text sent as 16-tone FSK, ported to
+  Python in [`tracks/llm/synthetic.py`](../../synthetic.py).
+  - The corpus is pinned as `en-gettysburg-bliss+us-preamble/v1`, the same as in the browser.
+  - Each frame carries one 4-bit symbol: a line at channel 8 + 3 × symbol, on unit Gaussian
+    noise, in the same noise-sigma units as the real slices.
+- **What's published:** nine `[49, 64]` slices (`rosetta-fsk-*.bin`), three scans of three,
+  holding consecutive stretches of the text.
+  - Their scans are dated MJD 0.00, 0.01 and 0.02: one clearly synthetic session.
+  - So, like the real families, they split into train, validation and test by scan.
+- **Where they're listed:** `index-rosetta.json` lists the eighteen real slices exactly as
+  `index.json` does, plus these nine. `index.json`, and everything trained on it, is
+  unchanged.
+
+```bash
+python -m tracks.llm.synthetic build            # regenerate and compare with the committed slices
+python -m tracks.llm.synthetic build --write    # rewrite them and index-rosetta.json
+```
+
