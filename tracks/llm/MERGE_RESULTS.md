@@ -4,7 +4,7 @@
 from many volunteers into stronger models. Milestone 1 gave every run a shared anchor (a pinned
 codebook and starting weights θ₀; see [anchors/](anchors/README.md)), so their changes
 τ = θ − θ₀ line up. This file records what merging does on the published data, milestone by
-milestone.
+milestone: within one family (milestone 2), then across families (milestone 3).
 
 Everything here is one 2020 observing session: training, validation and test are three scans
 of the same cadence (`--allow-within-session`). It isn't evidence of generalization across
@@ -251,13 +251,182 @@ frequencies, gains nothing from its order and isn't rejected.
 Environment: Python 3.13.17, NumPy 2.5.4, PyTorch 2.14.1, CPU. The benchmark is deterministic:
 rerunning it reproduces every number.
 
+## Milestone 3: upcycling family specialists into a mixture of experts
+
+Milestone 3 combines specialists for different families, Branch-Train-MiX style
+([`moe.py`](moe.py)):
+
+- each specialist branches from one θ₀ and trains on one family;
+- their feed-forward layers become the experts of one model;
+- the rest (embeddings, attention, layer norms, head) is merged;
+- a router learns which experts each token uses.
+
+The question: does that beat one dense model trained on all the families?
+
+### What it needed first
+
+- **A third family.** The Python track had only Voyager and off-source. [`synthetic.py`](synthetic.py)
+  ports the Live Lab's Rosetta control: English text sent as 16-tone FSK, one 4-bit symbol per
+  frame, in the real slices' units (noise sigma).
+  - It uses the same pinned corpus as the browser (`en-gettysburg-bliss+us-preamble/v1`).
+  - Like the real families, it's three scans of three 49-frame slices, so training,
+    validation and test hold different stretches of the text.
+  - The slices are generated once and published with their SHA-256s, in
+    `data/slices/index-rosetta.json`: v1's manifest plus these nine. v1 and milestone 2 are
+    unchanged.
+- **A codebook that covers it.** v1's codebook, fitted on real frames only, recovers a
+  Rosetta frame's symbol from its token for only 71% of frames.
+  - **Anchor v2** fits 32 tokens on the training scans of all three families. That's the
+    smallest of 16, 24, 32 and 48 for which the token gives the symbol for at least 95% of
+    Rosetta training frames (96%).
+  - It also keeps both real families at least as finely tokenized as v1: Voyager's training
+    frames use 24 tokens (12 under v1), off-source's 6 (6).
+  - That second condition was added after seeing that at 16 tokens every off-source frame
+    gets the same one.
+- **A ceiling on Rosetta.** k-means spends spare tokens splitting frequent symbols by their
+  noise. Symbol 6, the high nibble of most lowercase letters, gets up to five tokens.
+  - Given its symbol, a Rosetta token still carries 1.0 bit of noise, out of 3.1 bits of
+    symbol entropy, and no model can predict that part.
+
+### Setup
+
+Fixed before the first run ([`moe_bench.py`](moe_bench.py)):
+
+- **Data:** anchor v2; Voyager, off-source and Rosetta, each split into three scans within
+  one session.
+- **Training:** the real stream, stride 1, 50 epochs, the defaults otherwise; seeds 42, 43
+  and 44.
+- **Compared, per seed:**
+  - **Specialists:** three, one per family, each trained from θ₀ on its family's training
+    scan.
+  - **One dense model on all three families:** trained from θ₀ on all three training scans,
+    chosen on all three validation scans. The same data and epochs as the specialists
+    together, with at most 700 optimizer steps, against at most 3 × 250 for the specialists.
+  - **Specialists merged into one dense model:** averaged, or by TIES (top 20%).
+  - **The mixture** (61,120 parameters, 44,416 used per token): the three specialists'
+    feed-forward layers as experts, with a top-2 router and the rest averaged. Scored four
+    ways:
+    - with the router untrained;
+    - with each family sent to its own expert, an oracle that uses the family label;
+    - with the router finetuned on the three training scans, experts and backbone frozen;
+    - with the router and backbone finetuned, experts frozen.
+  - **The same mixture with a TIES-merged backbone,** router and backbone finetuned.
+- **Finetuning:** the training settings, plus a load-balancing weight of 0.01, chosen on the
+  three validation scans.
+
+```bash
+python -m tracks.llm.moe_bench --output runs/moe-bench   # about 2 minutes on a CPU
+```
+
+### Results
+
+Test bits per token, mean over the three seeds (range when it's 0.01 or more). Uniform over
+32 tokens is 5.
+
+| | Voyager | Off-source | Rosetta | Mean | Validation mean |
+|---|---:|---:|---:|---:|---:|
+| θ₀, untrained | 5.11 | 4.79 | 5.44 | 5.11 | 5.15 |
+| Voyager specialist | **2.04** (2.03–2.04) | 5.44 (5.41–5.46) | 5.83 (5.80–5.84) | 4.43 (4.42–4.44) | 4.80 (4.78–4.81) |
+| off-source specialist | 6.21 (6.18–6.26) | 2.09 (2.08–2.09) | 6.71 (6.67–6.73) | 5.00 (4.98–5.03) | 4.90 (4.88–4.92) |
+| Rosetta specialist | 6.40 (6.39–6.41) | 5.12 (5.11–5.13) | **4.22** (4.21–4.23) | 5.25 (5.24–5.25) | 4.99 (4.98–4.99) |
+| **one dense model on all three families** | 2.13 (2.12–2.14) | 2.06 (2.05–2.07) | 4.46 (4.42–4.50) | **2.88** (2.87–2.89) | **3.16** |
+| specialists averaged (dense) | 3.92 (3.91–3.92) | 3.44 (3.43–3.44) | 5.04 (5.03–5.04) | 4.13 | 4.18 (4.17–4.18) |
+| specialists merged by TIES (dense) | 4.21 (4.19–4.24) | 3.67 (3.49–3.77) | 5.32 (5.30–5.34) | 4.40 (4.35–4.42) | 4.40 (4.35–4.43) |
+| mixture, untrained router | 3.90 | 3.64 (3.64–3.65) | 4.98 (4.96–4.99) | 4.17 | 4.22 (4.22–4.23) |
+| mixture, each family to its own expert (oracle) | 2.62 (2.61–2.63) | 2.83 (2.82–2.83) | 4.43 (4.42–4.44) | 3.29 (3.29–3.30) | 3.47 (3.46–3.48) |
+| mixture, router finetuned | 3.29 (3.28–3.29) | 2.88 (2.87–2.89) | 4.74 (4.73–4.75) | 3.63 (3.63–3.64) | 3.82 (3.81–3.83) |
+| mixture, router and backbone finetuned | 2.34 (2.29–2.38) | **2.05** (2.05–2.07) | 4.47 (4.42–4.52) | 2.96 (2.95–2.97) | 3.26 (3.25–3.26) |
+| mixture (TIES backbone), router and backbone finetuned | 2.41 (2.32–2.46) | 2.06 (2.05–2.07) | 4.43 (4.40–4.48) | 2.97 (2.95–2.97) | 3.32 (3.31–3.33) |
+
+Each family's simple baselines on test, fitted on its training scan:
+
+| | Unigram | Markov-1 |
+|---|---:|---:|
+| Voyager | 3.98 | 3.02 |
+| Off-source | 2.10 | 2.60 |
+| Rosetta | 4.28 | 4.40 |
+
+**Routing** (seed 42): the share of each family's test tokens whose first choice is its own
+expert, in blocks 1 and 2.
+
+| | Voyager | Off-source | Rosetta |
+|---|---:|---:|---:|
+| router finetuned | 0.72, 0.65 | 1.00, 0.99 | 0.71, 0.71 |
+| router and backbone finetuned | 0.49, 0.44 | 0.99, 0.99 | 0.85, 0.75 |
+
+In the second case, Voyager's tokens go about equally to the Voyager and Rosetta experts.
+
+Over the three seeds, averaged over the two blocks:
+
+- off-source goes to its own expert 0.99–1.00 of the time in the mixtures with an averaged
+  backbone, and 0.83–0.98 with TIES;
+- Voyager and Rosetta go to theirs 0.47–0.80 of the time.
+
+**Training lengths:**
+
+- the router alone was still improving at its 50-epoch limit, in every seed;
+- with the backbone, the best epochs were 18–27;
+- the dense model's were 28–31.
+
+### What this shows
+
+- **The mixture doesn't beat one dense model trained on all the families.** Its best
+  version, with the router and backbone finetuned, scores 2.96 bits per token on average,
+  against 2.88. On validation it's 3.26 against 3.16.
+  - It is 2.2 times the parameters, 1.6 times those used per token.
+  - Per family, it matches the dense model on off-source (2.05 against 2.06) and Rosetta
+    (4.47 against 4.46), and is worse on Voyager (2.34 against 2.13).
+- **The merged backbone is what costs most.**
+  - Even with every token sent to its family's own expert, the mixture scores 3.29, against
+    2.78 for the three specialists on their own families. The averaged attention and
+    embeddings serve no family well.
+  - A router finetuned alone can't fix that, though it learns the routing: off-source tokens
+    go to their expert almost every time, Voyager's and Rosetta's about 70%. It scores 3.63.
+  - Finetuning the backbone too recovers most of the loss. TIES merging the backbone instead
+    of averaging makes no difference (2.97).
+- **Specialists stay best on their own family.** Voyager's scores 2.04 there, Rosetta's
+  4.22. Each is useless on the others: 5.1 to 6.7 bits, worse than θ₀. The families are very
+  different, which is the case a mixture is meant for. Here, though, a single dense model of
+  the same size as one specialist fits all three nearly as well.
+- **Merging across families as one dense model fails:** 4.13 averaged, 4.40 by TIES, little
+  better than θ₀. That's why the feed-forward layers are kept apart.
+- **Rosetta's language isn't learned yet.** Its specialist scores 4.22 against a unigram
+  model's 4.28: from 144 training targets, it learned little beyond token frequencies.
+  - Part of the reason is the ceiling above: about one bit of each token is noise.
+  - The positive control for language-like structure isn't positive at this size. Every
+    model trained on Rosetta scores between 4.22 and 4.47, apart from the router-only mixture
+    (4.74).
+- **Off-source is pure token frequencies:** every model that has seen it scores about its
+  unigram baseline (2.05–2.10).
+
+### Limitations
+
+- **Tiny data, one session:** 144 test targets per family, three seeds. Differences of a few
+  hundredths of a bit are noise.
+- **Two of the three families have little sequential structure at this size:** off-source is
+  noise, and Rosetta's text is hidden behind tokens that are a third noise. A mixture's case
+  rests on experts that each know something the others don't. Here only Voyager's expert
+  clearly does.
+- **One configuration, untuned:**
+  - **Routing:** top-2 over three experts. With three experts that leaves only one out per
+    token.
+  - **Finetuning:** the router alone was stopped by the epoch limit, not by validation.
+  - **Expert finetuning:** none; the experts stay frozen throughout.
+  - **Router initialization:** a single router seed.
+- **The dense comparison has fewer parameters.** A dense model with as many parameters as the
+  mixture isn't measured.
+
+Environment: Python 3.13.17, NumPy 2.5.4, PyTorch 2.14.1, CPU. The benchmark is deterministic:
+rerunning it reproduces every number.
+
 ## Next
 
-- **Milestone 3:** the mixture-of-experts upcycling across families.
 - **Milestone 4:** the browser's anchor and summary cards.
 - **Milestone 5:** the full benchmark, adding the mixture of experts.
-- **Worth trying before then:**
-  - the average with the greedy soup and DiLoCo, the two parts that helped, chosen on
-    validation;
+- **Worth trying:**
+  - the average with the greedy soup and DiLoCo, the two parts of milestone 2 that helped,
+    chosen on validation;
   - a momentum restart when the gate rejects a round;
-  - a control with known temporal structure, to calibrate a test for found structure.
+  - a control with known temporal structure, to calibrate a test for found structure;
+  - for the mixture: more Rosetta text, or a tokenizer that doesn't split a symbol by its
+    noise, so a second expert has sequential structure to bring.

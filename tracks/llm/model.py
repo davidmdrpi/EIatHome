@@ -51,12 +51,16 @@ class RotaryBlock(nn.Module):
         nn.init.zeros_(self.qkv.bias)
         nn.init.zeros_(self.out.bias)
 
-    def forward(self, x, start=0):
+    def attend(self, x, start=0):
+        """The block's first half: x plus its causal attention output."""
         b, n, width = x.shape
         q, k, v = self.qkv(self.norm1(x)).view(b, n, 3, self.heads, width // self.heads).permute(2, 0, 3, 1, 4)
         attended = F.scaled_dot_product_attention(rotary(q, start), rotary(k, start), v, is_causal=True,
                                                   dropout_p=self.dropout if self.training else 0.0)
-        x = x + self.drop1(self.out(attended.transpose(1, 2).reshape(b, n, width)))
+        return x + self.drop1(self.out(attended.transpose(1, 2).reshape(b, n, width)))
+
+    def forward(self, x, start=0):
+        x = self.attend(x, start)
         return x + self.drop2(self.feed(self.norm2(x)))
 
 
