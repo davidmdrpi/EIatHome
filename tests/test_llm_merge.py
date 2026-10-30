@@ -216,8 +216,9 @@ class RoundTests(unittest.TestCase):
         reporting = merge.controls(merge.held_out(self.anchor, 'voyager', 'within_session_scan_holdout')[0], 'voyager',
                                    'within_session_scan_holdout')['reporting']
         self.assertFalse({json.dumps(r['entry']) for r in reporting} & {json.dumps(e) for e in record['control']['selection']})
-        self.assertIsNotNone(record['merged']['control_bits'])
-        self.assertEqual(record['control']['untrained_bits'], record['start']['control_bits'], 'round 1 starts from θ₀')
+        self.assertEqual(record['control']['role'], 'diagnostic')
+        for scores in (record['start'], record['merged'], *record['contributors']):
+            self.assertEqual(set(scores['control']), {'bits', 'order_gain_bits', 'order_p'})
 
     def test_the_merged_checkpoint_starts_the_next_round_and_replays(self):
         start = merge.round_start(self.anchor, Path('round1/merged.pt'))
@@ -321,18 +322,41 @@ class RoundTests(unittest.TestCase):
         self.assertLess(soup['merged']['validation_bits'], plain['merged']['validation_bits'])
         self.assertEqual(soup['merged']['soup_validation_bits'], soup['merged']['validation_bits'])
 
-    def test_a_delta_that_finds_structure_in_the_off_source_control_is_refused(self):
-        # A Voyager worker carrying an off-source worker's delta too: it predicts the off-source
-        # selection control better than the untrained anchor, so it's refused even with a loose
-        # validation tolerance; with no control tolerance to speak of, it would pass.
+    def test_the_control_is_a_diagnostic_and_a_context_free_model_gains_nothing_from_order(self):
+        records, _ = merge.held_out(self.anchor, 'voyager', 'within_session_scan_holdout')
+        selection = [self.anchor.tokenizer.encode(r['frames'])
+                     for r in merge.controls(records, 'voyager', 'within_session_scan_holdout')['selection']]
+        # A context-free predictor of the control's own token frequencies: every weight zero but
+        # the final norm's bias, which the head maps to the log frequencies, whatever the input.
+        counts = np.bincount(np.concatenate([t[1:] for t in selection]), minlength=16)
+        state = {k: torch.zeros_like(v) for k, v in self.anchor.theta0.items()}
+        state['norm.bias'][0] = 1.0
+        state['head.weight'][:, 0] = torch.from_numpy(np.log((counts + 1) / (counts.sum() + 16))).float()
+        diagnostic = merge.order_gain(merge.model_from(self.anchor, state), selection)
+        theta0 = merge.order_gain(self.anchor.model(), selection)
+        self.assertLess(diagnostic['bits'], theta0['bits'] - 1, 'far better calibrated on the control than θ₀')
+        self.assertAlmostEqual(diagnostic['order_gain_bits'], 0.0, places=5)  # the same targets in every order
+
+        # As a worker (a loose validation tolerance, since it predicts Voyager badly), it isn't
+        # refused for the control: its likelihood there is recorded, not gated on.
+        calibrated = edited(self.workers[0], 'calibrated.pt', lambda c: c.update(model=state))
+        record, merged = merge.merge_round(self.anchor, [calibrated], rule={'tolerance_bits': 5.0})
+        entry = record['contributors'][0]
+        self.assertEqual(entry['status'], 'accepted')
+        self.assertAlmostEqual(entry['control']['bits'], diagnostic['bits'], places=9)
+        self.assertLess(entry['control']['bits'], record['start']['control']['bits'] - 1)
+
+    def test_a_rebuilt_delta_is_held_to_the_bound(self):
+        # Every head weight moved by 9: within the bound of 10, but DARE's rescaling by 1/(1 − p)
+        # rebuilds the kept ones near 90.
         theta0 = self.anchor.theta0
-        off = difference(torch.load(self.offsource, map_location='cpu', weights_only=True)['model'], theta0)
-        mixed = edited(self.workers[0], 'mixed.pt', lambda c: c.update(model=merge.add(c['model'], off)))
-        record, merged = merge.merge_round(self.anchor, [mixed], rule={'tolerance_bits': 5.0})
-        self.assertRegex(record['contributors'][0]['reason'], 'offsource selection control.*finds structure there')
-        self.assertIsNone(merged)
-        record, merged = merge.merge_round(self.anchor, [mixed], rule={'tolerance_bits': 5.0, 'control_tolerance_bits': 5.0})
-        self.assertEqual(record['contributors'][0]['status'], 'accepted')
+        nine = {k: (torch.full_like(v, 9.0) if k == 'head.weight' else torch.zeros_like(v)).double() for k, v in theta0.items()}
+        moved = edited(self.workers[0], 'nine.pt', lambda c: c.update(model=merge.add(theta0, nine)))
+        record, _ = merge.merge_round(self.anchor, [moved], rule={'dare': {'method': 'random', 'p': 0.9}})
+        self.assertLessEqual(record['contributors'][0]['payload']['bytes'], merge.CARD_BUDGET_BYTES)
+        self.assertRegex(record['contributors'][0]['reason'], r'its rebuilt delta reaches (89|90|91)\.?\d*, beyond the bound of 10')
+        record, _ = merge.merge_round(self.anchor, [moved])
+        self.assertNotRegex(record['contributors'][0]['reason'] or '', 'bound')
 
     def test_a_compressed_ties_round_fits_the_card_budget_and_replays(self):
         rule = {'merge': 'ties', 'dare': {'method': 'random', 'p': 0.9}, 'soup': 'greedy'}
@@ -418,6 +442,8 @@ class BenchmarkTests(unittest.TestCase):
         seed = report['seeds']['42']
         for name in merge_bench.CHAINS:
             self.assertEqual(len(seed['rounds'][name]['history']), 2)
+        self.assertEqual(set(report['selection_control']), {'theta0', 'round models', 'full-data workers', 'off-source workers'})
+        self.assertGreater(report['selection_control']['round models']['n'], 0)
         payloads = seed['one_shot']['DARE-TIES']['payload_bytes']
         self.assertEqual(len(payloads), 3)
         self.assertLessEqual(max(payloads), merge.CARD_BUDGET_BYTES)

@@ -172,16 +172,19 @@ python -m tracks.llm.merge round --merge ties --dare-p 0.9 --soup greedy \
     θ + τ̄.
 - **Weights:** each merged shard's training targets, shared equally by the workers on that
   shard (several seeds of one shard count its slices once).
-- **The gate:**
-  - each worker, and the merge after the outer step, must score within 0.02 bits per token of
-    the incumbent on validation;
-  - neither may score more than 0.02 bits better than the untrained anchor θ₀ on the selection
-    control, the other family's validation scan. A Voyager model that predicts off-source
-    noise better than a model that knows nothing has learned something that isn't Voyager.
-    The reference is θ₀, not the incumbent: training on Voyager makes the noise less
-    predictable, and a worker from an over-specialized incumbent can legitimately move back.
-  - The other family's test scan is the reporting control, used only by `score`. A round
-    never reads the test split or the reporting control.
+- **The gate:** each worker, and the merge after the outer step, must score within 0.02 bits
+  per token of the incumbent on validation. A round never reads the test split or the
+  reporting control.
+- **The selection control** (the other family's validation scan) is recorded for the
+  incumbent, each worker and the merge, as a diagnostic, not a veto: its bits, and how much the
+  model gains from the real order of its tokens over 19 shuffled orders, with a permutation
+  p-value. Its likelihood alone can't show that a model found structure there: matching token
+  frequencies or calibration lowers it too. On the published off-source scans, neither number
+  separates a model trained on them from a Voyager model, so neither is a veto (see
+  [MERGE_RESULTS.md](MERGE_RESULTS.md)). The other family's test scan is the reporting control,
+  used only by `score`.
+- **DARE's rebuilt delta** is held to the same finite and size bounds as the worker's own,
+  since rescaling by 1/(1 − p) multiplies the kept entries.
 - **The record:** `round.json` names every contributor by file hash, with its fate and why. It
   also holds each soup trial, the weights, the whole rule, and the digests of the merged
   weights and momentum. `replay` recomputes the round from the same files and refuses any

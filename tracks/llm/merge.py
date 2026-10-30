@@ -27,13 +27,13 @@ The rule (all optional; the default is the plain baseline, an average by trainin
   Nesterov step, whose momentum carries from round to round in the merged checkpoint.
 
 The gate: each worker and the merge must score within a tolerance of the incumbent on
-validation. They also mustn't predict the other family's held-out validation scan (the
-selection control) better than the untrained anchor θ₀ does, by more than a tolerance: a
-Voyager model that predicts off-source noise better than a model that knows nothing has
-learned something that isn't Voyager. (Not better than the incumbent: training on Voyager
-makes noise less predictable, and a worker from an over-specialized incumbent can
-legitimately move back.) The other family's test scan is the reporting control, scored only
-afterwards, like the test split. A round never reads either.
+validation. The other family's held-out validation scan (the selection control) is recorded
+for each, as a diagnostic, not a veto: its bits, and how much the model gains from the real
+order of its tokens over shuffled orders. Its likelihood alone can't show a model found
+structure there: matching token frequencies or calibration moves it too. On the published
+off-source scans, neither number separates a model trained on them from a Voyager model
+(MERGE_RESULTS.md). The other family's test scan is the reporting control, scored only
+afterwards, like the test split. A round never reads it or the test split.
 Its record names every contributor (by file hash), what became of it and why, the rule, and
 the merged weights' digest, so anyone holding the same files can replay it.
 """
@@ -45,6 +45,7 @@ import hashlib
 import json
 import math
 from pathlib import Path
+import statistics
 from typing import NamedTuple
 
 import numpy as np
@@ -58,6 +59,7 @@ from .runtime import atomic_output, require_new_output, training_runtime
 TOLERANCE_BITS = 0.02  # how much worse than the incumbent on validation a worker or merge may be
 MAX_ABS_DELTA = 10.0  # a sanity bound on any one parameter's change: θ₀'s weights are of order 1
 CARD_BUDGET_BYTES = 16 * 1024  # a result card's limit (MAX_CARD_BYTES in web/js/community.js)
+ORDER_SHUFFLES = 19  # shuffled copies of the selection control its real order is compared with
 
 # The plain baseline. A round records the whole rule it used, so it can be replayed.
 RULE = {
@@ -67,7 +69,6 @@ RULE = {
     "soup": "all",  # or "greedy"
     "outer": {"lr": 1.0, "momentum": 0.0},  # lr 1 with no momentum is θ + τ̄, plain merging
     "tolerance_bits": TOLERANCE_BITS,
-    "control_tolerance_bits": TOLERANCE_BITS,
     "max_abs_delta": MAX_ABS_DELTA,
 }
 
@@ -92,9 +93,8 @@ def check_rule(rule=None):
     if not (isinstance(outer, dict) and set(outer) == {"lr", "momentum"} and finite(outer["lr"]) and outer["lr"] > 0
             and finite(outer["momentum"]) and outer["momentum"] < 1):
         raise ValueError("The outer step takes a positive lr and a momentum in [0, 1)")
-    if not (finite(out["tolerance_bits"]) and finite(out["control_tolerance_bits"]) and finite(out["max_abs_delta"])
-            and out["max_abs_delta"] > 0):
-        raise ValueError("The tolerances must be ≥ 0 and the bound positive")
+    if not (finite(out["tolerance_bits"]) and finite(out["max_abs_delta"]) and out["max_abs_delta"] > 0):
+        raise ValueError("The tolerance must be ≥ 0 and the bound positive")
     return out
 
 
@@ -255,12 +255,32 @@ def worker_problem(checkpoint, start, max_abs_delta, tau, shard, slices):
     targets = sum(len(r["frames"]) - 1 for r in slices)
     if merge.get("training_targets") != targets:
         return f"it records {merge.get('training_targets')!r} training targets, but shard {shard[0]}/{shard[1]} has {targets}"
+    return delta_problem(tau, max_abs_delta)
+
+
+def delta_problem(tau, max_abs_delta, what="its delta"):
+    """Why a delta can't reach the model, or None: it isn't finite, or an entry is out of bound."""
     if not all(torch.isfinite(v).all() for v in tau.values()):
-        return "its delta isn't finite"
+        return f"{what} isn't finite"
     largest = max(v.abs().max().item() for v in tau.values())
     if largest > max_abs_delta:
-        return f"its delta reaches {largest:.3g}, beyond the bound of {max_abs_delta:g}"
+        return f"{what} reaches {largest:.3g}, beyond the bound of {max_abs_delta:g}"
     return None
+
+
+def order_gain(model, sequences, shuffles=ORDER_SHUFFLES):
+    """A diagnostic of what a model gets from the order of a control's tokens: its bits on the
+    real order, how many fewer than on average over `shuffles` copies whose targets (every token
+    but each slice's first) are shuffled within the slice, and a permutation p-value. A model
+    that ignores context scores the same on every copy, since the targets are the same tokens.
+    For tokens with no temporal structure, the real order is one of shuffles + 1 exchangeable
+    orders, so the share of them scoring at least as well as it is uniformly distributed."""
+    real = evaluate(model, sequences)["bits_per_token"]
+    rng = np.random.default_rng(0)
+    copies = [evaluate(model, [np.concatenate([s[:1], rng.permutation(s[1:])]) for s in sequences])["bits_per_token"]
+              for _ in range(shuffles)]
+    return {"bits": real, "order_gain_bits": statistics.fmean(copies) - real,
+            "order_p": (1 + sum(c <= real for c in copies)) / (shuffles + 1)}
 
 
 def model_from(anchor, state):
@@ -475,23 +495,16 @@ def merge_round(anchor, workers, start=None, rule=None, manifest=None):
     control = controls(records, chain["family"], chain["evaluation"])
     selection = encode(control["selection"]) if control else None
     bits = lambda state, tokens: evaluate(model_from(anchor, state), tokens)["bits_per_token"]
-    incumbent = {"validation_bits": bits(start_.state, validation)}
-    if control:
-        incumbent["control_bits"] = bits(start_.state, selection)
-        untrained = bits(anchor.theta0, selection)  # what a model that has learned nothing scores
+    # The selection control is recorded for the incumbent, each worker and the merge, not gated on.
+    diagnose = lambda state: order_gain(model_from(anchor, state), selection) if control else None
+    incumbent = {"validation_bits": bits(start_.state, validation), "control": diagnose(start_.state)}
 
     def gate(state):
         """A candidate's scores, and why it fails the gate (or None)."""
-        scores = {"validation_bits": bits(state, validation)}
-        if control:
-            scores["control_bits"] = bits(state, selection)
+        scores = {"validation_bits": bits(state, validation), "control": diagnose(state)}
         if scores["validation_bits"] > incumbent["validation_bits"] + rule["tolerance_bits"]:
             return scores, (f"it scores {scores['validation_bits']:.4f} bits on validation, worse than the incumbent's "
                             f"{incumbent['validation_bits']:.4f} by more than {rule['tolerance_bits']:g}")
-        if control and scores["control_bits"] < untrained - rule["control_tolerance_bits"]:
-            return scores, (f"it scores {scores['control_bits']:.4f} bits on the {control['family']} selection control, better "
-                            f"than the untrained anchor's {untrained:.4f} by more than {rule['control_tolerance_bits']:g}: "
-                            "it finds structure there")
         return scores, None
 
     contributors, accepted, seen = [], [], set()
@@ -499,7 +512,7 @@ def merge_round(anchor, workers, start=None, rule=None, manifest=None):
         merge = c["merge"]
         entry = {"file": path, "file_sha256": file_digest(path), "shard": list(shard), "seed": merge.get("seed"),
                  "training_targets": sum(len(r["frames"]) - 1 for r in assigned[shard[0]]), "validation_bits": None,
-                 "control_bits": None, "weight": 0.0}
+                 "control": None, "weight": 0.0}
         key = (shard, merge.get("seed"))
         tau = difference(c["model"], start_.state)
         problem = worker_problem(c, start_, rule["max_abs_delta"], tau, shard, assigned[shard[0]])
@@ -513,7 +526,9 @@ def merge_round(anchor, workers, start=None, rule=None, manifest=None):
             if len(text) > CARD_BUDGET_BYTES:
                 problem = f"its compressed delta takes {len(text):,} bytes, over the {CARD_BUDGET_BYTES:,}-byte budget"
             else:
+                # What reaches the model is the rebuilt delta, rescaled by 1/(1 − p): bound that too.
                 tau = decode_delta(anchor, text, start_.weights_sha256)
+                problem = delta_problem(tau, rule["max_abs_delta"], "its rebuilt delta")
         if problem is None:
             seen.add(key)
             scores, problem = gate(add(start_.state, tau))
@@ -528,7 +543,7 @@ def merge_round(anchor, workers, start=None, rule=None, manifest=None):
         "round": start_.round + 1, "family": chain["family"], "evaluation": chain["evaluation"],
         "dataset_sha256": chain["dataset_sha256"], "shards": counts[0],
         "control": None if control is None else {"family": control["family"], "selection": [r["entry"] for r in control["selection"]],
-                                                 "untrained_bits": untrained},
+                                                 "shuffles": ORDER_SHUFFLES, "role": "diagnostic"},
         "start": {"checkpoint": "theta0" if start is None else str(start), "round": start_.round,
                   "weights_sha256": start_.weights_sha256, **incumbent},
         "rule": rule,
@@ -658,8 +673,6 @@ def main(argv=None):
     r.add_argument("--outer-lr", type=float, default=1.0)
     r.add_argument("--outer-momentum", type=float, default=0.0)
     r.add_argument("--tolerance", type=float, default=TOLERANCE_BITS, help="bits/token a worker or merge may lose on validation")
-    r.add_argument("--control-tolerance", type=float, default=TOLERANCE_BITS,
-                   help="bits/token a worker or merge may gain on the selection control")
     r.add_argument("--max-abs-delta", type=float, default=MAX_ABS_DELTA)
     sub.add_parser("replay", help="recompute a round from its record").add_argument("record", type=Path)
     sub.add_parser("score", help="test and control bits, for reporting only").add_argument("checkpoint", type=Path)
@@ -669,8 +682,7 @@ def main(argv=None):
             rule = {"merge": args.merge, "ties_keep": 1.0 if args.ties_keep is None else args.ties_keep,
                     "dare": None if args.dare_p is None else {"method": args.dare_method, "p": args.dare_p},
                     "soup": args.soup, "outer": {"lr": args.outer_lr, "momentum": args.outer_momentum},
-                    "tolerance_bits": args.tolerance, "control_tolerance_bits": args.control_tolerance,
-                    "max_abs_delta": args.max_abs_delta}
+                    "tolerance_bits": args.tolerance, "max_abs_delta": args.max_abs_delta}
             print(summary(run_round(args.output, args.workers, args.start, rule, args.anchor)))
         elif args.command == "replay":
             record = replay(args.record)

@@ -19,10 +19,16 @@ all three slices' 144 make 5, so 20 epochs instead of 50).
 The rules (milestone 2's second part, fixed before its first run): DARE drops p = 0.9 at random
 (the issue's card estimate) and sends int8 values; TIES keeps the top 20% by magnitude (the TIES
 paper's default); DiLoCo's outer step uses lr 0.7 and Nesterov momentum 0.9 (the DiLoCo paper's).
-Every gate uses a tolerance of 0.02 bits on validation and on the off-source selection control.
+Every gate uses a tolerance of 0.02 bits on validation. (Until the review of the first run, the
+gate also vetoed a worker that scored better than θ₀ on the off-source selection control; it's
+now recorded as a diagnostic.)
 
-Workers and merges are chosen on validation (and the selection control) only. Test and the
-reporting control, the off-source test scan, are scored afterwards, for reporting.
+Workers and merges are chosen on validation only. Test and the reporting control, the
+off-source test scan, are scored afterwards, for reporting.
+
+The selection control's diagnostic, how much a model gains from the real order of the off-source
+validation scan over shuffled orders, is recorded for every model, and for a positive control
+added with it: one worker per seed trained 50 epochs on the off-source family itself.
 
     python -m tracks.llm.merge_bench --output runs/merge-bench
 """
@@ -36,7 +42,7 @@ from pathlib import Path
 import statistics
 
 from .anchor import ROOT, load_anchor
-from .merge import controls, held_out, run_round, score, shard_records
+from .merge import controls, held_out, load_checkpoint, model_from, order_gain, run_round, score, shard_records
 from .model import evaluate
 from .runtime import require_new_output, training_runtime
 from .train import parser, run
@@ -74,8 +80,8 @@ def step_matched_epochs(epochs):
     return round(epochs * batches_per_epoch(shard) / batches_per_epoch(partitions["train"]))
 
 
-def train(output, seed, epochs, shard=None, start=None):
-    argv = ["--anchor", "v1", "--manifest", str(MANIFEST), "--allow-within-session", "--variants", "real",
+def train(output, seed, epochs, shard=None, start=None, family="voyager"):
+    argv = ["--anchor", "v1", "--manifest", str(MANIFEST), "--allow-within-session", "--variants", "real", "--family", family,
             "--train-stride", "1", "--epochs", str(epochs), "--seed", str(seed), "--output", str(output)]
     if shard:
         argv += ["--shard", f"{shard}/{SHARDS}"]
@@ -92,12 +98,22 @@ def merge(output, workers, rule, start=None):
 
 
 def outcome(record):
-    """What a round did with its workers: the shards it merged, set aside and rejected."""
+    """What a round did with its workers: the shards it merged, set aside and rejected, and the
+    selection control's diagnostics for every model it scored."""
     by = lambda status: [c["shard"][0] for c in record["contributors"] if c["status"] == status]
     payloads = [c["payload"]["bytes"] for c in record["contributors"] if "payload" in c]
+    scored = [record["start"], *record["contributors"], record["merged"]]
     return {"decision": record["merged"]["decision"], "validation_bits": record["merged"].get("validation_bits"),
             "merged": by("accepted"), "set_aside": by("set aside"), "rejected": by("rejected"),
-            **({"payload_bytes": payloads} if payloads else {})}
+            "selection_order": [m["control"] for m in scored if m.get("control")], **({"payload_bytes": payloads} if payloads else {})}
+
+
+def selection_order(path):
+    """The selection control's diagnostic (the off-source validation scan) for a checkpoint."""
+    anchor = load_anchor("v1")
+    records, _ = held_out(anchor, "voyager", "within_session_scan_holdout")
+    tokens = [anchor.tokenizer.encode(r["frames"]) for r in controls(records, "voyager", "within_session_scan_holdout")["selection"]]
+    return order_gain(model_from(anchor, load_checkpoint(path, anchor)["model"]), tokens)
 
 
 def theta0_scores():
@@ -108,7 +124,8 @@ def theta0_scores():
     control = controls(records, "voyager", "within_session_scan_holdout")
     return {"validation": evaluate(model, encode(partitions["validation"]))["bits_per_token"],
             "test": evaluate(model, encode(partitions["test"]))["bits_per_token"],
-            "control": {"family": control["family"], "bits_per_token": evaluate(model, encode(control["reporting"]))["bits_per_token"]}}
+            "control": {"family": control["family"], "bits_per_token": evaluate(model, encode(control["reporting"]))["bits_per_token"]},
+            "selection_order": order_gain(model, encode(control["selection"]))}
 
 
 def one_seed(folder, seed, epochs, rounds):
@@ -121,8 +138,11 @@ def one_seed(folder, seed, epochs, rounds):
     for i, (name, rule) in enumerate(ONE_SHOT.items()):
         record, merged = merge(folder / f"one-shot{i}", shards, rule)
         out["one_shot"][name] = {**outcome(record), **(score(merged) if merged else {})}
-    out["full_data"] = score(train(folder / "full", seed, epochs))
+    full = train(folder / "full", seed, epochs)
+    out["full_data"] = {**score(full), "selection_order": selection_order(full)}
     out["full_data_step_matched"] = score(train(folder / "full-steps", seed, step_matched_epochs(epochs)))
+    # The positive control for the selection diagnostic: a worker trained on the off-source family.
+    out["offsource_worker"] = {"selection_order": selection_order(train(folder / "offsource", seed, epochs, family="offsource"))}
 
     out["rounds"] = {}
     for i, (name, rule) in enumerate(CHAINS.items()):
@@ -155,6 +175,20 @@ def summarize(results):
     return rows
 
 
+def selection_summary(results):
+    """The selection control's diagnostics: over every model a round scored (incumbents, workers
+    and merges), the full-data workers, and the off-source positive control."""
+    seeds = list(results["seeds"].values())
+    rounds = [d for s in seeds for o in [*s["one_shot"].values(), *(h for c in s["rounds"].values() for h in c["history"])]
+              for d in o["selection_order"]]
+    span = lambda ds, key: [min(d[key] for d in ds), max(d[key] for d in ds)]
+    groups = {"round models": rounds, "full-data workers": [s["full_data"]["selection_order"] for s in seeds],
+              "off-source workers": [s["offsource_worker"]["selection_order"] for s in seeds]}
+    return {"theta0": results["theta0"]["selection_order"],
+            **{name: {"n": len(ds), "bits": span(ds, "bits"), "order_gain_bits": span(ds, "order_gain_bits"),
+                      "order_p": span(ds, "order_p")} for name, ds in groups.items()}}
+
+
 def table(results):
     fmt = lambda s: "–" if s is None else f"{s['mean']:.2f} ({s['min']:.2f}–{s['max']:.2f})"
     t0 = results["theta0"]
@@ -185,8 +219,10 @@ def main(argv=None):
         results["seeds"][str(seed)] = one_seed(args.output / f"seed{seed}", seed, args.epochs, args.rounds)
         print(f"seed {seed} done", flush=True)
     results["summary"] = summarize(results)
+    results["selection_control"] = selection_summary(results)
     (args.output / "report.json").write_text(json.dumps(results, indent=2, allow_nan=False) + "\n")
     print(table(results))
+    print(json.dumps(results["selection_control"], indent=1))
 
 
 if __name__ == "__main__":

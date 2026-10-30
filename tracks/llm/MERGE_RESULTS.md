@@ -37,16 +37,18 @@ Fixed before the first run ([`merge_bench.py`](merge_bench.py)):
   carrier, sideband 2. That makes the shards non-IID by construction: each worker sees one
   signal.
 - **Controls:** the off-source family is split by scan like Voyager.
-  - Its validation scan is the **selection control**, which the gate may read.
+  - Its validation scan is the **selection control**. A round records it for every model it
+    scores, as a diagnostic: the bits, and how much the model gains from the real order of
+    the scan's tokens over 19 shuffled orders, with a permutation p-value. Nothing is chosen
+    by it.
   - Its test scan is the **reporting control**: the table's last column, scored afterwards,
     like the test split.
-  - The codebook was fitted on its training scan, which no model trains on.
+  - The codebook was fitted on its training scan, which no Voyager model trains on.
 - **The gate** ([`merge.py`](merge.py)):
-  - every change must be finite and under 10 in size;
+  - every change must be finite and under 10 in size, and so must a DARE delta as rebuilt,
+    after its rescaling;
   - each worker, and then the merge, has to score within 0.02 bits per token of the incumbent
-    on validation;
-  - neither may score more than 0.02 bits better than the untrained θ₀ on the selection
-    control.
+    on validation.
 
   A round never reads the test split or the reporting control.
 - **Compared, per seed:**
@@ -82,7 +84,7 @@ The rules:
   greedy soup and DiLoCo, the full method the issue describes.
 
 ```bash
-python -m tracks.llm.merge_bench --output runs/merge-bench   # about 3 minutes on a CPU
+python -m tracks.llm.merge_bench --output runs/merge-bench   # about 5 minutes on a CPU
 ```
 
 ### Results
@@ -104,7 +106,7 @@ Bits per token, mean over the three seeds (range in brackets). Uniform over 16 t
 | one worker on all the data, a shard worker's steps | 3 | 2.84 (2.83–2.84) | 1.60 (1.59–1.60) | 4.65 (4.65–4.66) |
 | 10 rounds: average (FedAvg) | 3 | 3.00 (3.00–3.00) | 2.42 (2.42–2.42) | 4.40 (4.39–4.40) |
 | 10 rounds: average + DiLoCo | 3 | 2.85 (2.84–2.85) | 1.83 (1.83–1.83) | 5.00 (4.99–5.02) |
-| 10 rounds: DARE-TIES, greedy soup + DiLoCo | 3 | 2.83 (2.79–2.86) | 2.15 (2.09–2.24) | 5.03 (4.83–5.14) |
+| 10 rounds: DARE-TIES, greedy soup + DiLoCo | 3 | 2.84 (2.83–2.86) | 2.11 (1.99–2.24) | 5.00 (4.83–5.14) |
 
 The validation scores of the greedy-soup rows are optimistic: the soup chose its members on
 those same 144 targets. Test is the fair comparison.
@@ -123,8 +125,9 @@ sideband 1 with the carrier. Under DARE-TIES, it kept all three workers in seeds
 In seed 42 it kept only the carrier: better on validation (3.35 against 3.43), worse on test
 (3.29 against 3.09).
 
-**DARE payloads:** all 117 payloads (one-shot and chains) took 7,641 to 8,370 bytes, mean
-7,976, about half the 16,384-byte card budget. Without dropping, a delta takes about 71 KB.
+**DARE payloads:** all 117 payloads (one-shot and chains) took 7,641 to 8,233 bytes, mean
+7,970, about half the 16,384-byte card budget. None was rejected, by size or by the bound on
+the rebuilt delta. Without dropping, a delta takes about 71 KB.
 
 **The ten rounds**, the merge proposed each round, on validation (seed 42):
 
@@ -134,35 +137,54 @@ In seed 42 it kept only the carrier: better on validation (3.35 against 3.43), w
   accepted; flat by round 9.
 - **DARE-TIES, greedy soup + DiLoCo:** 3.50, 3.06, 2.92, 2.86, 2.86, then about 2.92 in each of
   rounds 6 to 10, all rejected by the gate.
-  - The chain stalled in every seed. The gate rejected rounds 6–10 in seed 42, 5–9 in seed 43
-    and 7–10 in seed 44.
+  - The chain stalled in every seed. The gate rejected rounds 6–10 in seeds 42 and 44, and
+    5–9 in seed 43.
   - By then the soup's merge barely improves on the incumbent: 2.864 against 2.865 in seed
     42's round 6. The momentum step overshoots it by about 0.05 bits.
   - A rejected round keeps the incumbent and its momentum, so the next round repeats the same
     overshoot.
 
-**The control check:** one worker was rejected for finding structure in the off-source
-control. It was the carrier worker in seed 44's round 2 of the DARE-TIES chain: it predicted
-the noise 0.035 bits better than θ₀.
+**The selection control, a diagnostic.** For every model a round scored (540 incumbents,
+workers and merges), and for a positive control: one worker per seed trained 50 epochs on the
+off-source family itself. Bits on the off-source validation scan, and the gain from its real
+order over 19 shuffles (p = 0.05 is the floor: the real order beat all 19):
 
-- **Changed after the second part's first run:** the check compared each worker with the
-  incumbent, not with θ₀.
-- **What the first run showed:** that version rejected 8 workers, all in the DARE-TIES
-  chain. Each scored more than 0.02 bits better on the noise than the incumbent it started
-  from.
-  - Training on Voyager makes noise less predictable, not more. A worker starting from an
-    over-specialized incumbent (5.1 bits on the noise, worse than uniform) could
-    legitimately move back.
-  - Every other number in the table came out the same in both runs; that chain's test score
-    moved from 2.17 to 2.15.
+| | Bits | Gain from order | p |
+|---|---:|---:|---:|
+| θ₀, untrained | 4.30 | 0.06 | 0.15 |
+| every model in a round | 4.26–5.34 | 0.05–0.16 | 0.05–0.30 |
+| one worker on all the data | 4.82–4.88 | 0.09 | 0.05 |
+| a worker trained on the off-source family | 2.50 | −0.003 to 0.004 | 0.45–0.50 |
 
-Every other worker and merge passed the checks. The tests check that the gate rejects the
-following:
+- **The likelihood measures frequencies, not structure.** The off-source worker predicts the
+  scan far better than any Voyager model (2.50 bits against 4.30 for θ₀) but gains nothing
+  from its order: it learned which tokens are common.
+- **The order gain doesn't single out off-source training either.** Voyager models gain a
+  little from the real order (up to 0.16 bits), and the most specialized beat every shuffle.
+  The scan may have some order that Voyager's sequence priors pick up; the off-source worker,
+  trained on it, doesn't use it.
+- **So neither number is a veto.** On this data, neither separates a model trained on the
+  noise from a Voyager model.
+- **History:** until the review of the second part, the gate vetoed on the likelihood.
+  - First, against the incumbent: that rejected 8 Voyager workers in the DARE-TIES chain, whose
+    incumbent had specialized to 5.1 bits on the noise, so workers from it legitimately moved
+    back.
+  - Then, against θ₀: that rejected one, the carrier worker in seed 44's round 2, for scoring
+    0.035 bits better than θ₀. The review pointed out that θ₀ is a random predictor, worse
+    than uniform (4 bits) on this scan. Beating it shows better calibration or shared token
+    frequencies, not that the worker found structure. The table above bears that out.
+  - With no veto, that worker is accepted. The DARE-TIES chain's test score moves from 2.15
+    to 2.11 (seed 44: 2.13 to 1.99); every other number is unchanged.
+
+No worker in this run was rejected, by any check. The tests check that the gate rejects:
 
 - poisoned, non-finite, out-of-bound and surrogate deltas;
 - relabelled and inflated shards;
-- deltas over the card budget;
-- an off-source delta grafted onto a Voyager worker.
+- deltas over the card budget, or whose rebuilt delta exceeds the bound. A delta of 9 is
+  within it; after DARE's rescaling it rebuilds near 90.
+
+They also check that a context-free predictor, calibrated to the off-source scan's token
+frequencies, gains nothing from its order and isn't rejected.
 
 ### What this shows
 
@@ -192,8 +214,8 @@ following:
   - Survivors scaled by 10 and a mean taken only over the nonzero entries make it behave more
     like a sum of the deltas than an average.
 - **The full method was worse than its simplest part.** DARE-TIES with the soup and DiLoCo
-  scores 2.15 on test, against 1.83 for averaging with DiLoCo. Its validation score is
-  slightly better (2.83 against 2.85).
+  scores 2.11 on test (1.99–2.24), against 1.83 for averaging with DiLoCo. Its validation
+  score is about the same (2.84 against 2.85).
   - Choosing soups on 144 validation targets every round seems to fit validation rather than
     the signal.
   - It also stalls: once the soup stops improving, every momentum step overshoots.
@@ -201,9 +223,9 @@ following:
     remedy. It's untested here.
 - **The off-source control:**
   - The averages and TIES stay near θ₀ on the noise (4.30–4.43 against 4.24).
-  - The DiLoCo chains and the full-data workers score 4.65–5.03, and DARE-TIES 5.02–5.09.
+  - The DiLoCo chains and the full-data workers score 4.65–5.00, and DARE-TIES 5.02–5.09.
     They've specialized further on Voyager's structure and put less probability on noise.
-  - Only the selection control is used in choosing; the reporting control isn't.
+  - Nothing is chosen by either control.
 - **The seed hardly matters; the shard does.** Test ranges across seeds are within 0.05
   bits, except for the DARE rows, whose random drop depends on the weights. Which slice a
   worker trains on changes its test score by up to 0.8 bits.
@@ -219,8 +241,12 @@ following:
   better with other settings. A sweep would choose on validation only.
 - **Not converged:** the averaging rounds were still improving, and so were the 50-epoch
   workers.
-- **The gate isn't a defense against adversaries.** The validation data and the control are
-  public, so a delta crafted to pass them could pass.
+- **No structure test.** The issue asks the gate to reject deltas that find structure in the
+  off-source control. On these scans no measure tried here separates training on the noise
+  from training on Voyager, so there's no veto. Setting a justified threshold would need a
+  control with known temporal structure, such as injected or real RFI.
+- **The gate isn't a defense against adversaries.** The validation data is public, so a delta
+  crafted to pass the gate could pass it.
 
 Environment: Python 3.13.17, NumPy 2.5.4, PyTorch 2.14.1, CPU. The benchmark is deterministic:
 rerunning it reproduces every number.
@@ -233,4 +259,5 @@ rerunning it reproduces every number.
 - **Worth trying before then:**
   - the average with the greedy soup and DiLoCo, the two parts that helped, chosen on
     validation;
-  - a momentum restart when the gate rejects a round.
+  - a momentum restart when the gate rejects a round;
+  - a control with known temporal structure, to calibrate a test for found structure.
