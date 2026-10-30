@@ -1,6 +1,6 @@
 """tracks/llm/merge.py: merge rounds of shard workers trained from a shared anchor (issue #20,
-milestone 2): shards, round records, checks on deltas, the validation gate, the weighted
-average, and replaying a round."""
+milestone 2): shards, round records, checks on deltas, the gate, the weighted average, DARE
+payloads, TIES, the greedy soup, DiLoCo's outer step, and replaying a round."""
 
 import copy
 import json
@@ -14,7 +14,7 @@ import numpy as np
 import torch
 
 from tracks.llm import merge, merge_bench
-from tracks.llm.anchor import difference, load_anchor, weights_digest
+from tracks.llm.anchor import difference, flatten, load_anchor, weights_digest
 from tracks.llm.data import load_slices, split_records
 from tracks.llm.train import parser, run
 
@@ -63,6 +63,111 @@ class ShardTests(unittest.TestCase):
                 run(parser().parse_args(base + ['--anchor', 'v1', '--variants', 'shuffled']))
 
 
+class AlgorithmTests(unittest.TestCase):
+    """DARE, the payload, TIES, the greedy soup and the outer step, on synthetic deltas."""
+
+    @classmethod
+    def setUpClass(cls):
+        cls.anchor = load_anchor('v1')
+        cls.base = cls.anchor.spec['theta0_sha256']
+        # A delta the anchor's size and shape, of the order a worker's is.
+        cls.tau = merge.unflatten(cls.anchor, np.random.default_rng(0).normal(0, 0.02, 26_496))
+
+    def test_dare_random_drop_is_unbiased(self):
+        flat = np.random.default_rng(1).normal(0, 1, 2000)
+        rebuilt = np.zeros((400, flat.size))
+        for seed in range(400):
+            kept, values = merge.dare(flat, 0.9, 'random', seed)
+            np.testing.assert_allclose(values, flat[kept] * 10)  # survivors rescaled by 1/(1 − p)
+            rebuilt[seed, kept] = values
+        self.assertAlmostEqual(np.mean([len(np.flatnonzero(r)) for r in rebuilt]) / flat.size, 0.1, delta=0.005)
+        # E[τ̃] = τ: the mean over 400 draws is within a few standard errors of every entry.
+        error = (rebuilt.mean(axis=0) - flat) / (np.abs(flat) * 3 / np.sqrt(400) + 1e-12)
+        self.assertLess(np.abs(error).max(), 5)
+        self.assertLess(abs(rebuilt.mean(axis=0).sum() - flat.sum()), 0.05 * np.abs(flat).sum())
+
+    def test_dare_by_magnitude_keeps_the_largest_unscaled(self):
+        kept, values = merge.dare(np.array([0.1, -3.0, 0.5, 2.0, -0.2]), 0.6, 'magnitude', 0)
+        self.assertEqual(kept.tolist(), [1, 3])
+        self.assertEqual(values.tolist(), [-3.0, 2.0])
+
+    def test_the_payload_round_trips_within_int8_rounding_and_fits_a_card(self):
+        text = merge.encode_delta(self.anchor, self.tau, self.base, 0.9, 'random', 7)
+        self.assertLessEqual(len(text.encode()), merge.CARD_BUDGET_BYTES)
+        rebuilt = flatten(merge.decode_delta(self.anchor, text, self.base))
+        kept, values = merge.dare(flatten(self.tau), 0.9, 'random', 7)
+        dropped = np.setdiff1d(np.arange(rebuilt.size), kept)
+        self.assertFalse(rebuilt[dropped].any(), 'dropped entries rebuild as zero')
+        scales = np.array(json.loads(text)['scales'])
+        tensor, _ = merge.tensor_of(self.anchor, kept)
+        self.assertTrue((np.abs(rebuilt[kept] - values) <= scales[tensor] / 2 + 1e-12).all(), 'int8 rounds to half a step')
+        # Without dropping, the same delta is far over a card.
+        self.assertGreater(len(merge.encode_delta(self.anchor, self.tau, self.base, 0.0, 'random', 7)), merge.CARD_BUDGET_BYTES)
+
+    def test_a_payload_for_another_start_or_malformed_is_refused(self):
+        text = merge.encode_delta(self.anchor, self.tau, self.base, 0.9, 'random', 7)
+        with self.assertRaisesRegex(ValueError, 'another anchor or start'):
+            merge.decode_delta(self.anchor, text, '0' * 64)
+        payload = json.loads(text)
+        for change in (lambda p: p.update(kept=p['kept'] + 1), lambda p: p.update(scales=p['scales'][:-1]),
+                       lambda p: p.update(values=p['values'][:-8]), lambda p: p.update(scales=[0.1] * len(p['scales']))):
+            bad = copy.deepcopy(payload)
+            change(bad)
+            with self.assertRaisesRegex(ValueError, 'malformed'):
+                merge.decode_delta(self.anchor, json.dumps(bad), self.base)
+
+    def test_ties_elects_signs_and_averages_only_nonzero_agreeing_entries(self):
+        a = np.array([1.0, -2.0, 0.1, 3.0, 2.0, 0.0])
+        b = np.array([-1.0, 1.0, 0.2, 3.0, 0.0, 4.0])
+        # Opposing signs that cancel elect nothing; a minority sign is dropped, not averaged in;
+        # a zero entry doesn't halve the other delta's value there.
+        np.testing.assert_allclose(merge.ties([a, b], [0.5, 0.5], 1.0), [0.0, -2.0, 0.15, 3.0, 2.0, 4.0])
+        np.testing.assert_allclose(sum(0.5 * v for v in (a, b)), [0.0, -0.5, 0.15, 3.0, 1.0, 2.0])
+        # Trimming keeps each delta's largest half by magnitude; weights tip the election.
+        np.testing.assert_allclose(merge.trim(a, 0.5), [0.0, -2.0, 0.0, 3.0, 2.0, 0.0])
+        np.testing.assert_allclose(merge.ties([a, b], [0.75, 0.25], 1.0), [1.0, -2.0, 0.125, 3.0, 2.0, 4.0])
+
+    def test_the_greedy_soup_tries_best_first_and_keeps_only_improvements(self):
+        # Candidates by their own validation bits; a merge's score is looked up by its members.
+        own = {'strong': 3.0, 'good': 3.1, 'near zero': 3.99, 'helps late': 3.5}
+        merges = {('strong',): 3.0, ('good', 'strong'): 2.9, ('good', 'near zero', 'strong'): 3.2,
+                  ('good', 'helps late', 'strong'): 2.8, ('good', 'helps late', 'near zero', 'strong'): 2.85}
+        ranked = sorted(own, key=own.get)
+        soup, best, trials = merge.greedy_soup(ranked, lambda members: merges[tuple(sorted(members))])
+        self.assertEqual([t[0] for t in trials], ['strong', 'good', 'helps late', 'near zero'], 'best first')
+        self.assertEqual(soup, ['strong', 'good', 'helps late'])
+        self.assertEqual(best, 2.8)
+        self.assertEqual([t[3] for t in trials], [True, True, True, False])
+        # A worker that ties the soup doesn't join it: it has to improve validation.
+        soup, _, _ = merge.greedy_soup(['strong', 'good'], lambda members: 3.0)
+        self.assertEqual(soup, ['strong'])
+
+    def test_the_outer_step_is_plain_merging_without_momentum_and_nesterov_with_it(self):
+        state = self.anchor.theta0
+        first = merge.unflatten(self.anchor, flatten(self.tau))
+        second = merge.unflatten(self.anchor, -0.5 * flatten(self.tau))
+        weights, momentum = merge.outer_step(state, first, None, 1.0, 0.0)
+        self.assertIsNone(momentum)
+        self.assertTrue(all(torch.equal(weights[k], merge.add(state, first)[k]) for k in state))
+        # m₁ = τ₁, θ₁ = θ₀ + lr(τ₁ + μm₁); m₂ = μm₁ + τ₂, θ₂ = θ₁ + lr(τ₂ + μm₂).
+        lr, mu = 0.7, 0.9
+        one, m1 = merge.outer_step(state, first, None, lr, mu)
+        two, m2 = merge.outer_step(one, second, m1, lr, mu)
+        t1, t2 = flatten(first), flatten(second)
+        np.testing.assert_allclose(flatten(m1), t1, rtol=1e-6)
+        np.testing.assert_allclose(flatten(one), flatten(state) + lr * (t1 + mu * t1), atol=1e-6)
+        expected_m2 = mu * flatten(m1).astype(np.float64) + t2
+        np.testing.assert_allclose(flatten(m2), expected_m2, rtol=1e-6, atol=1e-9)
+        np.testing.assert_allclose(flatten(two), flatten(one) + lr * (t2 + mu * expected_m2), atol=1e-6)
+
+    def test_rules_are_checked(self):
+        self.assertEqual(merge.check_rule(), merge.RULE)
+        for bad in ({'merge': 'median'}, {'ties_keep': 0.2}, {'merge': 'ties', 'ties_keep': 0}, {'dare': {'method': 'random', 'p': 1}},
+                    {'soup': 'some'}, {'outer': {'lr': 0, 'momentum': 0}}, {'outer': {'lr': 1, 'momentum': 1}}, {'speed': 1}):
+            with self.assertRaises(ValueError, msg=bad):
+                merge.check_rule(bad)
+
+
 class RoundTests(unittest.TestCase):
     """Round 1 from θ₀ with three shard workers, and round 2 from its merge."""
 
@@ -74,9 +179,10 @@ class RoundTests(unittest.TestCase):
         cls.cwd = os.getcwd()
         os.chdir(cls.folder)  # records keep the paths they were given; replay from the same folder
         cls.workers = [worker(Path('.'), f'w{i}', shard=f'{i}/3') for i in (1, 2, 3)]
-        cls.record, cls.state = merge.merge_round(cls.anchor, cls.workers)
-        merge.run_round(type('Args', (), dict(output=Path('round1'), anchor='v1', workers=cls.workers, start=None,
-                                              tolerance=merge.TOLERANCE_BITS, max_abs_delta=merge.MAX_ABS_DELTA))())
+        cls.record, merged = merge.merge_round(cls.anchor, cls.workers)
+        cls.state = merged.state
+        merge.run_round(Path('round1'), cls.workers)
+        cls.offsource = worker(Path('.'), 'offsource-r1', shard='1/3', family='offsource')
 
     @classmethod
     def tearDownClass(cls):
@@ -103,6 +209,15 @@ class RoundTests(unittest.TestCase):
         self.assertEqual(record['merged']['weights_sha256'], weights_digest(self.state))
         self.assertLessEqual(record['merged']['validation_bits'], record['start']['validation_bits'] + merge.TOLERANCE_BITS)
         self.assertNotIn('test', json.dumps(record['merged']), 'a round never scores the test split')
+        # The selection control is the off-source validation scan; the reporting one (its test
+        # scan) is never read by a round.
+        self.assertEqual(record['control']['family'], 'offsource')
+        self.assertTrue(all(e['family'] == 'offsource' for e in record['control']['selection']))
+        reporting = merge.controls(merge.held_out(self.anchor, 'voyager', 'within_session_scan_holdout')[0], 'voyager',
+                                   'within_session_scan_holdout')['reporting']
+        self.assertFalse({json.dumps(r['entry']) for r in reporting} & {json.dumps(e) for e in record['control']['selection']})
+        self.assertIsNotNone(record['merged']['control_bits'])
+        self.assertEqual(record['control']['untrained_bits'], record['start']['control_bits'], 'round 1 starts from θ₀')
 
     def test_the_merged_checkpoint_starts_the_next_round_and_replays(self):
         start = merge.round_start(self.anchor, Path('round1/merged.pt'))
@@ -119,6 +234,7 @@ class RoundTests(unittest.TestCase):
         self.assertEqual((checkpoint['merge']['round'], checkpoint['merge']['start_sha256']), (2, digest))
         shutil.copy(second, 'duplicate.pt')
         record, merged = merge.merge_round(self.anchor, [second, Path('duplicate.pt'), self.workers[1]], Path('round1/merged.pt'))
+        merged = merged.state
         reasons = [c['reason'] for c in record['contributors']]
         self.assertIsNone(reasons[0])
         self.assertRegex(reasons[1], 'duplicate')
@@ -170,9 +286,8 @@ class RoundTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, 'merged from voyager runs, and this one.s family, validation, test differ'):
             worker(Path('.'), 'offsource-r2', shard='1/3', family='offsource', start=Path('round1/merged.pt'))
         # So is merging another family's workers onto it.
-        offsource = worker(Path('.'), 'offsource-r1', shard='1/3', family='offsource')
         with self.assertRaisesRegex(ValueError, 'merged from voyager runs'):
-            merge.merge_round(self.anchor, [offsource], Path('round1/merged.pt'))
+            merge.merge_round(self.anchor, [self.offsource], Path('round1/merged.pt'))
 
         # Another manifest (here one entry gains a field) is another dataset: refused, both when
         # continuing from a round and when merging runs trained on the original.
@@ -188,6 +303,76 @@ class RoundTests(unittest.TestCase):
                 merge.merge_round(self.anchor, self.workers, manifest=copy / 'index.json')
             with self.assertRaisesRegex(ValueError, "isn't the one the runs were trained on"):
                 merge.score(Path('round1/merged.pt'), manifest=copy / 'index.json')
+
+    def test_the_greedy_soup_sets_aside_a_worker_that_barely_moved(self):
+        first, second, third = self.workers
+        # Shard 3's worker, moved 1% of the way: it passes the gate (it's the incumbent, nearly),
+        # but averaged in it would dilute the others. Under the plain rule it's averaged in.
+        theta0 = self.anchor.theta0
+        faint = edited(third, 'faint.pt', lambda c: c.update(model=merge.add(theta0, {k: 0.01 * v for k, v in difference(c['model'], theta0).items()})))
+        plain, plain_merge = merge.merge_round(self.anchor, [faint, second, first])
+        soup, soup_merge = merge.merge_round(self.anchor, [faint, second, first], rule={'soup': 'greedy'})
+        self.assertEqual([c['status'] for c in plain['contributors']], ['accepted'] * 3)
+        statuses = {c['file']: c for c in soup['contributors']}
+        self.assertEqual(statuses[str(faint)]['status'], 'set aside')
+        self.assertRegex(statuses[str(faint)]['reason'], 'no better than')
+        self.assertEqual(statuses[str(faint)]['soup']['rank'], 3, 'tried last: it scores worst on its own')
+        self.assertEqual(statuses[str(faint)]['weight'], 0.0)
+        self.assertLess(soup['merged']['validation_bits'], plain['merged']['validation_bits'])
+        self.assertEqual(soup['merged']['soup_validation_bits'], soup['merged']['validation_bits'])
+
+    def test_a_delta_that_finds_structure_in_the_off_source_control_is_refused(self):
+        # A Voyager worker carrying an off-source worker's delta too: it predicts the off-source
+        # selection control better than the untrained anchor, so it's refused even with a loose
+        # validation tolerance; with no control tolerance to speak of, it would pass.
+        theta0 = self.anchor.theta0
+        off = difference(torch.load(self.offsource, map_location='cpu', weights_only=True)['model'], theta0)
+        mixed = edited(self.workers[0], 'mixed.pt', lambda c: c.update(model=merge.add(c['model'], off)))
+        record, merged = merge.merge_round(self.anchor, [mixed], rule={'tolerance_bits': 5.0})
+        self.assertRegex(record['contributors'][0]['reason'], 'offsource selection control.*finds structure there')
+        self.assertIsNone(merged)
+        record, merged = merge.merge_round(self.anchor, [mixed], rule={'tolerance_bits': 5.0, 'control_tolerance_bits': 5.0})
+        self.assertEqual(record['contributors'][0]['status'], 'accepted')
+
+    def test_a_compressed_ties_round_fits_the_card_budget_and_replays(self):
+        rule = {'merge': 'ties', 'dare': {'method': 'random', 'p': 0.9}, 'soup': 'greedy'}
+        record = merge.run_round(Path('dare-ties'), self.workers, rule=rule)
+        for c in record['contributors']:
+            self.assertLessEqual(c['payload']['bytes'], merge.CARD_BUDGET_BYTES)
+            self.assertEqual(c['payload']['seed'], int(weights_digest(torch.load(c['file'], weights_only=True)['model'])[:13], 16))
+        self.assertEqual(merge.replay(Path('dare-ties/round.json'))['rule'], merge.check_rule(rule))
+        # A budget no payload fits: every worker is refused.
+        record, merged = merge.merge_round(self.anchor, self.workers, rule={'dare': {'method': 'random', 'p': 0.0}})
+        self.assertTrue(all('over the 16,384-byte budget' in c['reason'] for c in record['contributors']))
+        self.assertIsNone(merged)
+
+    def test_outer_momentum_carries_from_round_to_round(self):
+        rule = {'outer': {'lr': 0.7, 'momentum': 0.9}}
+        merge.run_round(Path('diloco1'), self.workers, rule=rule)
+        start = merge.round_start(self.anchor, Path('diloco1/merged.pt'))
+        self.assertEqual(start.outer, rule['outer'])
+        taus = [difference(torch.load(p, weights_only=True)['model'], self.anchor.theta0) for p in self.workers]
+        tau_bar = {k: sum(t[k] for t in taus) / 3 for k in taus[0]}
+        self.assertTrue(all(torch.allclose(start.momentum[k].double(), tau_bar[k], atol=1e-7) for k in tau_bar))
+
+        later = worker(Path('.'), 'diloco-r2', shard='2/3', start=Path('diloco1/merged.pt'))
+        record = merge.run_round(Path('diloco2'), [later], Path('diloco1/merged.pt'), rule)
+        self.assertEqual(record['merged']['decision'], 'accepted')
+        two = merge.round_start(self.anchor, Path('diloco2/merged.pt'))
+        tau2 = difference(torch.load(later, weights_only=True)['model'], start.state)
+        for k in tau2:
+            m2 = 0.9 * start.momentum[k].double() + tau2[k]
+            self.assertTrue(torch.allclose(two.momentum[k].double(), m2, atol=1e-6), k)
+            self.assertTrue(torch.allclose(two.state[k].double(), start.state[k].double() + 0.7 * (tau2[k] + 0.9 * m2), atol=1e-6), k)
+        merge.replay(Path('diloco2/round.json'))
+        # The chain keeps its outer step, and its momentum can't be swapped.
+        with self.assertRaisesRegex(ValueError, 'keeps one outer step'):
+            merge.merge_round(self.anchor, [later], Path('diloco1/merged.pt'))
+        checkpoint = torch.load('diloco1/merged.pt', weights_only=True)
+        checkpoint['outer_momentum'] = {k: v * 2 for k, v in checkpoint['outer_momentum'].items()}
+        torch.save(checkpoint, 'swapped.pt')
+        with self.assertRaisesRegex(ValueError, "momentum doesn't match"):
+            merge.round_start(self.anchor, Path('swapped.pt'))
 
     def test_bad_deltas_are_refused_and_a_tampered_merge_cant_start_a_round(self):
         variant = lambda name, change: edited(self.workers[0], name, change)
@@ -225,12 +410,17 @@ class BenchmarkTests(unittest.TestCase):
             out = Path(tmp) / 'bench'
             merge_bench.main(['--output', str(out), '--seeds', '42', '--epochs', '2', '--rounds', '2'])
             report = json.loads((out / 'report.json').read_text())
-        self.assertEqual(set(report['summary']), {'shard workers', 'best worker (by validation)', 'one-shot merge',
-                                                  'one worker on all the data', "one worker on all the data, a shard worker's steps",
-                                                  '2 rounds of averaging'})
+        expected = {'shard workers', 'best worker (by validation)', 'one worker on all the data',
+                    "one worker on all the data, a shard worker's steps"}
+        expected |= {f'one-shot: {name}' for name in merge_bench.ONE_SHOT} | {f'2 rounds: {name}' for name in merge_bench.CHAINS}
+        self.assertEqual(set(report['summary']), expected)
         self.assertEqual(report['step_matched_epochs'], 1)
-        self.assertEqual(len(report['seeds']['42']['rounds']['history']), 2)
-
+        seed = report['seeds']['42']
+        for name in merge_bench.CHAINS:
+            self.assertEqual(len(seed['rounds'][name]['history']), 2)
+        payloads = seed['one_shot']['DARE-TIES']['payload_bytes']
+        self.assertEqual(len(payloads), 3)
+        self.assertLessEqual(max(payloads), merge.CARD_BUDGET_BYTES)
 
 if __name__ == '__main__':
     unittest.main()

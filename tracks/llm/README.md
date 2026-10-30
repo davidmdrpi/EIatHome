@@ -107,9 +107,9 @@ Milestone 2 measures both. All three still improved at the 50-epoch limit.
 
 ### Merging shard workers
 
-Milestone 2 starts with the plainest merge: rounds of workers trained on disjoint shards, each
-checked and gated on validation, then averaged by training samples
-([merge.py](merge.py); results in [MERGE_RESULTS.md](MERGE_RESULTS.md)).
+Milestone 2: rounds of workers trained on disjoint shards, each checked and gated, then merged
+by a recorded rule ([merge.py](merge.py); results in [MERGE_RESULTS.md](MERGE_RESULTS.md)).
+The default rule is the plain baseline, an average by training targets.
 
 ```bash
 M=tracks/llm/data/slices/index.json
@@ -123,6 +123,10 @@ python -m tracks.llm.train ... --start runs/round1/merged.pt --shard 1/3 --outpu
 python -m tracks.llm.merge round --start runs/round1/merged.pt --output runs/round2 runs/r2-w*/real.pt
 python -m tracks.llm.merge replay runs/round1/round.json   # recompute the round from its record
 python -m tracks.llm.merge score runs/round1/merged.pt     # test and the control, for reporting only
+
+# DARE-TIES with a greedy soup and DiLoCo's outer step (every round of a chain uses the same one):
+python -m tracks.llm.merge round --merge ties --dare-p 0.9 --soup greedy \
+  --outer-lr 0.7 --outer-momentum 0.9 --output runs/round1 runs/r1-w*/real.pt
 ```
 
 - **Workers:** `--shard i/n` trains on every n-th training slice in a fixed order by content,
@@ -139,18 +143,52 @@ python -m tracks.llm.merge score runs/round1/merged.pt     # test and the contro
     workers trained on (its slices' digest);
   - training slices that aren't the worker's shard's, or a target count that isn't theirs: the
     round recounts targets from the shard, and weights by its own count;
-  - the same shard and seed twice, which counts once.
-- **Refused outright:** workers divided into different numbers of shards, whose shards would
-  overlap, and a chain that changes family, dataset or split: `train.py --start` and `merge
-  round --start` both refuse a merge from another family's runs, or from another manifest.
-- **Weights:** each accepted shard's training targets, shared equally by the workers on that
+  - the same shard and seed twice, which counts once;
+  - with DARE, a compressed delta over a result card's 16 KB.
+- **Refused outright:**
+  - workers divided into different numbers of shards, whose shards would overlap;
+  - a chain that changes family, dataset or split: `train.py --start` and `merge round
+    --start` both refuse a merge from another family's runs, or from another manifest;
+  - a chain that changes its outer step.
+- **The rule:**
+  - **DARE** (`--dare-p p`, `--dare-method random|magnitude`): each delta is compressed as a
+    volunteer would send it. A fraction p of its entries is dropped; the rest are stored as
+    int8 with one scale per tensor, and their indices as varint gaps, in compact JSON. The round
+    gates and merges what the payload rebuilds, and records each payload's size. A random drop
+    rescales the survivors by 1/(1 − p), so the expected delta is unchanged. Its stream is
+    seeded by the worker's weights, so a replay redraws it. Dropping by magnitude keeps the
+    survivors unscaled, since they're already the large entries. At p = 0.9 a delta is about
+    8 KB.
+  - **TIES** (`--merge ties`, `--ties-keep k`): trim each delta to its largest fraction k,
+    elect each parameter's sign as the sign of the weighted sum, and average only the nonzero
+    entries that agree with it. A delta that's zero at a parameter doesn't pull the others
+    toward zero there.
+  - **Greedy soup** (`--soup greedy`): the accepted workers are tried best first by
+    validation. Each is kept only if the merge scores lower on validation with it than without
+    it. A worker that barely moved from the incumbent can't dilute the others unless it helps.
+  - **DiLoCo** (`--outer-lr`, `--outer-momentum`): the merged delta τ̄ is a pseudo-gradient
+    for an outer Nesterov step: m ← μm + τ̄, θ ← θ + lr(τ̄ + μm). The momentum is saved in the
+    merged checkpoint, with its digest, and carried to the next round. lr 1 with no momentum is
+    θ + τ̄.
+- **Weights:** each merged shard's training targets, shared equally by the workers on that
   shard (several seeds of one shard count its slices once).
-- **The gate:** each worker, then the average, must score within 0.02 bits per token of the
-  incumbent on validation. A round never reads the test split.
-- **The record:** `round.json` names every contributor by file hash, its fate and why, the
-  weights and rule, and the merged weights' digest. `replay` recomputes the round from the same
-  files and refuses any difference. A merged checkpoint loads with `sample.py`, and only starts
-  a round if its weights match its recorded digest.
+- **The gate:**
+  - each worker, and the merge after the outer step, must score within 0.02 bits per token of
+    the incumbent on validation;
+  - neither may score more than 0.02 bits better than the untrained anchor θ₀ on the selection
+    control, the other family's validation scan. A Voyager model that predicts off-source
+    noise better than a model that knows nothing has learned something that isn't Voyager.
+    The reference is θ₀, not the incumbent: training on Voyager makes the noise less
+    predictable, and a worker from an over-specialized incumbent can legitimately move back.
+  - The other family's test scan is the reporting control, used only by `score`. A round
+    never reads the test split or the reporting control.
+- **The record:** `round.json` names every contributor by file hash, with its fate and why. It
+  also holds each soup trial, the weights, the whole rule, and the digests of the merged
+  weights and momentum. `replay` recomputes the round from the same files and refuses any
+  difference. A merged checkpoint loads with `sample.py`, and only starts a round if its
+  weights and momentum match their recorded digests.
+- **Not a defense against adversaries:** the validation data and the control are public, so a
+  delta crafted to pass the gate could pass it.
 
 ## What the pipeline learns
 

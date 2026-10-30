@@ -1,5 +1,5 @@
-"""The milestone 2 baseline benchmark (issue #20): does merging shard workers beat the workers,
-and how does it compare with one worker trained on all their data?
+"""The milestone 2 benchmark (issue #20): do merged shard workers beat the workers, and how do
+they compare with one worker trained on all their data?
 
 Fixed before any run: anchor v1 on the 49-frame slices, Voyager, the real stream only, training
 windows at every start (stride 1), 50 epochs with the defaults otherwise, seeds 42, 43 and 44,
@@ -7,16 +7,22 @@ three shards (one training slice each). Per seed:
 
 - shard workers: each trains 50 epochs from θ₀ on its shard;
 - the best worker: the shard worker with the lowest validation score;
-- one-shot merge: one round of the three, averaged by training targets;
+- one-shot merges of those three workers, one round from θ₀, by each rule below;
 - one worker on all three slices for 50 epochs: the same data and epochs as the shards together;
-- ten rounds of averaging: each round, the three shards train 5 epochs from the last merge.
+- ten rounds: each round, the three shards train 5 epochs from the last merge, by each chain's
+  rule below.
 
 Added after the first run, as a control for optimizer steps: one worker on all three slices for
 as many steps as one shard worker takes (a shard's 48 training windows make 2 batches an epoch,
 all three slices' 144 make 5, so 20 epochs instead of 50).
 
-Workers and merges are chosen on validation only. Test and the off-source control are scored
-afterwards, for reporting.
+The rules (milestone 2's second part, fixed before its first run): DARE drops p = 0.9 at random
+(the issue's card estimate) and sends int8 values; TIES keeps the top 20% by magnitude (the TIES
+paper's default); DiLoCo's outer step uses lr 0.7 and Nesterov momentum 0.9 (the DiLoCo paper's).
+Every gate uses a tolerance of 0.02 bits on validation and on the off-source selection control.
+
+Workers and merges are chosen on validation (and the selection control) only. Test and the
+reporting control, the off-source test scan, are scored afterwards, for reporting.
 
     python -m tracks.llm.merge_bench --output runs/merge-bench
 """
@@ -28,11 +34,9 @@ import json
 import math
 from pathlib import Path
 import statistics
-from types import SimpleNamespace
 
 from .anchor import ROOT, load_anchor
-from .data import unique_records
-from .merge import held_out, run_round, score
+from .merge import controls, held_out, run_round, score, shard_records
 from .model import evaluate
 from .runtime import require_new_output, training_runtime
 from .train import parser, run
@@ -40,6 +44,21 @@ from .train import parser, run
 MANIFEST = ROOT / "tracks/llm/data/slices/index.json"
 SHARDS = 3
 BATCH = 32  # train.py's default batch size
+DARE = {"method": "random", "p": 0.9}
+DILOCO = {"lr": 0.7, "momentum": 0.9}
+ONE_SHOT = {  # name: rule
+    "average (FedAvg)": {},
+    "average of compressed deltas (DARE)": {"dare": DARE},
+    "average, greedy soup": {"soup": "greedy"},
+    "TIES": {"merge": "ties", "ties_keep": 0.2},
+    "DARE-TIES": {"merge": "ties", "dare": DARE},
+    "DARE-TIES, greedy soup": {"merge": "ties", "dare": DARE, "soup": "greedy"},
+}
+CHAINS = {
+    "average (FedAvg)": {},
+    "average + DiLoCo": {"outer": DILOCO},
+    "DARE-TIES, greedy soup + DiLoCo": {"merge": "ties", "dare": DARE, "soup": "greedy", "outer": DILOCO},
+}
 
 
 def batches_per_epoch(slices):
@@ -49,7 +68,6 @@ def batches_per_epoch(slices):
 
 def step_matched_epochs(epochs):
     """Epochs on all the training slices that take as many optimizer steps as `epochs` on one shard."""
-    from .merge import shard_records
     anchor = load_anchor("v1")
     _, partitions = held_out(anchor, "voyager", "within_session_scan_holdout")
     shard = shard_records(partitions["train"], 1, SHARDS)
@@ -68,11 +86,18 @@ def train(output, seed, epochs, shard=None, start=None):
     return output / "real.pt"
 
 
-def merge(output, workers, start=None):
-    with contextlib.redirect_stdout(io.StringIO()):
-        record = run_round(SimpleNamespace(output=output, anchor="v1", workers=workers, start=start,
-                                           tolerance=0.02, max_abs_delta=10.0))
+def merge(output, workers, rule, start=None):
+    record = run_round(output, workers, start, rule)
     return record, (output / "merged.pt") if record["merged"]["decision"] == "accepted" else None
+
+
+def outcome(record):
+    """What a round did with its workers: the shards it merged, set aside and rejected."""
+    by = lambda status: [c["shard"][0] for c in record["contributors"] if c["status"] == status]
+    payloads = [c["payload"]["bytes"] for c in record["contributors"] if "payload" in c]
+    return {"decision": record["merged"]["decision"], "validation_bits": record["merged"].get("validation_bits"),
+            "merged": by("accepted"), "set_aside": by("set aside"), "rejected": by("rejected"),
+            **({"payload_bytes": payloads} if payloads else {})}
 
 
 def theta0_scores():
@@ -80,10 +105,10 @@ def theta0_scores():
     records, partitions = held_out(anchor, "voyager", "within_session_scan_holdout")
     encode = lambda rs: [anchor.tokenizer.encode(r["frames"]) for r in rs]
     model = anchor.model()
-    controls = unique_records(r for r in records if r["entry"]["family"] != "voyager")
+    control = controls(records, "voyager", "within_session_scan_holdout")
     return {"validation": evaluate(model, encode(partitions["validation"]))["bits_per_token"],
             "test": evaluate(model, encode(partitions["test"]))["bits_per_token"],
-            "control": {"family": "offsource", "bits_per_token": evaluate(model, encode(controls))["bits_per_token"]}}
+            "control": {"family": control["family"], "bits_per_token": evaluate(model, encode(control["reporting"]))["bits_per_token"]}}
 
 
 def one_seed(folder, seed, epochs, rounds):
@@ -92,20 +117,23 @@ def one_seed(folder, seed, epochs, rounds):
     out["shard_workers"] = [score(p) for p in shards]
     best = min(range(SHARDS), key=lambda k: out["shard_workers"][k]["validation"])
     out["best_worker"] = {**out["shard_workers"][best], "shard": best + 1}
-    record, merged = merge(folder / "one-shot", shards)
-    out["one_shot"] = {"decision": record["merged"]["decision"], **(score(merged) if merged else {})}
+    out["one_shot"] = {}
+    for i, (name, rule) in enumerate(ONE_SHOT.items()):
+        record, merged = merge(folder / f"one-shot{i}", shards, rule)
+        out["one_shot"][name] = {**outcome(record), **(score(merged) if merged else {})}
     out["full_data"] = score(train(folder / "full", seed, epochs))
     out["full_data_step_matched"] = score(train(folder / "full-steps", seed, step_matched_epochs(epochs)))
 
-    incumbent, history = None, []
-    for r in range(1, rounds + 1):
-        workers = [train(folder / f"r{r}-shard{k}", seed + r, epochs // rounds, shard=k, start=incumbent)
-                   for k in range(1, SHARDS + 1)]
-        record, merged = merge(folder / f"round{r}", workers, start=incumbent)
-        history.append({"round": r, "decision": record["merged"]["decision"],
-                        "validation_bits": record["merged"].get("validation_bits")})
-        incumbent = merged or incumbent
-    out["rounds"] = {"history": history, **(score(incumbent) if incumbent else {})}
+    out["rounds"] = {}
+    for i, (name, rule) in enumerate(CHAINS.items()):
+        incumbent, history = None, []
+        for r in range(1, rounds + 1):
+            workers = [train(folder / f"chain{i}-r{r}-shard{k}", seed + r, epochs // rounds, shard=k, start=incumbent)
+                       for k in range(1, SHARDS + 1)]
+            record, merged = merge(folder / f"chain{i}-round{r}", workers, rule, start=incumbent)
+            history.append({"round": r, **outcome(record)})
+            incumbent = merged or incumbent
+        out["rounds"][name] = {"history": history, **(score(incumbent) if incumbent else {})}
     return out
 
 
@@ -113,17 +141,14 @@ def summarize(results):
     def stats(values):
         return {"mean": statistics.fmean(values), "min": min(values), "max": max(values)} if values else None
 
+    picks = [("shard workers", lambda s: s["shard_workers"]), ("best worker (by validation)", lambda s: [s["best_worker"]])]
+    picks += [(f"one-shot: {name}", lambda s, name=name: [s["one_shot"][name]]) for name in ONE_SHOT]
+    picks += [("one worker on all the data", lambda s: [s["full_data"]]),
+              ("one worker on all the data, a shard worker's steps", lambda s: [s["full_data_step_matched"]])]
+    picks += [(f"{results['rounds']} rounds: {name}", lambda s, name=name: [s["rounds"][name]]) for name in CHAINS]
     rows = {}
-    seeds = list(results["seeds"].values())
-    for name, pick in [
-        ("shard workers", lambda s: s["shard_workers"]),
-        ("best worker (by validation)", lambda s: [s["best_worker"]]),
-        ("one-shot merge", lambda s: [s["one_shot"]] if "test" in s["one_shot"] else []),
-        ("one worker on all the data", lambda s: [s["full_data"]]),
-        ("one worker on all the data, a shard worker's steps", lambda s: [s["full_data_step_matched"]]),
-        (f"{results['rounds']} rounds of averaging", lambda s: [s["rounds"]] if "test" in s["rounds"] else []),
-    ]:
-        runs = [r for s in seeds for r in pick(s)]
+    for name, pick in picks:
+        runs = [r for s in results["seeds"].values() for r in pick(s) if "test" in r]
         rows[name] = {key: stats([r[key] for r in runs]) for key in ("validation", "test")}
         rows[name]["control"] = stats([r["control"]["bits_per_token"] for r in runs])
         rows[name]["runs"] = len(runs)
@@ -151,8 +176,9 @@ def main(argv=None):
         p.error("--epochs must be a multiple of --rounds, so the rounds train as many epochs as the one-shot workers")
     require_new_output(args.output)
     args.output.mkdir(parents=True)
-    results = {"protocol": __doc__.split("\n\n")[1], "epochs": args.epochs, "rounds": args.rounds,
-               "step_matched_epochs": step_matched_epochs(args.epochs), "seeds": {}}
+    results = {"protocol": __doc__.split("\n\n", 1)[1].rsplit("\n\n", 1)[0], "epochs": args.epochs, "rounds": args.rounds,
+               "step_matched_epochs": step_matched_epochs(args.epochs), "one_shot_rules": ONE_SHOT, "chain_rules": CHAINS,
+               "seeds": {}}
     with training_runtime(1, "cpu"):
         results["theta0"] = theta0_scores()
     for seed in args.seeds:
