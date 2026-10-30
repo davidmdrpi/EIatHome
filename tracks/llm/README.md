@@ -105,6 +105,94 @@ so seed runs give a merge little diversity to combine. That's a reason to try ru
 different data, milestone 2's shards; it doesn't show that merging seed runs can't help.
 Milestone 2 measures both. All three still improved at the 50-epoch limit.
 
+### Merging shard workers
+
+Milestone 2: rounds of workers trained on disjoint shards, each checked and gated, then merged
+by a recorded rule ([merge.py](merge.py); results in [MERGE_RESULTS.md](MERGE_RESULTS.md)).
+The default rule is the plain baseline, an average by training targets.
+
+```bash
+M=tracks/llm/data/slices/index.json
+for i in 1 2 3; do
+  python -m tracks.llm.train --anchor v1 --manifest $M --allow-within-session --variants real \
+    --shard $i/3 --output runs/r1-w$i
+done
+python -m tracks.llm.merge round --output runs/round1 runs/r1-w*/real.pt
+# Round 2: the workers start from round 1's merge.
+python -m tracks.llm.train ... --start runs/round1/merged.pt --shard 1/3 --output runs/r2-w1
+python -m tracks.llm.merge round --start runs/round1/merged.pt --output runs/round2 runs/r2-w*/real.pt
+python -m tracks.llm.merge replay runs/round1/round.json   # recompute the round from its record
+python -m tracks.llm.merge score runs/round1/merged.pt     # test and the control, for reporting only
+
+# DARE-TIES with a greedy soup and DiLoCo's outer step (every round of a chain uses the same one):
+python -m tracks.llm.merge round --merge ties --dare-p 0.9 --soup greedy \
+  --outer-lr 0.7 --outer-momentum 0.9 --output runs/round1 runs/r1-w*/real.pt
+```
+
+- **Workers:** `--shard i/n` trains on every n-th training slice in a fixed order by content,
+  so shards are disjoint and don't depend on the manifest's order. Validation and test aren't
+  sharded. `--start` continues from a merged round (round 1 starts from θ₀). `--variants real`
+  skips the surrogate controls. Each worker records its round, its start's digest, its shard,
+  its seed and its number of training targets.
+- **Refused before the gate:**
+  - another anchor, tokenizer or model size;
+  - another round or start;
+  - a surrogate stream;
+  - non-finite changes, or any change over 10;
+  - a validation or test split that isn't the round's, or a manifest other than the one the
+    workers trained on (its slices' digest);
+  - training slices that aren't the worker's shard's, or a target count that isn't theirs: the
+    round recounts targets from the shard, and weights by its own count;
+  - the same shard and seed twice, which counts once;
+  - with DARE, a compressed delta over a result card's 16 KB.
+- **Refused outright:**
+  - workers divided into different numbers of shards, whose shards would overlap;
+  - a chain that changes family, dataset or split: `train.py --start` and `merge round
+    --start` both refuse a merge from another family's runs, or from another manifest;
+  - a chain that changes its outer step.
+- **The rule:**
+  - **DARE** (`--dare-p p`, `--dare-method random|magnitude`): each delta is compressed as a
+    volunteer would send it. A fraction p of its entries is dropped; the rest are stored as
+    int8 with one scale per tensor, and their indices as varint gaps, in compact JSON. The round
+    gates and merges what the payload rebuilds, and records each payload's size. A random drop
+    rescales the survivors by 1/(1 − p), so the expected delta is unchanged. Its stream is
+    seeded by the worker's weights, so a replay redraws it. Dropping by magnitude keeps the
+    survivors unscaled, since they're already the large entries. At p = 0.9 a delta is about
+    8 KB.
+  - **TIES** (`--merge ties`, `--ties-keep k`): trim each delta to its largest fraction k,
+    elect each parameter's sign as the sign of the weighted sum, and average only the nonzero
+    entries that agree with it. A delta that's zero at a parameter doesn't pull the others
+    toward zero there.
+  - **Greedy soup** (`--soup greedy`): the accepted workers are tried best first by
+    validation. Each is kept only if the merge scores lower on validation with it than without
+    it. A worker that barely moved from the incumbent can't dilute the others unless it helps.
+  - **DiLoCo** (`--outer-lr`, `--outer-momentum`): the merged delta τ̄ is a pseudo-gradient
+    for an outer Nesterov step: m ← μm + τ̄, θ ← θ + lr(τ̄ + μm). The momentum is saved in the
+    merged checkpoint, with its digest, and carried to the next round. lr 1 with no momentum is
+    θ + τ̄.
+- **Weights:** each merged shard's training targets, shared equally by the workers on that
+  shard (several seeds of one shard count its slices once).
+- **The gate:** each worker, and the merge after the outer step, must score within 0.02 bits
+  per token of the incumbent on validation. A round never reads the test split or the
+  reporting control.
+- **The selection control** (the other family's validation scan) is recorded for the
+  incumbent, each worker and the merge, as a diagnostic, not a veto: its bits, and how much the
+  model gains from the real order of its tokens over 19 shuffled orders, with a permutation
+  p-value. Its likelihood alone can't show that a model found structure there: matching token
+  frequencies or calibration lowers it too. On the published off-source scans, neither number
+  separates a model trained on them from a Voyager model, so neither is a veto (see
+  [MERGE_RESULTS.md](MERGE_RESULTS.md)). The other family's test scan is the reporting control,
+  used only by `score`.
+- **DARE's rebuilt delta** is held to the same finite and size bounds as the worker's own,
+  since rescaling by 1/(1 − p) multiplies the kept entries.
+- **The record:** `round.json` names every contributor by file hash, with its fate and why. It
+  also holds each soup trial, the weights, the whole rule, and the digests of the merged
+  weights and momentum. `replay` recomputes the round from the same files and refuses any
+  difference. A merged checkpoint loads with `sample.py`, and only starts a round if its
+  weights and momentum match their recorded digests.
+- **Not a defense against adversaries:** the validation data and the control are public, so a
+  delta crafted to pass the gate could pass it.
+
 ## What the pipeline learns
 
 1. Verify each slice's SHA-256, shape, finite samples and start time. Take one fixed central

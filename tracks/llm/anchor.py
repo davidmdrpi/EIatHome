@@ -242,11 +242,22 @@ def load_anchor(name="v1", directory=None):
     return Anchor(name, spec, Tokenizer(**codebook["tokenizer"]), theta0, codebook)
 
 
+def difference(state, base):
+    """state − base, in float64 and parameter order, for two state dicts of the same model."""
+    if list(state) != list(base) or any(tuple(state[k].shape) != tuple(v.shape) for k, v in base.items()):
+        raise ValueError("The weights don't have the anchor's parameters, so they can't be compared with θ₀")
+    return OrderedDict((k, state[k].detach().cpu().double() - v.detach().cpu().double()) for k, v in base.items())
+
+
 def task_vector(state, anchor):
     """τ = θ − θ₀ for a state dict of the anchor's architecture, in float64 and parameter order."""
-    if list(state) != list(anchor.theta0) or any(tuple(state[k].shape) != tuple(v.shape) for k, v in anchor.theta0.items()):
-        raise ValueError("The weights don't have the anchor's parameters, so they can't be compared with θ₀")
-    return OrderedDict((k, state[k].detach().cpu().double() - v.double()) for k, v in anchor.theta0.items())
+    return difference(state, anchor.theta0)
+
+
+def weights_digest(state):
+    """The SHA-256 of weights stored as θ₀ is: float32 little-endian, in parameter order. For θ₀
+    itself, it's the anchor's pinned digest."""
+    return digest(b"".join(np.ascontiguousarray(v.detach().cpu().numpy(), dtype="<f4").tobytes() for v in state.values()))
 
 
 def checkpoint_task_vector(path, anchor):
