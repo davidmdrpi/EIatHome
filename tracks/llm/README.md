@@ -135,8 +135,16 @@ python -m tracks.llm.merge score runs/round1/merged.pt     # test and the contro
   - another round or start;
   - a surrogate stream;
   - non-finite changes, or any change over 10;
-  - a split that isn't the round's;
+  - a validation or test split that isn't the round's, or a manifest other than the one the
+    workers trained on (its slices' digest);
+  - training slices that aren't the worker's shard's, or a target count that isn't theirs: the
+    round recounts targets from the shard, and weights by its own count;
   - the same shard and seed twice, which counts once.
+- **Refused outright:** workers divided into different numbers of shards, whose shards would
+  overlap, and a chain that changes family, dataset or split: `train.py --start` and `merge
+  round --start` both refuse a merge from another family's runs, or from another manifest.
+- **Weights:** each accepted shard's training targets, shared equally by the workers on that
+  shard (several seeds of one shard count its slices once).
 - **The gate:** each worker, then the average, must score within 0.02 bits per token of the
   incumbent on validation. A round never reads the test split.
 - **The record:** `round.json` names every contributor by file hash, its fate and why, the

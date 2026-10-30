@@ -30,7 +30,8 @@ Fixed before the first run ([`merge_bench.py`](merge_bench.py)):
   carrier, sideband 2. That makes the shards non-IID by construction: each worker sees one
   signal.
 - **Merging** ([`merge.py`](merge.py)): an average weighted by training targets (48 per shard,
-  so equal weights). Each worker, and then the merge, has to score within 0.02 bits per token
+  so equal weights), counted by the round from each worker's shard rather than taken from its
+  record. Each worker, and then the merge, has to score within 0.02 bits per token
   of the incumbent on validation, and every change must be finite and under 10 in size. A round
   never reads the test split; test and the off-source control are scored afterwards, for
   reporting.
@@ -83,9 +84,10 @@ non-finite, out-of-bound and surrogate deltas.
 - **One worker on all the data is far better than any merge: 1.43.** Given only as many
   optimizer steps as a shard worker, it still reaches 1.60. So the gap isn't mainly steps. One
   model that sees the carrier and both sidebands in every batch learns much more than three
-  models that each see one signal, averaged afterwards. That is the interference between
-  non-IID task vectors that TIES and DARE are meant to reduce, which is what the next part
-  measures.
+  models that each see one signal, averaged afterwards. This experiment shows the gap; it
+  doesn't show its cause. Interference between the shards' task vectors, which TIES and DARE
+  are designed to reduce, is one hypothesis; dilution by a weak shard and too few rounds are
+  others. The next part tests it; it doesn't assume it.
 - **The seed hardly matters; the shard does.** Every row's range across seeds is within 0.02
   bits. Which slice a worker trains on changes its score by up to 0.8 bits.
 - **The off-source control:** the merged models stay near θ₀ on off-source noise (4.39–4.44

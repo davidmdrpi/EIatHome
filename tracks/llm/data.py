@@ -101,6 +101,12 @@ def groups(records, gap_days):
     return sorted(out.values(), key=lambda g: (min(r["start"] for r in g), min(r["sha256"] for r in g)))
 
 
+def dataset_digest(records):
+    """The manifest's slices by content and entry: the dataset_sha256 a run records."""
+    identity = [{"sha256": r["sha256"], "entry": r["entry"]} for r in records]
+    return digest(json.dumps(identity, sort_keys=True).encode())
+
+
 def unique_records(records):
     """Copies don't provide extra training or evaluation evidence, including controls."""
     unique = {}

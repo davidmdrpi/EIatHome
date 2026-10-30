@@ -26,12 +26,13 @@ import hashlib
 import json
 import math
 from pathlib import Path
+from typing import NamedTuple
 
 import numpy as np
 import torch
 
 from .anchor import ANCHORS, ROOT, codebook_digest, difference, load_anchor, weights_digest
-from .data import SPLITS, load_slices, split_records, unique_records
+from .data import dataset_digest, load_slices, split_records, unique_records
 from .model import SignalLM, evaluate
 from .runtime import atomic_output, require_new_output, training_runtime
 
@@ -88,9 +89,30 @@ def load_checkpoint(path, anchor):
     return checkpoint
 
 
-def load_round(anchor, path):
-    """A merged round's checkpoint, to start the next round from: its weights, its round number
-    and their digest. Refuses one whose weights don't match the digest its round recorded."""
+def lineage(run):
+    """What every round of a chain shares, from a run's report or checkpoint: its family, its
+    dataset, how that was split, and the held-out slices."""
+    held = [entry for name in ("validation", "test") for entry in run["splits"][name]]
+    families = {entry.get("family") for entry in held}
+    if len(families) != 1:
+        raise ValueError("Its validation and test slices aren't of one family")
+    return {"family": families.pop(), "dataset_sha256": run["dataset_sha256"], "evaluation": run["evaluation"],
+            "validation": run["splits"]["validation"], "test": run["splits"]["test"]}
+
+
+class Start(NamedTuple):
+    """What a round starts from: θ₀ for round 1 (in no chain yet), or the last round's merge."""
+    state: OrderedDict
+    round: int
+    weights_sha256: str
+    lineage: dict | None
+
+
+def round_start(anchor, path=None):
+    """θ₀, or a merged round's checkpoint to start the next round from. Refuses one whose weights
+    don't match the digest its round recorded."""
+    if path is None:
+        return Start(anchor.theta0, 0, anchor.spec["theta0_sha256"], None)
     checkpoint = load_checkpoint(path, anchor)
     merge = checkpoint["merge"]
     if not merge.get("merged") or not isinstance(merge.get("round"), int) or merge["round"] < 1:
@@ -100,34 +122,64 @@ def load_round(anchor, path):
     digest = weights_digest(state)
     if digest != merge.get("weights_sha256"):
         raise ValueError(f"{path}: its weights don't match the digest its round recorded")
-    return state, merge["round"], digest
+    return Start(state, merge["round"], digest, lineage(checkpoint))
 
 
-def held_out(anchor, family, evaluation, manifest=None):
-    """The family's split as train.py made it, and the validation tokens the gate scores on."""
+def check_continuation(path, start, chain):
+    """Refuses to continue a chain on another family, dataset or split: its training slices
+    could then be another run's held-out ones, or its control a family it trained on."""
+    if start.lineage is not None and start.lineage != chain:
+        differ = [key for key in chain if chain[key] != start.lineage[key]]
+        raise ValueError(f"{path} was merged from {start.lineage['family']} runs, and this one's {', '.join(differ)} "
+                         "differ: a round chain keeps one family, dataset and split")
+
+
+def held_out(anchor, family, evaluation, manifest=None, dataset_sha256=None):
+    """The family's split as train.py made it, from the manifest the runs were trained on."""
     records = load_slices(manifest or ROOT / anchor.spec["manifest"])
+    if dataset_sha256 is not None and dataset_digest(records) != dataset_sha256:
+        raise ValueError("This manifest isn't the one the runs were trained on")
     partitions, independent = split_records(records, family, allow_within_session=evaluation != "independent_sessions")
     if ("independent_sessions" if independent else "within_session_scan_holdout") != evaluation:
         raise ValueError("The manifest no longer splits as the workers' runs did")
     return records, partitions
 
 
-def worker_problem(checkpoint, start_round, start_sha, max_abs_delta, tau):
-    """Why a worker's delta can't join the round, or None."""
+def recorded_shard(path, merge):
+    """A worker's shard as (i, n); (1, 1) for one trained on the whole training split."""
+    shard = merge.get("shard")
+    if shard is None:
+        return 1, 1
+    if not (isinstance(shard, list) and len(shard) == 2 and all(type(v) is int for v in shard) and 1 <= shard[0] <= shard[1]):
+        raise ValueError(f"{path}: its shard isn't i of n")
+    return tuple(shard)
+
+
+def same_slices(a, b):
+    canonical = lambda entries: sorted(json.dumps(e, sort_keys=True) for e in entries)
+    return canonical(a) == canonical(b)
+
+
+def worker_problem(checkpoint, start, max_abs_delta, tau, shard, slices):
+    """Why a worker's delta can't join the round, or None. slices: the training slices its shard
+    assigns, from the round's own manifest."""
     merge = checkpoint["merge"]
     if merge.get("merged"):
         return "it's a merged checkpoint, not a worker's"
     if checkpoint.get("variant") != "real":
         return f"it's the {checkpoint.get('variant')} surrogate, not the real stream"
-    if merge.get("round") != start_round + 1 or merge.get("start_sha256") != start_sha:
+    if merge.get("round") != start.round + 1 or merge.get("start_sha256") != start.weights_sha256:
         return f"it was trained for round {merge.get('round')} from another start"
+    if not same_slices(checkpoint["splits"]["train"] or [], [r["entry"] for r in slices]):
+        return f"its training slices aren't shard {shard[0]}/{shard[1]}'s"
+    targets = sum(len(r["frames"]) - 1 for r in slices)
+    if merge.get("training_targets") != targets:
+        return f"it records {merge.get('training_targets')!r} training targets, but shard {shard[0]}/{shard[1]} has {targets}"
     if not all(torch.isfinite(v).all() for v in tau.values()):
         return "its delta isn't finite"
     largest = max(v.abs().max().item() for v in tau.values())
     if largest > max_abs_delta:
         return f"its delta reaches {largest:.3g}, beyond the bound of {max_abs_delta:g}"
-    if not isinstance(merge.get("training_targets"), int) or merge["training_targets"] < 1:
-        return "it records no training targets to weight it by"
     return None
 
 
@@ -148,44 +200,58 @@ def weighted_average(deltas, weights):
     return OrderedDict((name, sum(w / total * d[name] for d, w in zip(deltas, weights))) for name in deltas[0])
 
 
+def weigh(entries):
+    """Sets each accepted contributor's weight: its shard's training targets over all the
+    accepted shards', shared equally by the workers on that shard, so each slice counts once."""
+    entries = list(entries)
+    on_shard = {}
+    for e in entries:
+        on_shard.setdefault(tuple(e["shard"]), []).append(e)
+    total = sum(group[0]["training_targets"] for group in on_shard.values())
+    for group in on_shard.values():
+        for e in group:
+            e["weight"] = group[0]["training_targets"] / len(group) / total
+
+
 def merge_round(anchor, workers, start=None, tolerance=TOLERANCE_BITS, max_abs_delta=MAX_ABS_DELTA, manifest=None):
     """One round: check each worker, gate it on validation against the incumbent, average the
     accepted deltas by training targets, and gate the result. workers: checkpoint paths.
     Returns (record, merged state or None)."""
-    if start is None:
-        start_state, start_round, start_sha, start_name = anchor.theta0, 0, anchor.spec["theta0_sha256"], "theta0"
-    else:
-        start_state, start_round, start_sha = load_round(anchor, start)
-        start_name = str(start)
+    start_ = round_start(anchor, start)
     loaded = [(str(path), load_checkpoint(path, anchor)) for path in workers]
     if not loaded:
         raise ValueError("A round needs at least one worker")
-    families = {c["splits"]["train"][0]["family"] for _, c in loaded}
-    evaluations = {c["evaluation"] for _, c in loaded}
-    if len(families) != 1 or len(evaluations) != 1 or len({c["dataset_sha256"] for _, c in loaded}) != 1:
+    chain = lineage(loaded[0][1])
+    if any(lineage(c) != chain for _, c in loaded[1:]):
         raise ValueError("A round merges workers of one family, on one dataset and split")
-    family, evaluation = families.pop(), evaluations.pop()
-    records, partitions = held_out(anchor, family, evaluation, manifest)
-    for path, c in loaded:
-        if any(c["splits"][name] != [r["entry"] for r in partitions[name]] for name in ("validation", "test")):
-            raise ValueError(f"{path}: its validation or test split isn't this round's")
+    check_continuation(start, start_, chain)
+    records, partitions = held_out(anchor, chain["family"], chain["evaluation"], manifest, chain["dataset_sha256"])
+    if any(chain[name] != [r["entry"] for r in partitions[name]] for name in ("validation", "test")):
+        raise ValueError("The workers' validation or test split isn't this manifest's")
+    # One division into shards per round, so the accepted shards are disjoint; each worker's
+    # training slices and target count are checked against its shard, not taken from its record.
+    shards = [recorded_shard(path, c["merge"]) for path, c in loaded]
+    counts = sorted({n for _, n in shards})
+    if len(counts) != 1:
+        raise ValueError(f"A round merges workers from one division into shards; these use {' and '.join(map(str, counts))} shards")
+    assigned = {i: shard_records(partitions["train"], i, counts[0]) for i in range(1, counts[0] + 1)}
     validation = [anchor.tokenizer.encode(r["frames"]) for r in partitions["validation"]]
     score = lambda state: evaluate(model_from(anchor, state), validation)["bits_per_token"]
-    incumbent = score(start_state)
+    incumbent = score(start_.state)
 
     contributors, accepted, seen = [], [], set()
-    for path, c in loaded:
+    for (path, c), shard in zip(loaded, shards):
         merge = c["merge"]
-        entry = {"file": path, "file_sha256": file_digest(path), "shard": merge.get("shard"), "seed": merge.get("seed"),
-                 "training_targets": merge.get("training_targets"), "validation_bits": None, "weight": 0.0}
-        key = (tuple(merge.get("shard") or ()), merge.get("seed"))
-        tau = difference(c["model"], start_state)
-        problem = worker_problem(c, start_round, start_sha, max_abs_delta, tau)
+        entry = {"file": path, "file_sha256": file_digest(path), "shard": list(shard), "seed": merge.get("seed"),
+                 "training_targets": sum(len(r["frames"]) - 1 for r in assigned[shard[0]]), "validation_bits": None, "weight": 0.0}
+        key = (shard, merge.get("seed"))
+        tau = difference(c["model"], start_.state)
+        problem = worker_problem(c, start_, max_abs_delta, tau, shard, assigned[shard[0]])
         if problem is None and key in seen:
             problem = "duplicate: the same shard and seed as an earlier contributor, so counted once"
         if problem is None:
             seen.add(key)
-            entry["validation_bits"] = score(add(start_state, tau))
+            entry["validation_bits"] = score(add(start_.state, tau))
             if entry["validation_bits"] > incumbent + tolerance:
                 problem = f"it scores {entry['validation_bits']:.4f} bits on validation, worse than the incumbent's {incumbent:.4f} by more than {tolerance:g}"
         entry.update(status="rejected" if problem else "accepted", reason=problem)
@@ -195,19 +261,20 @@ def merge_round(anchor, workers, start=None, tolerance=TOLERANCE_BITS, max_abs_d
 
     record = {
         "format": "eiathome-signal-lm-merge-round", "version": 1, "anchor": anchor.identity(),
-        "round": start_round + 1, "family": family, "evaluation": evaluation, "dataset_sha256": loaded[0][1]["dataset_sha256"],
-        "start": {"checkpoint": start_name, "round": start_round, "weights_sha256": start_sha, "validation_bits": incumbent},
-        "rule": {"merge": "average weighted by training targets", "gate_split": "validation", "tolerance_bits": tolerance,
-                 "max_abs_delta": max_abs_delta, "duplicates": "same shard and seed counted once"},
+        "round": start_.round + 1, "family": chain["family"], "evaluation": chain["evaluation"],
+        "dataset_sha256": chain["dataset_sha256"], "shards": counts[0],
+        "start": {"checkpoint": "theta0" if start is None else str(start), "round": start_.round,
+                  "weights_sha256": start_.weights_sha256, "validation_bits": incumbent},
+        "rule": {"merge": "average weighted by training targets, counted from each worker's shard; workers on one shard share its weight",
+                 "gate_split": "validation", "tolerance_bits": tolerance, "max_abs_delta": max_abs_delta,
+                 "duplicates": "same shard and seed counted once"},
         "contributors": contributors,
     }
     if not accepted:
         record["merged"] = {"decision": "rejected", "reason": "no worker passed the checks and the gate"}
         return record, None
-    total = sum(e["training_targets"] for e, _ in accepted)
-    for e, _ in accepted:
-        e["weight"] = e["training_targets"] / total
-    merged = add(start_state, weighted_average([t for _, t in accepted], [e["weight"] for e, _ in accepted]))
+    weigh(e for e, _ in accepted)
+    merged = add(start_.state, weighted_average([t for _, t in accepted], [e["weight"] for e, _ in accepted]))
     merged_bits = score(merged)
     best = min((e for e, _ in accepted), key=lambda e: e["validation_bits"])
     record["best_worker"] = {"file": best["file"], "validation_bits": best["validation_bits"]}
@@ -280,8 +347,8 @@ def score(path, manifest=None):
     for choosing a worker or a merge."""
     anchor = anchor_named(torch.load(path, map_location="cpu", weights_only=True).get("anchor"))
     checkpoint = load_checkpoint(path, anchor)
-    family = next(s for name in ("validation", "test") for s in checkpoint["splits"][name])["family"]
-    records, partitions = held_out(anchor, family, checkpoint["evaluation"], manifest)
+    family = lineage(checkpoint)["family"]
+    records, partitions = held_out(anchor, family, checkpoint["evaluation"], manifest, checkpoint["dataset_sha256"])
     model = model_from(anchor, checkpoint["model"])
     controls = unique_records(r for r in records if r["entry"]["family"] != family)
     encode = lambda rs: [anchor.tokenizer.encode(r["frames"]) for r in rs]

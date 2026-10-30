@@ -22,13 +22,21 @@ ROOT = Path(__file__).resolve().parents[1]
 SLICES = ROOT / 'tracks/llm/data/slices/index.json'
 
 
-def worker(folder, name, shard=None, seed=42, start=None, epochs=2):
-    argv = ['--anchor', 'v1', '--manifest', str(SLICES), '--allow-within-session', '--variants', 'real',
-            '--epochs', str(epochs), '--seed', str(seed), '--output', str(folder / name)]
+def worker(folder, name, shard=None, seed=42, start=None, epochs=2, family='voyager', manifest=SLICES):
+    argv = ['--anchor', 'v1', '--manifest', str(manifest), '--allow-within-session', '--variants', 'real',
+            '--family', family, '--epochs', str(epochs), '--seed', str(seed), '--output', str(folder / name)]
     argv += ['--shard', shard] if shard else []
     argv += ['--start', str(start)] if start else []
     run(parser().parse_args(argv))
     return folder / name / 'real.pt'
+
+
+def edited(source, name, change):
+    """A copy of a checkpoint with change(checkpoint) applied."""
+    checkpoint = torch.load(source, map_location='cpu', weights_only=True)
+    change(checkpoint)
+    torch.save(checkpoint, name)
+    return Path(name)
 
 
 class ShardTests(unittest.TestCase):
@@ -97,8 +105,10 @@ class RoundTests(unittest.TestCase):
         self.assertNotIn('test', json.dumps(record['merged']), 'a round never scores the test split')
 
     def test_the_merged_checkpoint_starts_the_next_round_and_replays(self):
-        state, round_, digest = merge.load_round(self.anchor, Path('round1/merged.pt'))
-        self.assertEqual((round_, digest), (1, self.record['merged']['weights_sha256']))
+        start = merge.round_start(self.anchor, Path('round1/merged.pt'))
+        state, digest = start.state, start.weights_sha256
+        self.assertEqual((start.round, digest), (1, self.record['merged']['weights_sha256']))
+        self.assertEqual(start.lineage['family'], 'voyager')
         self.assertEqual(merge.replay(Path('round1/round.json')), json.loads(Path('round1/round.json').read_text()))
         scores = merge.score(Path('round1/merged.pt'))
         self.assertEqual(set(scores), {'validation', 'test', 'control'})
@@ -133,12 +143,54 @@ class RoundTests(unittest.TestCase):
         finally:
             Path(self.workers[0]).write_bytes(original)
 
+    def test_a_worker_is_held_to_its_shard_and_weighted_by_it(self):
+        first, second, third = self.workers
+        # The same slice under another shard's label, and an inflated target count, are refused.
+        relabelled = edited(first, 'relabelled.pt', lambda c: c['merge'].update(shard=[2, 3]))
+        inflated = edited(second, 'inflated.pt', lambda c: c['merge'].update(training_targets=48_000_000))
+        record, merged = merge.merge_round(self.anchor, [first, relabelled, inflated])
+        reasons = [c['reason'] for c in record['contributors']]
+        self.assertIsNone(reasons[0])
+        self.assertRegex(reasons[1], "its training slices aren't shard 2/3's")
+        self.assertRegex(reasons[2], 'records 48000000 training targets, but shard 2/3 has 48')
+        self.assertEqual([c['weight'] for c in record['contributors']], [1.0, 0.0, 0.0])
+
+        # Two seeds on one shard share its weight, so each slice counts once.
+        again = worker(Path('.'), 'w1-seed43', shard='1/3', seed=43)
+        record, _ = merge.merge_round(self.anchor, [first, again, second, third])
+        self.assertEqual([round(c['weight'], 12) for c in record['contributors']], [round(w, 12) for w in (1 / 6, 1 / 6, 1 / 3, 1 / 3)])
+
+        # Workers split into different numbers of shards would overlap: refused.
+        halves = edited(second, 'halves.pt', lambda c: c['merge'].update(shard=[1, 2]))
+        with self.assertRaisesRegex(ValueError, 'one division into shards; these use 2 and 3 shards'):
+            merge.merge_round(self.anchor, [first, halves])
+
+    def test_a_round_chain_keeps_its_family_dataset_and_split(self):
+        # Training another family from a Voyager round is refused before it trains.
+        with self.assertRaisesRegex(ValueError, 'merged from voyager runs, and this one.s family, validation, test differ'):
+            worker(Path('.'), 'offsource-r2', shard='1/3', family='offsource', start=Path('round1/merged.pt'))
+        # So is merging another family's workers onto it.
+        offsource = worker(Path('.'), 'offsource-r1', shard='1/3', family='offsource')
+        with self.assertRaisesRegex(ValueError, 'merged from voyager runs'):
+            merge.merge_round(self.anchor, [offsource], Path('round1/merged.pt'))
+
+        # Another manifest (here one entry gains a field) is another dataset: refused, both when
+        # continuing from a round and when merging runs trained on the original.
+        with tempfile.TemporaryDirectory() as tmp:
+            copy = Path(tmp) / 'slices'
+            shutil.copytree(SLICES.parent, copy)
+            manifest = json.loads((copy / 'index.json').read_text())
+            manifest['slices'][0]['note'] = 'copied'
+            (copy / 'index.json').write_text(json.dumps(manifest))
+            with self.assertRaisesRegex(ValueError, 'this one.s dataset_sha256 differ'):
+                worker(Path('.'), 'copy-r2', shard='1/3', start=Path('round1/merged.pt'), manifest=copy / 'index.json')
+            with self.assertRaisesRegex(ValueError, "isn't the one the runs were trained on"):
+                merge.merge_round(self.anchor, self.workers, manifest=copy / 'index.json')
+            with self.assertRaisesRegex(ValueError, "isn't the one the runs were trained on"):
+                merge.score(Path('round1/merged.pt'), manifest=copy / 'index.json')
+
     def test_bad_deltas_are_refused_and_a_tampered_merge_cant_start_a_round(self):
-        def variant(name, change):
-            checkpoint = torch.load(self.workers[0], map_location='cpu', weights_only=True)
-            change(checkpoint)
-            torch.save(checkpoint, name)
-            return Path(name)
+        variant = lambda name, change: edited(self.workers[0], name, change)
 
         rng = np.random.default_rng(0)
         noise = lambda c: c['model'].update({k: v + torch.from_numpy(rng.normal(0, 0.5, v.shape)).float() for k, v in c['model'].items()})
@@ -157,14 +209,14 @@ class RoundTests(unittest.TestCase):
 
         # Workers whose validation split isn't the round's, or another family's, can't join.
         other = variant('other.pt', lambda c: c['splits'].update(validation=c['splits']['test']))
-        with self.assertRaisesRegex(ValueError, "validation or test split isn't this round's"):
+        with self.assertRaisesRegex(ValueError, 'one family, on one dataset and split'):
             merge.merge_round(self.anchor, [self.workers[0], other])
 
         tampered = torch.load('round1/merged.pt', map_location='cpu', weights_only=True)
         tampered['model']['head.weight'][0, 0] += 1
         torch.save(tampered, 'tampered.pt')
         with self.assertRaisesRegex(ValueError, "weights don't match the digest its round recorded"):
-            merge.load_round(self.anchor, Path('tampered.pt'))
+            merge.round_start(self.anchor, Path('tampered.pt'))
 
 
 class BenchmarkTests(unittest.TestCase):

@@ -10,8 +10,9 @@ import numpy as np
 import torch
 
 from .anchor import ANCHORS, load_anchor
-from .data import SPLITS, Tokenizer, digest, load_slices, markov_probabilities, split_records, split_sizes, surrogate, unique_records
-from .merge import load_round, parse_shard, shard_records
+from .data import (SPLITS, Tokenizer, dataset_digest, digest, load_slices, markov_probabilities, split_records, split_sizes,
+                   surrogate, unique_records)
+from .merge import check_continuation, lineage, parse_shard, round_start, shard_records
 from .model import evaluate, fit, generate, validate_config
 from .runtime import atomic_output, require_new_output, training_runtime
 
@@ -94,11 +95,8 @@ def run(args):
 def _run(args, config, output, anchor=None):
     records = load_slices(args.manifest)
     partitions, independent = split_records(records, args.family, args.allow_within_session)
-    start_state, start_round, start_sha = None, None, None
-    if anchor is not None:
-        # A worker in a merge round: round 1 starts from θ₀, later rounds from the last merge.
-        start_state, start_round, start_sha = (load_round(anchor, args.start) if getattr(args, "start", None)
-                                               else (anchor.theta0, 0, anchor.spec["theta0_sha256"]))
+    # A worker in a merge round: round 1 starts from θ₀, later rounds from the last merge.
+    start = round_start(anchor, getattr(args, "start", None)) if anchor is not None else None
     shard = parse_shard(args.shard) if getattr(args, "shard", None) else None
     if shard:
         # Only training is sharded: every worker is selected and scored on the same validation and test.
@@ -115,8 +113,7 @@ def _run(args, config, output, anchor=None):
     streams = {name: [tokenizer.encode(r["frames"]) for r in partitions[name]] for name in SPLITS}
     probabilities = markov_probabilities(streams["train"], args.vocab_size)
     provenance = {name: [r["entry"] for r in partitions[name]] for name in SPLITS}
-    identity = [{"sha256": r["sha256"], "entry": r["entry"]} for r in records]
-    dataset_sha = digest(json.dumps(identity, sort_keys=True).encode())
+    dataset_sha = dataset_digest(records)
     code_sha = digest(b"".join((Path(__file__).parent / name).read_bytes()
                                for name in ("data.py", "model.py", "train.py", "runtime.py", "anchor.py", "merge.py")))
     report = {
@@ -135,7 +132,7 @@ def _run(args, config, output, anchor=None):
         "tokenizer": {"fit_split": "anchor" if anchor else "train", "training_frames": sum(len(s) for s in streams["train"]),
                       "sha256": digest(json.dumps(tokenizer.state(), sort_keys=True).encode())},
         "anchor": None if anchor is None else {
-            **anchor.identity(), "init": "theta0" if start_round == 0 else f"round {start_round}",
+            **anchor.identity(), "init": "theta0" if start.round == 0 else f"round {start.round}",
             "codebook_fit_frames": anchor.codebook["fit"]["frames"],
             # The codebook saw the first scan of each family, the control family's too: it's
             # scored as a control, never trained on, but its tokens aren't all unseen frames.
@@ -144,10 +141,13 @@ def _run(args, config, output, anchor=None):
         # What a merge round needs to place this run: its round, what it started from, its shard
         # of the training slices, its seed, and how many training targets weight it.
         "merge": None if anchor is None else {
-            "round": start_round + 1, "start_sha256": start_sha, "shard": list(shard) if shard else None,
+            "round": start.round + 1, "start_sha256": start.weights_sha256, "shard": list(shard) if shard else None,
             "seed": args.seed, "training_targets": sum(len(s) - 1 for s in streams["train"]),
         },
     }
+    if start is not None:
+        # A later round continues its incumbent's family, dataset and split, never another's.
+        check_continuation(getattr(args, "start", None), start, lineage(report))
     print(report["evaluation"] + ": " + report["limitation"], flush=True)
     for variant in (v for v in ("real", "shuffled", "markov") if v in getattr(args, "variants", ("real", "shuffled", "markov"))):
         # Separate deterministic randomness for each split; never shuffle across partitions.
@@ -155,7 +155,7 @@ def _run(args, config, output, anchor=None):
                 for i, name in enumerate(SPLITS)}
         model, history, best_epoch = fit(data["train"], data["validation"], config, args.epochs,
                                          args.batch_size, args.lr, args.patience, args.seed, args.device,
-                                         args.train_stride, init_state=start_state)
+                                         args.train_stride, init_state=None if start is None else start.state)
         # Test is consulted only after model selection, once per final variant.
         score = evaluate(model, data["test"], args.batch_size)
         score.update(baseline_scores(data["train"], data["test"], args.vocab_size))
