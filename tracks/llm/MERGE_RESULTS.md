@@ -304,8 +304,8 @@ Fixed before the first run ([`moe_bench.py`](moe_bench.py)):
     together, with at most 700 optimizer steps, against at most 3 × 250 for the specialists.
   - **Specialists merged into one dense model:** averaged, or by TIES (top 20%).
   - **The mixture** (61,120 parameters, 44,416 used per token): the three specialists'
-    feed-forward layers as experts, with a top-2 router and the rest averaged. Scored four
-    ways:
+    feed-forward layers as experts, with a top-2 router and the rest averaged. Each expert
+    runs only on the tokens routed to it. Scored four ways:
     - with the router untrained;
     - with each family sent to its own expert, an oracle that uses the family label;
     - with the router finetuned on the three training scans, experts and backbone frozen;
@@ -334,9 +334,9 @@ Test bits per token, mean over the three seeds (range when it's 0.01 or more). U
 | specialists merged by TIES (dense) | 4.21 (4.19–4.24) | 3.67 (3.49–3.77) | 5.32 (5.30–5.34) | 4.40 (4.35–4.42) | 4.40 (4.35–4.43) |
 | mixture, untrained router | 3.90 | 3.64 (3.64–3.65) | 4.98 (4.96–4.99) | 4.17 | 4.22 (4.22–4.23) |
 | mixture, each family to its own expert (oracle) | 2.62 (2.61–2.63) | 2.83 (2.82–2.83) | 4.43 (4.42–4.44) | 3.29 (3.29–3.30) | 3.47 (3.46–3.48) |
-| mixture, router finetuned | 3.29 (3.28–3.29) | 2.88 (2.87–2.89) | 4.74 (4.73–4.75) | 3.63 (3.63–3.64) | 3.82 (3.81–3.83) |
-| mixture, router and backbone finetuned | 2.34 (2.29–2.38) | **2.05** (2.05–2.07) | 4.47 (4.42–4.52) | 2.96 (2.95–2.97) | 3.26 (3.25–3.26) |
-| mixture (TIES backbone), router and backbone finetuned | 2.41 (2.32–2.46) | 2.06 (2.05–2.07) | 4.43 (4.40–4.48) | 2.97 (2.95–2.97) | 3.32 (3.31–3.33) |
+| mixture, router finetuned | 3.29 (3.27–3.30) | 2.88 (2.87–2.89) | 4.74 (4.73–4.75) | 3.63 (3.63–3.64) | 3.82 (3.82–3.83) |
+| mixture, router and backbone finetuned | 2.37 (2.32–2.39) | **2.05** (2.05–2.07) | 4.46 (4.43–4.50) | 2.96 (2.95–2.97) | 3.26 (3.25–3.26) |
+| mixture (TIES backbone), router and backbone finetuned | 2.38 (2.34–2.40) | **2.05** (2.05–2.06) | 4.44 (4.41–4.48) | 2.96 (2.95–2.96) | 3.31 (3.30–3.32) |
 
 Each family's simple baselines on test, fitted on its training scan:
 
@@ -352,7 +352,7 @@ expert, in blocks 1 and 2.
 | | Voyager | Off-source | Rosetta |
 |---|---:|---:|---:|
 | router finetuned | 0.72, 0.65 | 1.00, 0.99 | 0.71, 0.71 |
-| router and backbone finetuned | 0.49, 0.44 | 0.99, 0.99 | 0.85, 0.75 |
+| router and backbone finetuned | 0.49, 0.44 | 0.99, 0.99 | 0.83, 0.75 |
 
 In the second case, Voyager's tokens go about equally to the Voyager and Rosetta experts.
 
@@ -365,7 +365,7 @@ Over the three seeds, averaged over the two blocks:
 **Training lengths:**
 
 - the router alone was still improving at its 50-epoch limit, in every seed;
-- with the backbone, the best epochs were 18–27;
+- with the backbone, the best epochs were 21–26;
 - the dense model's were 28–31.
 
 ### What this shows
@@ -375,7 +375,7 @@ Over the three seeds, averaged over the two blocks:
   against 2.88. On validation it's 3.26 against 3.16.
   - It is 2.2 times the parameters, 1.6 times those used per token.
   - Per family, it matches the dense model on off-source (2.05 against 2.06) and Rosetta
-    (4.47 against 4.46), and is worse on Voyager (2.34 against 2.13).
+    (4.46 against 4.46), and is worse on Voyager (2.37 against 2.13).
 - **The merged backbone is what costs most.**
   - Even with every token sent to its family's own expert, the mixture scores 3.29, against
     2.78 for the three specialists on their own families. The averaged attention and
@@ -383,7 +383,7 @@ Over the three seeds, averaged over the two blocks:
   - A router finetuned alone can't fix that, though it learns the routing: off-source tokens
     go to their expert almost every time, Voyager's and Rosetta's about 70%. It scores 3.63.
   - Finetuning the backbone too recovers most of the loss. TIES merging the backbone instead
-    of averaging makes no difference (2.97).
+    of averaging makes no difference (2.96).
 - **Specialists stay best on their own family.** Voyager's scores 2.04 there, Rosetta's
   4.22. Each is useless on the others: 5.1 to 6.7 bits, worse than θ₀. The families are very
   different, which is the case a mixture is meant for. Here, though, a single dense model of
@@ -394,7 +394,7 @@ Over the three seeds, averaged over the two blocks:
   model's 4.28: from 144 training targets, it learned little beyond token frequencies.
   - Part of the reason is the ceiling above: about one bit of each token is noise.
   - The positive control for language-like structure isn't positive at this size. Every
-    model trained on Rosetta scores between 4.22 and 4.47, apart from the router-only mixture
+    model trained on Rosetta scores between 4.22 and 4.46, apart from the router-only mixture
     (4.74).
 - **Off-source is pure token frequencies:** every model that has seen it scores about its
   unigram baseline (2.05–2.10).

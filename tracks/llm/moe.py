@@ -36,7 +36,7 @@ from torch.nn import functional as F
 
 from .anchor import ANCHORS, ROOT, difference, load_anchor, weights_digest
 from .data import dataset_digest, load_slices, split_records
-from .merge import file_digest, lineage, load_checkpoint, ties
+from .merge import file_digest, lineage, load_checkpoint, recorded_shard, same_slices, ties
 from .model import RotaryBlock, batches, evaluate, windows
 from .runtime import atomic_output, require_new_output, training_runtime
 
@@ -75,13 +75,19 @@ class MoEBlock(RotaryBlock):
         logits = self.router(h)
         if force is None:
             top, chosen = logits.topk(self.top_k, dim=-1)
-            gates = torch.zeros_like(logits).scatter(-1, chosen, top.softmax(dim=-1))
+            gates = top.softmax(dim=-1)
         else:  # every token to one expert, gate 1: the oracle routing used as a diagnostic
             chosen = torch.full(logits.shape[:-1] + (1,), force, device=x.device)
-            gates = F.one_hot(chosen[..., 0], len(self.experts)).to(x.dtype)
-        y = torch.einsum("bnwe,bne->bnw", torch.stack([expert(h) for expert in self.experts], dim=-1), gates)
+            gates = torch.ones(chosen.shape, dtype=x.dtype, device=x.device)
+        # Each expert runs only on the tokens routed to it; its gated outputs are added back in place.
+        flat, slots, weights = h.reshape(-1, h.shape[-1]), chosen.reshape(-1, chosen.shape[-1]), gates.reshape(-1, gates.shape[-1])
+        y = torch.zeros_like(flat)
+        for index, expert in enumerate(self.experts):
+            token, slot = (slots == index).nonzero(as_tuple=True)
+            if len(token):
+                y = y.index_add(0, token, weights[token, slot, None] * expert(flat[token]))
         self.balance, self.chosen = balance_loss(logits, chosen, mask), chosen
-        return x + self.drop2(y)
+        return x + self.drop2(y.view_as(h))
 
 
 class MoESignalLM(nn.Module):
@@ -110,7 +116,8 @@ class MoESignalLM(nn.Module):
 
 
 def active_parameters(model):
-    """Parameters a token passes through: all but the experts its router doesn't pick."""
+    """Parameters a token passes through: all but the experts its router doesn't pick, which
+    don't run on it."""
     per_expert = sum(p.numel() for p in model.blocks[0].experts[0].parameters())
     unused = model.config["experts"] - min(model.config["top_k"], model.config["experts"])
     return sum(p.numel() for p in model.parameters()) - model.config["layers"] * unused * per_expert
@@ -153,7 +160,8 @@ def upcycle(anchor, specialists, merge="average", ties_keep=1.0, router_seed=0, 
 
 def load_specialists(anchor, paths, manifest=None):
     """Specialists to upcycle: workers trained from θ₀ (round 1) on distinct families of one
-    dataset, split as the manifest splits it. Returns (states, families, records, partitions)."""
+    dataset, split as the manifest splits it, each on its family's whole training split.
+    Returns (states, families, records, partitions)."""
     loaded = [(str(path), load_checkpoint(path, anchor)) for path in paths]
     if len(loaded) < 2:
         raise ValueError("A mixture needs at least two specialists")
@@ -171,11 +179,20 @@ def load_specialists(anchor, paths, manifest=None):
     if dataset_digest(records) != chains[0]["dataset_sha256"]:
         raise ValueError("This manifest isn't the one the specialists were trained on")
     partitions = {}
-    for chain in chains:
-        parts, _ = split_records(records, chain["family"], allow_within_session=chain["evaluation"] != "independent_sessions")
+    for (path, c), chain in zip(loaded, chains):
+        family = chain["family"]
+        parts, _ = split_records(records, family, allow_within_session=chain["evaluation"] != "independent_sessions")
         if any(chain[name] != [r["entry"] for r in parts[name]] for name in ("validation", "test")):
-            raise ValueError(f"The {chain['family']} specialist's validation or test split isn't this manifest's")
-        partitions[chain["family"]] = parts
+            raise ValueError(f"The {family} specialist's validation or test split isn't this manifest's")
+        # Its record must not contradict the split: the family's whole training split, and its targets.
+        if recorded_shard(path, c["merge"]) != (1, 1):
+            raise ValueError(f"{path}: a specialist trains on its family's whole training split, not a shard of it")
+        if not same_slices(c["splits"]["train"] or [], [r["entry"] for r in parts["train"]]):
+            raise ValueError(f"{path}: its training slices aren't the {family} training split")
+        targets = sum(len(r["frames"]) - 1 for r in parts["train"])
+        if c["merge"].get("training_targets") != targets:
+            raise ValueError(f"{path}: it records {c['merge'].get('training_targets')!r} training targets, but the {family} training split has {targets}")
+        partitions[family] = parts
     return [c["model"] for _, c in loaded], families, records, partitions
 
 

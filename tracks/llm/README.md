@@ -212,13 +212,16 @@ python -m tracks.llm.moe_bench --output runs/moe-bench   # the milestone 3 bench
 ```
 
 - **Specialists:** workers trained from θ₀ (not a later round) on distinct families of one
-  dataset. Each is checked against the manifest's split, like a merge round's workers.
+  dataset. Each is checked against the manifest's split, like a merge round's workers. Its
+  record must also show its family's whole training split, not a shard, held-out slices or
+  another family's, with that split's number of targets.
 - **The mixture:**
   - each specialist's feed-forward layers become one expert in every block;
   - the backbone (embedding, attention, layer norms, head) is θ₀ plus the specialists'
     averaged deltas (`--merge ties` for TIES);
   - a router per block, initialized from a PCG64 stream, picks two experts per token, with
-    gates softmax(top2(x·W_g)).
+    gates softmax(top2(x·W_g)). Each expert runs only on the tokens routed to it, so a token
+    passes through the parameters the report counts as active.
 - **Finetuning** (`--finetune router`, `router+backbone` or `none`): on all the families'
   training scans together, with the experts frozen.
   - The load-balancing loss N Σ fᵢ Pᵢ is weighted 0.01.

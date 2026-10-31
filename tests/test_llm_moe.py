@@ -33,6 +33,14 @@ def specialist(folder, family, anchor='v2', epochs=2, seed=42, start=None):
     return folder / f'{anchor}-{family}-{seed}' / 'real.pt'
 
 
+def edited(source, name, change):
+    """A copy of a checkpoint with change(checkpoint) applied."""
+    checkpoint = torch.load(source, map_location='cpu', weights_only=True)
+    change(checkpoint)
+    torch.save(checkpoint, name)
+    return Path(name)
+
+
 class RosettaTests(unittest.TestCase):
     def test_the_corpus_is_the_live_labs(self):
         js = (ROOT / 'web/js/signals.js').read_text()
@@ -135,6 +143,51 @@ class MixtureTests(unittest.TestCase):
         self.assertTrue(torch.equal(block.chosen, chosen))
         self.assertTrue(torch.allclose(gates.sum(-1), torch.ones(3, 15)))
 
+    def test_each_expert_runs_only_on_the_tokens_routed_to_it(self):
+        model = moe.upcycle(self.anchor, self.states).eval()
+        rows = {}
+        hooks = [expert.register_forward_hook(lambda m, inputs, out, key=(b, e): rows.__setitem__(key, rows.get(key, 0) + len(inputs[0])))
+                 for b, block in enumerate(model.blocks) for e, expert in enumerate(block.experts)]
+        try:
+            with torch.no_grad():
+                model(self.x)
+                for b, block in enumerate(model.blocks):
+                    chosen = block.chosen.reshape(-1, 2)
+                    self.assertEqual([rows.get((b, e), 0) for e in range(3)], [int((chosen == e).sum()) for e in range(3)])
+                    self.assertEqual(sum(rows.get((b, e), 0) for e in range(3)), 2 * 45)  # top-2 of 45 tokens, not 3 x 45
+                rows.clear()
+                model.force = 1
+                model(self.x)
+                self.assertEqual([rows.get((0, e), 0) for e in range(3)], [0, 45, 0])  # the oracle runs one expert
+        finally:
+            for hook in hooks:
+                hook.remove()
+
+    def test_sparse_dispatch_matches_the_dense_computation_and_its_gradients(self):
+        model = moe.upcycle(self.anchor, self.states).eval()
+        block = model.blocks[1]
+        x = model.token(self.x).detach()
+
+        def dense(block, x):  # every expert on every token, the unselected ones gated to zero
+            attended = block.attend(x)
+            h = block.norm2(attended)
+            logits = block.router(h)
+            top, chosen = logits.topk(2, dim=-1)
+            gates = torch.zeros_like(logits).scatter(-1, chosen, top.softmax(-1))
+            return attended + torch.einsum('bnwe,bne->bnw', torch.stack([e(h) for e in block.experts], dim=-1), gates)
+
+        losses = []
+        for forward in (block, lambda x: dense(block, x)):
+            block.zero_grad()
+            out = forward(x)
+            (out ** 2).mean().backward()
+            losses.append((out.detach(), {n: p.grad.clone() for n, p in block.named_parameters() if p.grad is not None}))
+        (sparse, sparse_grads), (reference, reference_grads) = losses
+        self.assertTrue(torch.allclose(sparse, reference, atol=1e-6))
+        self.assertEqual(set(sparse_grads), set(reference_grads))
+        for name in reference_grads:
+            self.assertTrue(torch.allclose(sparse_grads[name], reference_grads[name], atol=1e-6), name)
+
     def test_the_load_balancing_loss(self):
         even = torch.zeros(10, 3)
         self.assertAlmostEqual(moe.balance_loss(even, even.topk(2, dim=-1)[1]).item(), 1.0, places=6)
@@ -195,6 +248,20 @@ class MixtureTests(unittest.TestCase):
             moe.load_specialists(self.anchor, self.paths[:1], MANIFEST)
         with self.assertRaisesRegex(ValueError, "isn't the one the specialists were trained on"):
             moe.load_specialists(self.anchor, self.paths, ROOT / 'tracks/llm/data/slices/index.json')
+
+    def test_a_specialist_must_have_trained_on_its_familys_whole_training_split(self):
+        voyager = self.paths[0]
+        test_slices = edited(voyager, self.folder / 'on-test.pt', lambda c: c['splits'].update(train=c['splits']['test']))
+        offsource_train = torch.load(self.paths[1], weights_only=True)['splits']['train']
+        other_family = edited(voyager, self.folder / 'other-family.pt', lambda c: c['splits'].update(train=offsource_train))
+        sharded = edited(voyager, self.folder / 'sharded.pt', lambda c: c['merge'].update(shard=[1, 3]))
+        inflated = edited(voyager, self.folder / 'inflated.pt', lambda c: c['merge'].update(training_targets=144_000))
+        for path, reason in [(test_slices, "training slices aren't the voyager training split"),
+                             (other_family, "training slices aren't the voyager training split"),
+                             (sharded, 'whole training split, not a shard'),
+                             (inflated, 'records 144000 training targets, but the voyager training split has 144')]:
+            with self.assertRaisesRegex(ValueError, reason, msg=path.name):
+                moe.load_specialists(self.anchor, [path, *self.paths[1:]], MANIFEST)
 
     def test_the_upcycle_command(self):
         out = self.folder / 'cli'
