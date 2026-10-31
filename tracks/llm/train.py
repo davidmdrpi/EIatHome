@@ -10,8 +10,8 @@ import numpy as np
 import torch
 
 from .anchor import ANCHORS, load_anchor
-from .data import (SPLITS, Tokenizer, dataset_digest, digest, load_slices, markov_probabilities, split_records, split_sizes,
-                   surrogate, unique_records)
+from .data import (FAMILIES, SPLITS, Tokenizer, control_family, dataset_digest, digest, load_slices, markov_probabilities,
+                   split_records, split_sizes, surrogate, unique_records)
 from .merge import check_continuation, lineage, parse_shard, round_start, shard_records
 from .model import evaluate, fit, generate, validate_config
 from .runtime import atomic_output, require_new_output, training_runtime
@@ -162,7 +162,7 @@ def _run(args, config, output, anchor=None):
         result = {"test": score, "test_window_starts": window_starts(model, data["test"], args.batch_size),
                   "best_epoch": best_epoch, "history": history}
         if variant == "real":
-            controls = unique_records(r for r in records if r["entry"]["family"] != args.family)
+            controls = unique_records(r for r in records if r["entry"]["family"] == control_family(records, args.family))
             if controls:
                 control_tokens = [tokenizer.encode(r["frames"]) for r in controls]
                 result["other_family_control"] = {
@@ -210,7 +210,7 @@ def parser():
     p = argparse.ArgumentParser(description="Train a causal signal-token transformer and matched surrogate controls.")
     p.add_argument("--manifest", type=Path, default=ROOT / "web/data/slices/index.json")
     p.add_argument("--output", type=Path, default=ROOT / "runs/signal-lm")
-    p.add_argument("--family", choices=("voyager", "offsource"), default="voyager")
+    p.add_argument("--family", choices=FAMILIES, default="voyager")
     p.add_argument("--allow-within-session", action="store_true", help="Explicitly allow a labelled whole-scan smoke test")
     p.add_argument("--anchor", choices=list(ANCHORS), default=None,
                    help="start from this shared anchor (pinned codebook and θ₀) so runs can be merged; it sets the model's size")

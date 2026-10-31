@@ -26,10 +26,27 @@ version, never an edit.
   rounded bounds (embeddings uniform ±√3, so unit variance, instead of normal). The bytes
   rebuild the same on any platform.
 
+## v2
+
+- **Data:** v1's slices plus the Rosetta control, synthetic 16-tone FSK text
+  (`tracks/llm/data/slices/index-rosetta.json`, made by [`synthetic.py`](../synthetic.py)), for
+  the mixture of experts (milestone 3).
+- **Codebook:** K = 32, fitted on the training scan of each of the three families: 441 frames.
+  - **Why 32:** it's the smallest of 16, 24, 32 and 48 for which two conditions hold:
+    - a Rosetta training frame's token gives its symbol for at least 95% of frames (96%);
+    - neither real family's training frames use fewer tokens than under v1: Voyager uses 24
+      (12 under v1), off-source 6 (6).
+  - **Added after looking:** the second condition, after seeing that at 16 tokens every
+    off-source frame gets the same one.
+  - **A cost:** k-means splits frequent symbols by their noise. Given its symbol, a Rosetta
+    token still carries about 1 bit of noise.
+- **Model:** v1's, with 32 tokens instead of 16: 27,520 parameters.
+- **θ₀:** drawn as v1's is, from the same seed.
+
 Check that the committed files rebuild, or write them for a new version:
 
 ```bash
-python -m tracks.llm.anchor build --anchor v1
+python -m tracks.llm.anchor build --anchor v1   # or v2
 python -m tracks.llm.anchor build --anchor v1 --write   # only when defining a new anchor
 ```
 

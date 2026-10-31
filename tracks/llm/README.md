@@ -193,6 +193,42 @@ python -m tracks.llm.merge round --merge ties --dare-p 0.9 --soup greedy \
 - **Not a defense against adversaries:** the validation data and the control are public, so a
   delta crafted to pass the gate could pass it.
 
+### A mixture of experts across families
+
+Milestone 3 upcycles one specialist per family into a mixture of experts, Branch-Train-MiX
+style ([moe.py](moe.py); results in [MERGE_RESULTS.md](MERGE_RESULTS.md)). It uses anchor v2,
+whose codebook also covers the Rosetta control: synthetic 16-tone FSK text from
+[synthetic.py](synthetic.py), published in `data/slices/index-rosetta.json`.
+
+```bash
+M=tracks/llm/data/slices/index-rosetta.json
+for f in voyager offsource rosetta; do
+  python -m tracks.llm.train --anchor v2 --manifest $M --family $f --allow-within-session \
+    --variants real --train-stride 1 --output runs/$f
+done
+python -m tracks.llm.moe upcycle --finetune router+backbone --output runs/moe \
+  runs/voyager/real.pt runs/offsource/real.pt runs/rosetta/real.pt
+python -m tracks.llm.moe_bench --output runs/moe-bench   # the milestone 3 benchmark
+```
+
+- **Specialists:** workers trained from θ₀ (not a later round) on distinct families of one
+  dataset. Each is checked against the manifest's split, like a merge round's workers. Its
+  record must also show its family's whole training split, not a shard, held-out slices or
+  another family's, with that split's number of targets.
+- **The mixture:**
+  - each specialist's feed-forward layers become one expert in every block;
+  - the backbone (embedding, attention, layer norms, head) is θ₀ plus the specialists'
+    averaged deltas (`--merge ties` for TIES);
+  - a router per block, initialized from a PCG64 stream, picks two experts per token, with
+    gates softmax(top2(x·W_g)). Each expert runs only on the tokens routed to it, so a token
+    passes through the parameters the report counts as active.
+- **Finetuning** (`--finetune router`, `router+backbone` or `none`): on all the families'
+  training scans together, with the experts frozen.
+  - The load-balancing loss N Σ fᵢ Pᵢ is weighted 0.01.
+  - The epoch is chosen on the families' validation scans together.
+- **The report:** each family's validation and test bits, which experts each family's tokens
+  go to, the total parameters and those a token uses, and the checkpoint `moe.pt`.
+
 ## What the pipeline learns
 
 1. Verify each slice's SHA-256, shape, finite samples and start time. Take one fixed central

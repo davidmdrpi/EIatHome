@@ -52,7 +52,7 @@ import numpy as np
 import torch
 
 from .anchor import ANCHORS, ROOT, codebook_digest, difference, flatten, load_anchor, weights_digest
-from .data import dataset_digest, load_slices, split_records
+from .data import control_family, dataset_digest, load_slices, split_records
 from .model import SignalLM, evaluate
 from .runtime import atomic_output, require_new_output, training_runtime
 
@@ -215,14 +215,14 @@ def controls(records, family, evaluation):
     """The other family's held-out slices, split as the family's own are: its validation part
     selects (the gate), its test part reports. Neither is trained on, and the codebook was fitted
     on its training part only. None if the manifest has no other family that splits."""
-    others = sorted({r["entry"]["family"] for r in records} - {family})
-    if not others:
+    other = control_family(records, family)
+    if other is None:
         return None
     try:
-        partitions, _ = split_records(records, others[0], allow_within_session=evaluation != "independent_sessions")
+        partitions, _ = split_records(records, other, allow_within_session=evaluation != "independent_sessions")
     except ValueError:
         return None
-    return {"family": others[0], "selection": partitions["validation"], "reporting": partitions["test"]}
+    return {"family": other, "selection": partitions["validation"], "reporting": partitions["test"]}
 
 
 def recorded_shard(path, merge):
