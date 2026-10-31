@@ -78,3 +78,24 @@ python -m tracks.llm.synthetic build            # regenerate and compare with th
 python -m tracks.llm.synthetic build --write    # rewrite them and index-rosetta.json
 ```
 
+## Milestone 3b (`index-moe-v2.json`)
+
+A second, larger synthetic set, for testing whether experts with real structure change the
+mixture-of-experts result. It's made by the same generator, and `index.json` and
+`index-rosetta.json` are unchanged.
+
+- **Rosetta** (`rosetta2-fsk-*.bin`): 18 slices, six per scan, of the same pinned corpus, so
+  each split holds about 147 characters of text instead of 73.
+- **RFI sweep** (`rfi-sweep-*.bin`): nine slices, three per scan, ported from the Live Lab's
+  `sweep` family.
+  - A line sweeps 8 to 20 channels per step, either way, wrapping around the window.
+  - Its power is 20 to 1000, log-uniform, and the line is smeared over its motion within each
+    frame.
+  - Its scans are dated MJD 1.00–1.02, another clearly synthetic session.
+- **The real slices,** as in `index.json`.
+
+```bash
+python -m tracks.llm.synthetic build --set moe-v2            # regenerate and compare
+python -m tracks.llm.synthetic build --set moe-v2 --write    # rewrite them and index-moe-v2.json
+```
+

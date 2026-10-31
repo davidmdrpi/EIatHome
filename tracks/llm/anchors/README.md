@@ -43,10 +43,26 @@ version, never an edit.
 - **Model:** v1's, with 32 tokens instead of 16: 27,520 parameters.
 - **θ₀:** drawn as v1's is, from the same seed.
 
+## v3
+
+- **Data:** `tracks/llm/data/slices/index-moe-v2.json`: Voyager, a longer Rosetta and an RFI
+  sweep, for milestone 3b's mixture of experts.
+- **Tokenizer:** the peak tokenizer, not k-means. A frame's token is its brightest channel's
+  2-channel bin, or "no line" if no channel reaches 6σ: 33 tokens, and nothing is fitted.
+  - **Why not k-means:** in v2, k-means spent spare centroids splitting Rosetta's symbols by
+    their noise, about 1 bit per token. Higher flux, more or fewer centroids, k-means++
+    restarts and thresholding the noise all left 0.2 to 1.3 bits.
+  - **What it gives:** each FSK symbol is exactly one token, so H(token | symbol) = 0.
+    Voyager's drifting line becomes a sequence of positions.
+  - **Tried once:** 6σ and 2-channel bins was the only setting tried.
+- **Families:** Voyager, Rosetta and the RFI sweep. Under this tokenizer, off-source noise is
+  "no line" in every frame, so it isn't one of v3's families.
+- **Model:** v1's, with 33 tokens: 27,584 parameters. θ₀ is drawn as v1's is.
+
 Check that the committed files rebuild, or write them for a new version:
 
 ```bash
-python -m tracks.llm.anchor build --anchor v1   # or v2
+python -m tracks.llm.anchor build --anchor v1   # or v2, v3
 python -m tracks.llm.anchor build --anchor v1 --write   # only when defining a new anchor
 ```
 

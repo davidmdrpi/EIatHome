@@ -8,8 +8,9 @@ import numpy as np
 
 CHANNELS = 64
 SPLITS = ("train", "validation", "test")
-# Real families, and the synthetic Rosetta control (tracks/llm/synthetic.py), in the same units.
-FAMILIES = ("voyager", "offsource", "rosetta")
+# Real families, and the synthetic ones (tracks/llm/synthetic.py: the Rosetta control and an RFI
+# sweep), in the same units.
+FAMILIES = ("voyager", "offsource", "rosetta", "sweep")
 SESSION_GAP_DAYS = 0.5  # as in web/js/splits.js and tools/extract_slices.py
 SCAN_GAP_DAYS = 1e-8
 
@@ -209,6 +210,41 @@ class Tokenizer:
 
     def state(self):
         return {"mean": self.mean, "scale": self.scale, "centroids": self.centroids.tolist()}
+
+
+class PeakTokenizer:
+    """One token per frame from its brightest channel: token 0 when no channel reaches
+    `threshold` (noise sigma), else 1 + the channel's bin of `width` channels. Fitted on
+    nothing, so it splits no symbol by its noise: a narrowband line's token is its position."""
+
+    def __init__(self, threshold, width, channels=CHANNELS, kind="peak"):
+        if kind != "peak" or not threshold > 0 or width < 1 or channels % width:
+            raise ValueError("A peak tokenizer takes a positive threshold and a bin width that divides the channels")
+        self.threshold, self.width, self.channels = float(threshold), int(width), int(channels)
+
+    @property
+    def vocab_size(self):
+        return 1 + self.channels // self.width
+
+    def encode(self, frames):
+        frames = np.asarray(frames)
+        return np.where(frames.max(axis=1) >= self.threshold, 1 + frames.argmax(axis=1) // self.width, 0).astype(np.int64)
+
+    def decode(self, tokens):
+        """A line twice the threshold at each token's bin centre; no line for token 0."""
+        tokens = np.asarray(tokens, dtype=np.int64)
+        frames = np.zeros((len(tokens), self.channels), dtype=np.float32)
+        lit = tokens > 0
+        frames[np.flatnonzero(lit), (tokens[lit] - 1) * self.width + self.width // 2] = 2 * self.threshold
+        return frames
+
+    def state(self):
+        return {"kind": "peak", "threshold": self.threshold, "width": self.width, "channels": self.channels}
+
+
+def tokenizer_from_state(state):
+    """The tokenizer a state describes: a peak tokenizer, or the k-means one."""
+    return PeakTokenizer(**state) if state.get("kind") == "peak" else Tokenizer(**state)
 
 
 def markov_probabilities(sequences, k):

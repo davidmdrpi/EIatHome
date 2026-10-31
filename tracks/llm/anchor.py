@@ -31,7 +31,7 @@ import numpy as np
 import torch
 from torch import nn
 
-from .data import Tokenizer, digest, load_slices, split_records, unique_records
+from .data import PeakTokenizer, Tokenizer, digest, load_slices, split_records, tokenizer_from_state, unique_records
 from .model import SignalLM, validate_config
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -72,6 +72,24 @@ ANCHORS = {
         "codebook_record_sha256": "7b041732635e4a12e7d6a3c760d0f5698c94219b4ec25063552a11ed42a6101b",
         "theta0_sha256": "ac600b9458ab5f7d329d0ba0732d142ddc6591262384c8a5974f41f43b4880d0",
     },
+    # Milestone 3b: Voyager, a longer Rosetta and an RFI sweep (index-moe-v2.json, made by
+    # synthetic.py), tokenized by each frame's brightest channel instead of k-means. k-means
+    # spent spare centroids splitting Rosetta's symbols by their noise (about 1 bit per token,
+    # at any flux, K or initialization tried); the peak tokenizer gives each FSK symbol exactly
+    # one token. Threshold 6 sigma, 2-channel bins: 33 tokens, the only setting tried. It maps
+    # off-source noise to one token ("no line"), so off-source isn't one of v3's families.
+    "v3": {
+        "id": "signal-lm-anchor/v3",
+        "manifest": "tracks/llm/data/slices/index-moe-v2.json",
+        "product": ["6_sec_integration", "synthetic"],
+        "families": ("voyager", "rosetta", "sweep"),
+        "tokenizer": {"kind": "peak", "threshold": 6.0, "width": 2, "channels": 64},
+        "theta_seed": 0,
+        "model": dict(vocab_size=33, context=15, width=32, layers=2, heads=4, dropout=0.1, position="rope"),
+        "codebook_sha256": "17d422eda0950f22b4ed96afc06f8770be96a56869a6d9a242269f85d0748215",
+        "codebook_record_sha256": "51ce459876f09e068e7bd6ba1777236d8c792fa2f1eaa03c1f1ccff5b2857a65",
+        "theta0_sha256": "83124fecefc322b17e9f1326ecafad80f15346cfcb5e0d10d5dd6f840039fa15",
+    },
 }
 
 
@@ -103,6 +121,17 @@ def fit_records(spec, records=None):
 
 
 def build_codebook(spec, records=None):
+    if "tokenizer" in spec:  # a fixed rule (v3's peak tokenizer): nothing is fitted
+        state = PeakTokenizer(**spec["tokenizer"]).state()
+        if state["kind"] != "peak" or PeakTokenizer(**state).vocab_size != spec["model"]["vocab_size"]:
+            raise ValueError("The tokenizer's vocabulary must be the model's")
+        return {
+            "format": "eiathome-signal-lm-codebook", "version": 1, "anchor": spec["id"],
+            "fit": {"manifest": spec["manifest"], "product": spec["product"], "families": list(spec["families"]),
+                    "split": None, "seed": None, "frames": 0, "slices": []},
+            "tokenizer": state,
+            "sha256": codebook_digest(state),
+        }
     fit = fit_records(spec, records)
     if any(r["entry"].get("source", {}).get("product") not in products(spec) for r in fit):
         raise ValueError(f"The codebook's slices must all come from the {spec['product']} product")
@@ -128,8 +157,11 @@ CODEBOOK_TOLERANCE = 1e-5
 
 def compare_codebook(state, anchor, frames):
     """How a rebuilt codebook's state compares with the committed, pinned one, on these frames."""
-    rebuilt = Tokenizer(**state)
+    rebuilt = tokenizer_from_state(state)
     committed = anchor.tokenizer
+    if isinstance(committed, PeakTokenizer) or isinstance(rebuilt, PeakTokenizer):
+        same = state == committed.state()  # a fixed rule rebuilds exactly or not at all
+        return {"exact": same, "max_difference": 0.0 if same else float("inf"), "same_tokens": same, "agrees": same}
     difference = max(float(np.abs(rebuilt.centroids - committed.centroids).max()),
                      abs(rebuilt.mean - committed.mean), abs(rebuilt.scale - committed.scale))
     same_tokens = bool(np.array_equal(rebuilt.encode(frames), committed.encode(frames)))
@@ -262,7 +294,7 @@ def load_anchor(name="v1", directory=None):
         raise ValueError(f"Anchor {name}'s θ₀ header doesn't give the model's layout")
     theta0 = OrderedDict((t["name"], torch.from_numpy(values[t["offset"]:t["offset"] + t["count"]].reshape(t["shape"]).copy()))
                          for t in layout)
-    return Anchor(name, spec, Tokenizer(**codebook["tokenizer"]), theta0, codebook)
+    return Anchor(name, spec, tokenizer_from_state(codebook["tokenizer"]), theta0, codebook)
 
 
 def difference(state, base):
