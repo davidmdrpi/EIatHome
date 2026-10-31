@@ -4,11 +4,12 @@
 from many volunteers into stronger models. Milestone 1 gave every run a shared anchor (a pinned
 codebook and starting weights θ₀; see [anchors/](anchors/README.md)), so their changes
 τ = θ − θ₀ line up. This file records what merging does on the published data, milestone by
-milestone: within one family (milestone 2), then across families (milestones 3 and 3b).
+milestone: within one family (milestone 2), then across families (milestones 3 and 3b), then
+in the browser (milestone 4).
 
-Everything here is one 2020 observing session: training, validation and test are three scans
-of the same cadence (`--allow-within-session`). It isn't evidence of generalization across
-sessions, or of language.
+Milestones 2 to 3b use one 2020 observing session: training, validation and test are three
+scans of the same cadence (`--allow-within-session`). Milestone 4 uses the browser's synthetic
+Rosetta text. None of it is evidence of generalization across sessions, or of language.
 
 ## Milestone 2: merging within a family
 
@@ -429,8 +430,8 @@ diagnosed:
 - **The merged backbone cost a lot even under oracle routing,** since the specialists had
   branched from random weights.
 
-Milestone 3b fixes both and asks again, against dense models given the same training budget
-and parameter-matched ones. Baseline M3a, above, is unchanged.
+Milestone 3b fixes both and asks again, against dense models given at least the costliest
+mixture's training budget, and parameter-matched ones. Baseline M3a, above, is unchanged.
 
 ### What changed
 
@@ -552,9 +553,9 @@ averaged over the two blocks, over the three seeds.
 
 ### What this shows
 
-- **The result is still negative.** Given clean, structured experts, a warm start and at
-  least the dense models' training budget, the best mixture scores 3.76 bits per token on
-  average. That's against:
+- **The result is still negative.** Given clean, structured experts and a warm start, against
+  dense models trained for at least the costliest mixture's budget, the best mixture scores
+  3.76 bits per token on average. That's against:
   - 3.73 for a dense model the size of one specialist;
   - 3.67 for one with as many parameters as the mixture uses per token;
   - 3.56 for one with as many as it has in total.
@@ -615,9 +616,146 @@ averaged over the two blocks, over the three seeds.
   noise a single token. v3's results aren't comparable with v2's, so M3a and M3b are separate
   tables.
 
+## Milestone 4: the browser's anchor and merge cards
+
+The Live Lab trains its own models in TF.js: Track B's token transformer, on 16-frame snippets
+normalized with asinh. Milestone 4 gives it an anchor of its own, and a work unit that trains
+several runs from it in the browser and merges them. The unit's result card carries a summary
+of the merge, not weights.
+
+### What it adds
+
+- **The anchor, `token-anchor/v1`** ([`web/js/anchor.js`](../../web/js/anchor.js)):
+  - **Tokens:** anchor v3's peak rule in the browser's units. A frame is token 0 when no channel
+    reaches 6 noise sigma (asinh(6) after the Live Lab's normalization); otherwise it's 1 plus
+    the 2-channel bin of its brightest channel. That gives 33 tokens, with nothing fitted.
+    - Each Rosetta symbol always becomes the same token. The tests check every symbol of the
+      corpus under three noise draws.
+  - **θ₀:** the token transformer at that vocabulary: width 22 and 6,325 parameters. Its
+    weights are uniform draws from the Live Lab's seeded stream, in a fixed order, rounded to
+    float32:
+    - Glorot-uniform kernels;
+    - small uniform positions;
+    - zero biases and offsets;
+    - unit scales.
+
+    Its SHA-256 is pinned, and Node and Chromium both rebuild it to that hash. A run refuses an
+    anchor that doesn't rebuild to it, and a model whose weights aren't laid out as the anchor's.
+  - **In the Live Lab:** Track B can tokenize with the pinned rule. The token transformer then
+    trains from θ₀ instead of from a random start.
+- **The work unit, `trackb-merge/v0`** ([`web/js/merge.js`](../../web/js/merge.js), in the
+  Work units tab):
+  - **Data:** the frozen Rosetta corpus as FSK, split in text order into 157 training, 23
+    validation and 45 test snippets (2,511, 367 and 719 targets).
+  - **Workers:** 4 seeds. Each trains the transformer from θ₀ for up to 20 epochs and keeps its
+    best validation epoch.
+    - The seeds change only the order of examples: every worker sees the same tokens.
+  - **Merges,** with milestone 2's arithmetic and settings:
+    1. the plain average;
+    2. DARE, then the average. DARE drops 90% of the entries at random and rescales the rest by
+       10. The survivors travel in int8, with one scale per tensor.
+    3. TIES: keep the largest 20%, elect signs, average the agreeing entries;
+    4. DARE, then TIES.
+  - **Card (version 1):**
+    - test and validation bits for θ₀, a unigram baseline, each seed and each merge;
+    - the share of entries DARE keeps, and each merge's nonzero share;
+    - sign agreement across the seeds, TIES's sign conflicts, and the mean pairwise cosine;
+    - each seed's best epoch and DARE payload size.
+
+    It holds no weights or deltas. A card is about 1.3 KB of compact JSON, and its issue link
+    about 2,100 characters, well under the 7,500 the Live Lab allows.
+  - **Checks:** ingestion validates a card's form: its config, anchor, corpus, target counts,
+    the seed it keeps, and the ranges of its values.
+    - Its inputs must be the pinned corpus and anchor only. A slice dataset would put the card
+      in another replication group, and let one volunteer count a unit twice.
+    - What follows from the spec alone is recomputed and must match: each DARE payload's size
+      and the share DARE keeps (the masks depend only on the seeds), and the unigram baseline.
+    - The rest comes from training, so it's replicated rather than recomputed. On one backend
+      a unit gives an identical card, which the tests check.
+    - Runs from two volunteers count as replicated when every metric agrees within 0.02.
+
+### Results
+
+Units 0–9, on WebAssembly in headless Chromium, at about 19 s per unit. The table gives test
+bits per token on the 719 held-out targets: the mean over units, with the range.
+
+| Model | Test bits per token |
+|---|---|
+| θ₀, untrained | 5.71 |
+| Unigram (training token counts) | 3.33 |
+| One seed, mean of the four | 2.31 (2.30–2.32) |
+| The seed kept without merging (best on validation) | 2.31 (2.28–2.32) |
+| The best seed on test (an oracle) | 2.30 (2.28–2.31) |
+| **Plain average** | **2.31** (2.30–2.32) |
+| DARE, then the average | 4.26 (3.46–6.61) |
+| TIES | 3.59 (3.45–3.69) |
+| DARE, then TIES | 47.1 (28.3–75.4) |
+
+The cards' summaries of the deltas:
+
+| Summary | Mean (range) |
+|---|---|
+| Parameters all four seeds change, changed with the same sign | 0.86 (0.83–0.87) |
+| Mean pairwise cosine of the seeds' τ | 0.95 (0.94–0.96) |
+| TIES entries against the elected sign | 0.000 (0.000–0.001) |
+| Share of entries DARE keeps | 0.100 (0.098–0.102) |
+| Nonzero share: average, DARE then average, TIES, DARE then TIES | 0.94, 0.32, 0.27, 0.32 |
+| DARE payload per seed | 1,276–1,432 bytes |
+| Seeds' best epochs | 10–20 (mean 16.6) |
+
+### What this shows
+
+- **Averaging seeds from a shared start keeps what they learned, and adds almost nothing.**
+  - The plain average beats the mean seed in all 10 units, by 0.001–0.012 bits.
+  - Against the seed a volunteer would keep, it's ahead in 6 of 10, by 0.003 bits on average
+    (range −0.023 to +0.023). That's within the noise of 719 targets.
+  - It beats the best seed on test in 1 of 10.
+- **DARE and TIES fail from a random start.** These models train from θ₀, not a pretrained
+  model, so a task vector isn't a small adjustment with redundant entries: it's everything the
+  model learned.
+  - Keeping the largest 20% (TIES) costs 1.3 bits.
+  - Dropping 90% (DARE) costs 2 bits, even though averaging keeps it unbiased.
+  - The only parameters no seed changes (6%) are the input rows of the 17 tokens Rosetta never
+    uses.
+- **DARE then TIES blows up, by construction.** DARE's rescale keeps a sum right on average.
+  TIES averages only the entries that survive, though, so every surviving entry stays 10 times
+  too large. A unit test checks this: identical seeds come out scaled by 10 wherever DARE kept
+  an entry.
+  - Milestone 2 uses the same arithmetic. Its DARE-TIES chain stalled on momentum overshoot,
+    and this rescale may be part of that; it wasn't tested there.
+- **TIES has no conflicts to resolve here.**
+  - The seeds change 86% of the weights they all change in the same direction, and their task
+    vectors point the same way (cosine 0.95).
+  - Among each seed's largest 20%, almost none conflict.
+  - TIES's sign election is for deltas that interfere, and these don't, so its whole cost is
+    the trimming.
+- **This doesn't show language.** Milestone 3b's byte-statistics control, which knows the
+  UTF-8 framing, scores 2.28 bits per token over the 16 symbols on the same 719 test targets.
+  That's add-one statistics fitted on the training tokens, and every unit has the same tokens,
+  so it's the same for all of them.
+  - It's slightly better than any model here (2.31), though it has framing information the
+    transformer lacks.
+  - The merge comparison stands, since every row is scored on the same text. Whether the
+    transformer learns anything beyond byte statistics isn't shown.
+- **The cards fit.** A card carries the summary with plenty of room in an issue link. A DARE
+  delta of this model would take about 1.4 KB, so deltas could travel too, but merging them
+  doesn't help here.
+
+### Limitations
+
+- **Synthetic text, one corpus.** Rosetta is the browser's positive control: 1,804 bytes of
+  English sent as FSK. No real data is used.
+- **Seeds, not shards.** Every worker sees the same tokens, and only their order differs. That's
+  the hardest case for a merge to add anything. Shards, as milestone 2 used in Python, are
+  untested in the browser.
+- **One backend.** Cards from other backends will differ in the last digits. Whether merge
+  units replicate across backends within 0.02 is for the community results to show. DARE then
+  TIES, with its blown-up scores, is unlikely to.
+- **One configuration,** milestone 2's: p = 0.9, TIES keeping 20%, and no scale for the merged
+  delta chosen on validation.
+
 ## Next
 
-- **Milestone 4:** the browser's anchor and summary cards.
 - **Milestone 5:** the full benchmark, adding the mixture of experts.
 - **Worth trying:**
   - the average with the greedy soup and DiLoCo, the two parts of milestone 2 that helped,
@@ -631,4 +769,7 @@ averaged over the two blocks, over the three seeds.
   - for the mixture: routing on a window of context instead of one token; finetuning the
     experts lightly; more data for the sweep;
   - for Rosetta: a language test that beats the byte-statistics control, such as more text, or
-    a comparison with whole characters shuffled while keeping the framing.
+    a comparison with whole characters shuffled while keeping the framing;
+  - in the browser: shards instead of seeds; DARE at a lower drop rate, or DARE without TIES's
+    average over survivors; a merge scale chosen on validation; merging from a shared warm
+    start instead of θ₀, as milestone 3b did.

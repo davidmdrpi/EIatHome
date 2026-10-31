@@ -1,6 +1,7 @@
 // Community results: validation of submitted result cards, and replication summaries.
 // Used by tools/ingest_result.mjs (in a GitHub Action) and by the Live Lab's Work units tab.
 
+import { isMergeCard, validateMergeCard } from './merge.js';
 import { RECOVERY_SPEC, validateRecoveryCard } from './recovery.js';
 import { FAMILIES, REAL_FAMILIES } from './signals.js';
 import { MAX_UNIT, RESULT_CARD_VERSION, ROSETTA_CORPUS, SPEC, workUnitConfig } from './workunits.js';
@@ -62,6 +63,7 @@ export function validateCard(card, { published = null } = {}) {
   const fail = (message) => errors.push(message);
   if (!card || typeof card !== 'object' || Array.isArray(card)) return ['The card is not a JSON object.'];
   if (isRecoveryCard(card)) return validateRecoveryCard(card);
+  if (isMergeCard(card)) return validateMergeCard(card);
   if (card.format !== 'eiathome-result') fail('`format` must be "eiathome-result".');
   if (card.version !== RESULT_CARD_VERSION) fail(`\`version\` must be ${RESULT_CARD_VERSION}. Re-run the unit in the current Live Lab.`);
   if (card.spec !== SPEC) fail(`\`spec\` must be "${SPEC}".`);
@@ -156,7 +158,7 @@ export function summarize(results) {
       issues: runs.map((r) => r.issue),
     };
   });
-  units.sort((a, b) => a.unit - b.unit || (a.dataset_id ?? '').localeCompare(b.dataset_id ?? ''));
+  units.sort((a, b) => a.spec.localeCompare(b.spec) || a.unit - b.unit || (a.dataset_id ?? '').localeCompare(b.dataset_id ?? ''));
 
   const people = new Map();
   for (const u of units) {

@@ -1,6 +1,8 @@
+import { ANCHOR } from './anchor.js';
 import { isRecoveryCard, issueLink, submissionText, summarize, validateCard } from './community.js';
 import { STATUSES, acceptedCards, cardKey, cardStatus, keepCard, pruneMarks, safeToDrop, tally } from './contributions.js';
 import { architectureLabel, tokenArchitectureLabel } from './models.js';
+import { MERGES, MERGE_SPEC, isMergeCard } from './merge.js';
 import { fmt, heatmap, lineChart, scatterPanel } from './plots.js';
 import { DECOYS, KINDS, RECOVERY_DATA, RECOVERY_SPEC, SIGNALS, STRENGTHS, combine, wilson } from './recovery.js';
 import { deriveSeed, makeRng } from './rng.js';
@@ -68,7 +70,7 @@ const state = {
   family: 'tone',
   slices: [],
   sliceSource: null, // 'site' | 'files' | null
-  running: null, // 'lab' | 'unit' | null
+  running: null, // 'lab' | 'unit' | 'tokens' | 'merge' | null
   losses: [],
   lastEpoch: null,
   lastProbe: null,
@@ -173,13 +175,25 @@ function onEngineMessage(msg) {
       state.tokenLm = msg.stopped ? null : { ...msg, analysis: state.tokenLmFor };
       $('tb-lm-status').textContent = msg.stopped
         ? 'Stopped.'
-        : `Done: ${tokenArchitectureLabel(msg.arch)}, ${msg.parameters.toLocaleString()} parameters. Lower is better; compare the real stream with its surrogates.`;
+        : `Done: ${tokenArchitectureLabel(msg.arch)}, ${msg.parameters.toLocaleString()} parameters${msg.fromAnchor ? `, trained from the anchor’s θ₀ (${ANCHOR.id})` : ''}. Lower is better; compare the real stream with its surrogates.`;
       viewports.lab?.finishJob(msg.stopped ? 'Track B · token model stopped' : `Track B · token ${tokenArchitectureLabel(msg.arch)} trained. Its held-out scores are in the Track B panel.`);
       renderTokenModel();
+      break;
+    case 'merge-progress':
+      onMergeProgress(msg);
+      break;
+    case 'merge-result':
+      onMergeResult(msg.card);
+      break;
+    case 'merge-stopped':
+      setRunning(null);
+      mergeStatus(`Unit ${msg.unit} stopped.`);
+      viewports.lab?.finishJob(`Merge unit ${msg.unit} · stopped`);
       break;
     case 'error':
       viewports.lab?.finishJob(`Stopped: ${msg.message}`);
       if (state.running === 'unit') unitStatus(msg.message, true);
+      else if (state.running === 'merge') mergeStatus(msg.message, true);
       else if (state.running === 'tokens') {
         $('tb-lm-status').textContent = msg.message;
         $('tb-lm-status').classList.add('error');
@@ -195,8 +209,10 @@ function setRunning(mode) {
   $('train').disabled = busy;
   $('wu-run').disabled = busy;
   $('tb-lm').disabled = busy;
+  $('mg-run').disabled = busy;
   $('stop').disabled = mode !== 'lab';
   $('wu-stop').disabled = mode !== 'unit';
+  $('mg-stop').disabled = mode !== 'merge';
   $('tb-lm-stop').disabled = mode !== 'tokens';
   $('backend').disabled = busy;
 }
@@ -404,7 +420,7 @@ function analyzeTokens() {
     type: 'analyze',
     id,
     family: state.family,
-    k: Number($('k').value),
+    k: $('k').value === 'peak' ? 'peak' : Number($('k').value),
     nFrames: Number($('nframes').value),
     seed: Number($('seed').value) || 0,
     text: state.text || undefined,
@@ -546,6 +562,7 @@ function startTokenModel() {
     control: r.control?.segments ?? null,
     centroids: r.centroids,
     seed: Number($('seed').value) || 0,
+    anchor: r.tokenizer === 'peak',
   });
 }
 
@@ -696,10 +713,98 @@ function onConfirmedClick(button, action) {
   };
 }
 
+// ---------- merge units (merge.js) ----------
+
+const mg = {
+  card: null,
+  issue: null,
+  results: [].concat(store.get('mergeResults', [])).filter((card) => isMergeCard(card) && !validateCard(card).length),
+};
+
+const MERGE_NAMES = { average: 'Plain average', dare_average: 'DARE, then the average', ties: 'TIES', dare_ties: 'DARE, then TIES' };
+
+function mergeStatus(text, error = false) {
+  $('mg-status').textContent = text;
+  $('mg-status').classList.toggle('error', error);
+}
+
+function runMerge(unit) {
+  $('mg-number').value = unit;
+  $('mg-progress').value = 0;
+  setRunning('merge');
+  mergeStatus(`Unit ${unit}: starting from the anchor…`);
+  viewports.lab?.startJob('merge', targetForFamily('rosetta'), `Merge unit ${unit} · ${MERGE_SPEC}: training the token transformer from θ₀…`, 'Rosetta text, sent as FSK from this browser');
+  engine.postMessage({ type: 'merge', unit });
+}
+
+function onMergeProgress(msg) {
+  if (msg.merging) {
+    mergeStatus(`Unit ${msg.unit}: merging the seeds and scoring the merges…`);
+    return;
+  }
+  const done = (msg.worker + msg.epoch / msg.epochs) / msg.workers;
+  $('mg-progress').value = done;
+  mergeStatus(`Unit ${msg.unit}: training seed ${msg.worker + 1} of ${msg.workers} from θ₀, epoch ${msg.epoch} of ${msg.epochs}…`);
+  viewports.lab?.telemetry(`Merge unit ${msg.unit} · seed ${msg.worker + 1} of ${msg.workers} · epoch ${msg.epoch} of ${msg.epochs}`, done);
+}
+
+function onMergeResult(card) {
+  setRunning(null);
+  mg.card = card;
+  $('mg-progress').value = 1;
+  mergeStatus(`Unit ${card.unit} finished in ${card.seconds} s on ${BACKEND_NAMES[card.backend] ?? card.backend}.`);
+  mg.issue = issueLink(card, REPO);
+  $('mg-submit').href = mg.issue.url;
+  $('mg-submit-text').hidden = true;
+  const full = keep('merge', card);
+  session.merge += 1;
+  renderMerge();
+  renderMergeHistory();
+  viewports.lab?.finishJob(`Merge unit ${card.unit} · done in ${card.seconds} s · average ${fmt(card.metrics.test_bits.average)} bits, DARE-TIES ${fmt(card.metrics.test_bits.dare_ties)}`);
+  if (full) pauseForReview('merge');
+  refreshContributions();
+}
+
+function renderMerge() {
+  const card = mg.card;
+  $('mg-result').hidden = !card;
+  if (!card) return;
+  const { test_bits: test, validation_bits: validation, sparsity } = card.metrics;
+  $('mg-summary').textContent = mergeOutcome(card);
+  fillTable($('mg-table'), ['Model', 'Test bits per token', 'Validation bits', 'Nonzero share of its Δ'], [
+    ['θ₀, untrained', fmt(test.theta0), '', ''],
+    ['Unigram (training token counts)', fmt(test.unigram), '', ''],
+    ...test.seeds.map((bits, i) => [`Seed ${i + 1} (best epoch ${card.best_epochs[i]} of ${card.config.epochs})${i === card.best_seed ? ', best on validation' : ''}`, fmt(bits), fmt(validation.seeds[i]), '']),
+    ...MERGES.map((m) => [MERGE_NAMES[m], fmt(test[m]), fmt(validation[m]), fmt(sparsity[m])]),
+  ]);
+  $('mg-card').textContent = JSON.stringify(card, null, 2);
+}
+
+function renderMergeHistory() {
+  $('mg-history').tBodies[0].replaceChildren(
+    ...mg.results.map((card) => {
+      const t = card.metrics.test_bits;
+      return makeRow([card.unit, fmt(t.seeds[card.best_seed]), fmt(t.average), fmt(t.ties), fmt(t.dare_ties), BACKEND_NAMES[card.backend] ?? card.backend, card.seconds]);
+    }),
+  );
+}
+
+// What a merge unit measured, in plain words.
+function mergeOutcome(card) {
+  const { test_bits: t, signs } = card.metrics;
+  const kept = t.seeds[card.best_seed];
+  const mean = t.seeds.reduce((a, b) => a + b, 0) / t.seeds.length;
+  const bytes = Math.max(...card.payload_bytes);
+  return `Unit ${card.unit} trained a token transformer on Rosetta text ${t.seeds.length} times from the same pinned start, with different seeds, and merged the runs. ` +
+    `On held-out text, the plain weight average scores ${fmt(t.average)} bits per token, against ${fmt(kept)} for the seed you’d keep without merging (the best on validation) and ${fmt(mean)} for the mean seed; token counts alone (unigram) score ${fmt(t.unigram)}. ` +
+    `DARE (dropping 90% of each seed’s weight changes) then averaging scores ${fmt(t.dare_average)}, TIES ${fmt(t.ties)}, and DARE then TIES ${fmt(t.dare_ties)}. ` +
+    `The seeds changed ${pct(signs.agree)} of the weights they all changed in the same direction (mean cosine ${fmt(signs.cosine)}); a DARE delta would take at most ${bytes.toLocaleString()} bytes to send.`;
+}
+
 // ---------- observatory viewport ----------
 
 const viewports = { lab: null, recovery: null };
-const session = { units: 0, recovery: 0 }; // units computed since the page opened
+const session = { units: 0, recovery: 0, merge: 0 }; // units computed since the page opened
 let skyData = null;
 
 const plural = (n, word) => `${n.toLocaleString()} ${word}${n === 1 ? '' : 's'}`;
@@ -1061,17 +1166,20 @@ function renderCombined() {
 const contributions = {
   marks: store.get('contributionMarks', {}),
   accepted: new Set(),
-  kind: 'lab', // whose cards the review shows: 'lab' (Track A work units) or 'recovery'
+  kind: 'lab', // whose cards the review shows: 'lab' (Track A work units), 'recovery' or 'merge'
   view: 'pending', // 'pending' (not yet accepted) or 'all'
   shown: 0, // rows listed before "Show more"
   pendingSave: null, // cards downloaded but not yet confirmed saved: { kind, cards }
-  offered: { lab: 0, recovery: 0 }, // units computed when the review was last offered
+  offered: { lab: 0, recovery: 0, merge: 0 }, // units computed when the review was last offered
   checked: 0, // when the community results were last loaded
 };
-const KEEP = { lab: 200, recovery: 300 };
-const KIND_NAMES = { lab: 'Track A work units', recovery: 'recovery units' };
+const KEEP = { lab: 200, recovery: 300, merge: 200 };
+const KIND_NAMES = { lab: 'Track A work units', recovery: 'recovery units', merge: 'merge units' };
+const STORE_KEYS = { lab: 'results', recovery: 'recoveryResults', merge: 'mergeResults' };
+const DOWNLOAD_NAMES = { lab: 'eiathome-results.json', recovery: 'eiathome-recovery-results.json', merge: 'eiathome-merge-results.json' };
 const REVIEW_SHOWN = 50;
-const keptCards = (kind) => (kind === 'recovery' ? rc.results : state.results);
+const keptCards = (kind) => ({ lab: state.results, recovery: rc.results, merge: mg.results })[kind];
+const computedThisSession = (kind) => ({ lab: session.units, recovery: session.recovery, merge: session.merge })[kind];
 const statusOf = (card) => cardStatus(card, contributions.marks, contributions.accepted);
 
 // Keeps a new card without dropping one that exists nowhere else. Returns true when the kept
@@ -1080,14 +1188,15 @@ function keep(kind, card) {
   const replaces = kind === 'recovery' ? (c) => c.unit === card.unit : undefined; // one card per recovery unit
   const { cards, full } = keepCard(keptCards(kind), card, KEEP[kind], (c) => safeToDrop(c, contributions.marks, contributions.accepted), replaces);
   if (kind === 'recovery') rc.results = cards;
+  else if (kind === 'merge') mg.results = cards;
   else state.results = cards;
-  store.set(kind === 'recovery' ? 'recoveryResults' : 'results', cards);
+  store.set(STORE_KEYS[kind], cards);
   saveMarks();
   return full;
 }
 
 function saveMarks() {
-  contributions.marks = pruneMarks(contributions.marks, [state.results, rc.results]);
+  contributions.marks = pruneMarks(contributions.marks, [state.results, rc.results, mg.results]);
   store.set('contributionMarks', contributions.marks);
 }
 
@@ -1107,23 +1216,26 @@ function refreshContributions() {
     viewports[kind]?.setReview(t.total ? (t.awaiting ? `Review and submit (${t.awaiting.toLocaleString()})` : 'Review results') : null, t.awaiting > 0);
     viewports[kind]?.setStats(sessionStats(kind));
   }
+  const merges = tally(mg.results, contributions.marks, contributions.accepted);
+  $('mg-review').textContent = merges.awaiting ? `Review and submit (${merges.awaiting.toLocaleString()})` : 'Review results';
+  $('mg-review').disabled = !merges.total;
   if ($('review').open) renderReview();
 }
 
 // Every kept card exists nowhere else: stop auto-run rather than drop one, and show the review.
 function pauseForReview(kind) {
-  const box = kind === 'recovery' ? $('rc-loop') : $('wu-loop');
-  const looping = box.checked;
-  box.checked = false;
+  const box = { lab: $('wu-loop'), recovery: $('rc-loop') }[kind]; // merge units don't auto-run
+  const looping = Boolean(box?.checked);
+  if (box) box.checked = false;
   viewports[kind]?.setAutoRun(false);
-  const say = kind === 'recovery' ? recoveryStatus : unitStatus;
+  const say = { lab: unitStatus, recovery: recoveryStatus, merge: mergeStatus }[kind];
   say(`This browser keeps up to ${KEEP[kind]} ${KIND_NAMES[kind]}, and none of the kept cards is accepted into community results or saved to a file yet${looping ? ', so auto-run has paused' : ''}. Submit or download some to make room: no card is dropped until it’s accepted or saved.`);
   openReview(kind);
 }
 
 function openReview(kind) {
   contributions.kind = kind;
-  contributions.offered[kind] = kind === 'recovery' ? session.recovery : session.units;
+  contributions.offered[kind] = computedThisSession(kind);
   const { total, accepted } = tally(keptCards(kind), contributions.marks, contributions.accepted);
   contributions.view = total > accepted ? 'pending' : 'all';
   contributions.shown = REVIEW_SHOWN;
@@ -1138,7 +1250,7 @@ function openReview(kind) {
 // was last offered left cards to submit. Deferred, so the Escape that closed the observatory
 // doesn't also close the review.
 function offerReview(kind) {
-  const computed = kind === 'recovery' ? session.recovery : session.units;
+  const computed = computedThisSession(kind);
   const { awaiting } = tally(keptCards(kind), contributions.marks, contributions.accepted);
   if (computed > contributions.offered[kind] && awaiting) setTimeout(() => openReview(kind));
 }
@@ -1152,7 +1264,7 @@ function renderReview() {
   const kind = contributions.kind;
   const cards = keptCards(kind);
   const t = tally(cards, contributions.marks, contributions.accepted);
-  const thisSession = kind === 'recovery' ? session.recovery : session.units;
+  const thisSession = computedThisSession(kind);
   $('review-title').textContent = `Your ${KIND_NAMES[kind]} in this browser`;
   $('review-counts').textContent = cards.length
     ? `${plural(t.total, 'result')} kept here, ${thisSession.toLocaleString()} computed this session: ${t.awaiting.toLocaleString()} awaiting submission, ${t.opened.toLocaleString()} opened on GitHub, ${t.accepted.toLocaleString()} accepted into community results.`
@@ -1162,20 +1274,23 @@ function renderReview() {
   $('review-opened').textContent = t.opened
     ? `${plural(t.opened, 'card')} opened on GitHub ${t.opened === 1 ? 'isn’t' : 'aren’t'} submitted yet: post each issue to submit it. Its status changes to Accepted once the automatic check records it; use “Check for accepted cards” to look again.`
     : '';
-  $('review-outcome').textContent = cards.length ? (kind === 'recovery' ? recoveryOutcome(cards[0]) : workUnitOutcome(cards[0])) : 'Run a unit to see what it measures.';
+  const outcome = { lab: workUnitOutcome, recovery: recoveryOutcome, merge: mergeOutcome }[kind];
+  $('review-outcome').textContent = cards.length ? outcome(cards[0]) : 'Run a unit to see what it measures.';
   const pending = cards.filter((c) => statusOf(c) !== 'accepted');
   const listed = contributions.view === 'pending' ? pending : cards;
   $('review-view-pending').textContent = `Not yet accepted (${pending.length.toLocaleString()})`;
   $('review-view-all').textContent = `All (${cards.length.toLocaleString()})`;
   $('review-view-pending').setAttribute('aria-pressed', String(contributions.view === 'pending'));
   $('review-view-all').setAttribute('aria-pressed', String(contributions.view === 'all'));
-  fillTable($('review-table'), ['Unit', 'Started', kind === 'recovery' ? 'Signals found at 1% false alarms' : 'GRU gain: drifting tones', 'Status', ''], []);
+  const measured = { lab: 'GRU gain: drifting tones', recovery: 'Signals found at 1% false alarms', merge: 'Held-out bits: average · DARE-TIES' }[kind];
+  fillTable($('review-table'), ['Unit', 'Started', measured, 'Status', ''], []);
   $('review-table').tBodies[0].append(...listed.slice(0, contributions.shown).map((card) => reviewRow(kind, card)));
   const shown = Math.min(listed.length, contributions.shown);
   $('review-more').textContent = listed.length ? `Showing ${shown.toLocaleString()} of ${listed.length.toLocaleString()}, newest first.` : 'Nothing to list here.';
   $('review-show-more').hidden = shown >= listed.length;
   $('review-show-more').textContent = `Show ${Math.min(REVIEW_SHOWN, listed.length - shown).toLocaleString()} more`;
-  $('review-keep').textContent = `This browser keeps up to ${KEEP[kind]} ${KIND_NAMES[kind]} (${cards.length.toLocaleString()} now). To make room it drops only cards that are accepted, or that you downloaded and confirmed saving; if every kept card is neither, auto-run pauses until you submit or save some.`;
+  const full = kind === 'merge' ? 'this review opens after each new unit' : 'auto-run pauses';
+  $('review-keep').textContent = `This browser keeps up to ${KEEP[kind]} ${KIND_NAMES[kind]} (${cards.length.toLocaleString()} now). To make room it drops only cards that are accepted, or that you downloaded and confirmed saving; if every kept card is neither, ${full} until you submit or save some.`;
 }
 
 function reviewRow(kind, card) {
@@ -1200,6 +1315,7 @@ function reviewRow(kind, card) {
 }
 
 function cardOutcome(kind, card) {
+  if (kind === 'merge') return `${fmt(card.metrics.test_bits.average)} · ${fmt(card.metrics.test_bits.dare_ties)}`;
   if (kind === 'recovery') {
     const t = recoveryTotals(card.results, card.config.per_cell, '0.01');
     return `de-Doppler ${t.found.dedoppler} of ${t.signals} · energy ${t.found.energy}`;
@@ -1273,12 +1389,12 @@ async function loadCommunity() {
   const replicated = units.filter((u) => u.status === 'replicated').length;
   status.textContent = `${results.length} result cards for ${units.length} units from ${leaderboard.length} volunteers. ${replicated} of ${units.length} units replicated.`;
 
-  fillTable($('community-units'), ['Unit', 'Hidden', 'Data', 'Runs', 'Volunteers', 'Backends', 'Status', 'Issues'], []);
+  fillTable($('community-units'), ['Unit', 'Spec', 'Data', 'Runs', 'Volunteers', 'Backends', 'Status', 'Issues'], []);
   $('community-units').tBodies[0].append(
     ...units.map((u) => {
       // Runs on different slice datasets are separate groups: name the dataset by its id's first characters.
       const data = u.dataset_id ? `slices ${u.dataset_id.slice(0, 8)}` : 'synthetic only';
-      const tr = makeRow([u.unit, u.hidden, data, u.runs, u.volunteers.length, u.backends.map((b) => BACKEND_NAMES[b] ?? b).join(', '), STATUS_LABELS[u.status]]);
+      const tr = makeRow([u.unit, u.hidden == null ? u.spec : `${u.spec}, hidden ${u.hidden}`, data, u.runs, u.volunteers.length, u.backends.map((b) => BACKEND_NAMES[b] ?? b).join(', '), STATUS_LABELS[u.status]]);
       if (u.dataset_id) tr.cells[2].title = `Dataset ${u.dataset_id}`;
       const issues = document.createElement('td');
       u.issues.filter(Number.isInteger).forEach((n, i) => {
@@ -1385,12 +1501,15 @@ function showTab(name) {
 
 function init() {
   if (PREVIEW) {
-    for (const id of ['theme', 'wu-download', 'wu-download-all', 'rc-download', 'rc-download-all', 'review-download']) $(id).hidden = true;
+    for (const id of ['theme', 'wu-download', 'wu-download-all', 'mg-download', 'rc-download', 'rc-download-all', 'review-download']) $(id).hidden = true;
   }
   applyTheme();
   $('backend').value = store.get('backend', 'auto');
   $('wu-spec').textContent = SPEC;
   $('wu-number').max = MAX_UNIT;
+  $('mg-spec').textContent = MERGE_SPEC;
+  $('mg-anchor').textContent = ANCHOR.id;
+  $('mg-number').max = MAX_UNIT;
   $('rc-spec').textContent = RECOVERY_SPEC;
   $('rc-number').max = MAX_UNIT;
   $('rosetta-text').value = state.text || ROSETTA_TEXT;
@@ -1400,6 +1519,7 @@ function init() {
   startViewports();
   renderFamilies();
   renderHistory();
+  renderMergeHistory();
 
   for (const b of document.querySelectorAll('.tabs button')) b.onclick = () => (location.hash = b.dataset.tab);
   window.addEventListener('hashchange', () => showTab(location.hash.slice(1) || 'lab'));
@@ -1456,6 +1576,21 @@ function init() {
     unitStatus('Deleted the results stored in this browser.');
   });
 
+  $('mg-random').onclick = () => ($('mg-number').value = randomUnit());
+  $('mg-run').onclick = () => runMerge(Math.min(MAX_UNIT, Math.max(0, Math.floor(Number($('mg-number').value) || 0))));
+  $('mg-stop').onclick = () => {
+    mergeStatus('Stopping…');
+    engine.postMessage({ type: 'stop' });
+  };
+  $('mg-download').onclick = () => mg.card && download(`eiathome-merge-unit${mg.card.unit}.json`, mg.card);
+  const submitMerge = onSubmit(() => ({ card: mg.card, issue: mg.issue }), 'mg-submit-text', mergeStatus);
+  $('mg-submit').onclick = () => {
+    submitMerge();
+    markCards([mg.card], 'opened');
+  };
+  $('mg-copy').onclick = onCopy(() => mg.card, 'mg-card', mergeStatus);
+  $('mg-review').onclick = () => openReview('merge');
+
   $('rc-random').onclick = () => ($('rc-number').value = randomUnit());
   $('rc-run').onclick = () => runRecovery(Math.min(MAX_UNIT, Math.max(0, Math.floor(Number($('rc-number').value) || 0))));
   $('rc-stop').onclick = () => {
@@ -1491,7 +1626,7 @@ function init() {
   $('review-download').onclick = () => {
     const kind = contributions.kind;
     const cards = [...keptCards(kind)];
-    download(kind === 'recovery' ? 'eiathome-recovery-results.json' : 'eiathome-results.json', cards);
+    download(DOWNLOAD_NAMES[kind], cards);
     contributions.pendingSave = { kind, cards };
     $('review-confirm').hidden = false;
     reviewStatus(`Asked your browser to download ${plural(cards.length, 'card')}. They count as saved only once you confirm you have the file.`);
@@ -1529,7 +1664,7 @@ function init() {
   // Back from GitHub: look again for accepted cards, at most once a minute, if any were opened.
   document.addEventListener('visibilitychange', () => {
     if (document.hidden || Date.now() - contributions.checked < 60000) return;
-    if ([state.results, rc.results].some((cards) => cards.some((c) => statusOf(c) === 'opened'))) loadCommunity();
+    if ([state.results, rc.results, mg.results].some((cards) => cards.some((c) => statusOf(c) === 'opened'))) loadCommunity();
   });
 
   $('slice-files').onchange = (e) => handleSliceFiles(e.target.files);

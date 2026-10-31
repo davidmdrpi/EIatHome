@@ -255,6 +255,10 @@ python -m tracks.llm.moe_ablation --output runs/moe-ablation             # the m
   8), then the feed-forward size, closest to a parameter count. `SignalLM` takes an optional
   `ffn` size; the anchors leave it out.
 
+The Live Lab's token transformer is a different model, in TF.js, so it has an anchor of its own
+(`token-anchor/v1`, [web/js/anchor.js](../../web/js/anchor.js)) and a merge work unit in the
+browser (milestone 4; results in [MERGE_RESULTS.md](MERGE_RESULTS.md)).
+
 ## What the pipeline learns
 
 1. Verify each slice's SHA-256, shape, finite samples and start time. Take one fixed central

@@ -331,6 +331,106 @@ test('attention is causal, and the custom layer norm matches TF.js’s', async (
   }
 });
 
+// Runs in a test-only page: the merge anchor (web/js/anchor.js) against the real token transformer.
+const ANCHOR_CHECKS = `<!doctype html><meta charset="utf-8"><script type="module">
+import { ANCHOR, anchorTheta0, flatten, layoutProblems } from '/js/anchor.js';
+import { buildTokenModel } from '/js/layers.js';
+const tf = globalThis.tf;
+await tf.setBackend('cpu');
+const model = buildTokenModel(ANCHOR.k, 1, ANCHOR.arch);
+const theta0 = flatten(await anchorTheta0()); // checks the pinned SHA-256 with this browser's crypto
+const tensors = model.weights.map((w, i, all) => {
+  const start = all.slice(0, i).reduce((n, v) => n + v.shape.reduce((a, b) => a * b, 1), 0);
+  return tf.tensor(theta0.subarray(start, start + w.shape.reduce((a, b) => a * b, 1)), w.shape);
+});
+model.setWeights(tensors);
+const back = flatten(model.getWeights().map((w) => w.dataSync()));
+window.__anchorChecks = { problems: layoutProblems(model.weights), parameters: model.countParams(), size: theta0.length, same: back.every((v, i) => v === theta0[i]) };
+</script>`;
+
+test('the merge anchor’s θ₀ rebuilds to its pin in the browser and fits the token transformer exactly', async () => {
+  overrides.set('/__test/anchor.html', ANCHOR_CHECKS);
+  const page = await browser.newPage();
+  const errors = [];
+  page.on('pageerror', (e) => errors.push(e.message));
+  try {
+    await page.goto(`${base}__test/anchor.html`);
+    await page.waitForFunction(() => window.__anchorChecks, null, { timeout: 60000 });
+    const c = await page.evaluate(() => window.__anchorChecks);
+    assert.deepEqual(c.problems, [], 'TF.js lays the weights out as the anchor does');
+    assert.equal(c.parameters, tokenParameterCount('transformer', matchedTokenWidth(33, 32), 33, 32));
+    assert.equal(c.size, c.parameters);
+    assert.equal(c.same, true, 'the model holds θ₀ exactly');
+    assert.deepEqual(errors, []);
+  } finally {
+    overrides.delete('/__test/anchor.html');
+    await page.close();
+  }
+});
+
+async function runMergeUnit(page, unit) {
+  await page.click('.tabs button[data-tab="units"]');
+  await page.fill('#mg-number', String(unit));
+  await page.click('#mg-run');
+  await page.waitForFunction((u) => document.getElementById('mg-status').textContent.startsWith(`Unit ${u} finished`), unit, { timeout: 300000 });
+  const card = JSON.parse(await page.textContent('#mg-card'));
+  await page.evaluate(() => (document.getElementById('mg-status').textContent = ''));
+  return card;
+}
+
+test('a merge unit trains the anchor’s transformer from θ₀ per seed, merges them, replicates, and its card passes ingestion’s checks', async () => {
+  const { page, errors } = await openLab();
+  const card = await runMergeUnit(page, 1);
+  assert.deepEqual(validateCard(card), []);
+  const t = card.metrics.test_bits;
+  assert.ok(t.theta0 > t.unigram, `θ₀ is untrained: ${t.theta0} against unigram ${t.unigram}`);
+  for (const bits of t.seeds) assert.ok(bits < t.unigram - 0.5, `every seed learns more than token counts: ${t.seeds}`);
+  const mean = t.seeds.reduce((a, b) => a + b, 0) / t.seeds.length;
+  assert.ok(Math.abs(t.average - mean) < 0.1, `averaging seeds from one start keeps what they learned: ${t.average} against ${mean}`);
+  assert.ok(card.metrics.signs.cosine > 0.8 && card.metrics.sparsity.dare_kept < 0.12, JSON.stringify(card.metrics));
+
+  const rows = await page.$$eval('#mg-table tbody tr', (trs) => trs.map((tr) => [...tr.cells].map((td) => td.textContent)));
+  assert.deepEqual(rows.map((r) => r[0].split(' (')[0]), ['θ₀, untrained', 'Unigram', 'Seed 1', 'Seed 2', 'Seed 3', 'Seed 4', 'Plain average', 'DARE, then the average', 'TIES', 'DARE, then TIES']);
+  assert.match(rows[2 + card.best_seed][0], /best on validation/);
+  assert.equal(await page.textContent('#mg-review'), 'Review and submit (1)');
+  const href = await page.getAttribute('#mg-submit', 'href');
+  assert.ok(href.length <= MAX_ISSUE_URL, `${href.length} characters`);
+  assert.deepEqual(extractCard(new URL(href).searchParams.get('body')), card);
+
+  // The same unit gives the same card on the same backend: that's what replication checks.
+  const again = await runMergeUnit(page, 1);
+  assert.deepEqual(again.metrics, card.metrics);
+  assert.deepEqual([again.best_epochs, again.payload_bytes], [card.best_epochs, card.payload_bytes]);
+
+  // Kept in this browser, and listed by the review.
+  await page.reload();
+  await page.waitForFunction(() => document.querySelectorAll('#mg-history tbody tr').length === 2, null, { timeout: 30000 });
+  await page.click('.tabs button[data-tab="units"]');
+  await page.click('#mg-review');
+  assert.equal(await page.textContent('#review-title'), 'Your merge units in this browser');
+  assert.match(await page.textContent('#review-outcome'), /^Unit 1 trained a token transformer on Rosetta text 4 times from the same pinned start/);
+  assert.equal(await page.locator('#review-table tbody tr').count(), 2);
+  assert.deepEqual(errors, []);
+  await page.close();
+});
+
+test('with pinned tokens, the token transformer trains from the anchor’s θ₀ and finds the structure in Rosetta text', async () => {
+  const { page, errors } = await openLab();
+  await page.click('#families button[data-family="rosetta"]');
+  await page.selectOption('#k', 'peak');
+  await page.waitForFunction(() => /^Rosetta.* of 33 token types used/.test(document.getElementById('tb-status').textContent), null, { timeout: 60000 });
+  assert.match(await page.textContent('#tb-notes'), /Pinned tokens \(token-anchor\/v1\)/);
+  await page.selectOption('#tb-lm-arch', 'transformer');
+  await page.click('#tb-lm');
+  await page.waitForFunction(() => /^Done/.test(document.getElementById('tb-lm-status').textContent), null, { timeout: 240000 });
+  assert.match(await page.textContent('#tb-lm-status'), /^Done: Transformer, 6,325 parameters, trained from the anchor’s θ₀ \(token-anchor\/v1\)/);
+  const rows = await page.$$eval('#tb-lm-table tbody tr', (trs) => trs.map((tr) => [...tr.cells].map((td) => td.textContent)));
+  const bits = Object.fromEntries(rows.map(([name, model]) => [name, Number(model)]));
+  assert.ok(bits.real < bits.shuffled - 0.5, JSON.stringify(bits));
+  assert.deepEqual(errors, []);
+  await page.close();
+});
+
 test('token-model training can be stopped, and the controls come back', async () => {
   const { page, errors } = await openLab();
   await page.click('#families button[data-family="rosetta"]');

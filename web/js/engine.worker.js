@@ -8,7 +8,9 @@ import { deriveSeed, makeRng } from './rng.js';
 import { C, DEFAULT_FOFF_HZ, DEFAULT_TSAMP_S, FAMILIES, REAL_FAMILIES, T, driftToHzPerS, makeSnippet, normalise, shuffleFrames } from './signals.js';
 import { canonicalOrder, datasetId, sha256Hex } from './slices.js';
 import { sessionPools } from './splits.js';
+import { ANCHOR, anchorTheta0, flatten, layoutProblems, unflatten } from './anchor.js';
 import { attentionStates, buildTokenModel } from './layers.js';
+import { addDelta, mergeCard, mergeConfig, mergeDeltas, mergeTokens, unigramBits } from './merge.js';
 import { TOKEN_WINDOW, matchedSize } from './models.js';
 import { APP_VERSION, RESULT_CARD_VERSION, ROSETTA_CORPUS, workUnitConfig } from './workunits.js';
 
@@ -41,13 +43,14 @@ self.onmessage = async ({ data: msg }) => {
       rosettaText = msg.text || undefined;
     } else if (msg.type === 'stop') {
       stopRequested = true;
-    } else if (msg.type === 'train' || msg.type === 'workunit' || msg.type === 'token-lm') {
+    } else if (['train', 'workunit', 'token-lm', 'merge'].includes(msg.type)) {
       if (busy) throw new Error('Already running. Stop the current run first.');
       busy = true;
       stopRequested = false;
       try {
         if (msg.type === 'train') await liveTrain(msg.config);
         else if (msg.type === 'workunit') await runWorkUnit(msg.unit);
+        else if (msg.type === 'merge') await runMergeUnit(msg.unit);
         else await runTokenModels(msg);
       } finally {
         busy = false;
@@ -604,17 +607,42 @@ async function heldOutBits(model, segments, k) {
   return { bits: targets ? nats / targets / Math.LN2 : NaN, targets };
 }
 
+// The token transformer at the merge anchor's θ₀ (anchor.js), after checking that the model's
+// weights are laid out as the anchor's.
+async function anchorModel(k) {
+  if (k !== ANCHOR.k) throw new Error(`The anchor’s token transformer reads ${ANCHOR.k} token types, not ${k}.`);
+  const model = buildTokenModel(k, 0, ANCHOR.arch);
+  try {
+    const problems = layoutProblems(model.weights);
+    if (problems.length) throw new Error(`The token transformer doesn’t match ${ANCHOR.id}: ${problems[0]}`);
+    setFlat(model, flatten(await anchorTheta0()));
+    return model;
+  } catch (err) {
+    model.dispose();
+    throw err;
+  }
+}
+
+const getFlat = (model) => flatten(model.getWeights().map((w) => w.dataSync()));
+
+function setFlat(model, flat) {
+  const tensors = unflatten(flat).map((values, i) => tf.tensor(values, model.weights[i].shape));
+  model.setWeights(tensors);
+  tf.dispose(tensors);
+}
+
 // Trains on the training split with early stopping: the weights from the best validation
 // epoch are kept. The model is then scored once on the test split, which it never saw.
-async function trainTokenModel(name, splits, k, seed, progress, arch) {
-  const model = buildTokenModel(k, seed, arch);
+// fromAnchor: start the transformer from the anchor's θ₀ instead of a seeded random start.
+async function trainTokenModel(name, splits, k, seed, progress, arch, { fromAnchor = false, epochs = TOKEN_EPOCHS } = {}) {
+  const model = fromAnchor ? await anchorModel(k) : buildTokenModel(k, seed, arch);
   const optimizer = tf.train.adam(TOKEN_LEARNING_RATE[arch]);
   const rng = makeRng(deriveSeed(seed, `token-order-${name}`));
   const examples = segmentWindows(splits.train, TRAIN_STRIDE, false);
   const passes = Math.max(1, Math.ceil(MIN_EXAMPLES_PER_EPOCH / examples.length));
   let best = { bits: Infinity, epoch: 0, weights: null };
   try {
-    for (let epoch = 1; epoch <= TOKEN_EPOCHS && !stopRequested; epoch++) {
+    for (let epoch = 1; epoch <= epochs && !stopRequested; epoch++) {
       const order = Array.from({ length: passes }, () => rng.permutation(examples.length)).flat();
       for (let b = 0; b < order.length && !stopRequested; b += 32) {
         const { inputs, targets, weights } = exampleTensors(order.slice(b, b + 32).map((i) => examples[i]), k);
@@ -633,7 +661,7 @@ async function trainTokenModel(name, splits, k, seed, progress, arch) {
     }
     if (best.weights) model.setWeights(best.weights);
     const test = stopRequested ? { bits: NaN, targets: 0 } : await heldOutBits(model, splits.test, k);
-    return { model, ...test, bestEpoch: best.epoch, optimizer };
+    return { model, ...test, validationBits: best.bits, bestEpoch: best.epoch, optimizer };
   } catch (err) {
     model.dispose();
     optimizer.dispose();
@@ -667,14 +695,17 @@ async function sampleTokens(model, prompt, n, k, rng) {
   return tokens.slice(prompt.length);
 }
 
-async function runTokenModels({ id, k, splits, control, centroids, seed, arch = 'gru' }) {
+// anchor: the tokens are the merge anchor's, so the transformer starts from its θ₀ (on every
+// stream, the surrogates included); the GRU has no anchor and starts at random as usual.
+async function runTokenModels({ id, k, splits, control, centroids, seed, arch = 'gru', anchor = false }) {
   const results = {};
   let controlResult = null;
   let sample = null;
   let parameters = null;
+  const fromAnchor = anchor && arch === ANCHOR.arch;
   for (const name of ['real', 'shuffled', 'markov']) {
     const progress = (stream, epoch) => post({ type: 'token-lm-progress', id, stream, epoch, epochs: TOKEN_EPOCHS, arch });
-    const { model, bits, targets, bestEpoch, optimizer } = await trainTokenModel(name, splits[name], k, seed % 100000, progress, arch);
+    const { model, bits, targets, bestEpoch, optimizer } = await trainTokenModel(name, splits[name], k, seed % 100000, progress, arch, { fromAnchor });
     try {
       parameters = model.countParams();
       if (stopRequested) break;
@@ -704,7 +735,67 @@ async function runTokenModels({ id, k, splits, control, centroids, seed, arch = 
       optimizer.dispose();
     }
   }
-  post({ type: 'token-lm-result', id, stopped: stopRequested, results, control: controlResult, sample, epochs: TOKEN_EPOCHS, arch, parameters });
+  post({ type: 'token-lm-result', id, stopped: stopRequested, results, control: controlResult, sample, epochs: TOKEN_EPOCHS, arch, parameters, fromAnchor });
+}
+
+// ---------- the merge work unit (merge.js) ----------
+
+// Trains the anchor's token transformer from θ₀ once per seed on the frozen corpus, merges the
+// seeds' weight changes four ways and scores everything on the held-out text.
+async function runMergeUnit(unit) {
+  const config = mergeConfig(unit);
+  const started = new Date();
+  const t0 = performance.now();
+  const corpusSha256 = await sha256Hex(new TextEncoder().encode(ROSETTA_CORPUS.text));
+  if (corpusSha256 !== ROSETTA_CORPUS.sha256) {
+    throw new Error(`The built-in Rosetta text no longer matches spec ${config.spec}. Define a new spec instead of editing the text.`);
+  }
+  const theta0 = flatten(await anchorTheta0());
+  const splits = mergeTokens(config);
+  const k = ANCHOR.k;
+  const score = async (model) => ({ validation: (await heldOutBits(model, splits.validation, k)).bits, test: (await heldOutBits(model, splits.test, k)).bits });
+
+  const scratch = await anchorModel(k); // scores θ₀, then each merge
+  try {
+    const start = await score(scratch);
+    const seeds = [];
+    const thetas = [];
+    for (const [worker, seed] of config.seeds.entries()) {
+      const progress = (_, epoch) => post({ type: 'merge-progress', unit, worker, workers: config.seeds.length, epoch, epochs: config.epochs });
+      const { model, bits, validationBits, bestEpoch, optimizer } = await trainTokenModel(`merge-${worker}`, splits, k, seed, progress, ANCHOR.arch, { fromAnchor: true, epochs: config.epochs });
+      try {
+        if (stopRequested) break;
+        seeds.push({ test: bits, validation: validationBits, bestEpoch });
+        thetas.push(getFlat(model));
+      } finally {
+        model.dispose();
+        optimizer.dispose();
+      }
+    }
+    if (stopRequested) {
+      post({ type: 'merge-stopped', unit });
+      return;
+    }
+    post({ type: 'merge-progress', unit, merging: true });
+    const stats = mergeDeltas(theta0, thetas, config);
+    const merges = {};
+    for (const [name, delta] of Object.entries(stats.deltas)) {
+      setFlat(scratch, addDelta(theta0, delta));
+      merges[name] = await score(scratch);
+    }
+    const results = {
+      targets: Object.fromEntries(Object.entries(splits).map(([name, segments]) => [name, segments.reduce((n, s) => n + s.length - 1, 0)])),
+      theta0: start.test,
+      unigram: unigramBits(splits.train, splits.test, k),
+      seeds,
+      merges,
+      stats,
+    };
+    const card = mergeCard(unit, results, { backend: tf.getBackend(), tfjs: tf.version.tfjs, seconds: (performance.now() - t0) / 1000, started: started.toISOString() });
+    post({ type: 'merge-result', card });
+  } finally {
+    scratch.dispose();
+  }
 }
 
 const round = (v, digits = 4) => (Number.isFinite(v) ? Number(v.toFixed(digits)) : null);
