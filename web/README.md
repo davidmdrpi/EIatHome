@@ -27,12 +27,14 @@ browsers don't run module workers from `file://` URLs.
 | `js/engine.worker.js` | Track A engine (module worker): builds snippets, trains the GRU, LSTM or causal-attention model with TensorFlow.js, computes baselines, gains, the hidden-state PCA and the drift probe. Also trains Track B's token model (GRU or transformer) |
 | `js/layers.js` | Model layers shared by Track A and Track B (causal attention, learned positions, layer normalization) and the token-model builder, importable outside the engine so tests can check them |
 | `js/models.js` | Model families and their parameter counts, so architectures can be compared at about the same size (Track A models, and Track B's token models) |
+| `js/anchor.js` | The merge anchor `token-anchor/v1` (issue #20): a pinned peak tokenizer (33 tokens, nothing fitted) and the token transformer's starting weights θ₀, rebuilt from seeded uniform draws and checked against a pinned SHA-256 |
+| `js/merge.js` | The `trackb-merge/v0` work unit: task vectors, DARE (with the int8 payload's size), TIES, sign agreement and the other delta summaries, and the unit's card and its checks |
 | `js/trackb-splits.js` | Track B's training, validation and test frames for each kind of family, split before anything is fitted |
 | `js/trackb.worker.js`, `js/trackb.js` | Track B: splits each family into training, validation and test segments, fits the k-means tokenizer and the shuffled and Markov-1 surrogates on the training split only, and measures held-out cross-entropy, conditional entropy, mutual information, Zipf and compression without crossing a segment boundary |
 | `js/signals.js` | Signal families (two real-data ones, Voyager 1 and off-source, and the synthetic controls) and the Rosetta text; snippet normalization |
 | `js/slices.js` | Loads real-data micro-slices (`data/slices/`) or user-dropped files, verifies their SHA-256 and computes the dataset identity |
 | `js/splits.js` | Groups a real family's slices into observing sessions and keeps training and evaluation on different sessions |
-| `js/workunits.js` | Versioned work-unit specs |
+| `js/workunits.js` | Versioned work-unit specs (`track-a/v0`; the recovery and merge specs live in `js/recovery.js` and `js/merge.js`) |
 | `js/contributions.js` | What became of the result cards computed in this browser (computed here, saved to a file, opened on GitHub, accepted into the community results), and the rule for keeping them: a card is dropped to make room only if it's accepted or saved |
 | `js/skymap.js` | The Observatory viewport: a sky map on a canvas (stereographic projection, so stars stay round at any zoom). Slews along great circles to each signal's pointing, zooms from 60° to the 2° around the telescope beam with a computation's progress, and draws its live effects: wavefronts for Track A and B, and the 1,024-window grid for recovery units. Observatory mode fills the window and can keep running work units. A running job stays on the target whose data it uses, and the HUD names that data. The coordinate math has no DOM dependencies, so tests run it in Node |
 | `data/sky/` | The sky it draws (`tools/build_sky.py`): the 1,500 brightest Hipparcos stars with B−V colours, every Hipparcos star near the observed targets, constellation lines, names and IAU boundaries, and reference targets, from d3-celestial (BSD-3-Clause, notice in `LICENSE.d3-celestial.txt`) |
@@ -72,6 +74,11 @@ and that the manifest records where every slice pointed.
 thresholds, every class is injected at its strength inside the window, the dealer's key
 rebuilds every window, the de-Doppler search equals a brute-force search, units reproduce,
 and tampered cards are caught by their form or by recomputation.
+`tests/merge.test.mjs` checks the merge anchor and unit: θ₀ rebuilds to its pin in the
+anchor's layout, the pinned tokenizer reads every Rosetta symbol whatever the noise, DARE keeps
+the expected delta and its payload rebuilds within half a quantization step, TIES elects signs
+and averages only agreeing entries on hand-checked vectors, and merge cards fit an issue link
+and are rejected when they don't match their spec.
 `tests/community.test.mjs` checks card validation, replication summaries and the ingestion
 script, and `tests/ingest_issues.test.mjs` runs the ingestion driver against a local git
 remote and a fake `gh`. `tests/browser.test.mjs` serves this folder and drives the Live Lab in
@@ -89,6 +96,10 @@ headless Chromium. It checks that:
 - attention is causal (later tokens or frames never change earlier outputs, and a prefix pass
   matches the full pass), and the custom layer norm matches TF.js's in outputs and gradients;
 - token-model training can be stopped, and the controls come back;
+- the merge anchor's θ₀ rebuilds to its pin in Chromium and fits the token transformer exactly;
+  a merge unit trains a transformer from θ₀ per seed, merges them, gives the same card when run
+  again, keeps it in the browser, and its card passes ingestion's checks; and with pinned tokens
+  Track B's transformer trains from θ₀ and finds Rosetta's structure;
 - a recovery unit run on the page gives a card that ingestion's checks accept, recomputation
   included, and community recovery units are combined once per unit, apart from the replicated
   units;
@@ -132,9 +143,10 @@ manifest, a file or browser storage into `innerHTML`.
 
 ## Your results in this browser
 
-Units computed here are kept in browser storage (up to 200 Track A work units and 300 recovery
-units) until you delete them. The viewport's **Review and submit** button, also offered when
-you leave observatory mode, lists them with what became of each:
+Units computed here are kept in browser storage (up to 200 Track A work units, 300 recovery
+units and 200 merge units) until you delete them. The viewport's **Review and submit** button,
+also offered when you leave observatory mode, lists them with what became of each (for merge
+units, the button is in their panel):
 
 | Status | Meaning |
 |---|---|

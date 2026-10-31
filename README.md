@@ -276,7 +276,9 @@ two volunteers' runs agree. There's no server to run or pay for.
 The first browser work unit, `track-a/v0`, replicates the Hello, Voyager notebook. The second,
 `recovery/v0`, hides synthetic signals in real off-source data and measures which ones the
 de-Doppler and energy detectors find at a fixed false-alarm rate. Its cards are recomputed when
-submitted, and the Recovery tab adds units up into recovery curves per signal class. The table
+submitted, and the Recovery tab adds units up into recovery curves per signal class. The third,
+`trackb-merge/v0`, trains Track B's token transformer four times from one pinned start and
+merges the runs, reporting a summary of the merge rather than weights. The table
 below is the full plan. Heavier units (raw voltages, long sweeps) may later move to BOINC,
 whose replication and quorum checks validate results automatically.
 
@@ -354,6 +356,7 @@ EIatHome/
 - [x] The Observatory viewport: a sky map that slews to each signal's pointing and zooms toward the telescope beam while a computation runs, with an observatory mode for leaving the tab running
 - [x] A review of the results computed in a browser, from the viewport and observatory mode: what each unit measured, which cards await submission, and which were accepted into the community results; cards that exist nowhere else are never dropped to make room
 - [x] A shared anchor for signal-LM runs: a pinned codebook and a deterministic starting checkpoint θ₀, so runs' task vectors line up ([issue #20](https://github.com/davidmdrpi/EIatHome/issues/20), milestone 1)
+- [x] A pinned anchor for the Live Lab's token transformer, and a merge work unit whose cards carry a DARE-TIES summary instead of weights (issue #20, milestone 4)
 - [ ] Merging volunteer runs: DARE-TIES with a validation gate and DiLoCo, then a mixture-of-experts SignalLM upcycled from family specialists (issue #20, milestones 2 to 5)
 - [ ] Public volunteer pilot
 - [ ] Heavier work units on BOINC, if needed (for example via [BOINC Central](https://boinc.berkeley.edu/central/scientist.php))

@@ -1,8 +1,10 @@
-// Track B worker: tokenizes a family's frames with k-means and measures language-like
-// statistics against surrogates. Pure JavaScript, so it runs while the engine trains.
+// Track B worker: tokenizes a family's frames with k-means (or the merge anchor's pinned
+// tokenizer) and measures language-like statistics against surrogates. Pure JavaScript, so it
+// runs while the engine trains.
 // The frames are split into training, validation and test segments before anything is fitted
 // (see trackb-splits.js and trackb.js).
 
+import { ANCHOR, peakTokenizer } from './anchor.js';
 import { deriveSeed, makeRng } from './rng.js';
 import { C, T, familyById } from './signals.js';
 import { canonicalOrder } from './slices.js';
@@ -25,7 +27,10 @@ self.onmessage = async ({ data: msg }) => {
   }
 };
 
-async function analyze({ family, k, nFrames, seed, text }) {
+// k is a number of k-means tokens, or 'peak' for the merge anchor's pinned tokenizer.
+async function analyze({ family, k: requested, nFrames, seed, text }) {
+  const tokenizer = requested === 'peak' ? peakTokenizer() : null;
+  const k = tokenizer?.k ?? requested;
   const nSnippets = Math.ceil(nFrames / T);
   const notes = [];
   let frameSplits;
@@ -51,7 +56,8 @@ async function analyze({ family, k, nFrames, seed, text }) {
   }
 
   const rng = makeRng(deriveSeed(seed, `trackb-${family}`));
-  const result = await analyzeSplits(frameSplits, { k, dim: C, rng, control });
+  const result = await analyzeSplits(frameSplits, { k, dim: C, rng, control, tokenizer });
+  if (tokenizer) notes.push(`Pinned tokens (${ANCHOR.id}): token 0 is a frame with no channel at 6 noise sigma, and the others are the 2-channel bin of the brightest channel. Nothing is fitted, so every run gets the same tokens, and the token transformer starts from the anchor’s θ₀.`);
   if (result.sizes.test.targets < 200) notes.push(`Only ${result.sizes.test.targets} test tokens are scored, so treat small differences as noise.`);
   if (result.control) {
     result.control.family = controlFamily;
@@ -60,6 +66,7 @@ async function analyze({ family, k, nFrames, seed, text }) {
   return {
     family,
     k,
+    tokenizer: tokenizer ? 'peak' : 'kmeans',
     ...result,
     evaluation,
     preview: Array.from(result.streams.real.train.flatMap((s) => [...s]).slice(0, 48)),

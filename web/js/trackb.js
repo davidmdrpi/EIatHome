@@ -110,13 +110,17 @@ export const targetCount = (segments) => segments.reduce((n, s) => n + Math.max(
 
 // Fits the codebook on the training frames only, then encodes every split, and any extra
 // segments, with it. frameSplits: { train, validation, test }, each an array of segments
-// (Float32Array of frames x dim).
-export function tokenize(frameSplits, k, dim, rng, extra = []) {
-  const train = concat(frameSplits.train, Float32Array);
-  const n = train.length / dim;
-  if (n < k) throw new Error(`Only ${n} training frames, too few for ${k} token types. Choose a smaller K.`);
-  const { centroids } = kmeans(train, n, dim, k, rng);
-  const encode = (segments) => segments.map((f) => assign(f, f.length / dim, dim, centroids, k));
+// (Float32Array of frames x dim). A fixed tokenizer ({ centroids, encode(frames, n) }, such as
+// the merge anchor's in anchor.js) is used as it is, with nothing fitted.
+export function tokenize(frameSplits, k, dim, rng, extra = [], fixed = null) {
+  let centroids = fixed?.centroids;
+  if (!fixed) {
+    const train = concat(frameSplits.train, Float32Array);
+    const n = train.length / dim;
+    if (n < k) throw new Error(`Only ${n} training frames, too few for ${k} token types. Choose a smaller K.`);
+    ({ centroids } = kmeans(train, n, dim, k, rng));
+  }
+  const encode = (segments) => segments.map((f) => (fixed ? fixed.encode(f, f.length / dim) : assign(f, f.length / dim, dim, centroids, k)));
   return { centroids, tokens: mapSplits(frameSplits, encode), extra: encode(extra) };
 }
 
@@ -352,9 +356,10 @@ export function controlProfile(controlSegments, trainSegments, centroids, k, dim
 
 // Everything Track B reports for one family, from frames already split into training,
 // validation and test segments. `control` holds another family's frame segments, encoded with
-// this family's codebook and scored with its n-gram model.
-export async function analyzeSplits(frameSplits, { k, dim, rng, control = [] }) {
-  const { centroids, tokens, extra } = tokenize(frameSplits, k, dim, rng, control);
+// this family's codebook and scored with its n-gram model. `tokenizer` is a fixed tokenizer to
+// use instead of fitting k-means (see tokenize).
+export async function analyzeSplits(frameSplits, { k, dim, rng, control = [], tokenizer = null }) {
+  const { centroids, tokens, extra } = tokenize(frameSplits, k, dim, rng, control, tokenizer);
   const chain = fitMarkov(tokens.train, k);
   const streams = {
     real: tokens,

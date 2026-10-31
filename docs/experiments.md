@@ -381,6 +381,31 @@ checked by recomputation, not replication. The Recovery tab adds up recorded uni
 per unit number. `tracks/recovery/browser.py` ports the unit to Python, and its tests check that
 both implementations give the same signals, scores and counts.
 
+**`trackb-merge/v0`** (`web/js/merge.js`, issue #20, milestone 4) asks whether runs of Track B's
+token transformer can be merged in the browser:
+
+- **Anchor:** `token-anchor/v1` (`web/js/anchor.js`). Tokens come from a fixed peak rule: token 0
+  for a frame with no channel at 6 noise sigma, else the 2-channel bin of the brightest channel
+  (33 tokens). θ₀ is the transformer's starting weights, from seeded uniform draws. The spec
+  pins θ₀'s SHA-256, and a unit refuses to run if it doesn't rebuild to it.
+- **Data:** the pinned Rosetta corpus as FSK, split in text order: 2,511 training, 367
+  validation and 719 test targets.
+- **Workers:** 4 seeds derived from the unit number. Each trains from θ₀ for up to 20 epochs
+  and keeps its best validation epoch.
+- **Merges** of the seeds' changes τ = θ − θ₀:
+  - the plain average;
+  - DARE (drop 90% at random, rescale by 10, int8 survivors), then the average;
+  - TIES (keep the largest 20%, elect signs, average the agreeing entries);
+  - DARE, then TIES.
+- **Card (version 1):** held-out bits for θ₀, a unigram baseline, every seed and every merge,
+  plus a summary of the deltas: DARE's kept share and each merge's nonzero share, sign agreement
+  across seeds, TIES's sign conflicts, mean pairwise cosine, and each DARE payload's size. It
+  carries no weights, so it fits an issue link.
+
+Ingestion checks a card's form against the spec. Its numbers come from training, so like
+`track-a/v0` they're replicated by other volunteers, not recomputed. Results are in
+[MERGE_RESULTS.md](../tracks/llm/MERGE_RESULTS.md).
+
 ### 9.2 BOINC work units (later, if needed)
 
 For heavier jobs such as raw voltages or long sweeps:
