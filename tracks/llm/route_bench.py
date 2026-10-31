@@ -33,7 +33,10 @@ afterwards, for every router.
 
 Also recorded, for each family's sequences: what each specialist scores on them (so what sending
 them to the wrong family costs), the share of targets each router sends to the family's own
-specialist, and the parameters stored and run per target.
+specialist, and the parameters stored and, projected, run per target. The benchmark itself runs
+every specialist on every target and routes over their cached scores, so the per-target count is
+what a router that runs only the specialists it needs would execute: one specialist after a
+hard router commits, all three while a likelihood router gathers evidence or for the mixture.
 
 The selection check from milestone 3b's review: its three dense rivals (the anchor's size, the
 mixture's active size and its total size), retrained as there, from the same starts with the same
@@ -132,8 +135,9 @@ ROUTERS = {
 }
 
 
-def active(router, targets, single, router_parameters):
-    """Parameters run per target, on average over a sequence's `targets` targets."""
+def projected(router, targets, single, router_parameters):
+    """Parameters a router that runs only the specialists it needs would run per target, on
+    average over a sequence's `targets` targets. (The benchmark runs all three on every target.)"""
     if router in ("first token", "token frequencies"):
         return single + router_parameters
     if router.startswith("specialists' likelihood, committed after"):
@@ -209,7 +213,7 @@ def one_seed(folder, seed, epochs, dense_epochs):
         out["scoring_check"] = abs(check - out["cross"]["test"][FAMILIES[0]][FAMILIES[0]])
         out["routers"] = {split: route(splits[split], logfreq) for split in splits}
         lengths = [len(s) - 1 for f in FAMILIES for s in splits["test"][f][0]]
-        out["active_parameters"] = {name: sum(active(name, n, single, router_parameters) * n for n in lengths) / sum(lengths) for name in ROUTERS}
+        out["projected_parameters"] = {name: sum(projected(name, n, single, router_parameters) * n for n in lengths) / sum(lengths) for name in ROUTERS}
         valid = out["routers"]["validation"]
         out["chosen"] = {"equal_family": min(ROUTERS, key=lambda r: valid[r]["mean"]),
                          "concatenated": min(ROUTERS, key=lambda r: valid[r]["concatenated"])}
@@ -245,7 +249,7 @@ def summarize(results):
             "validation_mean": stats([s["routers"]["validation"][name]["mean"] for s in seeds]),
             "validation_concatenated": stats([s["routers"]["validation"][name]["concatenated"] for s in seeds]),
             "own_specialist": {f: stats([s["routers"]["test"][name]["own_specialist"][f] for s in seeds]) for f in FAMILIES},
-            "active_parameters": statistics.fmean(s["active_parameters"][name] for s in seeds)}
+            "projected_parameters": statistics.fmean(s["projected_parameters"][name] for s in seeds)}
     for objective in ("equal_family", "concatenated"):
         picks = [s["chosen"][objective] for s in seeds]
         summary["chosen"][objective] = {"routers": picks, **{key: stats([s["routers"]["test"][p][key] for s, p in zip(seeds, picks)])
@@ -268,14 +272,14 @@ def summarize(results):
 
 def table(summary):
     fmt = lambda s: f"{s['mean']:.2f} ({s['min']:.2f}–{s['max']:.2f})" if s["max"] - s["min"] >= 0.005 else f"{s['mean']:.2f}"
-    lines = ["| | Voyager | Rosetta | RFI sweep | Mean | Validation mean | Own specialist (V, R, S) | Active per target |",
+    lines = ["| | Voyager | Rosetta | RFI sweep | Mean | Validation mean | Own specialist (V, R, S) | Projected per target |",
              "|---|---:|---:|---:|---:|---:|---:|---:|",
              f"| bank, by family label | " + " | ".join(fmt(summary["label"][k]) for k in (*FAMILIES, "mean"))
              + f" | {fmt(summary['label']['validation_mean'])} | 1, 1, 1 | {summary['parameters']['specialist']:,} |"]
     for name, row in summary["routers"].items():
         own = ", ".join(f"{row['own_specialist'][f]['mean']:.2f}" for f in FAMILIES)
         lines.append(f"| {name} | " + " | ".join(fmt(row[k]) for k in (*FAMILIES, "mean"))
-                     + f" | {fmt(row['validation_mean'])} | {own} | {row['active_parameters']:,.0f} |")
+                     + f" | {fmt(row['validation_mean'])} | {own} | {row['projected_parameters']:,.0f} |")
     for name, rows in summary["dense"].items():
         for objective, row in rows.items():
             lines.append(f"| dense, {name}, chosen on the {objective.replace('_', '-')} validation | "

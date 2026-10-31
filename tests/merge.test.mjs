@@ -157,6 +157,22 @@ test('TIES trims, elects each sign from the weighted sum, and averages only the 
   [4 / 3, -2 / 3, 0.5 / 3, 0].forEach((v, i) => assert.ok(close(all[i], v), `parameter ${i}: ${all[i]}`));
 });
 
+test('after DARE, the all-worker denominator is unbiased where workers agree in sign, and not where they disagree', () => {
+  // The exact expectation over every DARE mask (p = 0.5, survivors doubled), for one parameter.
+  const expected = (deltas, mean, p = 0.5) => {
+    let total = 0;
+    for (let mask = 0; mask < 2 ** deltas.length; mask++) {
+      const kept = deltas.map((_, i) => (mask >> i) & 1);
+      const chance = kept.reduce((c, k) => c * (k ? 1 - p : p), 1);
+      const flats = deltas.map((d, i) => Float32Array.of((kept[i] * d) / (1 - p)));
+      total += chance * ties(flats, deltas.map(() => 1 / deltas.length), 1, mean).delta[0];
+    }
+    return total;
+  };
+  assert.ok(close(expected([2, 2], 'all'), 2) && close(expected([2, 2], 'agreeing'), 3));
+  assert.ok(close(expected([2, -1], 'all'), 0.75), 'against the mean of 0.5: sign election leans to the survivor');
+});
+
 test('sign agreement counts the parameters every delta changes, and cosine their alignment', () => {
   const a = Float32Array.from([1, 2, -1, 0, 3]);
   const b = Float32Array.from([2, -1, -3, 1, 1]);
@@ -277,7 +293,26 @@ test('a v1 merge card validates, fits an issue link, and is rejected when it doe
   assert.match(broken((c) => delete c.arms.warm_shards), /arms/);
   assert.match(broken((c) => (c.inputs.slices = { dataset_id: 'x', slices: [] })), /inputs/);
   assert.match(broken((c) => (c.version = 2)), /version/);
+  assert.match(broken((c) => (c.arms.shards = null)), /arms\.shards. must be an object/);
   assert.deepEqual(validateCard(makeMergeCardV1(7, { shift: 40 })), [], 'a merge that costs far more than log2(k) is still a result');
+});
+
+test('a missing or mistyped value anywhere in a merge card is checked, never thrown on', () => {
+  const paths = (value, prefix = []) =>
+    value && typeof value === 'object' ? [prefix, ...Object.keys(value).flatMap((key) => paths(value[key], [...prefix, key]))] : [prefix];
+  for (const make of [() => makeMergeCard(7), () => makeMergeCardV1(7)]) {
+    for (const path of paths(make()).filter((p) => p.length)) {
+      for (const bad of [null, 'x']) {
+        const card = make();
+        const parent = path.slice(0, -1).reduce((o, key) => o[key], card);
+        parent[path.at(-1)] = bad;
+        let errors;
+        assert.doesNotThrow(() => (errors = validateCard(card)), `${card.spec} ${path.join('.')} = ${JSON.stringify(bad)}`);
+        // A string can be a valid value (an app version); a missing one never is.
+        if (bad === null) assert.ok(errors.length, `${card.spec} ${path.join('.')} = null is rejected`);
+      }
+    }
+  }
 });
 
 test('a merge card validates, carries no weights and fits an issue link', () => {
@@ -378,6 +413,12 @@ test('the ingestion script records a valid merge card and rejects a tampered one
   const sizes = makeMergeCard(9, { started: '2026-10-31T04:00:00.000Z' });
   sizes.payload_bytes = [1, 1, 1, 1];
   assert.equal(ingest(44, 'carol', sizes).status, 'status=rejected');
+  // A v1 card with a set left empty is rejected, not an ingestion error.
+  const hollow = makeMergeCardV1(9, { started: '2026-10-31T05:00:00.000Z' });
+  hollow.arms.shards = null;
+  const refused = ingest(45, 'dave', hollow);
+  assert.equal(refused.status, 'status=rejected');
+  assert.match(refused.comment, /arms\.shards. must be an object/);
   const stored = JSON.parse(readFileSync(join(dir, 'results.json'), 'utf8')).results;
   assert.deepEqual(stored.map((r) => [r.issue, r.submitted_by]), [[39, 'alice'], [40, 'alice']]);
   assert.deepEqual(summarize(stored).units.map((u) => [u.spec, u.unit, u.runs, u.status]), [['trackb-merge/v0', 9, 1, 'single'], ['trackb-merge/v1', 9, 1, 'single']]);

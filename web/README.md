@@ -81,8 +81,9 @@ and averages only agreeing entries on hand-checked vectors, and merge cards fit 
 and are rejected when they don't match their spec: an input besides the pinned corpus and
 anchor, or DARE payload sizes, a kept share or a unigram baseline that differ from what the
 unit's seeds and corpus give. For v1 it also checks that the seeds set is v0's unit, that the
-shards are the training text in order without overlap, and that TIES's mean over all workers
-keeps the expected merge.
+shards are the training text in order without overlap, that TIES's mean over all workers keeps
+the expected merge where the workers agree in sign (and not where they disagree), and that a
+malformed value anywhere in a card is rejected, never thrown on.
 `tests/community.test.mjs` checks card validation, replication summaries and the ingestion
 script, and `tests/ingest_issues.test.mjs` runs the ingestion driver against a local git
 remote and a fake `gh`. `tests/browser.test.mjs` serves this folder and drives the Live Lab in

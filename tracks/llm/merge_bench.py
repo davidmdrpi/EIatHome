@@ -31,8 +31,9 @@ validation scan over shuffled orders, is recorded for every model, and for a pos
 added with it: one worker per seed trained 50 epochs on the off-source family itself.
 
 Added in milestone 5, to measure what DARE's rescale costs inside TIES: DARE-TIES with TIES's
-mean taken over every contributor's weight instead of the agreeing survivors' (unbiased after
-DARE's 1/(1 − p) rescale), one-shot and as a ten-round chain with the same soup and DiLoCo; and
+mean taken over every contributor's weight instead of the agreeing survivors' (which removes
+the factor 1/(1 − p) TIES's own mean keeps), one-shot and as a ten-round chain with the same
+soup and DiLoCo; and
 the greedy-soup average with DiLoCo, the same chain without DARE or TIES. Every earlier row is
 unchanged.
 

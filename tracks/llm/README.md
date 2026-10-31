@@ -163,10 +163,11 @@ python -m tracks.llm.merge round --merge ties --dare-p 0.9 --soup greedy \
     elect each parameter's sign as the sign of the weighted sum, and average only the nonzero
     entries that agree with it. A delta that's zero at a parameter doesn't pull the others
     toward zero there. `--ties-mean all` (milestone 5) divides the agreeing entries' weighted
-    sum by every contributor's weight instead. After DARE that's the unbiased choice: DARE's
-    1/(1 − p) keeps a sum over all contributors right on average, while TIES's own mean, over
-    the survivors alone, keeps that factor on every entry. A round recorded before the setting
-    existed replays with TIES's own mean.
+    sum by every contributor's weight instead. After DARE it removes the factor TIES's own mean
+    keeps: DARE's 1/(1 − p) keeps a sum over all contributors right on average, while a mean
+    over the survivors alone keeps that factor on every entry. It's unbiased only where the
+    contributors agree in sign; where they disagree, sign election still biases it. A round
+    recorded before the setting existed replays with TIES's own mean.
   - **Greedy soup** (`--soup greedy`): the accepted workers are tried best first by
     validation. Each is kept only if the merge scores lower on validation with it than without
     it. A worker that barely moved from the incumbent can't dilute the others unless it helps.

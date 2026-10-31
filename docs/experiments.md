@@ -410,7 +410,8 @@ to v0's unit, which it contains unchanged as its seeds arm:
   training text, keeping its best validation epoch), whose changes are taken from it.
 
 Each set is merged five ways: v0's four, and DARE then TIES dividing by every worker's weight,
-which is unbiased after DARE's rescale. Each set's card records the worker it would keep without
+which removes the factor DARE's rescale leaves inside TIES's own mean (it's unbiased only where
+the workers agree in sign). Each set's card records the worker it would keep without
 merging (its best on validation), so a merge can be compared with it.
 
 Ingestion checks a card's form against the spec. A card may name no inputs besides the pinned

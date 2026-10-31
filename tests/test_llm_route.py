@@ -75,12 +75,12 @@ class RouterTests(unittest.TestCase):
         self.assertEqual(followed.argmax(axis=0)[-1], 2)
         self.assertTrue((committed.argmax(axis=0)[3:] == 0).all(), "decided on the first 4 tokens, then fixed")
 
-    def test_active_parameters_count_what_runs(self):
+    def test_projected_parameters_count_what_a_selective_router_would_run(self):
         single, router = 27_584, 99
-        self.assertEqual(rb.active("token frequencies", 48, single, router), single + router)
-        self.assertEqual(rb.active("posterior mixture", 48, single, router), 3 * single + router)
+        self.assertEqual(rb.projected("token frequencies", 48, single, router), single + router)
+        self.assertEqual(rb.projected("posterior mixture", 48, single, router), 3 * single + router)
         # Committed after 4 tokens: all three predict targets 1–3, which decide; one runs on the other 45.
-        self.assertAlmostEqual(rb.active("specialists' likelihood, committed after 4 tokens", 48, single, router),
+        self.assertAlmostEqual(rb.projected("specialists' likelihood, committed after 4 tokens", 48, single, router),
                                (3 * 3 * single + 45 * single) / 48 + router)
 
     def test_the_equal_family_validation_counts_each_family_once(self):

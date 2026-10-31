@@ -129,8 +129,9 @@ export function trim(flat, keep) {
 // the weighted mean of the entries that agree. Also returns the share of trimmed entries that
 // disagree with their parameter's elected sign: what the election throws away.
 // mean 'all' divides the agreeing entries' weighted sum by every delta's weight instead, so a
-// zero or disagreeing entry counts as zero (milestone 5). After DARE that keeps the merge's
-// expected value; TIES's own mean, over the survivors, keeps DARE's 1/(1 − p) on every entry.
+// zero or disagreeing entry counts as zero (milestone 5). After DARE it removes the 1/(1 − p)
+// that TIES's own mean, over the survivors, keeps on every entry. It's unbiased only where the
+// deltas agree in sign: where they disagree, sign election leans to whichever side survives.
 export function ties(flats, weights, keep, mean = 'agreeing') {
   const trimmed = flats.map((f) => trim(f, keep));
   const n = flats[0].length;
@@ -377,7 +378,7 @@ function commonProblems(card, fail) {
 // ---------- trackb-merge/v1 (milestone 5): seeds against shards, and a warm start ----------
 //
 // A v1 unit runs three arms of 4 workers each and merges each arm five ways (v0's four, and
-// DARE then TIES with the mean over every worker, which is unbiased after DARE's rescale):
+// DARE then TIES dividing by every worker's weight, which removes DARE's factor from TIES):
 // - seeds: v0's unit exactly, 4 seeds from θ₀ on the whole training text;
 // - shards: 4 workers from θ₀, each on its own quarter of the training text, in order;
 // - warm_shards: the same shards, from a shared warm start: θ₀ trained 3 epochs on the whole
@@ -484,6 +485,10 @@ function v1Problems(card, config) {
   if (!card.arms || typeof card.arms !== 'object' || JSON.stringify(Object.keys(card.arms)) !== JSON.stringify(ARMS)) return [...errors, `\`arms\` must be ${ARMS.join(', ')}.`];
   for (const a of ARMS) {
     const meta = card.arms[a];
+    if (!meta || typeof meta !== 'object') {
+      fail(`\`arms.${a}\` must be an object.`);
+      continue;
+    }
     const ints = (v, lo, hi) => Array.isArray(v) && v.length === workers && v.every((x) => isInt(x, lo, hi));
     if (!ints(meta.best_epochs, 1, config.epochs)) fail(`\`arms.${a}.best_epochs\` needs ${workers} epochs from 1 to ${config.epochs}.`);
     const expected = expectedSummary(armConfig(config, a));

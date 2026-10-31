@@ -27,10 +27,10 @@ caveats.
 | Can runs share a starting point? | 1, 4 | pinned codebooks and θ₀ rebuild bit for bit: anchors v1–v3 in Python, `token-anchor/v1` in the browser | | the prerequisite holds |
 | Merge shard workers once (Voyager, 3 shards) | 2 | greedy soup 2.65 | plain average 2.87; best worker 2.90; one worker on all the data 1.43 | beats every worker, far from training on all the data |
 | Merge over ten rounds | 2, 5 | plain average + DiLoCo 1.83 | plain average 2.42; one worker on all the data with a shard worker's steps, 1.60 | DiLoCo's momentum is the largest gain |
-| DARE-TIES in the ten-round chain | 2, 5 | 2.11 with DARE's 10× kept; 2.51 unbiased | the same chain without DARE or TIES, 2.34; without the soup too, 1.83 | the per-round soup causes the gap, not the rescale |
+| DARE-TIES in the ten-round chain | 2, 5 | 2.11 with DARE's 10× kept; 2.51 with an all-contributor denominator | the same chain without DARE or TIES, 2.34; without the soup too, 1.83 | the per-round soup causes the gap, not the rescale |
 | Compress a delta for a card (DARE, p = 0.9) | 2, 4, 5 | about 8 KB (Python model), 1.4 KB (browser model) | averaged, it costs 0.11 bits one-shot | fits a card; costly inside TIES or from a random start |
 | Mix families token by token (Branch-Train-MiX) | 3, 3b | 3.76, the best mixture | dense rivals 3.56–3.73 | loses |
-| Keep family specialists whole, routed by sequence | 3b, 5 | 3.39 without the label (posterior mixture, chosen on validation); 3.43 committing after 8 tokens | 3.37 with the label; largest dense rival 3.56 | **wins, without the label** |
+| Keep family specialists whole, routed by sequence | 3b, 5 | 3.39 without the label (posterior mixture, chosen on validation, running all three specialists); 3.43 committing after 8 tokens | 3.37 with the label; largest dense rival 3.56 | **wins, without the label** |
 | Browser: 4 seeds on all the text | 4, 5 | plain average 2.31 | the kept seed 2.31 | nothing to merge |
 | Browser: 4 disjoint shards from θ₀ | 5 | plain average 2.48 | the kept shard worker 2.49 (ahead in 6 of 10 units) | level |
 | Browser: 4 shards from a 3-epoch warm start | 5 | TIES 2.43; plain average 2.46 | the kept worker 2.49 (each ahead in 9 of 10 units); one worker on all the text 2.31 | **beats the workers**, not the full-data worker |
@@ -840,11 +840,17 @@ Milestone 5 takes up the three open findings of milestones 2 to 4:
   - Chosen on the concatenated scans, they reproduce milestone 3b's scores.
 
 **Results.** Test bits per token, mean over the three seeds (range in brackets). The last two
-columns are the share of each family's targets the router sends to that family's own specialist
-(for the mixture, the mean weight on it), and the parameters run per target, on average over a
-sequence.
+columns are:
 
-| | Voyager | Rosetta | RFI sweep | Mean | Validation mean | Own specialist (V, R, S) | Run per target |
+- the share of each family's targets the router sends to that family's own specialist (for the
+  mixture, the mean weight on it);
+- the parameters a router would run per target, on average over a sequence. This is projected:
+  the benchmark itself runs every specialist on every target and routes over their cached
+  scores. A router that ran only the specialists it needs would run one specialist once a hard
+  router commits, and all three while a likelihood router is still gathering evidence. The
+  mixture and the followed likelihood need all three throughout.
+
+| | Voyager | Rosetta | RFI sweep | Mean | Validation mean | Own specialist (V, R, S) | Projected per target |
 |---|---:|---:|---:|---:|---:|---:|---:|
 | bank, dispatched by family label (3b) | 3.12 | 2.45 | 4.54 (4.53–4.57) | **3.37** (3.36–3.38) | 3.22 | 1, 1, 1 | 27,584 |
 | first token | 5.75 (5.73–5.76) | 2.45 | 4.54 (4.53–4.57) | 4.25 | 4.40 (4.38–4.45) | 0.00, 1.00, 1.00 | 27,683 |
@@ -861,7 +867,7 @@ sequence.
 **Parameters and budget:**
 
 - **Stored:** 82,851, the three specialists (82,752) and the router's 99 frequencies.
-- **Run per target:**
+- **Projected per target** (the benchmark ran all three everywhere):
   - one specialist plus the router, for the frequency routers;
   - all three, for the mixture and the followed likelihood;
   - the committed routers in between: all three until they commit, one after.
@@ -905,8 +911,9 @@ own specialist, mean over seeds:
 - **What the best router costs.** The posterior mixture runs all three specialists for every
   target: 82,851 parameters per target, more than the largest dense rival's 61,166, and 3 times
   the dense model of the anchor's size. Cheaper choices:
-  - committing to one specialist after 8 tokens runs 35,728 per target on average and scores
-    3.43, still 0.13 ahead of the largest dense rival;
+  - committing to one specialist after 8 tokens would run 35,728 per target on average
+    (projected: this benchmark doesn't dispatch selectively) and scores 3.43, still 0.13 ahead of
+    the largest dense rival;
   - the frequency routers run one specialist, but misroute Voyager: its first frames look like
     another family's. A sequence's first token alone sends every Voyager sequence elsewhere.
 - **The family label was a crutch for the bank, not a requirement.** What remains open is
@@ -919,9 +926,16 @@ keeps its expected value. TIES then averages only the agreeing nonzero entries. 
 entry keeps the factor, and with three agreeing workers the merge is about 10 × (1 − 0.9³) = 2.7
 times the mean delta in expectation.
 
-Milestone 5 adds TIES's mean over every contributor's weight (`merge.py --ties-mean all`). It
-counts a dropped or disagreeing entry as zero, and is unbiased after DARE. Averaging unrescaled
-survivors, the other fix, would shrink each entry by 1 − p³ and stay biased.
+Milestone 5 adds an all-contributor denominator for TIES (`merge.py --ties-mean all`). It
+divides the agreeing entries' weighted sum by every contributor's weight, so a dropped or
+disagreeing entry counts as zero.
+
+- **Where the workers agree in sign,** this removes DARE's factor and makes the merge unbiased.
+  Averaging unrescaled survivors, the other fix, would shrink each entry by 1 − p³ and stay
+  biased.
+- **Where they disagree,** sign election isn't linear, so the merge still leans to whichever
+  side survives the drop. With deltas +2 and −1 and p = 0.5, its expectation is 0.75 against a
+  mean of 0.5. The tests enumerate both cases exactly.
 
 Rerunning milestone 2's benchmark ([`merge_bench.py`](merge_bench.py)) reproduces every earlier
 row exactly. The added rows:
@@ -938,15 +952,18 @@ row exactly. The added rows:
 
 **What this shows:**
 
-- **The rescale didn't cause the gap: removing it makes the chain worse.** Unbiased DARE-TIES
-  with the same soup and DiLoCo scores 2.51, against 2.11 with the 10× factor kept.
+- **The rescale didn't cause the gap: removing it makes the chain worse.** DARE-TIES with the
+  all-contributor denominator, the same soup and DiLoCo scores 2.51, against 2.11 with the 10×
+  factor kept.
   - The factor had been working as a larger outer step: about 2.7 times the averaged update on
     the entries the workers agree on.
-  - One-shot, it's the same: 2.98 unbiased (exactly the DARE average's score) against 2.93.
+  - One-shot, it's the same: 2.98 with the all-contributor denominator (exactly the DARE
+    average's score) against 2.93.
 - **The greedy soup causes most of the gap.** Step by step from the plain average with DiLoCo
   (1.83):
   - adding the greedy soup: 2.34 (+0.51);
-  - then unbiased DARE-TIES, compression and sign election: 2.51 (+0.17);
+  - then DARE-TIES with the all-contributor denominator (compression and sign election): 2.51
+    (+0.17);
   - then keeping DARE's 10× factor instead: 2.11 (−0.40).
   - **The soup merges too few shards.** Its rounds kept 1.3 of the 3 shards on average, against
     2.0 for the original DARE-TIES chain and 3 without a soup, so most of the data is left out
@@ -956,8 +973,8 @@ row exactly. The added rows:
 - **So the chain's best merge is the simplest:** the plain average with DiLoCo (1.83).
   - A soup helps one shot (2.65, milestone 2), where it drops one weak worker once.
   - Applied every round, it starves the chain of data.
-  - Unbiased DARE is still the right way to compress a delta for a card. The one-shot cost of
-    compression is 0.11 bits (2.98 against 2.87).
+  - DARE, averaged without TIES, is still an unbiased way to compress a delta for a card. The
+    one-shot cost of compression is 0.11 bits (2.98 against 2.87).
 
 ### 3. Shards and a warm start in the browser (`trackb-merge/v1`)
 
@@ -1013,7 +1030,7 @@ For scale: θ₀ scores 5.71, the unigram baseline 3.33, and the warm start alon
   - That matches what TIES was designed for: fine-tuning deltas from a pretrained base.
 - **No merge reaches one worker on all the text** (2.31) in any unit. Within the same total
   data and epochs, training together still beats training apart and merging, as in milestone 2.
-- **DARE's factor inside TIES blows up in every set** (12–51 bits). The mean over all workers
+- **DARE's factor inside TIES blows up in every set** (12–51 bits). The all-worker denominator
   removes it, and then matches DARE then the average to two decimals, since sign election
   drops almost nothing. Compression itself still costs 0.3 bits from the warm start (2.74
   against 2.46), and far more from θ₀.

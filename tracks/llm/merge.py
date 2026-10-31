@@ -21,10 +21,12 @@ The rule (all optional; the default is the plain baseline, an average by trainin
   16 KB. The round merges and gates what the payload rebuilds.
 - TIES (--merge ties): trim each delta to its largest entries, elect each parameter's sign, and
   average only the nonzero entries that agree with it. --ties-mean all divides their weighted
-  sum by every contributor's weight instead (milestone 5). After DARE that's the unbiased
-  choice: DARE scales its survivors by 1/(1 − p) so that a sum over all contributors keeps its
-  expected value, while TIES's own mean, over the survivors alone, keeps that factor on every
-  entry.
+  sum by every contributor's weight instead, an all-contributor denominator (milestone 5).
+  After DARE it removes the factor TIES's own mean keeps: DARE scales its survivors by
+  1/(1 − p) so that a sum over all contributors keeps its expected value, while a mean over the
+  survivors alone keeps that factor on every entry. It's unbiased only where the contributors
+  agree in sign: sign election isn't linear, so where they disagree, the merge still leans to
+  whichever side survives the drop.
 - Greedy soup (--soup greedy): workers are tried best first by validation, each kept only if
   the merge improves with it, so a worker that barely moved can't dilute the others.
 - DiLoCo (--outer-lr, --outer-momentum): the merged delta is a pseudo-gradient for an outer
@@ -426,9 +428,11 @@ def ties(flats, weights, keep, mean="agreeing"):
     mean of only the nonzero entries that agree with it. A delta that's zero at a parameter, or
     disagrees there, doesn't pull the others toward zero.
 
-    mean="all" divides the agreeing entries' weighted sum by every contributor's weight instead,
-    so a zero or disagreeing entry counts as zero. For DARE's rescaled survivors that keeps the
-    merge's expected value: TIES's own mean would keep each survivor 1/(1 − p) times too large."""
+    mean="all" divides the agreeing entries' weighted sum by every contributor's weight instead
+    (an all-contributor denominator), so a zero or disagreeing entry counts as zero. For DARE's
+    rescaled survivors it removes the factor 1/(1 − p) that TIES's own mean keeps on each one.
+    Where the contributors agree in sign that makes the merge's expected value the weighted
+    mean; where they disagree, sign election still biases it."""
     trimmed = np.stack([trim(f, keep) for f in flats])
     w = np.asarray(weights, dtype=np.float64)[:, None]
     elected = np.sign((w * trimmed).sum(axis=0))
@@ -649,10 +653,10 @@ def replay(path, manifest=None):
     start = None if record["start"]["checkpoint"] == "theta0" else record["start"]["checkpoint"]
     with training_runtime(1, "cpu"):
         again, _ = merge_round(anchor, [c["file"] for c in record["contributors"]], start, record["rule"], manifest)
-    # A rule recorded before a setting existed replays with that setting's default.
-    for key in set(again["rule"]) - set(record["rule"]):
-        if again["rule"][key] == RULE[key]:
-            del again["rule"][key]
+    # Rounds recorded before TIES's mean was a setting replay with its default; every other
+    # setting must be in the record.
+    if "ties_mean" not in record["rule"] and again["rule"]["ties_mean"] == RULE["ties_mean"]:
+        del again["rule"]["ties_mean"]
     if again != record:
         raise ValueError(f"{path}: replaying the round gave a different result")
     return record
@@ -685,7 +689,7 @@ def main(argv=None):
     r.add_argument("--merge", choices=("average", "ties"), default="average")
     r.add_argument("--ties-keep", type=float, default=None, help="TIES: the fraction of each delta kept by magnitude (default 1)")
     r.add_argument("--ties-mean", choices=("agreeing", "all"), default="agreeing",
-                   help="TIES: average over the agreeing entries, or divide by all contributors (unbiased after DARE)")
+                   help="TIES: average over the agreeing entries, or divide by every contributor's weight")
     r.add_argument("--dare-p", type=float, default=None, help="compress each delta, dropping this fraction of its entries")
     r.add_argument("--dare-method", choices=("random", "magnitude"), default="random")
     r.add_argument("--soup", choices=("all", "greedy"), default="all")

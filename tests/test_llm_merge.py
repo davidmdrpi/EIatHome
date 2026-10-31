@@ -3,6 +3,7 @@ milestone 2): shards, round records, checks on deltas, the gate, the weighted av
 payloads, TIES, the greedy soup, DiLoCo's outer step, and replaying a round."""
 
 import copy
+import itertools
 import json
 import os
 from pathlib import Path
@@ -130,7 +131,7 @@ class AlgorithmTests(unittest.TestCase):
         # zero or disagreeing entry counts as zero.
         np.testing.assert_allclose(merge.ties([a, b], [0.5, 0.5], 1.0, mean="all"), [0.0, -1.0, 0.15, 3.0, 1.0, 2.0])
 
-    def test_dare_then_ties_is_unbiased_only_with_the_mean_over_all_contributors(self):
+    def test_after_dare_the_all_contributor_denominator_removes_the_extra_factor(self):
         # Three identical deltas: TIES's own mean keeps DARE's 1/(1 − p) on every survivor, while the
         # mean over all contributors keeps the expected merge at the delta itself.
         tau = np.random.default_rng(0).normal(size=4000)
@@ -146,6 +147,23 @@ class AlgorithmTests(unittest.TestCase):
         ratio = lambda m: float(m @ tau / (tau @ tau))
         self.assertAlmostEqual(ratio(merged['all']), 1.0, delta=0.05)
         self.assertAlmostEqual(ratio(merged['agreeing']), 10 * (1 - 0.9 ** 3), delta=0.2)
+
+    def test_the_all_contributor_denominator_is_unbiased_only_where_signs_agree(self):
+        # The exact expectation over every DARE mask (p = 0.5, survivors doubled), for one parameter.
+        def expected(deltas, mean, p=0.5):
+            total = 0.0
+            for mask in itertools.product((0, 1), repeat=len(deltas)):
+                chance = np.prod([1 - p if kept else p for kept in mask])
+                flats = [np.array([kept * d / (1 - p)]) for kept, d in zip(mask, deltas)]
+                total += chance * merge.ties(flats, [1 / len(deltas)] * len(deltas), 1.0, mean)[0]
+            return total
+
+        # Agreeing deltas: the weighted mean (2) in expectation, against 1.5 times it for TIES's own mean.
+        self.assertAlmostEqual(expected([2.0, 2.0], 'all'), 2.0)
+        self.assertAlmostEqual(expected([2.0, 2.0], 'agreeing'), 3.0)
+        # Opposing deltas: sign election leans to whichever survives, so 0.75 against the mean of 0.5.
+        self.assertAlmostEqual(expected([2.0, -1.0], 'all'), 0.75)
+        self.assertAlmostEqual(np.mean([2.0, -1.0]), 0.5)
 
     def test_the_greedy_soup_tries_best_first_and_keeps_only_improvements(self):
         # Candidates by their own validation bits; a merge's score is looked up by its members.
@@ -392,10 +410,20 @@ class RoundTests(unittest.TestCase):
         del old['rule']['ties_mean']
         Path('dare-ties/round.json').write_text(json.dumps(old))
         self.assertNotIn('ties_mean', merge.replay(Path('dare-ties/round.json'))['rule'])
-        # The unbiased mean replays too, and merges differently.
-        unbiased = merge.run_round(Path('dare-ties-all'), self.workers, rule={**rule, 'ties_mean': 'all'})
+        # The all-contributor denominator replays too, and merges differently.
+        everyone = merge.run_round(Path('dare-ties-all'), self.workers, rule={**rule, 'ties_mean': 'all'})
         self.assertEqual(merge.replay(Path('dare-ties-all/round.json'))['rule']['ties_mean'], 'all')
-        self.assertNotEqual(unbiased['merged'].get('weights_sha256'), record['merged'].get('weights_sha256'))
+        self.assertNotEqual(everyone['merged'].get('weights_sha256'), record['merged'].get('weights_sha256'))
+        # Only TIES's mean may be missing: any other setting deleted from a record, even one at its
+        # default, fails the replay.
+        merge.run_round(Path('plain'), self.workers)
+        original = Path('plain/round.json').read_text()
+        for key in ('merge', 'max_abs_delta', 'soup'):
+            edited = json.loads(original)
+            del edited['rule'][key]
+            Path('plain/round.json').write_text(json.dumps(edited))
+            with self.assertRaisesRegex(ValueError, 'different result', msg=key):
+                merge.replay(Path('plain/round.json'))
         # A budget no payload fits: every worker is refused.
         record, merged = merge.merge_round(self.anchor, self.workers, rule={'dare': {'method': 'random', 'p': 0.0}})
         self.assertTrue(all('over the 16,384-byte budget' in c['reason'] for c in record['contributors']))
