@@ -3,9 +3,9 @@
 //
 // A unit trains the anchor's token transformer from θ₀ with several seeds on the same Rosetta
 // text, then merges their task vectors τᵢ = θᵢ − θ₀ four ways: a naive weight average, DARE
-// then the average, TIES, and DARE then TIES. It scores every model on held-out text. Its card carries a summary (the
-// held-out cross-entropies, how sparse the deltas and the merges are, and how often the seeds'
-// changes agree in sign) and no deltas, so it fits in an issue link.
+// then the average, TIES, and DARE then TIES. It scores every model on held-out text. Its card
+// carries a summary (the held-out cross-entropies, how sparse the deltas and the merges are, and
+// how often the seeds' changes agree in sign) and no deltas, so it fits in an issue link.
 //
 // The arithmetic is tracks/llm/merge.py's (milestone 2), on flat Float32Array parameter vectors:
 // - DARE drops each entry with probability p and rescales the survivors by 1/(1 − p), keeping
@@ -17,7 +17,7 @@
 
 import { ANCHOR, anchorLayout, layoutBounds, peakTokens } from './anchor.js';
 import { tokenParameterCount } from './models.js';
-import { deriveSeed } from './rng.js';
+import { deriveSeed, makeRng } from './rng.js';
 import { C, T, rosettaSymbols } from './signals.js';
 import { SPLITS, targetCount } from './trackb.js';
 import { rosettaSplits } from './trackb-splits.js';
@@ -198,12 +198,14 @@ export function meanPairwiseCosine(flats) {
 
 // ---------- the unit's merges ----------
 
+// Worker i's DARE draws: which entries it keeps depends on its seed alone, not its weights.
+const dareRng = (config, i) => makeRng(deriveSeed(config.seeds[i], 'dare'));
+
 // Every merge a unit scores, from the workers' trained weights: deltas and summary statistics.
-// rngFor(i) gives worker i's DARE draws.
-export function mergeDeltas(theta0, thetas, config, rngFor) {
+export function mergeDeltas(theta0, thetas, config) {
   const taus = thetas.map((theta) => taskVector(theta, theta0));
   const weights = taus.map(() => 1 / taus.length);
-  const dropped = taus.map((tau, i) => dare(tau, config.dare.p, rngFor(i)));
+  const dropped = taus.map((tau, i) => dare(tau, config.dare.p, dareRng(config, i)));
   const sent = dropped.map((d) => compress(d)); // each delta as it would travel, and rebuilt
   const tiesMerge = ties(taus, weights, config.ties_keep);
   const deltas = {
@@ -223,6 +225,29 @@ export function mergeDeltas(theta0, thetas, config, rngFor) {
     signs: { agree: signAgreement(taus), ties_conflicts: tiesMerge.conflicts, cosine: meanPairwiseCosine(taus) },
   };
 }
+
+// What a unit's card must report whatever its training did. DARE's masks follow from the seeds,
+// so the payload sizes (values, index gaps and scales) and the share kept are fixed; so is the
+// unigram baseline, from the corpus's tokens (the same for every unit: see mergeTokens).
+export function expectedSummary(config) {
+  const size = anchorParameters();
+  const zeros = new Float32Array(size);
+  const kept = config.seeds.map((_, i) => dare(zeros, config.dare.p, dareRng(config, i)));
+  return {
+    payloadBytes: kept.map((d) => compress(d).bytes),
+    dareKept: round(kept.reduce((s, d) => s + d.kept.length, 0) / kept.length / size),
+    unigram: expectedUnigram(),
+  };
+}
+
+let unigram = null;
+const expectedUnigram = () => {
+  if (unigram === null) {
+    const tokens = mergeTokens(mergeConfig(0));
+    unigram = round(unigramBits(tokens.train, tokens.test));
+  }
+  return unigram;
+};
 
 // The seed a volunteer would keep without merging: the best on validation (never on test).
 export const bestSeed = (validationBits) => validationBits.indexOf(Math.min(...validationBits));
@@ -277,8 +302,9 @@ const isInt = (v, lo, hi) => Number.isInteger(v) && v >= lo && v <= hi;
 const inRange = (v, lo, hi) => Number.isFinite(v) && v >= lo && v <= hi;
 
 // Checks a merge card's form against its spec. Returns a list of problems (empty means valid).
-// Its numbers can't be recomputed without training, so they're checked for range and
-// replicated by other volunteers instead.
+// The numbers that follow from the spec alone (DARE's payload sizes and kept share, the unigram
+// baseline) are recomputed. The rest can't be without training, so they're checked for range
+// and replicated by other volunteers instead.
 export function validateMergeCard(card) {
   const errors = [];
   const fail = (message) => errors.push(message);
@@ -287,6 +313,10 @@ export function validateMergeCard(card) {
   if (!isInt(card.unit, 0, MAX_UNIT)) return [...errors, `\`unit\` must be a whole number from 0 to ${MAX_UNIT}.`];
   const config = mergeConfig(card.unit);
   if (JSON.stringify(card.config) !== JSON.stringify(config)) fail("`config` doesn't match the spec for this unit.");
+  // The pinned corpus is the only data: anything else in `inputs`, such as a slice dataset,
+  // would change how the card is grouped for replication and duplicate checks.
+  const inputs = card.inputs && typeof card.inputs === 'object' ? Object.keys(card.inputs).sort() : [];
+  if (JSON.stringify(inputs) !== JSON.stringify(['anchor', 'rosetta_corpus'])) fail('`inputs` must hold the Rosetta corpus and the anchor, and nothing else: this spec uses no slices.');
   const corpus = card.inputs?.rosetta_corpus;
   if (corpus?.id !== ROSETTA_CORPUS.id || corpus?.sha256 !== ROSETTA_CORPUS.sha256) fail("The Rosetta corpus doesn't match the spec.");
   const anchor = card.inputs?.anchor;
@@ -302,7 +332,9 @@ export function validateMergeCard(card) {
   const ints = (v, lo, hi) => Array.isArray(v) && v.length === workers && v.every((x) => isInt(x, lo, hi));
   if (!ints(card.best_epochs, 1, config.epochs)) fail(`\`best_epochs\` needs ${workers} epochs from 1 to ${config.epochs}.`);
   if (!isInt(card.best_seed, 0, workers - 1)) fail(`\`best_seed\` must be a worker from 0 to ${workers - 1}.`);
+  const expected = expectedSummary(config);
   if (!ints(card.payload_bytes, 1, 4 * anchorParameters())) fail(`\`payload_bytes\` needs ${workers} positive sizes.`);
+  else if (JSON.stringify(card.payload_bytes) !== JSON.stringify(expected.payloadBytes)) fail(`\`payload_bytes\` must be ${expected.payloadBytes.join(', ')}: the sizes this unit's DARE masks give.`);
 
   const m = card.metrics;
   if (!m || typeof m !== 'object') return [...errors, '`metrics` is missing.'];
@@ -311,6 +343,8 @@ export function validateMergeCard(card) {
   const t = m.test_bits;
   if (!t || !bits(t.theta0) || !bits(t.unigram) || !Array.isArray(t.seeds) || t.seeds.length !== workers || !t.seeds.every(bits) || !merges.every((k) => bits(t[k]))) {
     fail(`\`metrics.test_bits\` needs theta0, unigram, ${workers} seeds and ${merges.join(', ')}, in bits.`);
+  } else if (Math.abs(t.unigram - expected.unigram) > 1e-4) {
+    fail(`\`metrics.test_bits.unigram\` must be ${expected.unigram}, the corpus's unigram baseline.`);
   }
   const v = m.validation_bits;
   if (!v || !Array.isArray(v.seeds) || v.seeds.length !== workers || !v.seeds.every(bits) || !merges.every((k) => bits(v[k]))) {
@@ -320,6 +354,7 @@ export function validateMergeCard(card) {
   }
   const s = m.sparsity;
   if (!s || !['dare_kept', ...MERGES].every((k) => inRange(s[k], 0, 1))) fail(`\`metrics.sparsity\` needs dare_kept, ${MERGES.join(', ')}, from 0 to 1.`);
+  else if (s.dare_kept !== expected.dareKept) fail(`\`metrics.sparsity.dare_kept\` must be ${expected.dareKept}, the share this unit's DARE masks keep.`);
   const g = m.signs;
   if (!g || !inRange(g.agree, 0, 1) || !inRange(g.ties_conflicts, 0, 1) || !inRange(g.cosine, -1, 1)) fail('`metrics.signs` needs agree and ties_conflicts from 0 to 1, and cosine from −1 to 1.');
   return errors;

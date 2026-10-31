@@ -16,6 +16,7 @@ import {
   compress,
   cosine,
   dare,
+  expectedSummary,
   mergeCard,
   mergeConfig,
   mergeDeltas,
@@ -161,7 +162,7 @@ test('merging a seed sweep: identical seeds merge to themselves, except where DA
   const shared = Float32Array.from(theta0, () => rng.gauss() * 0.05);
   const thetas = [0, 1, 2, 3].map(() => addDelta(theta0, shared));
   const config = mergeConfig(0);
-  const stats = mergeDeltas(theta0, thetas, config, (i) => makeRng(deriveSeed(config.seeds[i], 'dare')));
+  const stats = mergeDeltas(theta0, thetas, config);
   const tau = taskVector(thetas[0], theta0);
   assert.deepEqual([...stats.deltas.average], [...weightedSum([tau, tau, tau, tau], [0.25, 0.25, 0.25, 0.25])]);
   assert.ok(stats.deltas.average.every((v, i) => close(v, tau[i], 1e-7)));
@@ -175,21 +176,29 @@ test('merging a seed sweep: identical seeds merge to themselves, except where DA
   const ratio = stats.deltas.dare_ties.reduce((s, v, i) => s + (v ? v / tau[i] : 0), 0) / stats.deltas.dare_ties.filter(Boolean).length;
   assert.ok(close(ratio, 10, 0.2), `DARE then TIES scales the kept changes by ${ratio}`);
   assert.ok(stats.payloadBytes.every((b) => b > 0.1 * theta0.length && b < 0.25 * theta0.length + 4 * layout.length), `${stats.payloadBytes}`);
+  // The masks follow from the seeds alone, so a card's sizes and kept share can be recomputed.
+  const expected = expectedSummary(config);
+  assert.deepEqual(stats.payloadBytes, expected.payloadBytes);
+  assert.equal(Number(stats.sparsity.dare_kept.toFixed(4)), expected.dareKept);
+  const other = mergeDeltas(theta0, thetas.map((t) => addDelta(t, Float32Array.from(t, () => rng.gauss()))), config);
+  assert.deepEqual(other.payloadBytes, expected.payloadBytes, 'whatever the weights');
+  assert.deepEqual(expectedSummary(mergeConfig(7)).payloadBytes, [1318, 1380, 1332, 1396]);
 });
 
 // ---------- cards ----------
 
 // A card as the engine makes it, with plausible synthetic scores.
 function makeMergeCard(unit, { shift = 0, started = '2026-10-31T00:00:00.000Z' } = {}) {
+  const expected = expectedSummary(mergeConfig(unit));
   const seeds = [2.31, 2.33, 2.3, 2.32].map((test, i) => ({ test: test + shift, validation: 1.98 + i / 100 + shift, bestEpoch: 15 + i }));
   const merge = (test) => ({ test: test + shift, validation: test - 0.3 + shift });
   const results = {
     targets: MERGE_TARGETS,
     theta0: 5.7149,
-    unigram: 3.3338,
+    unigram: expected.unigram,
     seeds,
     merges: { average: merge(2.3), dare_average: merge(3.8), ties: merge(3.6), dare_ties: merge(55.2) },
-    stats: { payloadBytes: [1364, 1316, 1282, 1328], sparsity: { dare_kept: 0.098, average: 0.94, dare_average: 0.31, ties: 0.26, dare_ties: 0.31 }, signs: { agree: 0.87, ties_conflicts: 0.0002, cosine: 0.96 } },
+    stats: { payloadBytes: expected.payloadBytes, sparsity: { dare_kept: expected.dareKept, average: 0.94, dare_average: 0.31, ties: 0.26, dare_ties: 0.31 }, signs: { agree: 0.87, ties_conflicts: 0.0002, cosine: 0.96 } },
   };
   return mergeCard(unit, results, { backend: 'wasm', tfjs: '4.22.0', seconds: 19.6, started });
 }
@@ -226,6 +235,15 @@ test('merge cards that don’t match their spec are rejected', () => {
   assert.match(broken((c) => delete c.metrics.signs.cosine), /signs/);
   assert.match(broken((c) => (c.version = 2)), /version/);
   assert.match(broken((c) => (c.unit = -1)), /unit/);
+  // Only the pinned corpus: a slice dataset would change how the card is grouped.
+  assert.match(broken((c) => (c.inputs.slices = { dataset_id: 'different', slices: [] })), /inputs/);
+  assert.match(broken((c) => (c.inputs.slices = null)), /inputs/);
+  // What follows from the spec alone is recomputed: DARE's payload sizes and kept share, and the
+  // unigram baseline. Each card below is otherwise identical to a valid one.
+  assert.match(broken((c) => (c.payload_bytes = [1, 1, 1, 1])), /payload_bytes. must be 1318, 1380, 1332, 1396/);
+  assert.match(broken((c) => (c.payload_bytes[2] += 2)), /payload_bytes/);
+  assert.match(broken((c) => (c.metrics.sparsity.dare_kept = 0.1)), /dare_kept. must be/);
+  assert.match(broken((c) => (c.metrics.test_bits.unigram = 3.2)), /unigram. must be/);
   assert.deepEqual(validateMergeCard(makeMergeCard(7, { shift: 40 })), [], 'a merge that costs far more than log2(k) is still a result');
 });
 
@@ -261,4 +279,24 @@ test('the ingestion script records a valid merge card and rejects a tampered one
   const rejected = ingest(41, 'bob', tampered);
   assert.equal(rejected.status, 'status=rejected');
   assert.match(rejected.comment, /config/);
+
+  // The same volunteer can't count a unit twice by adding a slice dataset to its card, or by
+  // running it again.
+  const withSlices = makeMergeCard(9, { started: '2026-10-31T02:00:00.000Z' });
+  withSlices.inputs.slices = { dataset_id: 'different', slices: [] };
+  const sliced = ingest(42, 'alice', withSlices);
+  assert.equal(sliced.status, 'status=rejected');
+  assert.match(sliced.comment, /inputs/);
+  const again = ingest(43, 'alice', makeMergeCard(9, { started: '2026-10-31T03:00:00.000Z' }));
+  assert.equal(again.status, 'status=duplicate');
+  assert.match(again.comment, /already submitted unit 9/);
+
+  // Two volunteers with identical metrics but impossible payload sizes don't replicate: the
+  // second card is rejected.
+  const sizes = makeMergeCard(9, { started: '2026-10-31T04:00:00.000Z' });
+  sizes.payload_bytes = [1, 1, 1, 1];
+  assert.equal(ingest(44, 'carol', sizes).status, 'status=rejected');
+  const stored = JSON.parse(readFileSync(join(dir, 'results.json'), 'utf8')).results;
+  assert.deepEqual(stored.map((r) => [r.issue, r.submitted_by]), [[40, 'alice']]);
+  assert.deepEqual(summarize(stored).units.map((u) => [u.spec, u.unit, u.runs, u.status]), [['trackb-merge/v0', 9, 1, 'single']]);
 });

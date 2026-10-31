@@ -78,7 +78,9 @@ and tampered cards are caught by their form or by recomputation.
 anchor's layout, the pinned tokenizer reads every Rosetta symbol whatever the noise, DARE keeps
 the expected delta and its payload rebuilds within half a quantization step, TIES elects signs
 and averages only agreeing entries on hand-checked vectors, and merge cards fit an issue link
-and are rejected when they don't match their spec.
+and are rejected when they don't match their spec: an input besides the pinned corpus and
+anchor, or DARE payload sizes, a kept share or a unigram baseline that differ from what the
+unit's seeds and corpus give.
 `tests/community.test.mjs` checks card validation, replication summaries and the ingestion
 script, and `tests/ingest_issues.test.mjs` runs the ingestion driver against a local git
 remote and a fake `gh`. `tests/browser.test.mjs` serves this folder and drives the Live Lab in

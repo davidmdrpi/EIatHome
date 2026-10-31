@@ -777,7 +777,7 @@ async function runMergeUnit(unit) {
       return;
     }
     post({ type: 'merge-progress', unit, merging: true });
-    const stats = mergeDeltas(theta0, thetas, config, (i) => makeRng(deriveSeed(config.seeds[i], 'dare')));
+    const stats = mergeDeltas(theta0, thetas, config);
     const merges = {};
     for (const [name, delta] of Object.entries(stats.deltas)) {
       setFlat(scratch, addDelta(theta0, delta));

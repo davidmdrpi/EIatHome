@@ -666,8 +666,12 @@ of the merge, not weights.
     about 2,100 characters, well under the 7,500 the Live Lab allows.
   - **Checks:** ingestion validates a card's form: its config, anchor, corpus, target counts,
     the seed it keeps, and the ranges of its values.
-    - Its numbers come from training, so they're replicated rather than recomputed. On one
-      backend a unit gives an identical card, which the tests check.
+    - Its inputs must be the pinned corpus and anchor only. A slice dataset would put the card
+      in another replication group, and let one volunteer count a unit twice.
+    - What follows from the spec alone is recomputed and must match: each DARE payload's size
+      and the share DARE keeps (the masks depend only on the seeds), and the unigram baseline.
+    - The rest comes from training, so it's replicated rather than recomputed. On one backend
+      a unit gives an identical card, which the tests check.
     - Runs from two volunteers count as replicated when every metric agrees within 0.02.
 
 ### Results
@@ -725,6 +729,14 @@ The cards' summaries of the deltas:
   - Among each seed's largest 20%, almost none conflict.
   - TIES's sign election is for deltas that interfere, and these don't, so its whole cost is
     the trimming.
+- **This doesn't show language.** Milestone 3b's byte-statistics control, which knows the
+  UTF-8 framing, scores 2.28 bits per token over the 16 symbols on the same 719 test targets.
+  That's add-one statistics fitted on the training tokens, and every unit has the same tokens,
+  so it's the same for all of them.
+  - It's slightly better than any model here (2.31), though it has framing information the
+    transformer lacks.
+  - The merge comparison stands, since every row is scored on the same text. Whether the
+    transformer learns anything beyond byte statistics isn't shown.
 - **The cards fit.** A card carries the summary with plenty of room in an issue link. A DARE
   delta of this model would take about 1.4 KB, so deltas could travel too, but merging them
   doesn't help here.

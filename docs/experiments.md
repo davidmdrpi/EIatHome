@@ -402,8 +402,11 @@ token transformer can be merged in the browser:
   across seeds, TIES's sign conflicts, mean pairwise cosine, and each DARE payload's size. It
   carries no weights, so it fits an issue link.
 
-Ingestion checks a card's form against the spec. Its numbers come from training, so like
-`track-a/v0` they're replicated by other volunteers, not recomputed. Results are in
+Ingestion checks a card's form against the spec. A card may name no inputs besides the pinned
+corpus and anchor, so it can't join another replication group. Ingestion recomputes what follows
+from the spec alone: each DARE payload's size and the share DARE keeps (the masks depend only
+on the seeds), and the unigram baseline. The rest comes from training, so like `track-a/v0` it's
+replicated by other volunteers, not recomputed. Results are in
 [MERGE_RESULTS.md](../tracks/llm/MERGE_RESULTS.md).
 
 ### 9.2 BOINC work units (later, if needed)
