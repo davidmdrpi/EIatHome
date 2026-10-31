@@ -206,8 +206,8 @@
 
       <div class="panel" id="mg-panel">
         <h2>Merging token models</h2>
-        <p>Many volunteers could each train a small model and combine the results, if their models start from the same weights and read the same tokens. This unit tests that on one machine: it trains Track B’s token transformer 4 times from one pinned start, with different seeds, then merges what the 4 runs learned and scores the merges on text none of them saw.</p>
-        <p class="muted small">Spec <code id="mg-spec"></code>, anchor <code id="mg-anchor"></code>: the Rosetta text as FSK, in pinned tokens, split in text order into training, validation and test parts. Each seed trains for up to 20 epochs from the anchor’s θ₀ and keeps its best validation epoch. The merges combine the seeds’ weight changes four ways: a plain average; DARE (drop 90% of each change at random and scale the rest up 10 times, which is how a change could be sent compactly) then the average; TIES (keep each change’s largest 20%, elect each weight’s sign, average only the changes that agree); and DARE then TIES. The card carries the scores and a summary of the changes, not the weights, so it fits in an issue link. A run takes about half a minute.</p>
+        <p>Many volunteers could each train a small model and combine the results, if their models start from the same weights and read the same tokens. This unit tests that on one machine. It trains Track B’s token transformer in three sets of 4 runs: 4 seeds on all the training text; 4 workers each on its own quarter of it, from one pinned start; and the same 4 quarters from a short shared warm start. Then it merges what each set learned and scores everything on text none of them saw.</p>
+        <p class="muted small">Spec <code id="mg-spec"></code>, anchor <code id="mg-anchor"></code>: the Rosetta text as FSK, in pinned tokens, split in text order into training, validation and test parts. Each worker trains for up to 20 epochs and keeps its best validation epoch; the warm start is the anchor’s θ₀ trained 3 epochs on all the training text. Each set’s weight changes are merged five ways: a plain average; DARE (drop 90% of each change at random and scale the rest up 10 times, which is how a change could be sent compactly) then the average; TIES (keep each change’s largest 20%, elect each weight’s sign, average only the changes that agree); DARE then TIES; and DARE then TIES dividing by all 4 workers instead of the ones that agree. The card carries the scores and a summary of the changes, not the weights, so it fits in an issue link. A run takes about a minute. (Cards of the earlier <code>trackb-merge/v0</code>, the seeds set alone, are still accepted.)</p>
         <div class="controls">
           <label class="field"><span>Unit number</span><input id="mg-number" type="number" min="0" max="9999" value="0"></label>
           <div class="buttons">
@@ -220,8 +220,9 @@
         <p id="mg-status" class="status" role="status" aria-live="polite">Ready.</p>
         <div id="mg-result" hidden>
           <p id="mg-summary"></p>
+          <p id="mg-baselines" class="muted small"></p>
           <div class="table-wrap"><table id="mg-table"></table></div>
-          <p class="muted small">These models train from a random start, not a pretrained model, so a weight change isn’t a small adjustment that can be dropped: it’s what the model learned. Dropping 90% of each change (DARE) or keeping only the largest 20% (TIES) loses most of it. DARE then TIES can cost far more than an untrained model: DARE scales the changes it keeps up 10 times so that their sum stays right on average, but TIES averages only the changes that survive, so each one stays 10 times too large.</p>
+          <p class="muted small">✓ marks the worker you’d keep without merging: the best on validation. From θ₀, a random start, a weight change isn’t a small adjustment that can be dropped: it’s what the model learned, so dropping 90% of each change (DARE) or keeping only the largest 20% (TIES) loses most of it. DARE then TIES can cost far more than an untrained model: DARE scales the changes it keeps up 10 times so that their sum stays right on average, but TIES averages only the changes that survive, so each one stays 10 times too large. Dividing by all the workers instead removes that excess.</p>
           <h3>Result card</h3>
           <pre id="mg-card" class="card"></pre>
           <div class="buttons">
@@ -234,11 +235,11 @@
         <h3>Your merge units in this browser</h3>
         <div class="table-wrap">
           <table id="mg-history">
-            <thead><tr><th scope="col">Unit</th><th scope="col">Kept seed</th><th scope="col">Average</th><th scope="col">TIES</th><th scope="col">DARE-TIES</th><th scope="col">Backend</th><th scope="col">Seconds</th></tr></thead>
+            <thead><tr><th scope="col">Unit</th><th scope="col">Spec</th><th scope="col">Kept seed, all the text</th><th scope="col">Shards: kept · average</th><th scope="col">Warm shards: kept · average</th><th scope="col">Backend</th><th scope="col">Seconds</th></tr></thead>
             <tbody></tbody>
           </table>
         </div>
-        <p class="muted small">Held-out bits per token; lower is better. The kept seed is the best on validation.</p>
+        <p class="muted small">Held-out bits per token; lower is better. The kept worker of each set is its best on validation.</p>
         <div class="buttons"><button id="mg-review" type="button" disabled>Review results</button></div>
       </div>
 

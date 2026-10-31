@@ -10,7 +10,7 @@ import { canonicalOrder, datasetId, sha256Hex } from './slices.js';
 import { sessionPools } from './splits.js';
 import { ANCHOR, anchorTheta0, flatten, layoutProblems, unflatten } from './anchor.js';
 import { attentionStates, buildTokenModel } from './layers.js';
-import { addDelta, mergeCard, mergeConfig, mergeDeltas, mergeTokens, unigramBits } from './merge.js';
+import { ARMS, addDelta, armConfig, mergeCardV1, mergeConfigV1, mergeDeltas, mergeTokens, shardTrain, unigramBits } from './merge.js';
 import { TOKEN_WINDOW, matchedSize } from './models.js';
 import { APP_VERSION, RESULT_CARD_VERSION, ROSETTA_CORPUS, workUnitConfig } from './workunits.js';
 
@@ -634,8 +634,10 @@ function setFlat(model, flat) {
 // Trains on the training split with early stopping: the weights from the best validation
 // epoch are kept. The model is then scored once on the test split, which it never saw.
 // fromAnchor: start the transformer from the anchor's θ₀ instead of a seeded random start.
-async function trainTokenModel(name, splits, k, seed, progress, arch, { fromAnchor = false, epochs = TOKEN_EPOCHS } = {}) {
+// start: weights to begin from instead (a flat vector in the anchor's layout, such as a warm start).
+async function trainTokenModel(name, splits, k, seed, progress, arch, { fromAnchor = false, epochs = TOKEN_EPOCHS, start = null } = {}) {
   const model = fromAnchor ? await anchorModel(k) : buildTokenModel(k, seed, arch);
+  if (start) setFlat(model, start);
   const optimizer = tf.train.adam(TOKEN_LEARNING_RATE[arch]);
   const rng = makeRng(deriveSeed(seed, `token-order-${name}`));
   const examples = segmentWindows(splits.train, TRAIN_STRIDE, false);
@@ -740,10 +742,10 @@ async function runTokenModels({ id, k, splits, control, centroids, seed, arch = 
 
 // ---------- the merge work unit (merge.js) ----------
 
-// Trains the anchor's token transformer from θ₀ once per seed on the frozen corpus, merges the
-// seeds' weight changes four ways and scores everything on the held-out text.
+// trackb-merge/v1: three arms of 4 workers, each trained from θ₀ (or the shared warm start) on
+// the frozen corpus or a shard of it, merged five ways, everything scored on the held-out text.
 async function runMergeUnit(unit) {
-  const config = mergeConfig(unit);
+  const config = mergeConfigV1(unit);
   const started = new Date();
   const t0 = performance.now();
   const corpusSha256 = await sha256Hex(new TextEncoder().encode(ROSETTA_CORPUS.text));
@@ -752,51 +754,80 @@ async function runMergeUnit(unit) {
   }
   const theta0 = flatten(await anchorTheta0());
   const splits = mergeTokens(config);
+  const shards = shardTrain(splits, config.shards);
   const k = ANCHOR.k;
   const score = async (model) => ({ validation: (await heldOutBits(model, splits.validation, k)).bits, test: (await heldOutBits(model, splits.test, k)).bits });
+  // Progress over the 13 trainings: the warm start, then 4 workers per arm.
+  const jobs = 1 + ARMS.length * WORKERS_PER_ARM;
+  let job = 0;
+  const train = async (name, data, seed, epochs, start, label) => {
+    const progress = (_, epoch) => post({ type: 'merge-progress', unit, label, job, jobs, epoch, epochs });
+    const result = await trainTokenModel(name, data, k, seed, progress, ANCHOR.arch, { fromAnchor: true, epochs, start });
+    job++;
+    return result;
+  };
 
   const scratch = await anchorModel(k); // scores θ₀, then each merge
   try {
     const start = await score(scratch);
-    const seeds = [];
-    const thetas = [];
-    for (const [worker, seed] of config.seeds.entries()) {
-      const progress = (_, epoch) => post({ type: 'merge-progress', unit, worker, workers: config.seeds.length, epoch, epochs: config.epochs });
-      const { model, bits, validationBits, bestEpoch, optimizer } = await trainTokenModel(`merge-${worker}`, splits, k, seed, progress, ANCHOR.arch, { fromAnchor: true, epochs: config.epochs });
-      try {
-        if (stopRequested) break;
-        seeds.push({ test: bits, validation: validationBits, bestEpoch });
-        thetas.push(getFlat(model));
-      } finally {
-        model.dispose();
-        optimizer.dispose();
+    const warmRun = await train('merge-warm', splits, config.warm.seed, config.warm.epochs, null, 'the warm start');
+    let thetaWarm;
+    try {
+      thetaWarm = getFlat(warmRun.model);
+    } finally {
+      warmRun.model.dispose();
+      warmRun.optimizer.dispose();
+    }
+    if (stopRequested) return post({ type: 'merge-stopped', unit });
+    const warm = { test: warmRun.bits, validation: warmRun.validationBits, bestEpoch: warmRun.bestEpoch };
+
+    const arms = {};
+    for (const arm of ARMS) {
+      const { start: from, train: data, seeds } = config.arms[arm];
+      const base = from === 'warm' ? thetaWarm : theta0;
+      const workers = [];
+      const thetas = [];
+      for (const [i, seed] of seeds.entries()) {
+        const own = data === 'all' ? splits : { ...splits, train: [shards[i]] };
+        const label = `${ARM_LABELS[arm]}, worker ${i + 1} of ${seeds.length}`;
+        // The seeds arm names its workers' order streams as v0 did, so it is v0's unit exactly.
+        const run = await train(arm === 'seeds' ? `merge-${i}` : `merge-${arm}-${i}`, own, seed, config.epochs, from === 'warm' ? thetaWarm : null, label);
+        try {
+          if (stopRequested) break;
+          workers.push({ test: run.bits, validation: run.validationBits, bestEpoch: run.bestEpoch });
+          thetas.push(getFlat(run.model));
+        } finally {
+          run.model.dispose();
+          run.optimizer.dispose();
+        }
       }
+      if (stopRequested) return post({ type: 'merge-stopped', unit });
+      post({ type: 'merge-progress', unit, label: `${ARM_LABELS[arm]}: merging`, job, jobs, merging: true });
+      const stats = mergeDeltas(base, thetas, armConfig(config, arm));
+      const merges = {};
+      for (const [name, delta] of Object.entries(stats.deltas)) {
+        setFlat(scratch, addDelta(base, delta));
+        merges[name] = await score(scratch);
+      }
+      arms[arm] = { workers, merges, stats };
     }
-    if (stopRequested) {
-      post({ type: 'merge-stopped', unit });
-      return;
-    }
-    post({ type: 'merge-progress', unit, merging: true });
-    const stats = mergeDeltas(theta0, thetas, config);
-    const merges = {};
-    for (const [name, delta] of Object.entries(stats.deltas)) {
-      setFlat(scratch, addDelta(theta0, delta));
-      merges[name] = await score(scratch);
-    }
+    const count = (segments) => segments.reduce((n, s) => n + s.length - 1, 0);
     const results = {
-      targets: Object.fromEntries(Object.entries(splits).map(([name, segments]) => [name, segments.reduce((n, s) => n + s.length - 1, 0)])),
+      targets: { ...Object.fromEntries(Object.entries(splits).map(([name, segments]) => [name, count(segments)])), shards: shards.map((s) => s.length - 1) },
       theta0: start.test,
       unigram: unigramBits(splits.train, splits.test, k),
-      seeds,
-      merges,
-      stats,
+      warm,
+      arms,
     };
-    const card = mergeCard(unit, results, { backend: tf.getBackend(), tfjs: tf.version.tfjs, seconds: (performance.now() - t0) / 1000, started: started.toISOString() });
+    const card = mergeCardV1(unit, results, { backend: tf.getBackend(), tfjs: tf.version.tfjs, seconds: (performance.now() - t0) / 1000, started: started.toISOString() });
     post({ type: 'merge-result', card });
   } finally {
     scratch.dispose();
   }
 }
+
+const WORKERS_PER_ARM = 4;
+const ARM_LABELS = { seeds: 'Seeds on all the text', shards: 'Shards from θ₀', warm_shards: 'Shards from the warm start' };
 
 const round = (v, digits = 4) => (Number.isFinite(v) ? Number(v.toFixed(digits)) : null);
 

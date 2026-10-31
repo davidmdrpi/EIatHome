@@ -402,10 +402,23 @@ token transformer can be merged in the browser:
   across seeds, TIES's sign conflicts, mean pairwise cosine, and each DARE payload's size. It
   carries no weights, so it fits an issue link.
 
+**`trackb-merge/v1`** (milestone 5), which the Live Lab now runs, adds two more sets of 4 workers
+to v0's unit, which it contains unchanged as its seeds arm:
+
+- **shards:** each worker trains from θ₀ on its own quarter of the training text, in order;
+- **warm shards:** the same quarters, from a shared warm start (θ₀ trained 3 epochs on all the
+  training text, keeping its best validation epoch), whose changes are taken from it.
+
+Each set is merged five ways: v0's four, and DARE then TIES dividing by every worker's weight,
+which removes the factor DARE's rescale leaves inside TIES's own mean. It's unbiased only on
+entries where the workers agree in sign and the trim removes no DARE survivor, as here: keeping
+the largest 20% of entries keeps all of DARE's 10%. Each set's card records the worker it would
+keep without merging (its best on validation), so a merge can be compared with it.
+
 Ingestion checks a card's form against the spec. A card may name no inputs besides the pinned
 corpus and anchor, so it can't join another replication group. Ingestion recomputes what follows
 from the spec alone: each DARE payload's size and the share DARE keeps (the masks depend only
-on the seeds), and the unigram baseline. The rest comes from training, so like `track-a/v0` it's
+on the seeds), per set in v1, and the unigram baseline. The rest comes from training, so like `track-a/v0` it's
 replicated by other volunteers, not recomputed. Results are in
 [MERGE_RESULTS.md](../tracks/llm/MERGE_RESULTS.md).
 

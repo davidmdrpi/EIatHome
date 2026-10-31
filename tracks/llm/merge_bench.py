@@ -30,6 +30,13 @@ The selection control's diagnostic, how much a model gains from the real order o
 validation scan over shuffled orders, is recorded for every model, and for a positive control
 added with it: one worker per seed trained 50 epochs on the off-source family itself.
 
+Added in milestone 5, to measure what DARE's rescale costs inside TIES: DARE-TIES with TIES's
+mean taken over every contributor's weight instead of the agreeing survivors' (which removes
+the factor 1/(1 − p) TIES's own mean keeps), one-shot and as a ten-round chain with the same
+soup and DiLoCo; and
+the greedy-soup average with DiLoCo, the same chain without DARE or TIES. Every earlier row is
+unchanged.
+
     python -m tracks.llm.merge_bench --output runs/merge-bench
 """
 
@@ -59,11 +66,15 @@ ONE_SHOT = {  # name: rule
     "TIES": {"merge": "ties", "ties_keep": 0.2},
     "DARE-TIES": {"merge": "ties", "dare": DARE},
     "DARE-TIES, greedy soup": {"merge": "ties", "dare": DARE, "soup": "greedy"},
+    "DARE-TIES, mean over all": {"merge": "ties", "ties_mean": "all", "dare": DARE},
+    "DARE-TIES, mean over all, greedy soup": {"merge": "ties", "ties_mean": "all", "dare": DARE, "soup": "greedy"},
 }
 CHAINS = {
     "average (FedAvg)": {},
     "average + DiLoCo": {"outer": DILOCO},
     "DARE-TIES, greedy soup + DiLoCo": {"merge": "ties", "dare": DARE, "soup": "greedy", "outer": DILOCO},
+    "DARE-TIES, mean over all, greedy soup + DiLoCo": {"merge": "ties", "ties_mean": "all", "dare": DARE, "soup": "greedy", "outer": DILOCO},
+    "average, greedy soup + DiLoCo": {"soup": "greedy", "outer": DILOCO},
 }
 
 

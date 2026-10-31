@@ -28,7 +28,7 @@ browsers don't run module workers from `file://` URLs.
 | `js/layers.js` | Model layers shared by Track A and Track B (causal attention, learned positions, layer normalization) and the token-model builder, importable outside the engine so tests can check them |
 | `js/models.js` | Model families and their parameter counts, so architectures can be compared at about the same size (Track A models, and Track B's token models) |
 | `js/anchor.js` | The merge anchor `token-anchor/v1` (issue #20): a pinned peak tokenizer (33 tokens, nothing fitted) and the token transformer's starting weights θ₀, rebuilt from seeded uniform draws and checked against a pinned SHA-256 |
-| `js/merge.js` | The `trackb-merge/v0` work unit: task vectors, DARE (with the int8 payload's size), TIES, sign agreement and the other delta summaries, and the unit's card and its checks |
+| `js/merge.js` | The merge work units: `trackb-merge/v1` (seeds on all the text, shards from θ₀ and shards from a warm start, each merged five ways) and the earlier `trackb-merge/v0` (the seeds alone). Task vectors, DARE (with the int8 payload's size), TIES (its own mean, or the mean over all workers), sign agreement and the other delta summaries, and each spec's card and its checks |
 | `js/trackb-splits.js` | Track B's training, validation and test frames for each kind of family, split before anything is fitted |
 | `js/trackb.worker.js`, `js/trackb.js` | Track B: splits each family into training, validation and test segments, fits the k-means tokenizer and the shuffled and Markov-1 surrogates on the training split only, and measures held-out cross-entropy, conditional entropy, mutual information, Zipf and compression without crossing a segment boundary |
 | `js/signals.js` | Signal families (two real-data ones, Voyager 1 and off-source, and the synthetic controls) and the Rosetta text; snippet normalization |
@@ -80,7 +80,11 @@ the expected delta and its payload rebuilds within half a quantization step, TIE
 and averages only agreeing entries on hand-checked vectors, and merge cards fit an issue link
 and are rejected when they don't match their spec: an input besides the pinned corpus and
 anchor, or DARE payload sizes, a kept share or a unigram baseline that differ from what the
-unit's seeds and corpus give.
+unit's seeds and corpus give. For v1 it also checks that the seeds set is v0's unit, that the
+shards are the training text in order without overlap, that TIES's mean over all workers keeps
+the expected merge where the workers agree in sign and the trim removes no survivor (and not
+when they disagree, or when trimming after the drop removes survivors), and that a
+malformed value anywhere in a card is rejected, never thrown on.
 `tests/community.test.mjs` checks card validation, replication summaries and the ingestion
 script, and `tests/ingest_issues.test.mjs` runs the ingestion driver against a local git
 remote and a fake `gh`. `tests/browser.test.mjs` serves this folder and drives the Live Lab in
@@ -99,9 +103,10 @@ headless Chromium. It checks that:
   matches the full pass), and the custom layer norm matches TF.js's in outputs and gradients;
 - token-model training can be stopped, and the controls come back;
 - the merge anchor's θ₀ rebuilds to its pin in Chromium and fits the token transformer exactly;
-  a merge unit trains a transformer from θ₀ per seed, merges them, gives the same card when run
-  again, keeps it in the browser, and its card passes ingestion's checks; and with pinned tokens
-  Track B's transformer trains from θ₀ and finds Rosetta's structure;
+  a merge unit trains its three sets of workers (seeds, shards, shards from a warm start),
+  merges each, gives the same card when run again, keeps it in the browser, and its card passes
+  ingestion's checks; and with pinned tokens Track B's transformer trains from θ₀ and finds
+  Rosetta's structure;
 - a recovery unit run on the page gives a card that ingestion's checks accept, recomputation
   included, and community recovery units are combined once per unit, apart from the replicated
   units;

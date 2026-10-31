@@ -38,6 +38,7 @@ jobs:
       - run: python -m unittest discover -s tests -p 'test_llm_merge.py' -v
       - run: python -m unittest discover -s tests -p 'test_llm_moe.py' -v
       - run: python -m unittest discover -s tests -p 'test_llm_moe_v2.py' -v
+      - run: python -m unittest discover -s tests -p 'test_llm_route.py' -v
 
   extract-slices:
     runs-on: ubuntu-latest
