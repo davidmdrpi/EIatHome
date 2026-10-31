@@ -11,7 +11,7 @@ and 44. Per seed:
 - θ_warm: θ₀ trained 10 epochs on the three training scans together, the best epoch on the
   three validation scans;
 - specialists, one per family, trained from θ₀ (cold) and from θ_warm (warm), 50 epochs,
-  patience 8;
+  patience 8. Kept whole, they're also a bank of models dispatched by the family label;
 - for each start, the mixture (the specialists' feed-forward layers as experts, a top-2 router,
   the rest averaged), scored
   - with every token sent to its family's own expert (the oracle; it uses the family label);
@@ -29,6 +29,12 @@ and 44. Per seed:
 A pipeline's cost is every next-token target its training saw: the warm-up, the specialists
 (the epochs each ran) and the finetuning. Test is scored once per model, afterwards.
 
+Added after review, as a control for Rosetta: byte statistics that know the UTF-8 framing. A
+high-nibble distribution, and each low nibble's distribution given its high nibble, fitted on the
+training scan with add-one smoothing; on test, each frame's phase (high or low nibble) comes from
+its slice's symbol offset. Scored over the 33 tokens and over the 16 symbols. It uses that
+framing, which no model is given, and no context beyond the byte.
+
     python -m tracks.llm.moe_ablation --output runs/moe-ablation
 """
 
@@ -43,6 +49,7 @@ import statistics
 import numpy as np
 import torch
 
+from . import synthetic
 from .anchor import ROOT, load_anchor
 from .data import load_slices, markov_probabilities
 from .merge import model_from
@@ -94,7 +101,32 @@ def baselines(anchor, partitions):
         n = sum(len(t) - 1 for t in test)
         out[family] = {"unigram": float(sum(-np.log2(unigram[t[1:]]).sum() for t in test) / n),
                        "markov1": float(sum(-np.log2(transitions[t[:-1], t[1:]]).sum() for t in test) / n)}
+        if family == "rosetta":
+            tokens = lambda r: anchor.tokenizer.encode(r["frames"])
+            symbols = lambda r: synthetic.symbols_of(r["entry"])
+            out[family]["framing_tokens"] = framing_baseline(parts["train"], parts["test"], tokens, k)
+            out[family]["framing_symbols"] = framing_baseline(parts["train"], parts["test"], symbols, 16)
     return out
+
+
+def framing_baseline(parts_train, parts_test, encode, k):
+    """Bits per Rosetta target from byte statistics with known framing: P(high nibble), and
+    P(low nibble | its high nibble), add-one smoothed over k values and fitted on the training
+    slices; each frame's phase comes from its slice's symbol offset."""
+    high, low = np.ones(k), np.ones((k, k))
+    for r in parts_train:
+        t, start = encode(r), r["entry"]["source"]["symbols"][0]
+        for i in range(len(t)):
+            if (start + i) % 2 == 0:
+                high[t[i]] += 1
+            elif i > 0:
+                low[t[i - 1], t[i]] += 1
+    high, low = high / high.sum(), low / low.sum(axis=1, keepdims=True)
+    bits = []
+    for r in parts_test:
+        t, start = encode(r), r["entry"]["source"]["symbols"][0]
+        bits += [-np.log2(high[t[i]] if (start + i) % 2 == 0 else low[t[i - 1], t[i]]) for i in range(1, len(t))]
+    return float(np.mean(bits))
 
 
 def one_seed(folder, seed, epochs):
@@ -124,9 +156,14 @@ def one_seed(folder, seed, epochs):
             paths = [trained[start][f][0] for f in FAMILIES]
             states, _, _, _ = load_specialists(anchor, paths, MANIFEST, warm_path if start == "warm" else None)
             base = None if warm is None else warm.state
-            own = {f: scores(model_from(anchor, s), anchor, {f: partitions[f]})[f] for f, s in zip(FAMILIES, states)}
-            out["rows"][f"specialists on their own family ({start})"] = {"test": {**own, "mean": statistics.fmean(own.values())}}
             spent = sum(trained[start][f][1] * per_epoch[f] for f in FAMILIES) + (WARM_EPOCHS * mixed_epoch if start == "warm" else 0)
+            # The specialists kept whole, each family sent to its own by the label: all are stored, one runs.
+            bank = {split: {f: scores(model_from(anchor, s), anchor, {f: partitions[f]}, split)[f] for f, s in zip(FAMILIES, states)}
+                    for split in ("test", "validation")}
+            single = sum(p.numel() for p in anchor.model().parameters())
+            out["rows"][f"specialist bank, dispatched by family label ({start})"] = {
+                **{split: {**v, "mean": statistics.fmean(v.values())} for split, v in bank.items()},
+                "parameters": len(FAMILIES) * single, "active_parameters": single, "cost": spent}
             moe = upcycle(anchor, states, base=base)
             sizes = {"total": sum(p.numel() for p in moe.parameters()), "active": active_parameters(moe)}
             out["rows"][f"mixture ({start}), oracle routing"] = {
@@ -173,7 +210,7 @@ def summarize(results):
         if "routing" in runs[0]:
             out[name]["own_expert_share"] = {f: stats([statistics.fmean(layer[i] for layer in r["routing"][f]) for r in runs])
                                              for i, f in enumerate(FAMILIES)}
-    out["baselines"] = {f: {k: statistics.fmean(s["baselines"][f][k] for s in seeds) for k in ("unigram", "markov1")} for f in FAMILIES}
+    out["baselines"] = {f: {k: statistics.fmean(s["baselines"][f][k] for s in seeds) for k in seeds[0]["baselines"][f]} for f in FAMILIES}
     return out
 
 

@@ -445,8 +445,13 @@ and parameter-matched ones. Baseline M3a, above, is unchanged.
   - **The result:** H(token | symbol) = 0 on every Rosetta frame, training, validation and
     test.
 - **Longer Rosetta:** 18 slices, six per scan (`index-moe-v2.json`), so each split holds about
-  147 characters. The specialist now beats a unigram model on test by 0.80–0.86 bits (2.45–2.51
-  against 3.31), and Markov-1 (3.18) too.
+  147 characters.
+  - **Against frequency baselines:** the specialist beats a unigram model on test by 0.80–0.86
+    bits (2.45–2.51 against 3.31), and Markov-1 (3.18) too.
+  - **Against byte statistics:** that's better prediction of the encoded text, not evidence of
+    English. UTF-8 alternates high and low nibbles, and byte statistics that know that framing
+    (added after review; below) score 2.54 over the 33 tokens, 2.30 over the 16 symbols. That's
+    as well as the specialist or better.
 - **A third structured family instead of off-source.** Under the peak tokenizer, off-source
   noise is "no line" in every frame, nothing to be expert in. The Live Lab's RFI sweep, a line
   sweeping 8 to 20 channels per step and wrapping, takes its place. It was chosen before any
@@ -484,6 +489,12 @@ Fixed before the first run ([`moe_ablation.py`](moe_ablation.py)):
   the three validation scans.
 - **Cost:** every training target a pipeline saw, warm-up, specialists and finetuning
   included.
+- **Added after review, as a control for Rosetta: byte statistics with known framing.**
+  - A high-nibble distribution, and each low nibble's distribution given its high nibble, fitted
+    on the training scan with add-one smoothing.
+  - On test, each frame's phase (high or low nibble) comes from its slice's symbol offset: an
+    alignment no model is given.
+  - No context beyond the byte.
 
 ```bash
 python -m tracks.llm.moe_ablation --output runs/moe-ablation   # about 8 minutes on a CPU
@@ -497,8 +508,8 @@ tokens is 5.04.
 | | Voyager | Rosetta | RFI sweep | Mean | Validation mean | Parameters (active) | Training targets |
 |---|---:|---:|---:|---:|---:|---:|---:|
 | θ₀, untrained | 5.36 | 5.26 | 5.62 | 5.42 | 5.43 | 27,584 | |
-| specialists on their own family, cold | **3.13** (3.13–3.14) | 2.51 (2.50–2.52) | 4.59 (4.58–4.59) | 3.41 (3.40–3.42) | | | |
-| specialists on their own family, warm | **3.12** (3.12–3.13) | **2.45** (2.44–2.45) | 4.54 (4.53–4.57) | **3.37** (3.36–3.38) | | | |
+| specialist bank, dispatched by family label, cold | **3.13** (3.13–3.14) | 2.51 (2.50–2.52) | 4.59 (4.58–4.59) | 3.41 (3.40–3.42) | 3.24 | 82,752 (27,584) | 364k |
+| specialist bank, dispatched by family label, warm | **3.12** (3.12–3.13) | **2.45** (2.44–2.45) | 4.54 (4.53–4.57) | **3.37** (3.36–3.38) | **3.22** (3.22–3.23) | 82,752 (27,584) | 383k |
 | mixture, cold, oracle routing | 3.58 (3.57–3.59) | 2.84 (2.82–2.86) | 5.07 (5.04–5.08) | 3.83 | 3.76 (3.76–3.77) | 61,184 (44,480) | 364k |
 | mixture, cold, router finetuned | 4.58 (4.58–4.59) | 3.27 (3.24–3.30) | 5.03 (5.02–5.04) | 4.30 (4.29–4.31) | 4.24 (4.23–4.25) | 61,184 (44,480) | 733k |
 | mixture, cold, router and backbone finetuned | 3.74 (3.73–3.76) | 2.60 (2.58–2.62) | 4.94 (4.92–4.95) | 3.76 (3.75–3.77) | 3.67 (3.66–3.68) | 61,184 (44,480) | 647k |
@@ -512,11 +523,15 @@ tokens is 5.04.
 
 Each family's simple baselines on test, fitted on its training scan:
 
-| | Unigram | Markov-1 |
-|---|---:|---:|
-| Voyager | 4.84 | 3.85 |
-| Rosetta | 3.31 | 3.18 |
-| RFI sweep | 4.72 | 4.87 |
+| | Unigram | Markov-1 | Byte statistics with known framing (33 tokens / 16 symbols) |
+|---|---:|---:|---:|
+| Voyager | 4.84 | 3.85 | |
+| Rosetta | 3.31 | 3.18 | 2.54 / 2.30 |
+| RFI sweep | 4.72 | 4.87 | |
+
+**The specialist bank** is the three specialists kept whole, each family's data sent to its own
+by the family label. All three are stored (82,752 parameters), and one runs per token (27,584).
+Its cost is the specialists' training, plus the warm-up when warm.
 
 **Routing:** the share of each family's test tokens whose first choice is its own expert,
 averaged over the two blocks, over the three seeds.
@@ -543,9 +558,16 @@ averaged over the two blocks, over the three seeds.
   - 3.73 for a dense model the size of one specialist;
   - 3.67 for one with as many parameters as the mixture uses per token;
   - 3.56 for one with as many as it has in total.
-- **There is something to gain.** The specialists on their own families average 3.37, better
-  than every dense model, by 0.19 bits against the largest. The gain is mostly on Voyager
-  (3.12 against 3.61) and Rosetta (2.45 against 2.49–2.58). The mixture doesn't capture it.
+- **The positive result: a specialist bank with known family labels.** Kept whole, with each
+  family's data sent to its own specialist, the bank averages 3.37. That beats every dense
+  model, by 0.19 bits against the largest (3.56), and on validation too (3.22 against 3.38).
+  - The gain is mostly on Voyager (3.12 against 3.61) and Rosetta (2.45 against 2.49–2.58).
+    Cold specialists show it as well (3.41).
+  - **Cost:** it stores 82,752 parameters, more than the largest dense model's 61,166, and
+    runs 27,584 per token. Its training (364k–383k targets) is half the dense models' budget.
+  - **What it needs:** the family label. That makes it a candidate for family-labelled work
+    units, not a routing or weight-merging result.
+  - The mixture doesn't capture this gain.
 - **The warm start shrinks the merged backbone's cost, but doesn't change the outcome.** Under
   oracle routing it cuts what merging costs:
   - on Voyager, from 0.45 bits to 0.25;
@@ -564,8 +586,13 @@ averaged over the two blocks, over the three seeds.
 - **The training budget isn't what limits the dense models.** They overfit after 18–37
   epochs, so the extra budget doesn't change their scores; the anchor-sized one is identical
   under either training. Their size helps: 3.73 at 27,584 parameters, 3.56 at 61,166.
-- **Rosetta's language is now learned.** The specialist scores 2.45–2.51 against 3.31 for
-  unigram. The dense models and the mixtures with a finetuned backbone score 2.49–2.60 on it.
+- **Rosetta's encoded text is better predicted; its language isn't shown to be learned.** The
+  specialist scores 2.45–2.51, against 3.31 for unigram and 3.18 for Markov-1. Byte statistics
+  that know the UTF-8 framing do as well or better: 2.54 over the 33 tokens, 2.30 over the 16
+  symbols.
+  - No model here clearly beats them, so nothing shows English learned beyond byte
+    statistics.
+  - That claim needs an improvement beyond this control.
 
 ### Limitations
 
@@ -580,6 +607,10 @@ averaged over the two blocks, over the three seeds.
   - finetuning settings from milestone 3, under which the router alone hadn't converged;
   - the warm-up's length, fixed at 10 epochs;
   - the experts, never finetuned.
+- **Selection weights Rosetta twice.** Every model chosen on the concatenated validation scans
+  weighs Rosetta's 288 targets twice as much as each other family's 144, while the table
+  reports an equal-family mean. A family-balanced selection objective is untested; it would
+  have to be chosen on validation.
 - **The peak tokenizer discards amplitude.** It suits narrowband lines, and makes off-source
   noise a single token. v3's results aren't comparable with v2's, so M3a and M3b are separate
   tables.
@@ -593,5 +624,11 @@ averaged over the two blocks, over the three seeds.
     chosen on validation;
   - a momentum restart when the gate rejects a round;
   - a control with known temporal structure, to calibrate a test for found structure;
+  - the specialist bank without the label: a sequence-level router over the unchanged full
+    specialists, chosen on validation, recording what routing a sequence to the wrong family
+    costs, with stored and active parameters and the whole training budget;
+  - a family-balanced selection objective, against the concatenated one;
   - for the mixture: routing on a window of context instead of one token; finetuning the
-    experts lightly; more data for the sweep.
+    experts lightly; more data for the sweep;
+  - for Rosetta: a language test that beats the byte-statistics control, such as more text, or
+    a comparison with whole characters shuffled while keeping the framing.

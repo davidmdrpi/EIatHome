@@ -82,6 +82,17 @@ class DataTests(unittest.TestCase):
         self.assertLessEqual(spans['train'][-1][1], spans['validation'][0][0])
         self.assertLessEqual(spans['validation'][-1][1], spans['test'][0][0])
 
+    def test_the_framing_control_for_rosetta(self):
+        # Byte statistics that know the UTF-8 framing, the control for "learned the language":
+        # these match a reproduction made independently in review, to 6 decimals.
+        anchor, records = load_anchor('v3'), load_slices(MANIFEST)
+        partitions, _ = split_records(records, 'rosetta', allow_within_session=True)
+        out = moe_ablation.baselines(anchor, {'rosetta': partitions})['rosetta']
+        self.assertAlmostEqual(out['framing_tokens'], 2.539182, places=6)
+        self.assertAlmostEqual(out['framing_symbols'], 2.298789, places=6)
+        self.assertAlmostEqual(out['unigram'], 3.310620, places=6)
+        self.assertAlmostEqual(out['markov1'], 3.182158, places=6)
+
     def test_anchor_v3_rebuilds(self):
         spec, anchor = ANCHORS['v3'], load_anchor('v3')
         self.assertEqual(theta0_files(spec, build_theta0(spec))[0]['sha256'], spec['theta0_sha256'])
@@ -182,6 +193,10 @@ class MatchedDenseTests(unittest.TestCase):
             if name.endswith("the mixtures' budget"):
                 self.assertGreaterEqual(row['cost'], budget, name)
         self.assertLess(abs(rows["dense, the mixture's total parameters, the mixtures' budget"]['parameters'] - 61184), 300)
+        bank = rows['specialist bank, dispatched by family label (warm)']
+        self.assertEqual((bank['parameters'], bank['active_parameters']), (3 * 27584, 27584))  # all stored, one runs
+        self.assertEqual(bank['cost'], rows['mixture (warm), oracle routing']['cost'])
+        self.assertIn('framing_tokens', report['seeds']['42']['baselines']['rosetta'])
 
 
 if __name__ == '__main__':
