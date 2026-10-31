@@ -7,7 +7,7 @@ from pathlib import Path
 import numpy as np
 import torch
 
-from .data import Tokenizer, load_slices
+from .data import load_slices, tokenizer_from_state
 from .model import SignalLM, generate
 from .runtime import atomic_output, require_new_output, training_runtime
 
@@ -19,7 +19,7 @@ def load_checkpoint(path):
     model = SignalLM(**checkpoint["config"])
     model.load_state_dict(checkpoint["model"])
     model.eval()
-    return model, Tokenizer(**checkpoint["tokenizer"]), checkpoint
+    return model, tokenizer_from_state(checkpoint["tokenizer"]), checkpoint
 
 
 def main(argv=None):

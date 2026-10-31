@@ -229,6 +229,32 @@ python -m tracks.llm.moe_bench --output runs/moe-bench   # the milestone 3 bench
 - **The report:** each family's validation and test bits, which experts each family's tokens
   go to, the total parameters and those a token uses, and the checkpoint `moe.pt`.
 
+**Milestone 3b** tests the two bottlenecks milestone 3 found: experts with little to learn,
+and a merged backbone from specialists that branched from random weights. It uses anchor v3,
+whose peak tokenizer makes each Rosetta symbol exactly one token, on `index-moe-v2.json`, which
+adds a longer Rosetta and an RFI sweep. Specialists can branch from a warm start: θ₀ trained a
+few epochs on every family together.
+
+```bash
+M=tracks/llm/data/slices/index-moe-v2.json
+python -m tracks.llm.moe warmup --anchor v3 --output runs/warm          # 10 epochs, the families together
+python -m tracks.llm.train --anchor v3 --manifest $M --family rosetta --allow-within-session \
+  --variants real --train-stride 1 --warm runs/warm/warm.pt --output runs/rosetta-warm
+python -m tracks.llm.moe upcycle --anchor v3 --warm runs/warm/warm.pt --output runs/moe-warm ...
+python -m tracks.llm.moe_ablation --output runs/moe-ablation             # the milestone 3b benchmark
+```
+
+- **The warm start's lineage:**
+  - a warm start records the slices it trained on, and is refused unless they are exactly its
+    families' training splits under the manifest it names;
+  - `train.py --warm` refuses a family the warm start didn't cover, or `--warm` with
+    `--start`;
+  - `upcycle --warm` takes only specialists that all branched from that warm start, and builds
+    the backbone as the warm start plus their averaged deltas from it.
+- **Dense rivals of the mixture's size:** `moe.matched_config` gives the width (a multiple of
+  8), then the feed-forward size, closest to a parameter count. `SignalLM` takes an optional
+  `ffn` size; the anchors leave it out.
+
 ## What the pipeline learns
 
 1. Verify each slice's SHA-256, shape, finite samples and start time. Take one fixed central

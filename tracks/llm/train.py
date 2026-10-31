@@ -12,8 +12,9 @@ import torch
 from .anchor import ANCHORS, load_anchor
 from .data import (FAMILIES, SPLITS, Tokenizer, control_family, dataset_digest, digest, load_slices, markov_probabilities,
                    split_records, split_sizes, surrogate, unique_records)
-from .merge import check_continuation, lineage, parse_shard, round_start, shard_records
+from .merge import Start, check_continuation, lineage, parse_shard, round_start, shard_records
 from .model import evaluate, fit, generate, validate_config
+from .moe import load_warm
 from .runtime import atomic_output, require_new_output, training_runtime
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -71,8 +72,10 @@ def baseline_scores(train, test, k):
 def run(args):
     require_new_output(args.output)
     anchor = load_anchor(args.anchor) if getattr(args, "anchor", None) else None
-    if anchor is None and (getattr(args, "shard", None) or getattr(args, "start", None)):
-        raise ValueError("--shard and --start make a worker in a merge round, which needs --anchor")
+    if anchor is None and (getattr(args, "shard", None) or getattr(args, "start", None) or getattr(args, "warm", None)):
+        raise ValueError("--shard, --start and --warm make a worker from an anchor, which needs --anchor")
+    if getattr(args, "start", None) and getattr(args, "warm", None):
+        raise ValueError("--start and --warm are two different starts; give one")
     if getattr(args, "shard", None):
         parse_shard(args.shard)
     if "real" not in getattr(args, "variants", ("real",)):
@@ -95,8 +98,15 @@ def run(args):
 def _run(args, config, output, anchor=None):
     records = load_slices(args.manifest)
     partitions, independent = split_records(records, args.family, args.allow_within_session)
-    # A worker in a merge round: round 1 starts from θ₀, later rounds from the last merge.
-    start = round_start(anchor, getattr(args, "start", None)) if anchor is not None else None
+    # A worker in a merge round: round 1 starts from θ₀, later rounds from the last merge. A
+    # specialist for a mixture of experts may instead branch from a verified warm start.
+    warm = None
+    if anchor is not None and getattr(args, "warm", None):
+        warm = load_warm(anchor, args.warm, args.manifest)
+        if args.family not in warm.families:
+            raise ValueError(f"{args.warm} warmed up on {', '.join(warm.families)}, not {args.family}")
+    start = (round_start(anchor, getattr(args, "start", None)) if warm is None else Start(warm.state, 0, warm.weights_sha256, None)) \
+        if anchor is not None else None
     shard = parse_shard(args.shard) if getattr(args, "shard", None) else None
     if shard:
         # Only training is sharded: every worker is selected and scored on the same validation and test.
@@ -132,7 +142,7 @@ def _run(args, config, output, anchor=None):
         "tokenizer": {"fit_split": "anchor" if anchor else "train", "training_frames": sum(len(s) for s in streams["train"]),
                       "sha256": digest(json.dumps(tokenizer.state(), sort_keys=True).encode())},
         "anchor": None if anchor is None else {
-            **anchor.identity(), "init": "theta0" if start.round == 0 else f"round {start.round}",
+            **anchor.identity(), "init": "warm start" if warm else "theta0" if start.round == 0 else f"round {start.round}",
             "codebook_fit_frames": anchor.codebook["fit"]["frames"],
             # The codebook saw the first scan of each family, the control family's too: it's
             # scored as a control, never trained on, but its tokens aren't all unseen frames.
@@ -222,6 +232,8 @@ def parser():
     p.add_argument("--dropout", type=float, default=None, help=f"default {MODEL_DEFAULTS['dropout']}")
     p.add_argument("--position", choices=("absolute", "rope"), default=None,
                    help="learned absolute position embeddings (default), or rotary (RoPE), which depend only on relative offsets")
+    p.add_argument("--warm", type=Path, default=None,
+                   help="with --anchor: start from this warm start (tracks.llm.moe warmup) instead of θ₀")
     p.add_argument("--shard", default=None, metavar="I/N",
                    help="with --anchor: train on shard I of N of the training slices, as one worker in a merge round")
     p.add_argument("--start", type=Path, default=None,
