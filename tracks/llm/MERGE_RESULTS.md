@@ -4,7 +4,7 @@
 from many volunteers into stronger models. Milestone 1 gave every run a shared anchor (a pinned
 codebook and starting weights θ₀; see [anchors/](anchors/README.md)), so their changes
 τ = θ − θ₀ line up. This file records what merging does on the published data, milestone by
-milestone: within one family (milestone 2), then across families (milestone 3).
+milestone: within one family (milestone 2), then across families (milestones 3 and 3b).
 
 Everything here is one 2020 observing session: training, validation and test are three scans
 of the same cadence (`--allow-within-session`). It isn't evidence of generalization across
@@ -318,7 +318,7 @@ Fixed before the first run ([`moe_bench.py`](moe_bench.py)):
 python -m tracks.llm.moe_bench --output runs/moe-bench   # about 2 minutes on a CPU
 ```
 
-### Results
+### Results (baseline M3a)
 
 Test bits per token, mean over the three seeds (range when it's 0.01 or more). Uniform over
 32 tokens is 5.
@@ -419,6 +419,171 @@ Over the three seeds, averaged over the two blocks:
 Environment: Python 3.13.17, NumPy 2.5.4, PyTorch 2.14.1, CPU. The benchmark is deterministic:
 rerunning it reproduces every number.
 
+## Milestone 3b: experts with something to bring, a warm start, and fair dense rivals
+
+Milestone 3's mixture lost to one dense model on all the families. Two bottlenecks were
+diagnosed:
+
+- **Only Voyager's expert knew anything.** Rosetta had 73 characters of training text, and
+  tokens that were about a third noise. Its specialist barely beat a unigram model.
+- **The merged backbone cost a lot even under oracle routing,** since the specialists had
+  branched from random weights.
+
+Milestone 3b fixes both and asks again, against dense models given the same training budget
+and parameter-matched ones. Baseline M3a, above, is unchanged.
+
+### What changed
+
+- **A tokenizer under which Rosetta's symbols are exact.**
+  - **Exploration first, on training frames only.** k-means kept splitting symbols by their
+    noise: H(token | symbol) stayed at 0.8–1.3 bits at fluxes from 30 to 3000, with 24 to 48
+    centroids, with k-means++ and 8 restarts, and with a fixed flux. Soft-thresholding the
+    noise got it down only to 0.2–0.4 bits.
+  - **Anchor v3 uses a peak tokenizer instead.** A frame's token is its brightest channel's
+    2-channel bin, or "no line" below 6σ: 33 tokens, nothing fitted. It was the only setting
+    tried.
+  - **The result:** H(token | symbol) = 0 on every Rosetta frame, training, validation and
+    test.
+- **Longer Rosetta:** 18 slices, six per scan (`index-moe-v2.json`), so each split holds about
+  147 characters. The specialist now beats a unigram model on test by 0.80–0.86 bits (2.45–2.51
+  against 3.31), and Markov-1 (3.18) too.
+- **A third structured family instead of off-source.** Under the peak tokenizer, off-source
+  noise is "no line" in every frame, nothing to be expert in. The Live Lab's RFI sweep, a line
+  sweeping 8 to 20 channels per step and wrapping, takes its place. It was chosen before any
+  run.
+  - **It turned out weak:** a run that also printed test scores showed its specialist barely
+    beats unigram (4.54–4.59 against 4.72). Three training slices, each with its own rate,
+    aren't enough to learn the sweep.
+  - **It was kept as chosen.** So two of the three experts, Voyager and Rosetta, have
+    sequential structure.
+- **Warm-start branching.** θ_warm is θ₀ trained 10 epochs on the three training scans
+  together. Specialists branch from it (`train.py --warm`), and the mixture's backbone is
+  θ_warm plus their averaged deltas.
+  - The warm start records the slices it trained on, and is refused unless they are its
+    families' training splits.
+  - A mixture takes only specialists of one start.
+- **Dense rivals:**
+  - the anchor's size, 27,584 parameters, trained as milestone 3 did;
+  - the anchor's size;
+  - the mixture's active parameters: width 40, feed-forward 174, 44,428 parameters;
+  - the mixture's total: width 48, feed-forward 199, 61,166 parameters.
+
+  The last three train for at least as many training targets as the costliest mixture
+  pipeline of the seed (745k–760k), with no early stopping; the best epoch on validation is
+  kept.
+
+### Setup
+
+Fixed before the first run ([`moe_ablation.py`](moe_ablation.py)):
+
+- **Data:** anchor v3 on `index-moe-v2.json`. Voyager, Rosetta and the RFI sweep are each split
+  into three scans within a session.
+- **Training:** the real stream, stride 1, the defaults otherwise; seeds 42–44.
+- **Specialists:** 50 epochs, patience 8, from θ₀ (cold) or θ_warm (warm).
+- **The mixture's finetuning:** 50 epochs, patience 8, load-balancing weight 0.01, chosen on
+  the three validation scans.
+- **Cost:** every training target a pipeline saw, warm-up, specialists and finetuning
+  included.
+
+```bash
+python -m tracks.llm.moe_ablation --output runs/moe-ablation   # about 8 minutes on a CPU
+```
+
+### Results (M3b ablation)
+
+Test bits per token, mean over the three seeds (range when it's 0.01 or more). Uniform over 33
+tokens is 5.04.
+
+| | Voyager | Rosetta | RFI sweep | Mean | Validation mean | Parameters (active) | Training targets |
+|---|---:|---:|---:|---:|---:|---:|---:|
+| θ₀, untrained | 5.36 | 5.26 | 5.62 | 5.42 | 5.43 | 27,584 | |
+| specialists on their own family, cold | **3.13** (3.13–3.14) | 2.51 (2.50–2.52) | 4.59 (4.58–4.59) | 3.41 (3.40–3.42) | | | |
+| specialists on their own family, warm | **3.12** (3.12–3.13) | **2.45** (2.44–2.45) | 4.54 (4.53–4.57) | **3.37** (3.36–3.38) | | | |
+| mixture, cold, oracle routing | 3.58 (3.57–3.59) | 2.84 (2.82–2.86) | 5.07 (5.04–5.08) | 3.83 | 3.76 (3.76–3.77) | 61,184 (44,480) | 364k |
+| mixture, cold, router finetuned | 4.58 (4.58–4.59) | 3.27 (3.24–3.30) | 5.03 (5.02–5.04) | 4.30 (4.29–4.31) | 4.24 (4.23–4.25) | 61,184 (44,480) | 733k |
+| mixture, cold, router and backbone finetuned | 3.74 (3.73–3.76) | 2.60 (2.58–2.62) | 4.94 (4.92–4.95) | 3.76 (3.75–3.77) | 3.67 (3.66–3.68) | 61,184 (44,480) | 647k |
+| mixture, warm, oracle routing | 3.37 | 2.56 | 5.11 (5.09–5.13) | 3.68 (3.68–3.69) | 3.55 (3.54–3.55) | 61,184 (44,480) | 383k |
+| mixture, warm, router finetuned | 4.13 (4.10–4.16) | 2.80 (2.79–2.80) | 5.07 (5.06–5.10) | 4.00 (3.99–4.02) | 3.89 (3.88–3.90) | 61,184 (44,480) | 752k |
+| mixture, warm, router and backbone finetuned | 3.78 (3.77–3.78) | 2.57 (2.56–2.58) | 5.00 (4.98–5.01) | 3.78 (3.78–3.79) | 3.62 (3.61–3.63) | 61,184 (44,480) | 604k |
+| dense, anchor size, milestone 3's training | 3.72 (3.70–3.75) | 2.51 (2.50–2.53) | 4.94 (4.93–4.95) | 3.73 (3.71–3.74) | 3.55 (3.54–3.56) | 27,584 | 317k |
+| dense, anchor size, the mixtures' budget | 3.72 (3.70–3.75) | 2.51 (2.50–2.53) | 4.94 (4.93–4.95) | 3.73 (3.71–3.74) | 3.55 (3.54–3.56) | 27,584 | 753k |
+| dense, the mixture's active size, its budget | 3.76 | 2.49 (2.48–2.51) | 4.76 (4.69–4.83) | 3.67 (3.65–3.69) | 3.53 (3.50–3.56) | 44,428 | 753k |
+| **dense, the mixture's total size, its budget** | 3.61 (3.60–3.63) | 2.58 (2.56–2.60) | **4.50** (4.49–4.51) | **3.56** (3.55–3.58) | **3.38** (3.37–3.38) | 61,166 | 753k |
+
+Each family's simple baselines on test, fitted on its training scan:
+
+| | Unigram | Markov-1 |
+|---|---:|---:|
+| Voyager | 4.84 | 3.85 |
+| Rosetta | 3.31 | 3.18 |
+| RFI sweep | 4.72 | 4.87 |
+
+**Routing:** the share of each family's test tokens whose first choice is its own expert,
+averaged over the two blocks, over the three seeds.
+
+| | Voyager | Rosetta | RFI sweep |
+|---|---:|---:|---:|
+| cold, router finetuned | 0.38–0.41 | 0.68–0.71 | 0.43–0.44 |
+| cold, router and backbone finetuned | 0.49–0.50 | 0.64–0.67 | 0.52–0.53 |
+| warm, router finetuned | 0.31–0.32 | 0.72–0.73 | 0.50–0.51 |
+| warm, router and backbone finetuned | 0.40–0.41 | 0.61–0.62 | 0.52–0.55 |
+
+**Training lengths:**
+
+- the dense models' best epochs were 18–37, though the budget allowed 101–103;
+- the mixtures' router alone was still improving at 50 epochs in five of six runs, and with
+  the backbone it stopped at 21–33;
+- the Voyager specialists' best epochs were 49–50 of 50, and the sweep's 43–50.
+
+### What this shows
+
+- **The result is still negative.** Given clean, structured experts, a warm start and at
+  least the dense models' training budget, the best mixture scores 3.76 bits per token on
+  average. That's against:
+  - 3.73 for a dense model the size of one specialist;
+  - 3.67 for one with as many parameters as the mixture uses per token;
+  - 3.56 for one with as many as it has in total.
+- **There is something to gain.** The specialists on their own families average 3.37, better
+  than every dense model, by 0.19 bits against the largest. The gain is mostly on Voyager
+  (3.12 against 3.61) and Rosetta (2.45 against 2.49–2.58). The mixture doesn't capture it.
+- **The warm start shrinks the merged backbone's cost, but doesn't change the outcome.** Under
+  oracle routing it cuts what merging costs:
+  - on Voyager, from 0.45 bits to 0.25;
+  - on Rosetta, from 0.33 to 0.11;
+  - on the sweep, not at all (0.48 to 0.57).
+
+  Overall, the oracle improves from 3.83 to 3.68. Once the backbone is finetuned, cold and
+  warm end level (3.76 against 3.78).
+- **The router is the other loss.** Even warm, sending tokens by the router instead of by
+  family costs 0.32 bits (4.00 against 3.68), and finetuning the backbone too recovers only
+  part of it.
+  - A token's first-choice expert is its family's for only 31–73% of tokens.
+  - The peak tokenizer's positions overlap between families. A router reading one token's
+    hidden state, two layers deep, can't tell a Voyager position from the same position in a
+    sweep.
+- **The training budget isn't what limits the dense models.** They overfit after 18–37
+  epochs, so the extra budget doesn't change their scores; the anchor-sized one is identical
+  under either training. Their size helps: 3.73 at 27,584 parameters, 3.56 at 61,166.
+- **Rosetta's language is now learned.** The specialist scores 2.45–2.51 against 3.31 for
+  unigram. The dense models and the mixtures with a finetuned backbone score 2.49–2.60 on it.
+
+### Limitations
+
+- **Tiny data, one session, three seeds.** The tests have 144 targets each for Voyager and the
+  sweep, and 288 for Rosetta.
+- **The sweep's expert has little to bring.** Three training slices aren't enough to learn it.
+  So the case still rests on two experts.
+- **Routing per token is hard here.** With longer context, or a router over a window instead of
+  one token, routing might work better. Neither is tried.
+- **One configuration, untuned:**
+  - top-2 of three experts;
+  - finetuning settings from milestone 3, under which the router alone hadn't converged;
+  - the warm-up's length, fixed at 10 epochs;
+  - the experts, never finetuned.
+- **The peak tokenizer discards amplitude.** It suits narrowband lines, and makes off-source
+  noise a single token. v3's results aren't comparable with v2's, so M3a and M3b are separate
+  tables.
+
 ## Next
 
 - **Milestone 4:** the browser's anchor and summary cards.
@@ -428,5 +593,5 @@ rerunning it reproduces every number.
     chosen on validation;
   - a momentum restart when the gate rejects a round;
   - a control with known temporal structure, to calibrate a test for found structure;
-  - for the mixture: more Rosetta text, or a tokenizer that doesn't split a symbol by its
-    noise, so a second expert has sequential structure to bring.
+  - for the mixture: routing on a window of context instead of one token; finetuning the
+    experts lightly; more data for the sweep.

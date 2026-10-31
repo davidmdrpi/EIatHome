@@ -11,8 +11,8 @@ from torch.nn import functional as F
 POSITIONS = ("absolute", "rope")
 
 
-def validate_config(vocab_size, context, width, layers, heads, dropout, position="absolute"):
-    if min(vocab_size, context, width, layers, heads) < 1 or width % heads:
+def validate_config(vocab_size, context, width, layers, heads, dropout, position="absolute", ffn=None):
+    if min(vocab_size, context, width, layers, heads, 1 if ffn is None else ffn) < 1 or width % heads:
         raise ValueError("Positive model dimensions required; width must be divisible by heads")
     if not 0 <= dropout < 1:
         raise ValueError("Dropout must be in [0, 1)")
@@ -37,14 +37,14 @@ class RotaryBlock(nn.Module):
     """nn.TransformerEncoderLayer(norm_first=True, activation="gelu") with RoPE applied to the
     queries and keys, and causal attention. Without the rotation it computes the same function."""
 
-    def __init__(self, width, heads, dropout):
+    def __init__(self, width, heads, dropout, ffn=None):
         super().__init__()
         self.heads, self.dropout = heads, dropout
         self.norm1, self.norm2 = nn.LayerNorm(width), nn.LayerNorm(width)
         self.qkv = nn.Linear(width, 3 * width)
         self.out = nn.Linear(width, width)
-        self.feed = nn.Sequential(nn.Linear(width, 4 * width), nn.GELU(), nn.Dropout(dropout),
-                                  nn.Linear(4 * width, width))
+        hidden = 4 * width if ffn is None else ffn
+        self.feed = nn.Sequential(nn.Linear(width, hidden), nn.GELU(), nn.Dropout(dropout), nn.Linear(hidden, width))
         self.drop1, self.drop2 = nn.Dropout(dropout), nn.Dropout(dropout)
         # Initialized like nn.MultiheadAttention's projections.
         nn.init.xavier_uniform_(self.qkv.weight)
@@ -65,20 +65,22 @@ class RotaryBlock(nn.Module):
 
 
 class SignalLM(nn.Module):
-    def __init__(self, vocab_size=16, context=15, width=128, layers=4, heads=4, dropout=0.1, position="absolute"):
+    def __init__(self, vocab_size=16, context=15, width=128, layers=4, heads=4, dropout=0.1, position="absolute", ffn=None):
         super().__init__()
-        validate_config(vocab_size, context, width, layers, heads, dropout, position)
+        validate_config(vocab_size, context, width, layers, heads, dropout, position, ffn)
         self.config = dict(vocab_size=vocab_size, context=context, width=width,
                            layers=layers, heads=heads, dropout=dropout, position=position)
+        if ffn is not None:  # the feed-forward size, when it isn't 4 × width
+            self.config["ffn"] = ffn
         self.token = nn.Embedding(vocab_size, width)
         if position == "absolute":
             self.position = nn.Embedding(context, width)
             # Independent layers: avoid cloned encoder layers starting with identical parameters.
             self.blocks = nn.ModuleList([nn.TransformerEncoderLayer(
-                width, heads, 4 * width, dropout, activation="gelu", batch_first=True, norm_first=True)
+                width, heads, 4 * width if ffn is None else ffn, dropout, activation="gelu", batch_first=True, norm_first=True)
                 for _ in range(layers)])
         else:
-            self.blocks = nn.ModuleList([RotaryBlock(width, heads, dropout) for _ in range(layers)])
+            self.blocks = nn.ModuleList([RotaryBlock(width, heads, dropout, ffn) for _ in range(layers)])
         self.norm = nn.LayerNorm(width)
         self.head = nn.Linear(width, vocab_size, bias=False)
 

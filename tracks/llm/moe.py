@@ -19,6 +19,17 @@ Specialists branch from one anchor's θ₀ and each train on one family (train.p
     python -m tracks.llm.moe upcycle --finetune router --output runs/moe-tuned ...
 
 The report scores each family's test split once, after the router is chosen.
+
+Milestone 3b adds a warm start, as Branch-Train-MiX branches from a shared trained checkpoint
+rather than from random weights: `warmup` trains θ₀ for a few epochs on every family's training
+scan together, and specialists branch from that θ_warm (train.py --warm), so their attention and
+embeddings start in one coordinate system. A warm start records the slices it trained on, and is
+refused if they aren't the families' training splits; specialists and the mixture are checked to
+share it.
+
+    python -m tracks.llm.moe warmup --anchor v3 --output runs/warm
+    python -m tracks.llm.train --anchor v3 --manifest ... --warm runs/warm/warm.pt --family rosetta ...
+    python -m tracks.llm.moe upcycle --anchor v3 --warm runs/warm/warm.pt --output runs/moe ...
 """
 
 import argparse
@@ -28,16 +39,17 @@ import json
 import math
 from pathlib import Path
 import re
+from typing import NamedTuple
 
 import numpy as np
 import torch
 from torch import nn
 from torch.nn import functional as F
 
-from .anchor import ANCHORS, ROOT, difference, load_anchor, weights_digest
-from .data import dataset_digest, load_slices, split_records
+from .anchor import ANCHORS, ROOT, build_theta0, difference, load_anchor, weights_digest
+from .data import SPLITS, dataset_digest, load_slices, split_records
 from .merge import file_digest, lineage, load_checkpoint, recorded_shard, same_slices, ties
-from .model import RotaryBlock, batches, evaluate, windows
+from .model import RotaryBlock, SignalLM, batches, evaluate, fit, windows
 from .runtime import atomic_output, require_new_output, training_runtime
 
 TOP_K = 2
@@ -45,6 +57,7 @@ AUX_WEIGHT = 0.01  # the Switch Transformer's load-balancing coefficient
 FEED = re.compile(r"^blocks\.(\d+)\.feed\.(.+)$")
 EXPERT = re.compile(r"^blocks\.(\d+)\.experts\.(\d+)\.(.+)$")
 FINETUNE = {"none": (), "router": ("router",), "router+backbone": ("router", "backbone")}
+WARM_EPOCHS = 10  # milestone 3b's joint warm-up, fixed before its first run
 
 
 def feed_forward(width, dropout):
@@ -127,11 +140,94 @@ def is_backbone(name):
     return not (FEED.match(name) or EXPERT.match(name) or ".router." in name)
 
 
-def upcycle(anchor, specialists, merge="average", ties_keep=1.0, router_seed=0, top_k=TOP_K):
+def dense_parameters(config):
+    return sum(p.numel() for p in SignalLM(**config).parameters())
+
+
+def matched_config(config, target):
+    """A dense SignalLM with about `target` parameters: the width (a multiple of 8) whose standard
+    model, with feed-forward layers 4 × width, comes nearest, then the feed-forward size that
+    brings it closest. Used to give a mixture a dense rival of its size."""
+    width = min(range(8, 257, 8), key=lambda w: abs(dense_parameters({**config, "width": w}) - target))
+    base = {**config, "width": width}
+    one, slope = dense_parameters({**base, "ffn": 1}), dense_parameters({**base, "ffn": 2}) - dense_parameters({**base, "ffn": 1})
+    return {**base, "ffn": max(1, 1 + round((target - one) / slope))}
+
+
+def dense_start(config, seed=0):
+    """θ₀ for a dense model of another size, drawn as an anchor's is (PCG64, uniform initializers)."""
+    return OrderedDict((k, torch.from_numpy(v)) for k, v in build_theta0({"model": config, "theta_seed": seed}).items())
+
+
+class Warm(NamedTuple):
+    """A verified warm start: its weights, their digest, and the families and splits it covers."""
+    state: OrderedDict
+    weights_sha256: str
+    families: list
+    dataset_sha256: str
+    evaluation: str
+
+
+def family_splits(records, families, evaluation):
+    """Each family's split as train.py makes it, refusing one that splits another way."""
+    out = {}
+    for family in families:
+        parts, independent = split_records(records, family, allow_within_session=evaluation != "independent_sessions")
+        if ("independent_sessions" if independent else "within_session_scan_holdout") != evaluation:
+            raise ValueError(f"The {family} family doesn't split as {evaluation}")
+        out[family] = parts
+    return out
+
+
+def warmup(anchor, records, families=None, epochs=WARM_EPOCHS, seed=42, batch_size=32, lr=3e-4,
+           evaluation="within_session_scan_holdout"):
+    """θ_warm as a checkpoint: θ₀ trained `epochs` epochs on the families' training scans
+    together, keeping the best epoch on their validation scans. It records those slices."""
+    families = list(families or anchor.spec["families"])
+    partitions = family_splits(records, families, evaluation)
+    train, validation = mixed(anchor, partitions, "train"), mixed(anchor, partitions, "validation")
+    model, history, best = fit(train, validation, anchor.spec["model"], epochs, batch_size, lr, epochs, seed, "cpu", 1,
+                               init_state=anchor.theta0)
+    state = OrderedDict((k, v.detach().cpu().clone()) for k, v in model.state_dict().items())
+    return {
+        "format": "eiathome-signal-lm", "version": 1, "variant": "real", "config": anchor.spec["model"], "model": state,
+        "tokenizer": anchor.tokenizer.state(), "anchor": anchor.identity(), "dataset_sha256": dataset_digest(records),
+        "evaluation": evaluation,
+        "splits": {name: [r["entry"] for f in families for r in partitions[f][name]] for name in SPLITS},
+        "merge": {"warm": True, "round": 0, "start_sha256": anchor.spec["theta0_sha256"], "weights_sha256": weights_digest(state)},
+        "warm": {"families": families, "epochs": epochs, "best_epoch": best, "seed": seed, "lr": lr, "batch_size": batch_size,
+                 "training_targets": sum(len(t) - 1 for t in train), "history": history},
+    }
+
+
+def load_warm(anchor, path, manifest=None):
+    """A warm start from this anchor's θ₀, verified: its weights match their recorded digest, the
+    manifest is the one it trained on, and it trained on its families' training scans only."""
+    checkpoint = load_checkpoint(path, anchor)
+    merge, warm = checkpoint["merge"], checkpoint.get("warm") or {}
+    if not merge.get("warm") or merge.get("start_sha256") != anchor.spec["theta0_sha256"] or not warm.get("families"):
+        raise ValueError(f"{path}: not a warm start from anchor {anchor.name}'s θ₀")
+    difference(checkpoint["model"], anchor.theta0)
+    digest = weights_digest(checkpoint["model"])
+    if digest != merge.get("weights_sha256"):
+        raise ValueError(f"{path}: its weights don't match the digest it recorded")
+    records = load_slices(manifest or ROOT / anchor.spec["manifest"])
+    if dataset_digest(records) != checkpoint["dataset_sha256"]:
+        raise ValueError(f"{path}: this manifest isn't the one the warm start was trained on")
+    partitions = family_splits(records, warm["families"], checkpoint["evaluation"])
+    for name in SPLITS:
+        if not same_slices(checkpoint["splits"][name] or [], [r["entry"] for parts in partitions.values() for r in parts[name]]):
+            raise ValueError(f"{path}: its {name} slices aren't its families' {name} splits")
+    return Warm(checkpoint["model"], digest, list(warm["families"]), checkpoint["dataset_sha256"], checkpoint["evaluation"])
+
+
+def upcycle(anchor, specialists, merge="average", ties_keep=1.0, router_seed=0, top_k=TOP_K, base=None):
     """A mixture of the specialists (state dicts from this anchor, in expert order): the backbone
     merged across them, each one's feed-forward layers as an expert, and a router initialized
-    like a linear layer, uniform(±1/√width) from a PCG64 stream."""
-    taus = [difference(state, anchor.theta0) for state in specialists]
+    like a linear layer, uniform(±1/√width) from a PCG64 stream. base: the weights they branched
+    from (θ₀ by default, or a warm start); the backbone is base plus their merged deltas."""
+    base = anchor.theta0 if base is None else base
+    taus = [difference(state, base) for state in specialists]
     backbone = [name for name in anchor.theta0 if is_backbone(name)]
     flats = [np.concatenate([tau[name].reshape(-1).numpy() for name in backbone]) for tau in taus]
     weights = [1.0 / len(specialists)] * len(specialists)
@@ -153,26 +249,30 @@ def upcycle(anchor, specialists, merge="average", ties_keep=1.0, router_seed=0, 
             bound = 1.0 / math.sqrt(value.shape[1])
             state[name] = torch.from_numpy(((rng.random(tuple(value.shape)) * 2.0 - 1.0) * bound).astype(np.float32))
         else:
-            state[name] = (anchor.theta0[name].double() + delta[name]).float()
+            state[name] = (base[name].double() + delta[name]).float()
     model.load_state_dict(state)
     return model
 
 
-def load_specialists(anchor, paths, manifest=None):
-    """Specialists to upcycle: workers trained from θ₀ (round 1) on distinct families of one
-    dataset, split as the manifest splits it, each on its family's whole training split.
-    Returns (states, families, records, partitions)."""
+def load_specialists(anchor, paths, manifest=None, warm=None):
+    """Specialists to upcycle: workers trained (round 1) from θ₀, or all from the warm start
+    `warm` (a path), on distinct families of one dataset, split as the manifest splits it, each
+    on its family's whole training split. Returns (states, families, records, partitions)."""
     loaded = [(str(path), load_checkpoint(path, anchor)) for path in paths]
     if len(loaded) < 2:
         raise ValueError("A mixture needs at least two specialists")
+    start = load_warm(anchor, warm, manifest) if warm is not None else None
+    start_sha = anchor.spec["theta0_sha256"] if start is None else start.weights_sha256
     for path, c in loaded:
         merge = c["merge"]
-        if c.get("variant") != "real" or merge.get("merged") or merge.get("round") != 1 or merge.get("start_sha256") != anchor.spec["theta0_sha256"]:
-            raise ValueError(f"{path}: not a worker trained on the real stream from θ₀")
+        if c.get("variant") != "real" or merge.get("merged") or merge.get("warm") or merge.get("round") != 1 or merge.get("start_sha256") != start_sha:
+            raise ValueError(f"{path}: not a worker trained on the real stream from {'θ₀' if start is None else 'this warm start'}")
     chains = [lineage(c) for _, c in loaded]
     families = [chain["family"] for chain in chains]
     if len(set(families)) != len(families):
         raise ValueError(f"Each specialist must have a family of its own; these are {', '.join(families)}")
+    if start is not None and not set(families) <= set(start.families):
+        raise ValueError(f"The warm start covers {', '.join(start.families)}, not every specialist's family")
     if len({(chain["dataset_sha256"], chain["evaluation"]) for chain in chains}) != 1:
         raise ValueError("The specialists must be trained on one dataset, split the same way")
     records = load_slices(manifest or ROOT / anchor.spec["manifest"])
@@ -275,14 +375,16 @@ def run(args):
     require_new_output(args.output)
     anchor = load_anchor(args.anchor)
     with training_runtime(1, "cpu"), atomic_output(args.output) as output:
-        states, families, records, partitions = load_specialists(anchor, args.specialists, args.manifest)
-        model = upcycle(anchor, states, args.merge, args.ties_keep, args.router_seed)
+        states, families, records, partitions = load_specialists(anchor, args.specialists, args.manifest, args.warm)
+        warm = load_warm(anchor, args.warm, args.manifest) if args.warm else None
+        model = upcycle(anchor, states, args.merge, args.ties_keep, args.router_seed, base=None if warm is None else warm.state)
         history, best_epoch = [], 0
         if FINETUNE[args.finetune]:
             model, history, best_epoch = finetune(model, mixed(anchor, partitions, "train"), mixed(anchor, partitions, "validation"),
                                                   args.epochs, args.batch_size, args.lr, args.patience, args.seed, FINETUNE[args.finetune])
         report = {
             "format": "eiathome-signal-lm-moe", "version": 1, "anchor": anchor.identity(), "experts": families,
+            "start": "theta0" if warm is None else {"warm": str(args.warm), "weights_sha256": warm.weights_sha256},
             "specialists": [{"file": str(p), "file_sha256": file_digest(p), "family": f, "weights_sha256": weights_digest(s)}
                             for p, f, s in zip(args.specialists, families, states)],
             "rule": {"backbone": args.merge, "ties_keep": args.ties_keep, "top_k": TOP_K, "router_seed": args.router_seed,
@@ -302,11 +404,31 @@ def run(args):
     return report
 
 
+def run_warmup(args):
+    require_new_output(args.output)
+    anchor = load_anchor(args.anchor)
+    with training_runtime(1, "cpu"), atomic_output(args.output) as output:
+        checkpoint = warmup(anchor, load_slices(args.manifest or ROOT / anchor.spec["manifest"]), args.families,
+                            args.epochs, args.seed)
+        torch.save(checkpoint, output / "warm.pt")
+        (output / "report.json").write_text(json.dumps({"anchor": anchor.identity(), "merge": checkpoint["merge"],
+                                                         "warm": checkpoint["warm"]}, indent=2) + "\n")
+    return checkpoint
+
+
 def main(argv=None):
     p = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     sub = p.add_subparsers(dest="command", required=True)
+    w = sub.add_parser("warmup", help="train θ₀ briefly on every family together, for specialists to branch from")
+    w.add_argument("--output", type=Path, required=True)
+    w.add_argument("--anchor", default="v3", choices=list(ANCHORS))
+    w.add_argument("--manifest", type=Path, default=None, help="default: the anchor's manifest")
+    w.add_argument("--families", nargs="+", default=None, help="default: the anchor's families")
+    w.add_argument("--epochs", type=int, default=WARM_EPOCHS)
+    w.add_argument("--seed", type=int, default=42)
     u = sub.add_parser("upcycle", help="build a mixture of experts from family specialists")
-    u.add_argument("specialists", nargs="+", type=Path, help="each family's real.pt, trained with --anchor from θ₀")
+    u.add_argument("specialists", nargs="+", type=Path, help="each family's real.pt, trained with --anchor from θ₀ or --warm")
+    u.add_argument("--warm", type=Path, default=None, help="the warm start the specialists branched from (default: θ₀)")
     u.add_argument("--output", type=Path, required=True)
     u.add_argument("--anchor", default="v2", choices=list(ANCHORS))
     u.add_argument("--manifest", type=Path, default=None, help="default: the anchor's manifest")
@@ -321,6 +443,13 @@ def main(argv=None):
     u.add_argument("--seed", type=int, default=42)
     args = p.parse_args(argv)
     try:
+        if args.command == "warmup":
+            if args.epochs < 1:
+                raise ValueError("Need a positive number of epochs")
+            checkpoint = run_warmup(args)
+            print(json.dumps({"weights_sha256": checkpoint["merge"]["weights_sha256"], "families": checkpoint["warm"]["families"],
+                              "best_epoch": checkpoint["warm"]["best_epoch"]}, indent=2))
+            return
         if not (0 < args.ties_keep <= 1) or min(args.epochs, args.batch_size, args.patience) < 1 or not args.lr > 0:
             raise ValueError("Need 0 < --ties-keep ≤ 1, and positive epochs, batch size, patience and learning rate")
         report = run(args)
