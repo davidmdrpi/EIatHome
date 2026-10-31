@@ -45,7 +45,8 @@ export function mergeConfig(unit) {
   };
 }
 
-export const isMergeCard = (card) => card?.spec === MERGE_SPEC;
+export const MERGE_SPEC_V1 = 'trackb-merge/v1';
+export const isMergeCard = (card) => card?.spec === MERGE_SPEC || card?.spec === MERGE_SPEC_V1;
 
 // A unit's data: the whole frozen corpus as one FSK transmission, split in text order into
 // training, validation and test (trackb-splits.js), in the anchor's tokens. Every worker gets
@@ -127,9 +128,13 @@ export function trim(flat, keep) {
 // TIES-merging: trim each delta, elect each parameter's sign from the weighted sum, and take
 // the weighted mean of the entries that agree. Also returns the share of trimmed entries that
 // disagree with their parameter's elected sign: what the election throws away.
-export function ties(flats, weights, keep) {
+// mean 'all' divides the agreeing entries' weighted sum by every delta's weight instead, so a
+// zero or disagreeing entry counts as zero (milestone 5). After DARE that keeps the merge's
+// expected value; TIES's own mean, over the survivors, keeps DARE's 1/(1 − p) on every entry.
+export function ties(flats, weights, keep, mean = 'agreeing') {
   const trimmed = flats.map((f) => trim(f, keep));
   const n = flats[0].length;
+  const total = weights.reduce((a, b) => a + b, 0);
   const merged = new Float32Array(n);
   let entries = 0;
   let conflicts = 0;
@@ -147,7 +152,7 @@ export function ties(flats, weights, keep) {
         mass += weights[i];
       } else conflicts++;
     });
-    merged[p] = mass > 0 ? num / mass : 0;
+    merged[p] = mean === 'all' ? num / total : mass > 0 ? num / mass : 0;
   }
   return { delta: merged, conflicts: entries ? conflicts / entries : 0 };
 }
@@ -213,6 +218,7 @@ export function mergeDeltas(theta0, thetas, config) {
     dare_average: weightedSum(sent.map((d) => d.delta), weights),
     ties: tiesMerge.delta,
     dare_ties: ties(sent.map((d) => d.delta), weights, config.ties_keep).delta,
+    dare_ties_all: ties(sent.map((d) => d.delta), weights, config.ties_keep, 'all').delta,
   };
   return {
     deltas,
@@ -286,7 +292,7 @@ export function mergeCard(unit, results, { backend, tfjs, seconds, started }) {
     metrics: {
       test_bits: { theta0: round(results.theta0), unigram: round(results.unigram), seeds: results.seeds.map((s) => round(s.test)), ...merged('test') },
       validation_bits: { seeds: validation.map((v) => round(v)), ...merged('validation') },
-      sparsity: Object.fromEntries(Object.entries(results.stats.sparsity).map(([k, v]) => [k, round(v)])),
+      sparsity: Object.fromEntries(['dare_kept', ...MERGES].map((k) => [k, round(results.stats.sparsity[k])])),
       signs: Object.fromEntries(Object.entries(results.stats.signs).map(([k, v]) => [k, round(v)])),
     },
   };
@@ -301,18 +307,57 @@ export const MERGE_TARGETS = { train: 2511, validation: 367, test: 719 };
 const isInt = (v, lo, hi) => Number.isInteger(v) && v >= lo && v <= hi;
 const inRange = (v, lo, hi) => Number.isFinite(v) && v >= lo && v <= hi;
 
-// Checks a merge card's form against its spec. Returns a list of problems (empty means valid).
-// The numbers that follow from the spec alone (DARE's payload sizes and kept share, the unigram
-// baseline) are recomputed. The rest can't be without training, so they're checked for range
-// and replicated by other volunteers instead.
+// Checks a merge card's form against its spec (v0 or v1). Returns a list of problems (empty
+// means valid). The numbers that follow from the spec alone (DARE's payload sizes and kept
+// share, the unigram baseline) are recomputed. The rest can't be without training, so they're
+// checked for range and replicated by other volunteers instead.
 export function validateMergeCard(card) {
   const errors = [];
   const fail = (message) => errors.push(message);
+  const v1 = card.spec === MERGE_SPEC_V1;
   if (card.format !== 'eiathome-result') fail('`format` must be "eiathome-result".');
-  if (card.version !== MERGE_CARD_VERSION) fail(`\`version\` must be ${MERGE_CARD_VERSION}. Re-run the unit in the current Live Lab.`);
+  if (card.version !== (v1 ? MERGE_V1_CARD_VERSION : MERGE_CARD_VERSION)) fail(`\`version\` must be ${v1 ? MERGE_V1_CARD_VERSION : MERGE_CARD_VERSION}. Re-run the unit in the current Live Lab.`);
   if (!isInt(card.unit, 0, MAX_UNIT)) return [...errors, `\`unit\` must be a whole number from 0 to ${MAX_UNIT}.`];
-  const config = mergeConfig(card.unit);
+  const config = (v1 ? mergeConfigV1 : mergeConfig)(card.unit);
   if (JSON.stringify(card.config) !== JSON.stringify(config)) fail("`config` doesn't match the spec for this unit.");
+  commonProblems(card, fail);
+  if (v1) return [...errors, ...v1Problems(card, config)];
+  if (JSON.stringify(card.targets) !== JSON.stringify(MERGE_TARGETS)) fail("`targets` doesn't match the corpus's splits.");
+  const workers = config.seeds.length;
+  const ints = (v, lo, hi) => Array.isArray(v) && v.length === workers && v.every((x) => isInt(x, lo, hi));
+  if (!ints(card.best_epochs, 1, config.epochs)) fail(`\`best_epochs\` needs ${workers} epochs from 1 to ${config.epochs}.`);
+  if (!isInt(card.best_seed, 0, workers - 1)) fail(`\`best_seed\` must be a worker from 0 to ${workers - 1}.`);
+  const expected = expectedSummary(config);
+  if (!ints(card.payload_bytes, 1, 4 * anchorParameters())) fail(`\`payload_bytes\` needs ${workers} positive sizes.`);
+  else if (JSON.stringify(card.payload_bytes) !== JSON.stringify(expected.payloadBytes)) fail(`\`payload_bytes\` must be ${expected.payloadBytes.join(', ')}: the sizes this unit's DARE masks give.`);
+
+  const m = card.metrics;
+  if (!m || typeof m !== 'object') return [...errors, '`metrics` is missing.'];
+  const merges = MERGES;
+  const t = m.test_bits;
+  if (!t || !isBits(t.theta0) || !isBits(t.unigram) || !Array.isArray(t.seeds) || t.seeds.length !== workers || !t.seeds.every(isBits) || !merges.every((k) => isBits(t[k]))) {
+    fail(`\`metrics.test_bits\` needs theta0, unigram, ${workers} seeds and ${merges.join(', ')}, in bits.`);
+  } else if (Math.abs(t.unigram - expected.unigram) > 1e-4) {
+    fail(`\`metrics.test_bits.unigram\` must be ${expected.unigram}, the corpus's unigram baseline.`);
+  }
+  const v = m.validation_bits;
+  if (!v || !Array.isArray(v.seeds) || v.seeds.length !== workers || !v.seeds.every(isBits) || !merges.every((k) => isBits(v[k]))) {
+    fail(`\`metrics.validation_bits\` needs ${workers} seeds and ${merges.join(', ')}, in bits.`);
+  } else if (isInt(card.best_seed, 0, workers - 1) && v.seeds[card.best_seed] !== Math.min(...v.seeds)) {
+    fail('`best_seed` must be the seed with the lowest validation bits.');
+  }
+  const s = m.sparsity;
+  if (!s || !['dare_kept', ...MERGES].every((k) => inRange(s[k], 0, 1))) fail(`\`metrics.sparsity\` needs dare_kept, ${MERGES.join(', ')}, from 0 to 1.`);
+  else if (s.dare_kept !== expected.dareKept) fail(`\`metrics.sparsity.dare_kept\` must be ${expected.dareKept}, the share this unit's DARE masks keep.`);
+  if (!signsOk(m.signs)) fail('`metrics.signs` needs agree and ties_conflicts from 0 to 1, and cosine from −1 to 1.');
+  return errors;
+}
+
+const isBits = (v) => Number.isFinite(v) && v >= 0; // a bad merge can cost far more than log2(k)
+const signsOk = (g) => g && inRange(g.agree, 0, 1) && inRange(g.ties_conflicts, 0, 1) && inRange(g.cosine, -1, 1);
+
+// What every merge card checks the same way: its data, anchor, machine and timing.
+function commonProblems(card, fail) {
   // The pinned corpus is the only data: anything else in `inputs`, such as a slice dataset,
   // would change how the card is grouped for replication and duplicate checks.
   const inputs = card.inputs && typeof card.inputs === 'object' ? Object.keys(card.inputs).sort() : [];
@@ -327,35 +372,132 @@ export function validateMergeCard(card) {
   if (card.parameters !== anchorParameters()) fail(`\`parameters\` must be ${anchorParameters()}, the anchor's.`);
   if (!Number.isFinite(card.seconds) || card.seconds < 0) fail('`seconds` must be a non-negative number.');
   if (typeof card.started !== 'string' || Number.isNaN(Date.parse(card.started))) fail('`started` must be a date.');
-  if (JSON.stringify(card.targets) !== JSON.stringify(MERGE_TARGETS)) fail("`targets` doesn't match the corpus's splits.");
-  const workers = config.seeds.length;
-  const ints = (v, lo, hi) => Array.isArray(v) && v.length === workers && v.every((x) => isInt(x, lo, hi));
-  if (!ints(card.best_epochs, 1, config.epochs)) fail(`\`best_epochs\` needs ${workers} epochs from 1 to ${config.epochs}.`);
-  if (!isInt(card.best_seed, 0, workers - 1)) fail(`\`best_seed\` must be a worker from 0 to ${workers - 1}.`);
-  const expected = expectedSummary(config);
-  if (!ints(card.payload_bytes, 1, 4 * anchorParameters())) fail(`\`payload_bytes\` needs ${workers} positive sizes.`);
-  else if (JSON.stringify(card.payload_bytes) !== JSON.stringify(expected.payloadBytes)) fail(`\`payload_bytes\` must be ${expected.payloadBytes.join(', ')}: the sizes this unit's DARE masks give.`);
+}
 
+// ---------- trackb-merge/v1 (milestone 5): seeds against shards, and a warm start ----------
+//
+// A v1 unit runs three arms of 4 workers each and merges each arm five ways (v0's four, and
+// DARE then TIES with the mean over every worker, which is unbiased after DARE's rescale):
+// - seeds: v0's unit exactly, 4 seeds from θ₀ on the whole training text;
+// - shards: 4 workers from θ₀, each on its own quarter of the training text, in order;
+// - warm_shards: the same shards, from a shared warm start: θ₀ trained 3 epochs on the whole
+//   training text, keeping its best validation epoch. Their changes are taken from it.
+// Each arm records the worker a volunteer would keep (the best on validation), so a merge can
+// be compared with it, and the seeds arm's kept worker is the one trained on all the data.
+
+export const MERGE_V1_CARD_VERSION = 1;
+export const ARMS = ['seeds', 'shards', 'warm_shards'];
+export const MERGES_V1 = [...MERGES, 'dare_ties_all'];
+const SHARDS = 4;
+const WARM_EPOCHS = 3;
+
+export function mergeConfigV1(unit) {
+  const seeds = (label) => Array.from({ length: WORKERS }, (_, i) => deriveSeed(unit, `${label}-${i}`));
+  return {
+    spec: MERGE_SPEC_V1,
+    unit,
+    anchor: ANCHOR.id,
+    family: 'rosetta',
+    data_seed: deriveSeed(unit, 'trackb-merge-data'),
+    epochs: EPOCHS,
+    shards: SHARDS,
+    warm: { epochs: WARM_EPOCHS, seed: deriveSeed(unit, 'trackb-merge-warm') },
+    arms: {
+      seeds: { start: 'theta0', train: 'all', seeds: seeds('trackb-merge-worker') }, // v0's workers
+      shards: { start: 'theta0', train: 'shard', seeds: seeds('trackb-merge-shard') },
+      warm_shards: { start: 'warm', train: 'shard', seeds: seeds('trackb-merge-warm-shard') },
+    },
+    dare: { method: 'random', p: 0.9 },
+    ties_keep: 0.2,
+  };
+}
+
+// An arm's settings in the shape mergeDeltas and expectedSummary take.
+export const armConfig = (config, arm) => ({ ...config, seeds: config.arms[arm].seeds });
+
+// The training text cut into `count` contiguous shards at snippet boundaries, in order.
+export function shardTrain(tokens, count = SHARDS) {
+  const [stream] = tokens.train;
+  const snippets = stream.length / T;
+  const at = (i) => Math.floor((i * snippets) / count) * T;
+  return Array.from({ length: count }, (_, i) => stream.subarray(at(i), at(i + 1)));
+}
+
+export const MERGE_V1_TARGETS = { ...MERGE_TARGETS, shards: [623, 623, 623, 639] };
+
+// results: { targets, theta0, unigram, warm: { test, validation, bestEpoch }, arms: { [ARMS]:
+// { workers: [{ test, validation, bestEpoch }], merges: { [MERGES_V1]: { test, validation } },
+// stats } } } (stats from mergeDeltas).
+export function mergeCardV1(unit, results, { backend, tfjs, seconds, started }) {
+  const arm = (r) => {
+    const pick = (key) => ({ workers: r.workers.map((w) => round(w[key])), ...Object.fromEntries(MERGES_V1.map((m) => [m, round(r.merges[m][key])])) });
+    return {
+      test: pick('test'),
+      validation: pick('validation'),
+      sparsity: Object.fromEntries(['dare_kept', ...MERGES_V1].map((k) => [k, round(r.stats.sparsity[k])])),
+      signs: Object.fromEntries(Object.entries(r.stats.signs).map(([k, v]) => [k, round(v)])),
+    };
+  };
+  return {
+    format: 'eiathome-result',
+    version: MERGE_V1_CARD_VERSION,
+    spec: MERGE_SPEC_V1,
+    unit,
+    config: mergeConfigV1(unit),
+    inputs: {
+      rosetta_corpus: { id: ROSETTA_CORPUS.id, sha256: ROSETTA_CORPUS.sha256 },
+      anchor: { id: ANCHOR.id, theta0_sha256: ANCHOR.theta0_sha256 },
+    },
+    backend,
+    tfjs,
+    app: APP_VERSION,
+    parameters: anchorParameters(),
+    seconds: round(seconds, 1),
+    started,
+    targets: { ...results.targets, shards: [...results.targets.shards] },
+    warm_best_epoch: results.warm.bestEpoch,
+    arms: Object.fromEntries(ARMS.map((a) => {
+      const r = results.arms[a];
+      return [a, { best_epochs: r.workers.map((w) => w.bestEpoch), best_worker: bestSeed(r.workers.map((w) => w.validation)), payload_bytes: r.stats.payloadBytes }];
+    })),
+    metrics: {
+      theta0: round(results.theta0),
+      unigram: round(results.unigram),
+      warm: { test: round(results.warm.test), validation: round(results.warm.validation) },
+      ...Object.fromEntries(ARMS.map((a) => [a, arm(results.arms[a])])),
+    },
+  };
+}
+
+// A v1 card's own checks, after the ones every merge card shares.
+function v1Problems(card, config) {
+  const errors = [];
+  const fail = (message) => errors.push(message);
+  const workers = WORKERS;
+  if (JSON.stringify(card.targets) !== JSON.stringify(MERGE_V1_TARGETS)) fail("`targets` doesn't match the corpus's splits and shards.");
+  if (!isInt(card.warm_best_epoch, 1, config.warm.epochs)) fail(`\`warm_best_epoch\` must be an epoch from 1 to ${config.warm.epochs}.`);
   const m = card.metrics;
   if (!m || typeof m !== 'object') return [...errors, '`metrics` is missing.'];
-  const bits = (v) => Number.isFinite(v) && v >= 0; // a bad merge can cost far more than log2(k)
-  const merges = MERGES;
-  const t = m.test_bits;
-  if (!t || !bits(t.theta0) || !bits(t.unigram) || !Array.isArray(t.seeds) || t.seeds.length !== workers || !t.seeds.every(bits) || !merges.every((k) => bits(t[k]))) {
-    fail(`\`metrics.test_bits\` needs theta0, unigram, ${workers} seeds and ${merges.join(', ')}, in bits.`);
-  } else if (Math.abs(t.unigram - expected.unigram) > 1e-4) {
-    fail(`\`metrics.test_bits.unigram\` must be ${expected.unigram}, the corpus's unigram baseline.`);
+  const expectedUnigram = expectedSummary(armConfig(config, 'seeds')).unigram;
+  if (!isBits(m.theta0) || !isBits(m.unigram) || !isBits(m.warm?.test) || !isBits(m.warm?.validation)) fail('`metrics` needs theta0, unigram and the warm start’s test and validation bits.');
+  else if (Math.abs(m.unigram - expectedUnigram) > 1e-4) fail(`\`metrics.unigram\` must be ${expectedUnigram}, the corpus's unigram baseline.`);
+  if (!card.arms || typeof card.arms !== 'object' || JSON.stringify(Object.keys(card.arms)) !== JSON.stringify(ARMS)) return [...errors, `\`arms\` must be ${ARMS.join(', ')}.`];
+  for (const a of ARMS) {
+    const meta = card.arms[a];
+    const ints = (v, lo, hi) => Array.isArray(v) && v.length === workers && v.every((x) => isInt(x, lo, hi));
+    if (!ints(meta.best_epochs, 1, config.epochs)) fail(`\`arms.${a}.best_epochs\` needs ${workers} epochs from 1 to ${config.epochs}.`);
+    const expected = expectedSummary(armConfig(config, a));
+    if (JSON.stringify(meta.payload_bytes) !== JSON.stringify(expected.payloadBytes)) fail(`\`arms.${a}.payload_bytes\` must be ${expected.payloadBytes.join(', ')}: the sizes this arm's DARE masks give.`);
+    const r = m[a];
+    const scored = (x) => x && Array.isArray(x.workers) && x.workers.length === workers && x.workers.every(isBits) && MERGES_V1.every((k) => isBits(x[k]));
+    if (!r || !scored(r.test) || !scored(r.validation)) {
+      fail(`\`metrics.${a}\` needs test and validation bits for ${workers} workers and ${MERGES_V1.join(', ')}.`);
+      continue;
+    }
+    if (!isInt(meta.best_worker, 0, workers - 1) || r.validation.workers[meta.best_worker] !== Math.min(...r.validation.workers)) fail(`\`arms.${a}.best_worker\` must be the worker with the lowest validation bits.`);
+    if (!r.sparsity || !['dare_kept', ...MERGES_V1].every((k) => inRange(r.sparsity[k], 0, 1))) fail(`\`metrics.${a}.sparsity\` needs dare_kept, ${MERGES_V1.join(', ')}, from 0 to 1.`);
+    else if (r.sparsity.dare_kept !== expected.dareKept) fail(`\`metrics.${a}.sparsity.dare_kept\` must be ${expected.dareKept}, the share this arm's DARE masks keep.`);
+    if (!signsOk(r.signs)) fail(`\`metrics.${a}.signs\` needs agree and ties_conflicts from 0 to 1, and cosine from −1 to 1.`);
   }
-  const v = m.validation_bits;
-  if (!v || !Array.isArray(v.seeds) || v.seeds.length !== workers || !v.seeds.every(bits) || !merges.every((k) => bits(v[k]))) {
-    fail(`\`metrics.validation_bits\` needs ${workers} seeds and ${merges.join(', ')}, in bits.`);
-  } else if (isInt(card.best_seed, 0, workers - 1) && v.seeds[card.best_seed] !== Math.min(...v.seeds)) {
-    fail('`best_seed` must be the seed with the lowest validation bits.');
-  }
-  const s = m.sparsity;
-  if (!s || !['dare_kept', ...MERGES].every((k) => inRange(s[k], 0, 1))) fail(`\`metrics.sparsity\` needs dare_kept, ${MERGES.join(', ')}, from 0 to 1.`);
-  else if (s.dare_kept !== expected.dareKept) fail(`\`metrics.sparsity.dare_kept\` must be ${expected.dareKept}, the share this unit's DARE masks keep.`);
-  const g = m.signs;
-  if (!g || !inRange(g.agree, 0, 1) || !inRange(g.ties_conflicts, 0, 1) || !inRange(g.cosine, -1, 1)) fail('`metrics.signs` needs agree and ties_conflicts from 0 to 1, and cosine from −1 to 1.');
   return errors;
 }

@@ -378,20 +378,27 @@ async function runMergeUnit(page, unit) {
   return card;
 }
 
-test('a merge unit trains the anchor’s transformer from θ₀ per seed, merges them, replicates, and its card passes ingestion’s checks', async () => {
+test('a merge unit trains three sets of workers from the anchor, merges each, replicates, and its card passes ingestion’s checks', async () => {
   const { page, errors } = await openLab();
   const card = await runMergeUnit(page, 1);
+  assert.equal(card.spec, 'trackb-merge/v1');
   assert.deepEqual(validateCard(card), []);
-  const t = card.metrics.test_bits;
-  assert.ok(t.theta0 > t.unigram, `θ₀ is untrained: ${t.theta0} against unigram ${t.unigram}`);
-  for (const bits of t.seeds) assert.ok(bits < t.unigram - 0.5, `every seed learns more than token counts: ${t.seeds}`);
-  const mean = t.seeds.reduce((a, b) => a + b, 0) / t.seeds.length;
-  assert.ok(Math.abs(t.average - mean) < 0.1, `averaging seeds from one start keeps what they learned: ${t.average} against ${mean}`);
-  assert.ok(card.metrics.signs.cosine > 0.8 && card.metrics.sparsity.dare_kept < 0.12, JSON.stringify(card.metrics));
+  const m = card.metrics;
+  assert.ok(m.theta0 > m.unigram, `θ₀ is untrained: ${m.theta0} against unigram ${m.unigram}`);
+  for (const arm of ['seeds', 'shards', 'warm_shards']) {
+    for (const bits of m[arm].test.workers) assert.ok(bits < m.unigram - 0.5, `${arm}: every worker learns more than token counts: ${m[arm].test.workers}`);
+    assert.ok(m[arm].test.dare_ties_all < m[arm].test.dare_ties, `${arm}: dividing by every worker removes DARE’s excess inside TIES`);
+  }
+  const mean = m.seeds.test.workers.reduce((a, b) => a + b, 0) / 4;
+  assert.ok(Math.abs(m.seeds.test.average - mean) < 0.1, `averaging seeds from one start keeps what they learned: ${m.seeds.test.average} against ${mean}`);
+  assert.ok(Math.min(...m.seeds.test.workers) < Math.min(...m.shards.test.workers), 'a worker on all the text beats one on a quarter of it');
 
+  const header = await page.$$eval('#mg-table thead th', (ths) => ths.map((th) => th.textContent));
+  assert.deepEqual(header, ['Test bits per token', 'Seeds, all the text', 'Shards, from θ₀', 'Shards, from the warm start']);
   const rows = await page.$$eval('#mg-table tbody tr', (trs) => trs.map((tr) => [...tr.cells].map((td) => td.textContent)));
-  assert.deepEqual(rows.map((r) => r[0].split(' (')[0]), ['θ₀, untrained', 'Unigram', 'Seed 1', 'Seed 2', 'Seed 3', 'Seed 4', 'Plain average', 'DARE, then the average', 'TIES', 'DARE, then TIES']);
-  assert.match(rows[2 + card.best_seed][0], /best on validation/);
+  assert.deepEqual(rows.map((r) => r[0]), ['Worker 1', 'Worker 2', 'Worker 3', 'Worker 4', 'Kept worker (best on validation)', 'Plain average', 'DARE, then the average', 'TIES', 'DARE, then TIES', 'DARE, then TIES over all workers', 'Sign agreement across workers']);
+  assert.match(rows[card.arms.shards.best_worker][2], /✓$/);
+  assert.match(await page.textContent('#mg-summary'), /^Unit 1 trained a token transformer on Rosetta text in three ways/);
   assert.equal(await page.textContent('#mg-review'), 'Review and submit (1)');
   const href = await page.getAttribute('#mg-submit', 'href');
   assert.ok(href.length <= MAX_ISSUE_URL, `${href.length} characters`);
@@ -400,7 +407,7 @@ test('a merge unit trains the anchor’s transformer from θ₀ per seed, merges
   // The same unit gives the same card on the same backend: that's what replication checks.
   const again = await runMergeUnit(page, 1);
   assert.deepEqual(again.metrics, card.metrics);
-  assert.deepEqual([again.best_epochs, again.payload_bytes], [card.best_epochs, card.payload_bytes]);
+  assert.deepEqual([again.arms, again.warm_best_epoch], [card.arms, card.warm_best_epoch]);
 
   // Kept in this browser, and listed by the review.
   await page.reload();
@@ -408,7 +415,7 @@ test('a merge unit trains the anchor’s transformer from θ₀ per seed, merges
   await page.click('.tabs button[data-tab="units"]');
   await page.click('#mg-review');
   assert.equal(await page.textContent('#review-title'), 'Your merge units in this browser');
-  assert.match(await page.textContent('#review-outcome'), /^Unit 1 trained a token transformer on Rosetta text 4 times from the same pinned start/);
+  assert.match(await page.textContent('#review-outcome'), /^Unit 1 trained a token transformer on Rosetta text in three ways/);
   assert.equal(await page.locator('#review-table tbody tr').count(), 2);
   assert.deepEqual(errors, []);
   await page.close();

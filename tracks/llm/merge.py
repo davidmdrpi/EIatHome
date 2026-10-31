@@ -20,7 +20,11 @@ The rule (all optional; the default is the plain baseline, an average by trainin
   of its entries and storing the rest as int8 with sparse indices, within a result card's
   16 KB. The round merges and gates what the payload rebuilds.
 - TIES (--merge ties): trim each delta to its largest entries, elect each parameter's sign, and
-  average only the nonzero entries that agree with it.
+  average only the nonzero entries that agree with it. --ties-mean all divides their weighted
+  sum by every contributor's weight instead (milestone 5). After DARE that's the unbiased
+  choice: DARE scales its survivors by 1/(1 − p) so that a sum over all contributors keeps its
+  expected value, while TIES's own mean, over the survivors alone, keeps that factor on every
+  entry.
 - Greedy soup (--soup greedy): workers are tried best first by validation, each kept only if
   the merge improves with it, so a worker that barely moved can't dilute the others.
 - DiLoCo (--outer-lr, --outer-momentum): the merged delta is a pseudo-gradient for an outer
@@ -65,6 +69,7 @@ ORDER_SHUFFLES = 19  # shuffled copies of the selection control its real order i
 RULE = {
     "merge": "average",  # or "ties"
     "ties_keep": 1.0,  # TIES: the fraction of each delta's entries kept, by magnitude
+    "ties_mean": "agreeing",  # TIES: divide by the agreeing entries' weight, or "all" contributors'
     "dare": None,  # or {"method": "random" or "magnitude", "p": the fraction dropped}
     "soup": "all",  # or "greedy"
     "outer": {"lr": 1.0, "momentum": 0.0},  # lr 1 with no momentum is θ + τ̄, plain merging
@@ -83,6 +88,8 @@ def check_rule(rule=None):
         raise ValueError("The merge is average or ties")
     if not (finite(out["ties_keep"]) and 0 < out["ties_keep"] <= 1) or (out["merge"] == "average" and out["ties_keep"] != 1):
         raise ValueError("TIES keeps a fraction in (0, 1]; an average trims nothing")
+    if out["ties_mean"] not in ("agreeing", "all") or (out["merge"] == "average" and out["ties_mean"] != "agreeing"):
+        raise ValueError("TIES's mean is over the agreeing entries or all contributors; an average has no such choice")
     dare = out["dare"]
     if dare is not None and not (isinstance(dare, dict) and set(dare) == {"method", "p"} and dare["method"] in ("random", "magnitude")
                                  and finite(dare["p"]) and dare["p"] < 1):
@@ -413,15 +420,21 @@ def trim(flat, keep):
     return out
 
 
-def ties(flats, weights, keep):
+def ties(flats, weights, keep, mean="agreeing"):
     """TIES-merging of flat deltas: trim each to its largest `keep` fraction, elect each
     parameter's sign as the sign of the weighted sum, and take, for each parameter, the weighted
     mean of only the nonzero entries that agree with it. A delta that's zero at a parameter, or
-    disagrees there, doesn't pull the others toward zero."""
+    disagrees there, doesn't pull the others toward zero.
+
+    mean="all" divides the agreeing entries' weighted sum by every contributor's weight instead,
+    so a zero or disagreeing entry counts as zero. For DARE's rescaled survivors that keeps the
+    merge's expected value: TIES's own mean would keep each survivor 1/(1 − p) times too large."""
     trimmed = np.stack([trim(f, keep) for f in flats])
     w = np.asarray(weights, dtype=np.float64)[:, None]
     elected = np.sign((w * trimmed).sum(axis=0))
     agree = (np.sign(trimmed) == elected) & (trimmed != 0)
+    if mean == "all":
+        return (w * trimmed * agree).sum(axis=0) / w.sum()
     mass = (w * agree).sum(axis=0)
     return np.divide((w * trimmed * agree).sum(axis=0), mass, out=np.zeros(trimmed.shape[1]), where=mass > 0)
 
@@ -429,7 +442,7 @@ def ties(flats, weights, keep):
 def combine(flats, weights, rule):
     """The merged flat delta τ̄ of some contributors' flat deltas, by the rule's merge."""
     if rule["merge"] == "ties":
-        return ties(flats, weights, rule["ties_keep"])
+        return ties(flats, weights, rule["ties_keep"], rule["ties_mean"])
     return sum(w * f for w, f in zip(weights, flats))
 
 
@@ -636,6 +649,10 @@ def replay(path, manifest=None):
     start = None if record["start"]["checkpoint"] == "theta0" else record["start"]["checkpoint"]
     with training_runtime(1, "cpu"):
         again, _ = merge_round(anchor, [c["file"] for c in record["contributors"]], start, record["rule"], manifest)
+    # A rule recorded before a setting existed replays with that setting's default.
+    for key in set(again["rule"]) - set(record["rule"]):
+        if again["rule"][key] == RULE[key]:
+            del again["rule"][key]
     if again != record:
         raise ValueError(f"{path}: replaying the round gave a different result")
     return record
@@ -667,6 +684,8 @@ def main(argv=None):
     r.add_argument("--anchor", default="v1", choices=list(ANCHORS))
     r.add_argument("--merge", choices=("average", "ties"), default="average")
     r.add_argument("--ties-keep", type=float, default=None, help="TIES: the fraction of each delta kept by magnitude (default 1)")
+    r.add_argument("--ties-mean", choices=("agreeing", "all"), default="agreeing",
+                   help="TIES: average over the agreeing entries, or divide by all contributors (unbiased after DARE)")
     r.add_argument("--dare-p", type=float, default=None, help="compress each delta, dropping this fraction of its entries")
     r.add_argument("--dare-method", choices=("random", "magnitude"), default="random")
     r.add_argument("--soup", choices=("all", "greedy"), default="all")
@@ -679,7 +698,7 @@ def main(argv=None):
     args = p.parse_args(argv)
     try:
         if args.command == "round":
-            rule = {"merge": args.merge, "ties_keep": 1.0 if args.ties_keep is None else args.ties_keep,
+            rule = {"merge": args.merge, "ties_keep": 1.0 if args.ties_keep is None else args.ties_keep, "ties_mean": args.ties_mean,
                     "dare": None if args.dare_p is None else {"method": args.dare_method, "p": args.dare_p},
                     "soup": args.soup, "outer": {"lr": args.outer_lr, "momentum": args.outer_momentum},
                     "tolerance_bits": args.tolerance, "max_abs_delta": args.max_abs_delta}

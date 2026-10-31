@@ -10,17 +10,24 @@ import { test } from 'node:test';
 import { ANCHOR, anchorLayout, anchorTheta0, buildTheta0, flatten, layoutBounds, layoutProblems, parametersSha256, peakFrames, peakTokens, unflatten } from '../web/js/anchor.js';
 import { MAX_CARD_BYTES, MAX_ISSUE_URL, issueLink, summarize, validateCard } from '../web/js/community.js';
 import {
+  ARMS,
   MERGES,
+  MERGES_V1,
   MERGE_TARGETS,
+  MERGE_V1_TARGETS,
   addDelta,
+  armConfig,
   compress,
   cosine,
   dare,
   expectedSummary,
   mergeCard,
+  mergeCardV1,
   mergeConfig,
+  mergeConfigV1,
   mergeDeltas,
   mergeTokens,
+  shardTrain,
   signAgreement,
   taskVector,
   ties,
@@ -145,6 +152,9 @@ test('TIES trims, elects each sign from the weighted sum, and averages only the 
   assert.ok(close(conflicts, 4 / 9), `the 4 disagreeing of 9 nonzero entries: ${conflicts}`);
   // Weights count in the election and the mean.
   assert.deepEqual([...ties([a, c], [0.25, 0.75], 1).delta], [-2, 1, 0.5, 2]);
+  // The mean over all workers: the agreeing entries' weighted sum over every weight.
+  const all = ties([a, b, c], [1 / 3, 1 / 3, 1 / 3], 1, 'all').delta;
+  [4 / 3, -2 / 3, 0.5 / 3, 0].forEach((v, i) => assert.ok(close(all[i], v), `parameter ${i}: ${all[i]}`));
 });
 
 test('sign agreement counts the parameters every delta changes, and cosine their alignment', () => {
@@ -175,6 +185,10 @@ test('merging a seed sweep: identical seeds merge to themselves, except where DA
   // TIES averages the survivors only, so DARE's 10× rescale stays on every surviving entry.
   const ratio = stats.deltas.dare_ties.reduce((s, v, i) => s + (v ? v / tau[i] : 0), 0) / stats.deltas.dare_ties.filter(Boolean).length;
   assert.ok(close(ratio, 10, 0.2), `DARE then TIES scales the kept changes by ${ratio}`);
+  // Dividing by every worker's weight keeps the expected merge at the shared change.
+  const fit = (delta) => delta.reduce((s, v, i) => s + v * tau[i], 0) / tau.reduce((s, v) => s + v * v, 0);
+  assert.ok(close(fit(stats.deltas.dare_ties_all), 1, 0.1), `DARE then TIES over all workers: ${fit(stats.deltas.dare_ties_all)}`);
+  assert.ok(close(fit(stats.deltas.dare_average), 1, 0.1));
   assert.ok(stats.payloadBytes.every((b) => b > 0.1 * theta0.length && b < 0.25 * theta0.length + 4 * layout.length), `${stats.payloadBytes}`);
   // The masks follow from the seeds alone, so a card's sizes and kept share can be recomputed.
   const expected = expectedSummary(config);
@@ -183,6 +197,19 @@ test('merging a seed sweep: identical seeds merge to themselves, except where DA
   const other = mergeDeltas(theta0, thetas.map((t) => addDelta(t, Float32Array.from(t, () => rng.gauss()))), config);
   assert.deepEqual(other.payloadBytes, expected.payloadBytes, 'whatever the weights');
   assert.deepEqual(expectedSummary(mergeConfig(7)).payloadBytes, [1318, 1380, 1332, 1396]);
+});
+
+test('v1’s seeds arm is v0’s unit, and its shards cut the training text into ordered quarters', () => {
+  for (const unit of [0, 7, 4321]) {
+    const v1 = mergeConfigV1(unit);
+    assert.deepEqual(v1.arms.seeds.seeds, mergeConfig(unit).seeds);
+    assert.deepEqual(expectedSummary(armConfig(v1, 'seeds')), expectedSummary(mergeConfig(unit)));
+    assert.equal(new Set(ARMS.flatMap((a) => v1.arms[a].seeds)).size, 12, 'every worker has its own seed');
+  }
+  const tokens = mergeTokens(mergeConfigV1(0));
+  const shards = shardTrain(tokens);
+  assert.deepEqual(shards.map((s) => s.length - 1), MERGE_V1_TARGETS.shards);
+  assert.deepEqual(shards.flatMap((s) => [...s]), [...tokens.train[0]], 'the shards are the training text, in order, without overlap');
 });
 
 // ---------- cards ----------
@@ -202,6 +229,56 @@ function makeMergeCard(unit, { shift = 0, started = '2026-10-31T00:00:00.000Z' }
   };
   return mergeCard(unit, results, { backend: 'wasm', tfjs: '4.22.0', seconds: 19.6, started });
 }
+
+// A v1 card as the engine makes it, with plausible synthetic scores.
+function makeMergeCardV1(unit, { shift = 0, started = '2026-10-31T00:00:00.000Z' } = {}) {
+  const config = mergeConfigV1(unit);
+  const arm = (name, base) => {
+    const expected = expectedSummary(armConfig(config, name));
+    const merges = { average: base - 0.04, dare_average: 3.9, ties: 2.8, dare_ties: 42, dare_ties_all: 3.88 };
+    return {
+      workers: [0, 1, 2, 3].map((i) => ({ test: base + i / 50 + shift, validation: base - 0.4 + i / 100 + shift, bestEpoch: 10 + i })),
+      merges: Object.fromEntries(MERGES_V1.map((m) => [m, { test: merges[m] + shift, validation: merges[m] - 0.3 + shift }])),
+      stats: { payloadBytes: expected.payloadBytes, sparsity: { dare_kept: expected.dareKept, average: 0.94, dare_average: 0.32, ties: 0.4, dare_ties: 0.32, dare_ties_all: 0.32 }, signs: { agree: 0.6, ties_conflicts: 0.01, cosine: 0.69 } },
+    };
+  };
+  const results = {
+    targets: MERGE_V1_TARGETS,
+    theta0: 5.7149,
+    unigram: expectedSummary(armConfig(config, 'seeds')).unigram,
+    warm: { test: 2.7072, validation: 2.4244, bestEpoch: 3 },
+    arms: { seeds: arm('seeds', 2.3), shards: arm('shards', 2.5), warm_shards: arm('warm_shards', 2.51) },
+  };
+  return mergeCardV1(unit, results, { backend: 'wasm', tfjs: '4.22.0', seconds: 53.2, started });
+}
+
+test('a v1 merge card validates, fits an issue link, and is rejected when it doesn’t match its spec', () => {
+  const card = makeMergeCardV1(7);
+  assert.deepEqual(validateCard(card), []);
+  assert.deepEqual(Object.keys(card.metrics), ['theta0', 'unigram', 'warm', ...ARMS]);
+  assert.deepEqual(ARMS.map((a) => card.arms[a].best_worker), [0, 0, 0], 'the lowest validation bits');
+  const issue = issueLink(card, 'https://github.com/davidmdrpi/EIatHome');
+  assert.ok(issue.prefilled && issue.url.length <= MAX_ISSUE_URL, `${issue.url.length} characters`);
+  const broken = (edit) => {
+    const c = makeMergeCardV1(7);
+    edit(c);
+    return validateCard(c).join(' ');
+  };
+  assert.match(broken((c) => (c.config.warm.epochs = 5)), /config/);
+  assert.match(broken((c) => (c.config.arms.shards.seeds[0] += 1)), /config/);
+  assert.match(broken((c) => (c.targets.shards = [623, 623, 623, 640])), /targets/);
+  assert.match(broken((c) => (c.warm_best_epoch = 4)), /warm_best_epoch/);
+  assert.match(broken((c) => (c.arms.shards.payload_bytes = [1, 1, 1, 1])), /arms\.shards\.payload_bytes. must be/);
+  assert.match(broken((c) => (c.arms.warm_shards.payload_bytes = c.arms.shards.payload_bytes)), /arms\.warm_shards\.payload_bytes/);
+  assert.match(broken((c) => (c.arms.seeds.best_worker = 3)), /arms\.seeds\.best_worker/);
+  assert.match(broken((c) => (c.metrics.shards.sparsity.dare_kept = 0.1)), /metrics\.shards\.sparsity\.dare_kept. must be/);
+  assert.match(broken((c) => (c.metrics.unigram = 3.2)), /unigram. must be/);
+  assert.match(broken((c) => delete c.metrics.warm_shards.test.dare_ties_all), /metrics\.warm_shards/);
+  assert.match(broken((c) => delete c.arms.warm_shards), /arms/);
+  assert.match(broken((c) => (c.inputs.slices = { dataset_id: 'x', slices: [] })), /inputs/);
+  assert.match(broken((c) => (c.version = 2)), /version/);
+  assert.deepEqual(validateCard(makeMergeCardV1(7, { shift: 40 })), [], 'a merge that costs far more than log2(k) is still a result');
+});
 
 test('a merge card validates, carries no weights and fits an issue link', () => {
   const card = makeMergeCard(7);
@@ -256,8 +333,10 @@ test('merge units are replicated per unit, apart from Track A’s units of the s
     run(3, 'carol', makeMergeCard(5)),
     run(4, 'dave', makeMergeCard(5, { shift: 0.1 })),
     run(5, 'erin', await makeCard(4)),
+    run(6, 'frank', makeMergeCardV1(4)),
+    run(7, 'grace', makeMergeCardV1(4, { shift: 0.01 })),
   ]);
-  assert.deepEqual(units.map((u) => [u.spec, u.unit, u.status]), [['track-a/v0', 4, 'single'], ['trackb-merge/v0', 4, 'replicated'], ['trackb-merge/v0', 5, 'disagree']]);
+  assert.deepEqual(units.map((u) => [u.spec, u.unit, u.status]), [['track-a/v0', 4, 'single'], ['trackb-merge/v0', 4, 'replicated'], ['trackb-merge/v0', 5, 'disagree'], ['trackb-merge/v1', 4, 'replicated']]);
 });
 
 test('the ingestion script records a valid merge card and rejects a tampered one', () => {
@@ -273,6 +352,9 @@ test('the ingestion script records a valid merge card and rejects a tampered one
   };
   const accepted = ingest(40, 'alice', makeMergeCard(9));
   assert.equal(accepted.status, 'status=accepted');
+  const v1 = ingest(39, 'alice', makeMergeCardV1(9));
+  assert.equal(v1.status, 'status=accepted', 'a v1 unit is another unit');
+  assert.match(v1.comment, /Unit 9 \(`trackb-merge\/v1`, wasm\) is recorded/);
   assert.match(accepted.comment, /Unit 9 \(`trackb-merge\/v0`, wasm\) is recorded[\s\S]*1 run\(s\) from 1 volunteer/);
   const tampered = makeMergeCard(9, { shift: 0.01 });
   tampered.config.ties_keep = 0.5;
@@ -297,6 +379,6 @@ test('the ingestion script records a valid merge card and rejects a tampered one
   sizes.payload_bytes = [1, 1, 1, 1];
   assert.equal(ingest(44, 'carol', sizes).status, 'status=rejected');
   const stored = JSON.parse(readFileSync(join(dir, 'results.json'), 'utf8')).results;
-  assert.deepEqual(stored.map((r) => [r.issue, r.submitted_by]), [[40, 'alice']]);
-  assert.deepEqual(summarize(stored).units.map((u) => [u.spec, u.unit, u.runs, u.status]), [['trackb-merge/v0', 9, 1, 'single']]);
+  assert.deepEqual(stored.map((r) => [r.issue, r.submitted_by]), [[39, 'alice'], [40, 'alice']]);
+  assert.deepEqual(summarize(stored).units.map((u) => [u.spec, u.unit, u.runs, u.status]), [['trackb-merge/v0', 9, 1, 'single'], ['trackb-merge/v1', 9, 1, 'single']]);
 });

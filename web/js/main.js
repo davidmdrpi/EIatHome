@@ -2,7 +2,7 @@ import { ANCHOR } from './anchor.js';
 import { isRecoveryCard, issueLink, submissionText, summarize, validateCard } from './community.js';
 import { STATUSES, acceptedCards, cardKey, cardStatus, keepCard, pruneMarks, safeToDrop, tally } from './contributions.js';
 import { architectureLabel, tokenArchitectureLabel } from './models.js';
-import { MERGES, MERGE_SPEC, isMergeCard } from './merge.js';
+import { ARMS, MERGES_V1, MERGE_SPEC_V1, isMergeCard } from './merge.js';
 import { fmt, heatmap, lineChart, scatterPanel } from './plots.js';
 import { DECOYS, KINDS, RECOVERY_DATA, RECOVERY_SPEC, SIGNALS, STRENGTHS, combine, wilson } from './recovery.js';
 import { deriveSeed, makeRng } from './rng.js';
@@ -721,7 +721,12 @@ const mg = {
   results: [].concat(store.get('mergeResults', [])).filter((card) => isMergeCard(card) && !validateCard(card).length),
 };
 
-const MERGE_NAMES = { average: 'Plain average', dare_average: 'DARE, then the average', ties: 'TIES', dare_ties: 'DARE, then TIES' };
+const MERGE_NAMES = { average: 'Plain average', dare_average: 'DARE, then the average', ties: 'TIES', dare_ties: 'DARE, then TIES', dare_ties_all: 'DARE, then TIES over all workers' };
+const ARM_NAMES = { seeds: 'Seeds, all the text', shards: 'Shards, from θ₀', warm_shards: 'Shards, from the warm start' };
+const isV1 = (card) => card.spec === MERGE_SPEC_V1;
+// A v0 card is v1's seeds arm alone.
+const keptBits = (card, arm = 'seeds') => (isV1(card) ? card.metrics[arm].test.workers[card.arms[arm].best_worker] : card.metrics.test_bits.seeds[card.best_seed]);
+const mergedBits = (card, arm, merge) => (isV1(card) ? card.metrics[arm].test[merge] : card.metrics.test_bits[merge]);
 
 function mergeStatus(text, error = false) {
   $('mg-status').textContent = text;
@@ -733,19 +738,19 @@ function runMerge(unit) {
   $('mg-progress').value = 0;
   setRunning('merge');
   mergeStatus(`Unit ${unit}: starting from the anchor…`);
-  viewports.lab?.startJob('merge', targetForFamily('rosetta'), `Merge unit ${unit} · ${MERGE_SPEC}: training the token transformer from θ₀…`, 'Rosetta text, sent as FSK from this browser');
+  viewports.lab?.startJob('merge', targetForFamily('rosetta'), `Merge unit ${unit} · ${MERGE_SPEC_V1}: training the token transformer from θ₀…`, 'Rosetta text, sent as FSK from this browser');
   engine.postMessage({ type: 'merge', unit });
 }
 
 function onMergeProgress(msg) {
   if (msg.merging) {
-    mergeStatus(`Unit ${msg.unit}: merging the seeds and scoring the merges…`);
+    mergeStatus(`Unit ${msg.unit}: ${msg.label}…`);
     return;
   }
-  const done = (msg.worker + msg.epoch / msg.epochs) / msg.workers;
+  const done = (msg.job + msg.epoch / msg.epochs) / msg.jobs;
   $('mg-progress').value = done;
-  mergeStatus(`Unit ${msg.unit}: training seed ${msg.worker + 1} of ${msg.workers} from θ₀, epoch ${msg.epoch} of ${msg.epochs}…`);
-  viewports.lab?.telemetry(`Merge unit ${msg.unit} · seed ${msg.worker + 1} of ${msg.workers} · epoch ${msg.epoch} of ${msg.epochs}`, done);
+  mergeStatus(`Unit ${msg.unit}: training ${msg.label} (${msg.job + 1} of ${msg.jobs}), epoch ${msg.epoch} of ${msg.epochs}…`);
+  viewports.lab?.telemetry(`Merge unit ${msg.unit} · ${msg.label} · epoch ${msg.epoch} of ${msg.epochs}`, done);
 }
 
 function onMergeResult(card) {
@@ -760,7 +765,7 @@ function onMergeResult(card) {
   session.merge += 1;
   renderMerge();
   renderMergeHistory();
-  viewports.lab?.finishJob(`Merge unit ${card.unit} · done in ${card.seconds} s · average ${fmt(card.metrics.test_bits.average)} bits, DARE-TIES ${fmt(card.metrics.test_bits.dare_ties)}`);
+  viewports.lab?.finishJob(`Merge unit ${card.unit} · done in ${card.seconds} s · shards: their average ${fmt(mergedBits(card, 'shards', 'average'))} bits, the kept worker ${fmt(keptBits(card, 'shards'))}`);
   if (full) pauseForReview('merge');
   refreshContributions();
 }
@@ -769,28 +774,44 @@ function renderMerge() {
   const card = mg.card;
   $('mg-result').hidden = !card;
   if (!card) return;
-  const { test_bits: test, validation_bits: validation, sparsity } = card.metrics;
   $('mg-summary').textContent = mergeOutcome(card);
-  fillTable($('mg-table'), ['Model', 'Test bits per token', 'Validation bits', 'Nonzero share of its Δ'], [
-    ['θ₀, untrained', fmt(test.theta0), '', ''],
-    ['Unigram (training token counts)', fmt(test.unigram), '', ''],
-    ...test.seeds.map((bits, i) => [`Seed ${i + 1} (best epoch ${card.best_epochs[i]} of ${card.config.epochs})${i === card.best_seed ? ', best on validation' : ''}`, fmt(bits), fmt(validation.seeds[i]), '']),
-    ...MERGES.map((m) => [MERGE_NAMES[m], fmt(test[m]), fmt(validation[m]), fmt(sparsity[m])]),
-  ]);
+  const m = card.metrics;
+  $('mg-baselines').textContent = `For scale: θ₀, untrained, scores ${fmt(m.theta0)} bits per token; token counts alone (unigram) ${fmt(m.unigram)}; the warm start, after ${card.warm_best_epoch} of ${card.config.warm.epochs} epochs on all the text, ${fmt(m.warm.test)}.`;
+  const cell = (value, kept) => (kept ? `${fmt(value)} ✓` : fmt(value));
+  const rows = [
+    ...[0, 1, 2, 3].map((i) => [`Worker ${i + 1}`, ...ARMS.map((a) => cell(m[a].test.workers[i], i === card.arms[a].best_worker))]),
+    ['Kept worker (best on validation)', ...ARMS.map((a) => fmt(keptBits(card, a)))],
+    ...MERGES_V1.map((name) => [MERGE_NAMES[name], ...ARMS.map((a) => fmt(m[a].test[name]))]),
+    ['Sign agreement across workers', ...ARMS.map((a) => pct(m[a].signs.agree))],
+  ];
+  fillTable($('mg-table'), ['Test bits per token', ...ARMS.map((a) => ARM_NAMES[a])], rows);
   $('mg-card').textContent = JSON.stringify(card, null, 2);
 }
 
 function renderMergeHistory() {
+  const pair = (card, arm) => (isV1(card) ? `${fmt(keptBits(card, arm))} · ${fmt(mergedBits(card, arm, 'average'))}` : '–');
   $('mg-history').tBodies[0].replaceChildren(
-    ...mg.results.map((card) => {
-      const t = card.metrics.test_bits;
-      return makeRow([card.unit, fmt(t.seeds[card.best_seed]), fmt(t.average), fmt(t.ties), fmt(t.dare_ties), BACKEND_NAMES[card.backend] ?? card.backend, card.seconds]);
-    }),
+    ...mg.results.map((card) => makeRow([card.unit, card.spec.split('/')[1], fmt(keptBits(card)), pair(card, 'shards'), pair(card, 'warm_shards'), BACKEND_NAMES[card.backend] ?? card.backend, card.seconds])),
   );
 }
 
 // What a merge unit measured, in plain words.
 function mergeOutcome(card) {
+  if (!isV1(card)) return mergeOutcomeV0(card);
+  const m = card.metrics;
+  const arm = (a) => {
+    const kept = keptBits(card, a);
+    const best = Math.min(...m[a].test.workers);
+    const average = m[a].test.average;
+    const verdict = average < best ? 'beats every one of its workers' : average < kept ? 'beats the kept worker, though not the best one on test' : 'doesn’t beat the kept worker';
+    return `their plain average scores ${fmt(average)} against ${fmt(kept)} for the worker you’d keep without merging, so it ${verdict}`;
+  };
+  return `Unit ${card.unit} trained a token transformer on Rosetta text in three ways and merged each set of 4 runs. ` +
+    `With 4 seeds on all the text, ${arm('seeds')}. With 4 shards, each a quarter of the text, from θ₀, ${arm('shards')}; from a short warm start, ${arm('warm_shards')}. ` +
+    `A worker on all the text scores ${fmt(keptBits(card))}. DARE then TIES with TIES’s own mean scores ${fmt(m.shards.test.dare_ties)} on the shards; with the mean over all workers, ${fmt(m.shards.test.dare_ties_all)}.`;
+}
+
+function mergeOutcomeV0(card) {
   const { test_bits: t, signs } = card.metrics;
   const kept = t.seeds[card.best_seed];
   const mean = t.seeds.reduce((a, b) => a + b, 0) / t.seeds.length;
@@ -1282,7 +1303,7 @@ function renderReview() {
   $('review-view-all').textContent = `All (${cards.length.toLocaleString()})`;
   $('review-view-pending').setAttribute('aria-pressed', String(contributions.view === 'pending'));
   $('review-view-all').setAttribute('aria-pressed', String(contributions.view === 'all'));
-  const measured = { lab: 'GRU gain: drifting tones', recovery: 'Signals found at 1% false alarms', merge: 'Held-out bits: average · DARE-TIES' }[kind];
+  const measured = { lab: 'GRU gain: drifting tones', recovery: 'Signals found at 1% false alarms', merge: 'Held-out bits: average · kept worker' }[kind];
   fillTable($('review-table'), ['Unit', 'Started', measured, 'Status', ''], []);
   $('review-table').tBodies[0].append(...listed.slice(0, contributions.shown).map((card) => reviewRow(kind, card)));
   const shown = Math.min(listed.length, contributions.shown);
@@ -1315,7 +1336,7 @@ function reviewRow(kind, card) {
 }
 
 function cardOutcome(kind, card) {
-  if (kind === 'merge') return `${fmt(card.metrics.test_bits.average)} · ${fmt(card.metrics.test_bits.dare_ties)}`;
+  if (kind === 'merge') return isV1(card) ? `shards ${fmt(mergedBits(card, 'shards', 'average'))} · kept ${fmt(keptBits(card, 'shards'))}` : `seeds ${fmt(card.metrics.test_bits.average)} · kept ${fmt(keptBits(card))}`;
   if (kind === 'recovery') {
     const t = recoveryTotals(card.results, card.config.per_cell, '0.01');
     return `de-Doppler ${t.found.dedoppler} of ${t.signals} · energy ${t.found.energy}`;
@@ -1507,7 +1528,7 @@ function init() {
   $('backend').value = store.get('backend', 'auto');
   $('wu-spec').textContent = SPEC;
   $('wu-number').max = MAX_UNIT;
-  $('mg-spec').textContent = MERGE_SPEC;
+  $('mg-spec').textContent = MERGE_SPEC_V1;
   $('mg-anchor').textContent = ANCHOR.id;
   $('mg-number').max = MAX_UNIT;
   $('rc-spec').textContent = RECOVERY_SPEC;

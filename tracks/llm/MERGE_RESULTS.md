@@ -754,22 +754,184 @@ The cards' summaries of the deltas:
 - **One configuration,** milestone 2's: p = 0.9, TIES keeping 20%, and no scale for the merged
   delta chosen on validation.
 
+## Milestone 5: a sequence router, DARE inside TIES, and shards in the browser
+
+Milestone 5 takes up the three open findings of milestones 2 to 4:
+
+- the specialist bank won in 3b only with the family label;
+- DARE-TIES fell behind the plain average with DiLoCo in milestone 2;
+- milestone 4's browser seeds had nothing to merge.
+
+### 1. Routing whole sequences to the specialist bank
+
+**Setup** (fixed before the first run, [`route_bench.py`](route_bench.py)):
+
+- **The bank:** milestone 3b's warm specialists, retrained exactly as there, and unchanged.
+  - Same seeds (42–44), warm start and 50 epochs.
+  - They reproduce milestone 3b's bank with the label to two decimals (3.12, 2.45, 4.54).
+- **What a router may use:** it picks a specialist for each sequence (a slice of 48 targets)
+  from the tokens before each target only. So no target ever helps choose the model that
+  predicts it.
+- **What each router scores a specialist by** before each target, with an equal prior. The
+  first token, which no specialist predicts, counts by its add-one frequency in that
+  specialist's family's training scan. Then, by router:
+  - **first token:** that first token alone, for the whole sequence;
+  - **token frequencies:** every token so far, each by that frequency (naive Bayes; the
+    3 × 33 frequencies are the router's only fitted numbers);
+  - **specialists' likelihood:** each specialist's own predictions of the tokens so far,
+    followed throughout, or committed after the first 4 or 8 tokens;
+  - **posterior mixture:** all three specialists' predictions, weighted by that likelihood
+    (Bayes's rule).
+- **Selection:** one router per seed, chosen on validation by the mean over the three
+  families, each counting once. What the concatenated validation (every target once, milestone
+  3b's objective) would choose is recorded beside it. Test is scored afterwards, for every
+  router.
+- **The check from 3b's review:** milestone 3b's dense rivals, retrained exactly as there.
+  - Same starts and seeds, no early stopping, 104 epochs (more than any seed's budget of
+    101–103).
+  - Their best epoch is chosen twice: on the concatenated validation scans, and on the
+    equal-family mean (the Voyager and sweep validation scans counted twice).
+  - Chosen on the concatenated scans, they reproduce milestone 3b's scores.
+
+**Results.** Test bits per token, mean over the three seeds (range in brackets). The last two
+columns are the share of each family's targets the router sends to that family's own specialist
+(for the mixture, the mean weight on it), and the parameters run per target, on average over a
+sequence.
+
+| | Voyager | Rosetta | RFI sweep | Mean | Validation mean | Own specialist (V, R, S) | Run per target |
+|---|---:|---:|---:|---:|---:|---:|---:|
+| bank, dispatched by family label (3b) | 3.12 | 2.45 | 4.54 (4.53–4.57) | **3.37** (3.36–3.38) | 3.22 | 1, 1, 1 | 27,584 |
+| first token | 5.75 (5.73–5.76) | 2.45 | 4.54 (4.53–4.57) | 4.25 | 4.40 (4.38–4.45) | 0.00, 1.00, 1.00 | 27,683 |
+| token frequencies | 4.23 | 2.45 | 4.57 (4.56–4.60) | 3.75 | 3.32 | 0.55, 1.00, 0.97 | 27,683 |
+| specialists' likelihood | 3.16 | 2.45 | 4.63 | 3.41 | 3.29 | 0.96, 1.00, 0.85 | 82,851 |
+| specialists' likelihood, committed after 4 tokens | 3.16 | 2.45 | 4.84 (4.82–4.87) | 3.48 | 3.91 | 0.96, 1.00, 0.68 | 31,131 |
+| specialists' likelihood, committed after 8 tokens | 3.16 | 2.45 | 4.70 (4.69–4.72) | 3.43 | 3.39 | 0.96, 1.00, 0.70 | 35,728 |
+| **posterior mixture (chosen on validation, every seed)** | 3.16 | 2.46 (2.45–2.47) | 4.56 (4.54–4.58) | **3.39** (3.39–3.40) | 3.26 | 0.95, 0.99, 0.85 | 82,851 |
+| dense, anchor size (3b) | 3.72 (3.70–3.75) | 2.51 (2.50–2.53) | 4.94 (4.93–4.95) | 3.73 | 3.55 | | 27,584 |
+| dense, the mixture's active size (3b) | 3.76 | 2.49 (2.48–2.51) | 4.76 (4.69–4.83) | 3.67 | 3.53 | | 44,428 |
+| dense, the mixture's total size (3b) | 3.61 (3.60–3.63) | 2.58 (2.56–2.60) | 4.50 (4.49–4.51) | 3.56 | 3.38 | | 61,166 |
+| token-level mixture, 3b's best (cold, router + backbone finetuned) | 3.74 | 2.60 | 4.94 | 3.76 | | | 44,480 |
+
+**Parameters and budget:**
+
+- **Stored:** 82,851, the three specialists (82,752) and the router's 99 frequencies.
+- **Run per target:**
+  - one specialist plus the router, for the frequency routers;
+  - all three, for the mixture and the followed likelihood;
+  - the committed routers in between: all three until they commit, one after.
+- **Training:** the bank's budget is 376k–391k targets (the warm-up's 74k included). The router
+  adds no training, only a count of the training scans' tokens. The dense rivals trained on
+  768k targets, twice as many.
+
+**What sending a family's sequences to the wrong specialist costs.** Test bits per token over
+own specialist, mean over seeds:
+
+| Sequences from | to Voyager's | to Rosetta's | to the sweep's |
+|---|---:|---:|---:|
+| Voyager | (3.12) | +2.98 | +2.63 |
+| Rosetta | +2.44 | (2.45) | +2.66 |
+| RFI sweep | +1.02 | +2.52 | (4.54) |
+
+**The equal-family check.**
+
+- **Routers:** the equal-family mean and the concatenated validation choose the same router,
+  the posterior mixture, in every seed.
+- **Dense rivals:** re-choosing their epoch by the equal-family mean leaves the largest exactly
+  as it was (epoch 18, 3.56). It moves the other two by 0.01 bits, both slightly worse (3.68,
+  3.74).
+- So milestone 3b's double weight on Rosetta changed no conclusion.
+
+**What this shows:**
+
+- **The specialist bank keeps its gain without the label.** The posterior mixture, chosen on
+  validation, scores 3.39: 0.02 bits behind dispatch by label, and 0.17 ahead of the largest
+  dense rival (3.56). It's ahead of every dense model on every seed, and on validation (3.26
+  against 3.38).
+- **Routing costs little because a wrong route costs so much.** A family's sequences cost 1–3
+  bits more on another family's specialist. That makes them easy to tell apart by likelihood
+  within a few tokens:
+  - the mixture puts 95% of its weight on Voyager's own specialist for Voyager targets, and
+    99% for Rosetta's;
+  - the sweep, whose own specialist is weakest (milestone 3b), gets 85%.
+- **It's sequence-level, not token-level, routing that works here.** The token-level mixture
+  in milestone 3b, which merged the backbones, lost to the dense rivals (3.76 at best). This router
+  keeps every specialist whole, and loses almost nothing to the label.
+- **What the best router costs.** The posterior mixture runs all three specialists for every
+  target: 82,851 parameters per target, more than the largest dense rival's 61,166, and 3 times
+  the dense model of the anchor's size. Cheaper choices:
+  - committing to one specialist after 8 tokens runs 35,728 per target on average and scores
+    3.43, still 0.13 ahead of the largest dense rival;
+  - the frequency routers run one specialist, but misroute Voyager: its first frames look like
+    another family's. A sequence's first token alone sends every Voyager sequence elsewhere.
+- **The family label was a crutch for the bank, not a requirement.** What remains open is
+  whether the bank's advantage holds with more families, or with sequences that mix families.
+
+### 2. DARE inside TIES: what the 10× rescale cost milestone 2
+
+DARE rescales its survivors by 1/(1 − p), 10 at p = 0.9, so that a sum over every contributor
+keeps its expected value. TIES then averages only the agreeing nonzero entries. So a surviving
+entry keeps the factor, and with three agreeing workers the merge is about 10 × (1 − 0.9³) = 2.7
+times the mean delta in expectation.
+
+Milestone 5 adds TIES's mean over every contributor's weight (`merge.py --ties-mean all`). It
+counts a dropped or disagreeing entry as zero, and is unbiased after DARE. Averaging unrescaled
+survivors, the other fix, would shrink each entry by 1 − p³ and stay biased.
+
+Rerunning milestone 2's benchmark ([`merge_bench.py`](merge_bench.py)) reproduces every earlier
+row exactly. The added rows:
+
+| | Validation | Test | Off-source control |
+|---|---:|---:|---:|
+| one-shot: DARE-TIES (TIES's own mean, milestone 2) | 3.22 (3.02–3.43) | 2.93 (2.80–3.09) | 5.09 (5.00–5.17) |
+| one-shot: DARE-TIES, mean over all | 3.28 (3.26–3.29) | 2.98 (2.94–3.05) | 4.43 (4.42–4.46) |
+| one-shot: DARE-TIES, mean over all, greedy soup | 3.12 (3.09–3.16) | 2.83 (2.75–2.96) | 4.57 (4.54–4.60) |
+| 10 rounds: average + DiLoCo (milestone 2) | 2.85 (2.84–2.85) | **1.83** | 5.00 (4.99–5.02) |
+| 10 rounds: DARE-TIES, greedy soup + DiLoCo (milestone 2) | 2.84 (2.83–2.86) | 2.11 (1.99–2.24) | 5.00 (4.83–5.14) |
+| 10 rounds: DARE-TIES, mean over all, greedy soup + DiLoCo | 2.93 (2.84–3.00) | 2.51 (2.32–2.65) | 5.02 (4.92–5.13) |
+| 10 rounds: average, greedy soup + DiLoCo | 2.85 (2.83–2.86) | 2.34 (2.34–2.35) | 5.04 (4.99–5.13) |
+
+**What this shows:**
+
+- **The rescale didn't cause the gap: removing it makes the chain worse.** Unbiased DARE-TIES
+  with the same soup and DiLoCo scores 2.51, against 2.11 with the 10× factor kept.
+  - The factor had been working as a larger outer step: about 2.7 times the averaged update on
+    the entries the workers agree on.
+  - One-shot, it's the same: 2.98 unbiased (exactly the DARE average's score) against 2.93.
+- **The greedy soup causes most of the gap.** Step by step from the plain average with DiLoCo
+  (1.83):
+  - adding the greedy soup: 2.34 (+0.51);
+  - then unbiased DARE-TIES, compression and sign election: 2.51 (+0.17);
+  - then keeping DARE's 10× factor instead: 2.11 (−0.40).
+  - **The soup merges too few shards.** Its rounds kept 1.3 of the 3 shards on average, against
+    2.0 for the original DARE-TIES chain and 3 without a soup, so most of the data is left out
+    of most rounds.
+  - **Its validation doesn't show this.** It's as good as the plain chain's (2.85 against
+    2.85): the soup fits its 144 validation targets.
+- **So the chain's best merge is the simplest:** the plain average with DiLoCo (1.83).
+  - A soup helps one shot (2.65, milestone 2), where it drops one weak worker once.
+  - Applied every round, it starves the chain of data.
+  - Unbiased DARE is still the right way to compress a delta for a card. The one-shot cost of
+    compression is 0.11 bits (2.98 against 2.87).
+
+BROWSER_SECTION_PLACEHOLDER
+
 ## Next
 
-- **Milestone 5:** the full benchmark, adding the mixture of experts.
-- **Worth trying:**
-  - the average with the greedy soup and DiLoCo, the two parts of milestone 2 that helped,
-    chosen on validation;
+Milestone 5 closes issue #20. What it leaves open:
+
+- **More families, and mixed sequences,** for the sequence router: three families this
+  different are easy to tell apart within a few tokens.
+- **A cheaper router:** commit after a few tokens, and send ambiguous sequences on to the
+  mixture.
+- **For the chains:**
+  - a soup that keeps at least two shards a round;
   - a momentum restart when the gate rejects a round;
-  - a control with known temporal structure, to calibrate a test for found structure;
-  - the specialist bank without the label: a sequence-level router over the unchanged full
-    specialists, chosen on validation, recording what routing a sequence to the wrong family
-    costs, with stored and active parameters and the whole training budget;
-  - a family-balanced selection objective, against the concatenated one;
-  - for the mixture: routing on a window of context instead of one token; finetuning the
-    experts lightly; more data for the sweep;
-  - for Rosetta: a language test that beats the byte-statistics control, such as more text, or
-    a comparison with whole characters shuffled while keeping the framing;
-  - in the browser: shards instead of seeds; DARE at a lower drop rate, or DARE without TIES's
-    average over survivors; a merge scale chosen on validation; merging from a shared warm
-    start instead of θ₀, as milestone 3b did.
+  - a larger outer step for the plain average, the role DARE's factor played by accident.
+- **A control with known temporal structure,** to calibrate a test for found structure.
+- **For Rosetta:** a language test that beats the byte-statistics control, such as more text,
+  or a comparison with whole characters shuffled while keeping the framing.
+- **In the browser:**
+  - DARE at a lower drop rate;
+  - a merge scale chosen on validation;
+  - shards of other families once more real data is published;
+  - whether units replicate across compute backends.

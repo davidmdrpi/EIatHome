@@ -126,6 +126,26 @@ class AlgorithmTests(unittest.TestCase):
         # Trimming keeps each delta's largest half by magnitude; weights tip the election.
         np.testing.assert_allclose(merge.trim(a, 0.5), [0.0, -2.0, 0.0, 3.0, 2.0, 0.0])
         np.testing.assert_allclose(merge.ties([a, b], [0.75, 0.25], 1.0), [1.0, -2.0, 0.125, 3.0, 2.0, 4.0])
+        # The mean over all contributors: an agreeing entry's weighted sum over every weight, so a
+        # zero or disagreeing entry counts as zero.
+        np.testing.assert_allclose(merge.ties([a, b], [0.5, 0.5], 1.0, mean="all"), [0.0, -1.0, 0.15, 3.0, 1.0, 2.0])
+
+    def test_dare_then_ties_is_unbiased_only_with_the_mean_over_all_contributors(self):
+        # Three identical deltas: TIES's own mean keeps DARE's 1/(1 − p) on every survivor, while the
+        # mean over all contributors keeps the expected merge at the delta itself.
+        tau = np.random.default_rng(0).normal(size=4000)
+
+        def dropped(seed):
+            kept, values = merge.dare(tau, 0.9, 'random', seed)
+            out = np.zeros_like(tau)
+            out[kept] = values
+            return out
+
+        merged = {mean: np.mean([merge.ties([dropped(3 * draw + i) for i in range(3)], [1 / 3] * 3, 1.0, mean) for draw in range(60)], axis=0)
+                  for mean in ('agreeing', 'all')}
+        ratio = lambda m: float(m @ tau / (tau @ tau))
+        self.assertAlmostEqual(ratio(merged['all']), 1.0, delta=0.05)
+        self.assertAlmostEqual(ratio(merged['agreeing']), 10 * (1 - 0.9 ** 3), delta=0.2)
 
     def test_the_greedy_soup_tries_best_first_and_keeps_only_improvements(self):
         # Candidates by their own validation bits; a merge's score is looked up by its members.
@@ -162,7 +182,9 @@ class AlgorithmTests(unittest.TestCase):
 
     def test_rules_are_checked(self):
         self.assertEqual(merge.check_rule(), merge.RULE)
+        self.assertEqual(merge.check_rule({'merge': 'ties', 'ties_mean': 'all'})['ties_mean'], 'all')
         for bad in ({'merge': 'median'}, {'ties_keep': 0.2}, {'merge': 'ties', 'ties_keep': 0}, {'dare': {'method': 'random', 'p': 1}},
+                    {'ties_mean': 'all'}, {'merge': 'ties', 'ties_mean': 'median'},
                     {'soup': 'some'}, {'outer': {'lr': 0, 'momentum': 0}}, {'outer': {'lr': 1, 'momentum': 1}}, {'speed': 1}):
             with self.assertRaises(ValueError, msg=bad):
                 merge.check_rule(bad)
@@ -365,6 +387,15 @@ class RoundTests(unittest.TestCase):
             self.assertLessEqual(c['payload']['bytes'], merge.CARD_BUDGET_BYTES)
             self.assertEqual(c['payload']['seed'], int(weights_digest(torch.load(c['file'], weights_only=True)['model'])[:13], 16))
         self.assertEqual(merge.replay(Path('dare-ties/round.json'))['rule'], merge.check_rule(rule))
+        # A record from before TIES's mean was a setting replays with the default mean.
+        old = json.loads(Path('dare-ties/round.json').read_text())
+        del old['rule']['ties_mean']
+        Path('dare-ties/round.json').write_text(json.dumps(old))
+        self.assertNotIn('ties_mean', merge.replay(Path('dare-ties/round.json'))['rule'])
+        # The unbiased mean replays too, and merges differently.
+        unbiased = merge.run_round(Path('dare-ties-all'), self.workers, rule={**rule, 'ties_mean': 'all'})
+        self.assertEqual(merge.replay(Path('dare-ties-all/round.json'))['rule']['ties_mean'], 'all')
+        self.assertNotEqual(unbiased['merged'].get('weights_sha256'), record['merged'].get('weights_sha256'))
         # A budget no payload fits: every worker is refused.
         record, merged = merge.merge_round(self.anchor, self.workers, rule={'dare': {'method': 'random', 'p': 0.0}})
         self.assertTrue(all('over the 16,384-byte budget' in c['reason'] for c in record['contributors']))

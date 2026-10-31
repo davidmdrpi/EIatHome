@@ -162,7 +162,11 @@ python -m tracks.llm.merge round --merge ties --dare-p 0.9 --soup greedy \
   - **TIES** (`--merge ties`, `--ties-keep k`): trim each delta to its largest fraction k,
     elect each parameter's sign as the sign of the weighted sum, and average only the nonzero
     entries that agree with it. A delta that's zero at a parameter doesn't pull the others
-    toward zero there.
+    toward zero there. `--ties-mean all` (milestone 5) divides the agreeing entries' weighted
+    sum by every contributor's weight instead. After DARE that's the unbiased choice: DARE's
+    1/(1 − p) keeps a sum over all contributors right on average, while TIES's own mean, over
+    the survivors alone, keeps that factor on every entry. A round recorded before the setting
+    existed replays with TIES's own mean.
   - **Greedy soup** (`--soup greedy`): the accepted workers are tried best first by
     validation. Each is kept only if the merge scores lower on validation with it than without
     it. A worker that barely moved from the incumbent can't dilute the others unless it helps.
@@ -257,7 +261,28 @@ python -m tracks.llm.moe_ablation --output runs/moe-ablation             # the m
 
 The Live Lab's token transformer is a different model, in TF.js, so it has an anchor of its own
 (`token-anchor/v1`, [web/js/anchor.js](../../web/js/anchor.js)) and a merge work unit in the
-browser (milestone 4; results in [MERGE_RESULTS.md](MERGE_RESULTS.md)).
+browser (milestones 4 and 5; results in [MERGE_RESULTS.md](MERGE_RESULTS.md)).
+
+### Routing whole sequences to the specialist bank
+
+Milestone 5 ([route_bench.py](route_bench.py)) keeps milestone 3b's warm specialists whole and
+picks one for each sequence without the family label, from the tokens already seen, so no
+target helps choose the model that predicts it. The routers score each specialist before each
+target:
+
+- by the sequence's first token, or by every token so far, using its family's token
+  frequencies (naive Bayes over 99 numbers);
+- by the specialists' own likelihood of the tokens so far, followed throughout or committed
+  after 4 or 8 tokens;
+- or as a posterior-weighted mixture of all three specialists.
+
+One router is chosen on validation by the mean over families, and the concatenated choice is
+recorded beside it. The benchmark also retrains milestone 3b's dense rivals and chooses their
+epoch both ways, the selection check that milestone 3b's review asked for.
+
+```bash
+python -m tracks.llm.route_bench --output runs/route-bench   # about half an hour on a CPU
+```
 
 ## What the pipeline learns
 

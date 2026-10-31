@@ -277,8 +277,9 @@ The first browser work unit, `track-a/v0`, replicates the Hello, Voyager noteboo
 `recovery/v0`, hides synthetic signals in real off-source data and measures which ones the
 de-Doppler and energy detectors find at a fixed false-alarm rate. Its cards are recomputed when
 submitted, and the Recovery tab adds units up into recovery curves per signal class. The third,
-`trackb-merge/v0`, trains Track B's token transformer four times from one pinned start and
-merges the runs, reporting a summary of the merge rather than weights. The table
+`trackb-merge/v1`, trains Track B's token transformer from one pinned start in three sets of
+four runs (seeds on all the text, disjoint shards, and shards from a short warm start) and
+merges each set, reporting a summary of the merges rather than weights. The table
 below is the full plan. Heavier units (raw voltages, long sweeps) may later move to BOINC,
 whose replication and quorum checks validate results automatically.
 
@@ -357,7 +358,7 @@ EIatHome/
 - [x] A review of the results computed in a browser, from the viewport and observatory mode: what each unit measured, which cards await submission, and which were accepted into the community results; cards that exist nowhere else are never dropped to make room
 - [x] A shared anchor for signal-LM runs: a pinned codebook and a deterministic starting checkpoint θ₀, so runs' task vectors line up ([issue #20](https://github.com/davidmdrpi/EIatHome/issues/20), milestone 1)
 - [x] A pinned anchor for the Live Lab's token transformer, and a merge work unit whose cards carry a DARE-TIES summary instead of weights (issue #20, milestone 4)
-- [ ] Merging volunteer runs: DARE-TIES with a validation gate and DiLoCo, then a mixture-of-experts SignalLM upcycled from family specialists (issue #20, milestones 2 to 5)
+- [x] Merging volunteer runs: DARE-TIES with a validation gate and DiLoCo, a mixture of experts upcycled from family specialists, and a sequence router over the specialists, with the full benchmark ([MERGE_RESULTS.md](tracks/llm/MERGE_RESULTS.md); issue #20, milestones 2 to 5)
 - [ ] Public volunteer pilot
 - [ ] Heavier work units on BOINC, if needed (for example via [BOINC Central](https://boinc.berkeley.edu/central/scientist.php))
 
