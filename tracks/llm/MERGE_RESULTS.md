@@ -4,12 +4,58 @@
 from many volunteers into stronger models. Milestone 1 gave every run a shared anchor (a pinned
 codebook and starting weights θ₀; see [anchors/](anchors/README.md)), so their changes
 τ = θ − θ₀ line up. This file records what merging does on the published data, milestone by
-milestone: within one family (milestone 2), then across families (milestones 3 and 3b), then
-in the browser (milestone 4).
+milestone:
 
-Milestones 2 to 3b use one 2020 observing session: training, validation and test are three
-scans of the same cadence (`--allow-within-session`). Milestone 4 uses the browser's synthetic
-Rosetta text. None of it is evidence of generalization across sessions, or of language.
+- within one family (milestone 2);
+- across families (milestones 3 and 3b);
+- in the browser (milestone 4);
+- the open findings of all three, settled (milestone 5).
+
+Milestones 2 to 3b, and milestone 5's Python results, use one 2020 observing session: training,
+validation and test are three scans of the same cadence (`--allow-within-session`). The browser
+uses its synthetic Rosetta text. None of it is evidence of generalization across sessions, or
+of language.
+
+## Summary
+
+What issue #20 found, from milestone 1 to milestone 5. Test bits per token (lower is better),
+the mean over seeds or browser units. Each milestone's section has the full tables, ranges and
+caveats.
+
+| Question | Milestones | Best result | Against | Verdict |
+|---|---|---|---|---|
+| Can runs share a starting point? | 1, 4 | pinned codebooks and θ₀ rebuild bit for bit: anchors v1–v3 in Python, `token-anchor/v1` in the browser | | the prerequisite holds |
+| Merge shard workers once (Voyager, 3 shards) | 2 | greedy soup 2.65 | plain average 2.87; best worker 2.90; one worker on all the data 1.43 | beats every worker, far from training on all the data |
+| Merge over ten rounds | 2, 5 | plain average + DiLoCo 1.83 | plain average 2.42; one worker on all the data with a shard worker's steps, 1.60 | DiLoCo's momentum is the largest gain |
+| DARE-TIES in the ten-round chain | 2, 5 | 2.11 with DARE's 10× kept; 2.51 unbiased | the same chain without DARE or TIES, 2.34; without the soup too, 1.83 | the per-round soup causes the gap, not the rescale |
+| Compress a delta for a card (DARE, p = 0.9) | 2, 4, 5 | about 8 KB (Python model), 1.4 KB (browser model) | averaged, it costs 0.11 bits one-shot | fits a card; costly inside TIES or from a random start |
+| Mix families token by token (Branch-Train-MiX) | 3, 3b | 3.76, the best mixture | dense rivals 3.56–3.73 | loses |
+| Keep family specialists whole, routed by sequence | 3b, 5 | 3.39 without the label (posterior mixture, chosen on validation); 3.43 committing after 8 tokens | 3.37 with the label; largest dense rival 3.56 | **wins, without the label** |
+| Browser: 4 seeds on all the text | 4, 5 | plain average 2.31 | the kept seed 2.31 | nothing to merge |
+| Browser: 4 disjoint shards from θ₀ | 5 | plain average 2.48 | the kept shard worker 2.49 (ahead in 6 of 10 units) | level |
+| Browser: 4 shards from a 3-epoch warm start | 5 | TIES 2.43; plain average 2.46 | the kept worker 2.49 (each ahead in 9 of 10 units); one worker on all the text 2.31 | **beats the workers**, not the full-data worker |
+
+**What holds up:**
+
+- **Within a family, DiLoCo over rounds.** The plain average with Nesterov outer momentum
+  closes most of the gap to a worker trained on all the data. A greedy soup helps once, to drop
+  a weak worker.
+- **Across families, keeping the specialists whole and routing whole sequences.** No family
+  label is needed, and it beats parameter-matched dense models trained on twice the budget.
+- **In the browser, merging shards from a shared warm start.** From a trained start, TIES and
+  the plain average beat the workers.
+
+**What doesn't:**
+
+- **Token-level mixtures of experts** with merged backbones.
+- **TIES or DARE from a random start**, where a task vector is the whole model.
+- **DARE's rescale inside TIES's average over survivors.**
+- **A greedy soup in every round.**
+- **No merge in any setting reaches one model trained on all the data.**
+
+Nothing here shows English learned beyond byte statistics. On Rosetta, a byte-statistics
+control that knows the UTF-8 framing, scored over the 16 symbols, does as well as or better
+than every model.
 
 ## Milestone 2: merging within a family
 
@@ -721,8 +767,8 @@ The cards' summaries of the deltas:
   TIES averages only the entries that survive, though, so every surviving entry stays 10 times
   too large. A unit test checks this: identical seeds come out scaled by 10 wherever DARE kept
   an entry.
-  - Milestone 2 uses the same arithmetic. Its DARE-TIES chain stalled on momentum overshoot,
-    and this rescale may be part of that; it wasn't tested there.
+  - Milestone 2 uses the same arithmetic. Milestone 5 tested whether this rescale held its
+    DARE-TIES chain back: it didn't (see milestone 5).
 - **TIES has no conflicts to resolve here.**
   - The seeds change 86% of the weights they all change in the same direction, and their task
     vectors point the same way (cosine 0.95).
@@ -913,7 +959,77 @@ row exactly. The added rows:
   - Unbiased DARE is still the right way to compress a delta for a card. The one-shot cost of
     compression is 0.11 bits (2.98 against 2.87).
 
-BROWSER_SECTION_PLACEHOLDER
+### 3. Shards and a warm start in the browser (`trackb-merge/v1`)
+
+Milestone 4's seeds all saw the same text, so there was nothing for a merge to add. The browser's
+new spec, `trackb-merge/v1` ([`web/js/merge.js`](../../web/js/merge.js)), runs three sets of 4
+workers per unit on the same Rosetta text and anchor:
+
+- **seeds:** milestone 4's unit exactly: the same seeds, data and settings, and the same
+  numbers;
+- **shards:** each worker trains from θ₀ on its own quarter of the training text, in order
+  (623 to 639 targets each);
+- **warm shards:** the same quarters, from a shared warm start: θ₀ trained 3 epochs on all the
+  training text, keeping its best validation epoch.
+
+Each set is merged five ways: milestone 4's four, and DARE then TIES with the mean over all
+workers. The kept worker is each set's best on validation. The seeds set's kept worker is the
+one trained on all the text.
+
+The card is about 2.9 KB, with a 4,650-character issue link, under the 7,500 limit. As in
+milestone 4, ingestion recomputes what follows from the spec: here per set, each DARE payload's
+size, the share DARE keeps, and the unigram baseline.
+
+**Results:** units 0–9, on WebAssembly in headless Chromium, about 53 s per unit. Test bits per
+token on the 719 held-out targets, mean over units (range). The last column counts the units in
+which the merge beats the set's kept worker.
+
+| | Seeds, all the text | Shards, from θ₀ | Shards, from the warm start | Beats the kept worker (seeds, shards, warm shards) |
+|---|---:|---:|---:|---:|
+| kept worker (best on validation) | 2.31 (2.28–2.32) | 2.49 (2.42–2.57) | 2.49 (2.45–2.52) | |
+| best worker on test (an oracle) | 2.30 (2.28–2.31) | 2.48 (2.42–2.51) | 2.46 (2.43–2.51) | |
+| **plain average** | 2.31 (2.30–2.31) | 2.48 (2.45–2.53) | **2.46** (2.44–2.47) | 6, 6, **9** of 10 |
+| DARE, then the average | 4.26 (3.46–6.61) | 3.56 (2.93–4.07) | 2.74 (2.54–2.95) | 0, 0, 0 |
+| **TIES** | 3.59 (3.45–3.69) | 2.80 (2.68–2.89) | **2.43** (2.36–2.47) | 0, 0, **9** |
+| DARE, then TIES (TIES's own mean) | 47.1 (28.3–75.4) | 50.5 (24.9–87.6) | 11.7 (7.8–16.1) | 0, 0, 0 |
+| DARE, then TIES (mean over all workers) | 4.26 (3.46–6.62) | 3.57 (2.96–4.10) | 2.74 (2.54–2.96) | 0, 0, 0 |
+| sign agreement across workers | 0.86 | 0.61 | 0.51 | |
+| mean pairwise cosine of τ | 0.95 | 0.71 | 0.63 | |
+
+For scale: θ₀ scores 5.71, the unigram baseline 3.33, and the warm start alone 2.70.
+
+**What this shows:**
+
+- **Merging beats the workers once they see different data and share a trained start.** From
+  the warm start, TIES (2.43) beats the kept worker in 9 of 10 units, by 0.06 bits on average,
+  and the best worker on test in 7. The plain average (2.46) beats the kept worker in 9.
+- **From θ₀, sharding alone isn't enough.** The plain average is level with the kept shard
+  worker (2.48 against 2.49, ahead in 6 of 10), and TIES and DARE still cost 0.3–1 bits.
+- **The warm start is what turns TIES around:** 3.59 for the seeds and 2.80 for the shards
+  from θ₀, but 2.43 from the warm start.
+  - From a trained start, each change is a smaller adjustment on top of shared structure.
+    Trimming its smallest 80% loses little, and sign election has something to do: the warm
+    shards agree in sign on only 51% of the weights they all change.
+  - That matches what TIES was designed for: fine-tuning deltas from a pretrained base.
+- **No merge reaches one worker on all the text** (2.31) in any unit. Within the same total
+  data and epochs, training together still beats training apart and merging, as in milestone 2.
+- **DARE's factor inside TIES blows up in every set** (12–51 bits). The mean over all workers
+  removes it, and then matches DARE then the average to two decimals, since sign election
+  drops almost nothing. Compression itself still costs 0.3 bits from the warm start (2.74
+  against 2.46), and far more from θ₀.
+
+### Limitations of milestone 5
+
+- **The router's families are easy:** three families whose sequences cost 1–3 bits more on the
+  wrong specialist. Families closer together, or sequences that mix them, would be harder.
+- **The best router isn't cheap:** the posterior mixture runs all three specialists per token.
+- **Still one session, three seeds,** for the Python results. The data are tiny, as in every
+  milestone.
+- **The browser's sets use one corpus,** in order: each shard is a different stretch of the
+  text, so shards also differ in what they're about. The warm start's length (3 epochs) was
+  fixed before any run and not tuned. One backend was measured.
+- **The chains' soup** is milestone 2's. A soup that must keep at least two shards a round is
+  untested.
 
 ## Next
 
