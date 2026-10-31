@@ -148,22 +148,27 @@ class AlgorithmTests(unittest.TestCase):
         self.assertAlmostEqual(ratio(merged['all']), 1.0, delta=0.05)
         self.assertAlmostEqual(ratio(merged['agreeing']), 10 * (1 - 0.9 ** 3), delta=0.2)
 
-    def test_the_all_contributor_denominator_is_unbiased_only_where_signs_agree(self):
-        # The exact expectation over every DARE mask (p = 0.5, survivors doubled), for one parameter.
-        def expected(deltas, mean, p=0.5):
-            total = 0.0
-            for mask in itertools.product((0, 1), repeat=len(deltas)):
-                chance = np.prod([1 - p if kept else p for kept in mask])
-                flats = [np.array([kept * d / (1 - p)]) for kept, d in zip(mask, deltas)]
-                total += chance * merge.ties(flats, [1 / len(deltas)] * len(deltas), 1.0, mean)[0]
+    def test_the_all_contributor_denominator_is_unbiased_only_where_signs_agree_and_nothing_is_trimmed(self):
+        # The exact expectation over every DARE mask (p = 0.5, survivors doubled), entry by entry.
+        def expected(deltas, mean, keep=1.0, p=0.5):
+            deltas = [np.atleast_1d(np.asarray(d, dtype=np.float64)) for d in deltas]
+            total = np.zeros_like(deltas[0])
+            for mask in itertools.product((0, 1), repeat=sum(d.size for d in deltas)):
+                kept = np.reshape(mask, (len(deltas), -1))
+                chance = np.prod(np.where(kept, 1 - p, p))
+                flats = [k * d / (1 - p) for k, d in zip(kept, deltas)]
+                total += chance * merge.ties(flats, [1 / len(deltas)] * len(deltas), keep, mean)
             return total
 
         # Agreeing deltas: the weighted mean (2) in expectation, against 1.5 times it for TIES's own mean.
-        self.assertAlmostEqual(expected([2.0, 2.0], 'all'), 2.0)
-        self.assertAlmostEqual(expected([2.0, 2.0], 'agreeing'), 3.0)
+        np.testing.assert_allclose(expected([2.0, 2.0], 'all'), [2.0])
+        np.testing.assert_allclose(expected([2.0, 2.0], 'agreeing'), [3.0])
         # Opposing deltas: sign election leans to whichever survives, so 0.75 against the mean of 0.5.
-        self.assertAlmostEqual(expected([2.0, -1.0], 'all'), 0.75)
-        self.assertAlmostEqual(np.mean([2.0, -1.0]), 0.5)
+        np.testing.assert_allclose(expected([2.0, -1.0], 'all'), [0.75])
+        # Identical, agreeing workers, trimmed after the drop to their larger half: the smaller entry
+        # survives the trim mainly when the larger was dropped, so [2, 0.5] against [2, 1].
+        np.testing.assert_allclose(expected([[2.0, 1.0], [2.0, 1.0]], 'all', keep=0.5), [2.0, 0.5])
+        np.testing.assert_allclose(expected([[2.0, 1.0], [2.0, 1.0]], 'all', keep=1.0), [2.0, 1.0])
 
     def test_the_greedy_soup_tries_best_first_and_keeps_only_improvements(self):
         # Candidates by their own validation bits; a merge's score is looked up by its members.

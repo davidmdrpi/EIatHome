@@ -930,12 +930,18 @@ Milestone 5 adds an all-contributor denominator for TIES (`merge.py --ties-mean 
 divides the agreeing entries' weighted sum by every contributor's weight, so a dropped or
 disagreeing entry counts as zero.
 
-- **Where the workers agree in sign,** this removes DARE's factor and makes the merge unbiased.
-  Averaging unrescaled survivors, the other fix, would shrink each entry by 1 − p³ and stay
-  biased.
+- **Where the workers agree in sign and TIES trims no survivor,** this removes DARE's factor
+  and makes the merge unbiased (for random DARE, before int8 quantization). Averaging
+  unrescaled survivors, the other fix, would shrink each entry by 1 − p³ and stay biased.
+  - Milestone 2's rule trims nothing (keep 1). In the browser, keeping the largest 20% of
+    entries keeps all of DARE's 10% survivors.
 - **Where they disagree,** sign election isn't linear, so the merge still leans to whichever
   side survives the drop. With deltas +2 and −1 and p = 0.5, its expectation is 0.75 against a
-  mean of 0.5. The tests enumerate both cases exactly.
+  mean of 0.5.
+- **A trim after the drop biases it too,** even for identical workers. A smaller entry then
+  survives the trim mainly when a larger one was dropped. Identical workers [2, 1] at p = 0.5,
+  keeping the larger half, give [2, 0.5] in expectation against [2, 1].
+- The tests enumerate all three cases exactly.
 
 Rerunning milestone 2's benchmark ([`merge_bench.py`](merge_bench.py)) reproduces every earlier
 row exactly. The added rows:

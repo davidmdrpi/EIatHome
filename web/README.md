@@ -82,7 +82,8 @@ and are rejected when they don't match their spec: an input besides the pinned c
 anchor, or DARE payload sizes, a kept share or a unigram baseline that differ from what the
 unit's seeds and corpus give. For v1 it also checks that the seeds set is v0's unit, that the
 shards are the training text in order without overlap, that TIES's mean over all workers keeps
-the expected merge where the workers agree in sign (and not where they disagree), and that a
+the expected merge where the workers agree in sign and the trim removes no survivor (and not
+when they disagree, or when trimming after the drop removes survivors), and that a
 malformed value anywhere in a card is rejected, never thrown on.
 `tests/community.test.mjs` checks card validation, replication summaries and the ingestion
 script, and `tests/ingest_issues.test.mjs` runs the ingestion driver against a local git

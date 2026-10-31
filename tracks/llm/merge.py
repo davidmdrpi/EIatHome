@@ -24,9 +24,11 @@ The rule (all optional; the default is the plain baseline, an average by trainin
   sum by every contributor's weight instead, an all-contributor denominator (milestone 5).
   After DARE it removes the factor TIES's own mean keeps: DARE scales its survivors by
   1/(1 − p) so that a sum over all contributors keeps its expected value, while a mean over the
-  survivors alone keeps that factor on every entry. It's unbiased only where the contributors
-  agree in sign: sign election isn't linear, so where they disagree, the merge still leans to
-  whichever side survives the drop.
+  survivors alone keeps that factor on every entry. For random DARE, before int8 quantization,
+  it's unbiased only on entries where the contributors agree in sign and TIES trims no
+  survivor (--ties-keep 1). Sign election isn't linear, so where they disagree the merge leans to
+  whichever side survives the drop; and trimming by magnitude after the drop keeps a smaller
+  entry mainly when a larger one was dropped.
 - Greedy soup (--soup greedy): workers are tried best first by validation, each kept only if
   the merge improves with it, so a worker that barely moved can't dilute the others.
 - DiLoCo (--outer-lr, --outer-momentum): the merged delta is a pseudo-gradient for an outer
@@ -431,8 +433,9 @@ def ties(flats, weights, keep, mean="agreeing"):
     mean="all" divides the agreeing entries' weighted sum by every contributor's weight instead
     (an all-contributor denominator), so a zero or disagreeing entry counts as zero. For DARE's
     rescaled survivors it removes the factor 1/(1 − p) that TIES's own mean keeps on each one.
-    Where the contributors agree in sign that makes the merge's expected value the weighted
-    mean; where they disagree, sign election still biases it."""
+    For random DARE before quantization, the merge's expected value is then the weighted mean
+    on entries where the contributors agree in sign and the trim removes no survivor (keep=1).
+    Where they disagree, sign election biases it; a trim by magnitude after the drop does too."""
     trimmed = np.stack([trim(f, keep) for f in flats])
     w = np.asarray(weights, dtype=np.float64)[:, None]
     elected = np.sign((w * trimmed).sum(axis=0))

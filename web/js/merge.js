@@ -130,8 +130,11 @@ export function trim(flat, keep) {
 // disagree with their parameter's elected sign: what the election throws away.
 // mean 'all' divides the agreeing entries' weighted sum by every delta's weight instead, so a
 // zero or disagreeing entry counts as zero (milestone 5). After DARE it removes the 1/(1 − p)
-// that TIES's own mean, over the survivors, keeps on every entry. It's unbiased only where the
-// deltas agree in sign: where they disagree, sign election leans to whichever side survives.
+// that TIES's own mean, over the survivors, keeps on every entry. For random DARE before int8
+// quantization, it's unbiased only on entries where the deltas agree in sign and the trim
+// removes no survivor (keep 1, or keep above DARE's survival share, as in these units): sign
+// election leans to whichever side survives, and trimming after the drop favours small entries
+// whose larger neighbours were dropped.
 export function ties(flats, weights, keep, mean = 'agreeing') {
   const trimmed = flats.map((f) => trim(f, keep));
   const n = flats[0].length;

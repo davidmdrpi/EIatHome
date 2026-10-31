@@ -157,20 +157,29 @@ test('TIES trims, elects each sign from the weighted sum, and averages only the 
   [4 / 3, -2 / 3, 0.5 / 3, 0].forEach((v, i) => assert.ok(close(all[i], v), `parameter ${i}: ${all[i]}`));
 });
 
-test('after DARE, the all-worker denominator is unbiased where workers agree in sign, and not where they disagree', () => {
-  // The exact expectation over every DARE mask (p = 0.5, survivors doubled), for one parameter.
-  const expected = (deltas, mean, p = 0.5) => {
-    let total = 0;
-    for (let mask = 0; mask < 2 ** deltas.length; mask++) {
-      const kept = deltas.map((_, i) => (mask >> i) & 1);
-      const chance = kept.reduce((c, k) => c * (k ? 1 - p : p), 1);
-      const flats = deltas.map((d, i) => Float32Array.of((kept[i] * d) / (1 - p)));
-      total += chance * ties(flats, deltas.map(() => 1 / deltas.length), 1, mean).delta[0];
+test('after DARE, the all-worker denominator is unbiased only where workers agree in sign and nothing is trimmed', () => {
+  // The exact expectation over every DARE mask (p = 0.5, survivors doubled), entry by entry.
+  const expected = (deltas, mean, keep = 1, p = 0.5) => {
+    const size = deltas[0].length;
+    const total = new Float64Array(size);
+    for (let mask = 0; mask < 2 ** (deltas.length * size); mask++) {
+      const kept = (w, j) => (mask >> (w * size + j)) & 1;
+      let chance = 1;
+      const flats = deltas.map((d, w) => Float32Array.from(d, (v, j) => {
+        chance *= kept(w, j) ? 1 - p : p;
+        return (kept(w, j) * v) / (1 - p);
+      }));
+      ties(flats, deltas.map(() => 1 / deltas.length), keep, mean).delta.forEach((v, j) => (total[j] += chance * v));
     }
-    return total;
+    return [...total];
   };
-  assert.ok(close(expected([2, 2], 'all'), 2) && close(expected([2, 2], 'agreeing'), 3));
-  assert.ok(close(expected([2, -1], 'all'), 0.75), 'against the mean of 0.5: sign election leans to the survivor');
+  assert.ok(close(expected([[2], [2]], 'all')[0], 2) && close(expected([[2], [2]], 'agreeing')[0], 3));
+  assert.ok(close(expected([[2], [-1]], 'all')[0], 0.75), 'against the mean of 0.5: sign election leans to the survivor');
+  // Identical, agreeing workers trimmed after the drop to their larger half: [2, 0.5] against [2, 1].
+  const trimmed = expected([[2, 1], [2, 1]], 'all', 0.5);
+  assert.ok(close(trimmed[0], 2) && close(trimmed[1], 0.5), `${trimmed}`);
+  const untrimmed = expected([[2, 1], [2, 1]], 'all', 1);
+  assert.ok(close(untrimmed[0], 2) && close(untrimmed[1], 1), `${untrimmed}`);
 });
 
 test('sign agreement counts the parameters every delta changes, and cosine their alignment', () => {
