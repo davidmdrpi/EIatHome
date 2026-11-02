@@ -3,13 +3,34 @@ import { test } from 'node:test';
 
 import { matchedSize, matchedTokenWidth, parameterCount, tokenParameterCount } from '../web/js/models.js';
 import { deriveSeed, makeRng } from '../web/js/rng.js';
-import { C, T, makeSnippet, normalise, rosettaSymbols } from '../web/js/signals.js';
+import { C, FAMILIES, T, WOW_PRINTOUT, makeSnippet, normalise, rosettaSymbols, wowIntensities } from '../web/js/signals.js';
 import { canonicalOrder, datasetId, parseSlice } from '../web/js/slices.js';
 import { holdoutSplits, mjdDate, sessionPools } from '../web/js/splits.js';
 import { analyzeSplits, compressedBitsPerToken, conditionalEntropies, controlProfile, fitMarkov, fitNgram, heldOutCrossEntropy, mutualInformation, sampleMarkov, shuffleWithin, targetCount } from '../web/js/trackb.js';
 import { rosettaSplits } from '../web/js/trackb-splits.js';
-import { ROSETTA_CORPUS, workUnitConfig } from '../web/js/workunits.js';
+import { ROSETTA_CORPUS, SPEC_FAMILIES, workUnitConfig } from '../web/js/workunits.js';
 import { entry, lineSlice, publishedSlices, sha256, sliceBytes } from './fixtures.mjs';
+
+test('the Wow! signal is its six printout readings, in consecutive steps of one channel', () => {
+  // 6EQUJ5: 6, 14, 26, 30, 19 and 5 times the noise, read as the middle of each unit.
+  assert.equal(WOW_PRINTOUT, '6EQUJ5');
+  assert.deepEqual(wowIntensities(), [6.5, 14.5, 26.5, 30.5, 19.5, 5.5]);
+  for (const seed of [1, 2, 3, 4]) {
+    const { raw, label } = makeSnippet('wow', makeRng(seed));
+    const plain = makeSnippet('noise', makeRng(seed)).raw; // the same noise draws, with nothing added
+    const added = Array.from(raw, (v, i) => v - plain[i]);
+    const lit = added.flatMap((v, i) => (Math.abs(v) > 1e-4 ? [[Math.floor(i / C), i % C, v]] : []));
+    assert.deepEqual(lit.map(([t]) => t), [0, 1, 2, 3, 4, 5].map((i) => label.start + i), `seed ${seed}: consecutive steps`);
+    assert.ok(lit.every(([, c]) => c === label.channel) && Math.abs(label.channel - C / 2) <= 8, `seed ${seed}: one channel near the middle`);
+    lit.forEach(([, , v], i) => assert.ok(Math.abs(v - wowIntensities()[i]) < 1e-4, `seed ${seed}, reading ${i}`));
+    assert.ok(label.start >= 0 && label.start + 6 <= T);
+  }
+});
+
+test('track-a/v0 keeps the families it was defined with, whatever the Live Lab adds', () => {
+  assert.deepEqual(SPEC_FAMILIES, ['voyager', 'offsource', 'tone', 'pulsed', 'sweep', 'rosetta', 'randfsk', 'noise']);
+  assert.deepEqual(FAMILIES.map((f) => f.id).filter((id) => !SPEC_FAMILIES.includes(id)), ['wow']);
+});
 
 test('slice loading verifies the SHA-256 of the bytes', async () => {
   const ones = sliceBytes(() => 1);

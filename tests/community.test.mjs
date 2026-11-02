@@ -34,6 +34,11 @@ test('cards that would not replicate are rejected', async () => {
   const oldFormat = await makeCard(7);
   oldFormat.version = 1;
   assert.match(validateCard(oldFormat).join(' '), /version/);
+
+  // The Wow! signal joined the Live Lab after track-a/v0 was defined, so a v0 card can't include it.
+  const withWow = await makeCard(7);
+  withWow.families.push('wow');
+  assert.match(validateCard(withWow).join(' '), /families. must be exactly: tone, pulsed, sweep, rosetta, randfsk, noise/);
 });
 
 test('a card on the published slices must cover each of their families', async () => {

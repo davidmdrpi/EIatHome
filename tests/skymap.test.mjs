@@ -128,6 +128,22 @@ test('constellations come from the IAU boundaries, as tools/skycoords.py finds t
   for (const r of sky.references) assert.equal(at(r.ra_hours, r.dec_deg), r.constellation, r.label);
 });
 
+test('the Wow! signal is on the map at both of its possible fields, linked to its signal', () => {
+  const wow = sky.references.filter((r) => r.family === 'wow');
+  // Méndez et al. 2025 (Arecibo Wow! II): RA 19h25m02s or 19h27m55s, Dec −26°57′, J2000.
+  const hours = (h, m, s) => Number((h + m / 60 + s / 3600).toFixed(6));
+  assert.deepEqual(wow.map((r) => [r.id, r.ra_hours, r.dec_deg, r.constellation, r.epoch]), [
+    ['wow-1', hours(19, 25, 2), -26.95, 'Sagittarius', 'J2000'],
+    ['wow-2', hours(19, 27, 55), -26.95, 'Sagittarius', 'J2000'],
+  ]);
+  const apart = angleBetween(vec(wow[0].ra_hours * 15, wow[0].dec_deg), vec(wow[1].ra_hours * 15, wow[1].dec_deg));
+  assert.ok(apart > 0.6 && apart < 0.7, `the two feed horns' fields are ${apart.toFixed(2)}° apart`);
+  for (const r of wow) {
+    assert.match(r.note, /Big Ear.*1420 MHz.*72 seconds.*one of two fields/);
+    assert.ok(sky.fields.some((f) => f.name === r.label && f.stars.length > 50), `${r.label}: its field's stars`);
+  }
+});
+
 test('the v2 manifest records where every slice pointed, for both Voyager sessions', () => {
   assert.equal(slices.version, 2);
   const dates = new Set();

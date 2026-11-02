@@ -1,5 +1,6 @@
 // Signal families for the Live Lab: two real ones from pre-extracted slices (Voyager 1, and
-// the off-source scans of the same cadence) and several synthetic controls with known answers.
+// the off-source scans of the same cadence), a reconstruction of the 1977 Wow! signal, and
+// several synthetic controls with known answers.
 // Every generator returns a raw snippet in noise-sigma units (T time steps x C channels,
 // row-major), before normalization.
 
@@ -18,6 +19,12 @@ export const FAMILIES = [
     label: 'Off-source',
     real: true,
     about: 'Real Green Bank data from the same cadence with the telescope pointed 1° away from Voyager 1: the same receiver, frequencies and processing, at the channels where Voyager’s signals would be, but nothing in the beam. The real-data counterpart of Noise.',
+  },
+  {
+    id: 'wow',
+    label: 'Wow! signal (1977)',
+    source: 'Reconstructed in this browser from the Big Ear printout (6EQUJ5); the raw data no longer exist',
+    about: 'A reconstruction of the Wow! signal. On 15 August 1977 Ohio State University’s Big Ear telescope recorded a narrowband signal near the 1420 MHz hydrogen line, in one 10 kHz channel, for the 72 seconds Sagittarius took to drift through its beam; it has never been seen again. Only its intensity survives, one reading every 12 seconds: 6EQUJ5 on the printout, up to about 30 times the noise. Here those six readings, one per time step, light a single channel in noise.',
   },
   { id: 'tone', label: 'Drifting tone', about: 'A narrow line drifting at a constant rate, like a transmitter on a moving planet.' },
   { id: 'pulsed', label: 'Pulsed', about: 'A drifting tone switched on and off with a fixed period.' },
@@ -41,6 +48,12 @@ But, in a larger sense, we can not dedicate -- we can not consecrate -- we can n
 We the People of the United States, in Order to form a more perfect Union, establish Justice, insure domestic Tranquility, provide for the common defence, promote the general Welfare, and secure the Blessings of Liberty to ourselves and our Posterity, do ordain and establish this Constitution for the United States of America.`;
 
 // UTF-8 bytes -> 4-bit symbols (high nibble, then low nibble). No compression, no scrambling.
+// The Wow! signal's intensities on the Big Ear printout, one character per 12-second reading,
+// in units of the background noise: 0–9, then A = 10 to Z = 35. A character gives the whole
+// number below the reading, so the reconstruction uses the middle of each unit.
+export const WOW_PRINTOUT = '6EQUJ5';
+export const wowIntensities = () => [...WOW_PRINTOUT].map((c) => parseInt(c, 36) + 0.5);
+
 export function textToSymbols(text) {
   const bytes = new TextEncoder().encode(text);
   const symbols = new Uint8Array(bytes.length * 2);
@@ -126,6 +139,18 @@ const GENERATORS = {
     const centre = C / 2 + rng.uniform(-4, 4);
     addLine(x, (u) => centre + drift * (u - T / 2), (t) => ((t + phase) % period < on ? flux : 0));
     return { raw: x, label: { drift, flux, period } };
+  },
+
+  // The Wow! signal as Big Ear recorded it: its six readings in consecutive time steps, at a
+  // random point of the snippet, in one channel near the middle (narrower than a channel, with
+  // no drift Big Ear could see), on top of the noise. The raw data no longer exist.
+  wow(rng) {
+    const x = noise(rng);
+    const levels = wowIntensities();
+    const start = rng.int(0, T - levels.length + 1);
+    const channel = C / 2 + rng.int(-8, 9);
+    levels.forEach((level, i) => (x[(start + i) * C + channel] += level));
+    return { raw: x, label: { start, channel } };
   },
 
   sweep(rng) {

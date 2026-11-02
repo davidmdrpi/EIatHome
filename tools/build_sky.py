@@ -57,6 +57,22 @@ REFERENCES = [
      "distance_label": "about 26,700 light-years", "note": "Sagittarius A*; Breakthrough Listen surveyed the region with the Green Bank Telescope."},
 ]
 
+# The Wow! signal, 15 August 1977. Big Ear had two feed horns and the signal appeared in only one,
+# so it came from one of two fields at the same declination. Positions from the reanalysis of the
+# archival Ohio SETI data (Méndez et al. 2025, "Arecibo Wow! II", arXiv:2508.10657): right ascension
+# 19h25m02s or 19h27m55s, ±3 s; declination −26°57′ ±20′; J2000.
+WOW = ("On 15 August 1977 Ohio State University's Big Ear telescope recorded a narrowband signal near the 1420 MHz "
+       "hydrogen line for 72 seconds, up to about 30 times the noise; Jerry Ehman circled it on the printout and wrote "
+       "\"Wow!\". It has never been seen again. It came through one of Big Ear's two feed horns, so from one of two fields")
+REFERENCES += [
+    {"id": "wow-1", "label": "Wow! signal, field 1", "ra_hours": round(19 + 25 / 60 + 2 / 3600, 6), "dec_deg": -26.95,
+     "distance_label": "Source unknown", "telescope": "Big Ear, Ohio State University",
+     "note": f"{WOW}; this is the first (RA ±3 s, Dec ±20′; Méndez et al. 2025, Arecibo Wow! II).", "family": "wow"},
+    {"id": "wow-2", "label": "Wow! signal, field 2", "ra_hours": round(19 + 27 / 60 + 55 / 3600, 6), "dec_deg": -26.95,
+     "distance_label": "Source unknown", "telescope": "Big Ear, Ohio State University",
+     "note": f"{WOW}; this is the second (RA ±3 s, Dec ±20′; Méndez et al. 2025, Arecibo Wow! II).", "family": "wow"},
+]
+
 
 def download():
     with urllib.request.urlopen(PACKAGE, timeout=120) as response:

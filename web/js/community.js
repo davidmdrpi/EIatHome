@@ -3,8 +3,8 @@
 
 import { isMergeCard, validateMergeCard } from './merge.js';
 import { RECOVERY_SPEC, validateRecoveryCard } from './recovery.js';
-import { FAMILIES, REAL_FAMILIES } from './signals.js';
-import { MAX_UNIT, RESULT_CARD_VERSION, ROSETTA_CORPUS, SPEC, workUnitConfig } from './workunits.js';
+import { REAL_FAMILIES } from './signals.js';
+import { MAX_UNIT, RESULT_CARD_VERSION, ROSETTA_CORPUS, SPEC, SPEC_FAMILIES, workUnitConfig } from './workunits.js';
 
 export const RESULTS_FORMAT = 'eiathome-community-results';
 export const MAX_CARD_BYTES = 16 * 1024;
@@ -12,7 +12,6 @@ export const MAX_CARD_BYTES = 16 * 1024;
 // Different backends (WebAssembly, WebGPU, WebGL) take different floating-point paths.
 export const AGREEMENT_TOLERANCE = 0.02;
 const BACKENDS = ['wasm', 'webgpu', 'webgl', 'cpu'];
-const FAMILY_IDS = FAMILIES.map((f) => f.id);
 const isNumberOrNull = (v) => v === null || Number.isFinite(v);
 
 // GitHub refuses longer request URLs ("Whoa there! Your request URL is too long"): 8,180
@@ -90,7 +89,7 @@ export function validateCard(card, { published = null } = {}) {
   if (typeof card.started !== 'string' || Number.isNaN(Date.parse(card.started))) fail('`started` must be a date.');
 
   const families = card.families;
-  const expected = FAMILY_IDS.filter((f) => !REAL_FAMILIES.includes(f) || (usedPublished && published.families.includes(f)));
+  const expected = SPEC_FAMILIES.filter((f) => !REAL_FAMILIES.includes(f) || (usedPublished && published.families.includes(f)));
   if (!Array.isArray(families) || families.length !== expected.length || !expected.every((f) => families.includes(f))) {
     fail(`\`families\` must be exactly: ${expected.join(', ')}.`);
   }
