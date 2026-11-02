@@ -692,6 +692,31 @@ test('the observatory viewport slews to a signal on the sky, and clicking a beac
   await page.close();
 });
 
+test('the Wow! signal slews the map to where it came from, and both of its fields are on it', async () => {
+  const { page, errors } = await openLab();
+  await page.click('#families button[data-family="wow"]');
+  // The first of its two possible fields (Méndez et al. 2025): RA 19h25m02s, Dec −26°57′.
+  await page.waitForFunction(() => {
+    const [ra, dec] = document.querySelector('#lab-viewport canvas').dataset.center.split(',').map(Number);
+    return Math.abs(ra - 291.2583) < 0.01 && Math.abs(dec + 26.95) < 0.01;
+  }, null, { timeout: 15000 });
+  assert.match(await page.textContent('#lab-viewport .hud-target'), /Wow! signal, field 1[\s\S]*Sagittarius[\s\S]*Big Ear, Ohio State University/);
+  assert.match(await page.textContent('#family-about'), /6EQUJ5/);
+  // Track B says what its scores can and can't show for a reconstruction.
+  await page.waitForFunction(() => document.getElementById('tb-status').textContent.startsWith('Wow!'), null, { timeout: 60000 });
+  assert.match(await page.textContent('#tb-notes'), /fresh noisy copy of the same six printout readings[\s\S]*can’t show language, or any structure in the 1977 observation itself/);
+
+  // The second field, 0.6° east: clicking its beacon describes it, and the signal stays selected.
+  await page.waitForFunction(() => /wow-2 /.test(document.querySelector('#lab-viewport canvas').dataset.beacons), null, { timeout: 15000 });
+  const box = await (await page.$('#lab-viewport canvas')).boundingBox();
+  const { beacons } = await viewportState(page, 'lab-viewport');
+  await page.mouse.click(box.x + beacons['wow-2'][0], box.y + beacons['wow-2'][1]);
+  await page.waitForFunction(() => /Wow! signal, field 2/.test(document.querySelector('#lab-viewport .hud-target').textContent), null, { timeout: 10000 });
+  assert.equal(await page.getAttribute('#families button[data-family="wow"]', 'aria-checked'), 'true');
+  assert.deepEqual(errors, []);
+  await page.close();
+});
+
 test('a recovery unit zooms to the telescope beam and colours each of the 1,024 windows by its outcome', async () => {
   const { page, errors } = await openLab();
   await runRecovery(page, 21);

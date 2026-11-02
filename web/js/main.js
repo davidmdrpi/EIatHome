@@ -896,6 +896,7 @@ function refreshTargets() {
 // What a real family's loaded slices span, for the map's "Data from" line: every observing
 // session, not just the one its beacon marks. null when one session (the beacon's label says it).
 function dataSource(id) {
+  if (familyById[id]?.source) return familyById[id].source;
   const dated = state.slices.filter((s) => s.family === id && Number.isFinite(s.startMjd));
   const byDate = sessions(dated).map((g) => mjdDate(Math.min(...g.map((s) => s.startMjd))));
   if (byDate.length < 2) return null;
@@ -911,8 +912,11 @@ function unitDataSource() {
 }
 
 // The target a family's computations point at: its latest pointing (for off-source, the one the
-// recovery windows come from, if loaded), or the local marker for synthetic signals.
+// recovery windows come from, if loaded); for a reconstructed signal, where it came from (the
+// first of the sky data's references for it); or the local marker for synthetic signals.
 function targetForFamily(id) {
+  const reference = skyData?.references?.find((r) => r.family === id);
+  if (reference) return reference.id;
   if (!familyById[id]?.real) return 'local';
   const own = pointings().filter((t) => t.family === id).sort((a, b) => b.date.localeCompare(a.date) || Number(near(b, RECOVERY_DATA.sky)) - Number(near(a, RECOVERY_DATA.sky)));
   return own[0]?.id ?? null;

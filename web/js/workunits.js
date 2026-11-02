@@ -38,3 +38,8 @@ export function workUnitConfig(unit) {
 }
 
 export const MAX_UNIT = 9999;
+
+// The families track-a/v0 trains and evaluates on: the Live Lab's when the spec was defined. A
+// family added to the Live Lab later (the Wow! signal) is outside the spec, so its units and
+// cards stay as they were.
+export const SPEC_FAMILIES = ['voyager', 'offsource', 'tone', 'pulsed', 'sweep', 'rosetta', 'randfsk', 'noise'];

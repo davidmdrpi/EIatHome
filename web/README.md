@@ -31,13 +31,13 @@ browsers don't run module workers from `file://` URLs.
 | `js/merge.js` | The merge work units: `trackb-merge/v1` (seeds on all the text, shards from θ₀ and shards from a warm start, each merged five ways) and the earlier `trackb-merge/v0` (the seeds alone). Task vectors, DARE (with the int8 payload's size), TIES (its own mean, or the mean over all workers), sign agreement and the other delta summaries, and each spec's card and its checks |
 | `js/trackb-splits.js` | Track B's training, validation and test frames for each kind of family, split before anything is fitted |
 | `js/trackb.worker.js`, `js/trackb.js` | Track B: splits each family into training, validation and test segments, fits the k-means tokenizer and the shuffled and Markov-1 surrogates on the training split only, and measures held-out cross-entropy, conditional entropy, mutual information, Zipf and compression without crossing a segment boundary |
-| `js/signals.js` | Signal families (two real-data ones, Voyager 1 and off-source, and the synthetic controls) and the Rosetta text; snippet normalization |
+| `js/signals.js` | Signal families (two real-data ones, Voyager 1 and off-source; a reconstruction of the 1977 Wow! signal from its printout readings, 6EQUJ5; and the synthetic controls) and the Rosetta text; snippet normalization |
 | `js/slices.js` | Loads real-data micro-slices (`data/slices/`) or user-dropped files, verifies their SHA-256 and computes the dataset identity |
 | `js/splits.js` | Groups a real family's slices into observing sessions and keeps training and evaluation on different sessions |
 | `js/workunits.js` | Versioned work-unit specs (`track-a/v0`; the recovery and merge specs live in `js/recovery.js` and `js/merge.js`) |
 | `js/contributions.js` | What became of the result cards computed in this browser (computed here, saved to a file, opened on GitHub, accepted into the community results), and the rule for keeping them: a card is dropped to make room only if it's accepted or saved |
 | `js/skymap.js` | The Observatory viewport: a sky map on a canvas (stereographic projection, so stars stay round at any zoom). Slews along great circles to each signal's pointing, zooms from 60° to the 2° around the telescope beam with a computation's progress, and draws its live effects: wavefronts for Track A and B, and the 1,024-window grid for recovery units. Observatory mode fills the window and can keep running work units. A running job stays on the target whose data it uses, and the HUD names that data. The coordinate math has no DOM dependencies, so tests run it in Node |
-| `data/sky/` | The sky it draws (`tools/build_sky.py`): the 1,500 brightest Hipparcos stars with B−V colours, every Hipparcos star near the observed targets, constellation lines, names and IAU boundaries, and reference targets, from d3-celestial (BSD-3-Clause, notice in `LICENSE.d3-celestial.txt`) |
+| `data/sky/` | The sky it draws (`tools/build_sky.py`): the 1,500 brightest Hipparcos stars with B−V colours, every Hipparcos star near the observed targets, constellation lines, names and IAU boundaries, and reference targets (among them the Wow! signal's two possible fields), from d3-celestial (BSD-3-Clause, notice in `LICENSE.d3-celestial.txt`) |
 | `js/recovery.js`, `js/recovery.worker.js` | The `recovery/v0` work unit (`tracks/recovery`, issue #13): injects synthetic signals into the real off-source windows in `data/recovery/`, deals them blind to the de-Doppler and energy detectors, and counts what each finds at thresholds pinned in the spec. Also checks recovery cards and adds units up |
 | `js/rng.js` | Seeded random numbers, so everything is reproducible |
 | `js/plots.js` | Small canvas charts with hover tooltips |
@@ -134,7 +134,10 @@ manifest, a file or browser storage into `innerHTML`.
 
 - **Add a signal family:** add an entry to `FAMILIES` and a generator to `GENERATORS` in
   `js/signals.js`. It appears in the switcher, the gains table, the hidden-state map and
-  Track B automatically.
+  Track B automatically. It doesn't join `track-a/v0` work units: they keep the families of
+  their spec (`SPEC_FAMILIES` in `js/workunits.js`), so their cards stay comparable. To place a
+  family on the sky map, give a reference target in `tools/build_sky.py` its `family`, as the
+  Wow! signal's two fields have.
 - **Add a Track B metric:** write it in `js/trackb.js` so that it takes an array of token
   segments and never looks across their boundaries, compute it for every stream in
   `analyzeSplits()`, and plot it in `renderTrackB()` in `js/main.js`. Anything fitted (like a

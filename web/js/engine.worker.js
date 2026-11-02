@@ -12,7 +12,7 @@ import { ANCHOR, anchorTheta0, flatten, layoutProblems, unflatten } from './anch
 import { attentionStates, buildTokenModel } from './layers.js';
 import { ARMS, addDelta, armConfig, mergeCardV1, mergeConfigV1, mergeDeltas, mergeTokens, shardTrain, unigramBits } from './merge.js';
 import { TOKEN_WINDOW, matchedSize } from './models.js';
-import { APP_VERSION, RESULT_CARD_VERSION, ROSETTA_CORPUS, workUnitConfig } from './workunits.js';
+import { APP_VERSION, RESULT_CARD_VERSION, ROSETTA_CORPUS, SPEC, SPEC_FAMILIES, workUnitConfig } from './workunits.js';
 
 const tf = globalThis.tf;
 tf.wasm.setWasmPaths(new URL('../vendor/tfjs/', import.meta.url).href);
@@ -84,9 +84,10 @@ function snapshotInputs({ text = rosettaText } = {}) {
   return { slices: canonicalOrder(slices), text };
 }
 
-// Real families need slices of their own; synthetic ones are always available.
-function familiesAvailable(inputs) {
-  return FAMILIES.filter((f) => !f.real || inputs.slices.some((s) => s.family === f.id)).map((f) => f.id);
+// Real families need slices of their own; synthetic ones are always available. A work unit
+// uses only its spec's families (`only`), whatever the Live Lab has added since.
+function familiesAvailable(inputs, only = null) {
+  return FAMILIES.filter((f) => (!only || only.includes(f.id)) && (!f.real || inputs.slices.some((s) => s.family === f.id))).map((f) => f.id);
 }
 
 // Which slices each split may use. Only the real family being trained on needs separate
@@ -408,7 +409,7 @@ async function train(config, onEpoch, inputs) {
   const { target, hidden, epochs, nTrain, batch, lr, seed, mixNoise, shuffle } = config;
   // Work units have no `arch`: they are GRU-only by spec. Other models get the GRU's parameter budget.
   const arch = config.arch ?? 'gru';
-  const available = familiesAvailable(inputs);
+  const available = familiesAvailable(inputs, config.spec === SPEC ? SPEC_FAMILIES : null);
   if (!available.includes(target)) throw new Error(`"${target}" isn't available. Load its slices first (see the Data tab).`);
   const pools = slicePools(target, inputs);
   const context = (region) => ({ region, text: inputs.text, slices: region === 'train' ? pools.train : pools.eval });
