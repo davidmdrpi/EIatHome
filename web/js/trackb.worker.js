@@ -53,6 +53,7 @@ async function analyze({ family, k: requested, nFrames, seed, text }) {
     frameSplits = syntheticSplits(family, nSnippets, seed);
     evaluation = { unit: 'snippet', description: 'independent snippets drawn separately for each split' };
     notes.push('Snippets are independent, so structure can only span 16 tokens.');
+    if (familyById[family].caveat) notes.push(familyById[family].caveat);
   }
 
   const rng = makeRng(deriveSeed(seed, `trackb-${family}`));

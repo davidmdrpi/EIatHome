@@ -702,6 +702,9 @@ test('the Wow! signal slews the map to where it came from, and both of its field
   }, null, { timeout: 15000 });
   assert.match(await page.textContent('#lab-viewport .hud-target'), /Wow! signal, field 1[\s\S]*Sagittarius[\s\S]*Big Ear, Ohio State University/);
   assert.match(await page.textContent('#family-about'), /6EQUJ5/);
+  // Track B says what its scores can and can't show for a reconstruction.
+  await page.waitForFunction(() => document.getElementById('tb-status').textContent.startsWith('Wow!'), null, { timeout: 60000 });
+  assert.match(await page.textContent('#tb-notes'), /fresh noisy copy of the same six printout readings[\s\S]*can’t show language, or any structure in the 1977 observation itself/);
 
   // The second field, 0.6° east: clicking its beacon describes it, and the signal stays selected.
   await page.waitForFunction(() => /wow-2 /.test(document.querySelector('#lab-viewport canvas').dataset.beacons), null, { timeout: 15000 });

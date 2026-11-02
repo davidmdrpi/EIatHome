@@ -24,6 +24,7 @@ export const FAMILIES = [
     id: 'wow',
     label: 'Wow! signal (1977)',
     source: 'Reconstructed in this browser from the Big Ear printout (6EQUJ5); the raw data no longer exist',
+    caveat: 'Every Wow! snippet, in training and test alike, is a fresh noisy copy of the same six printout readings. These scores measure how well a model learns that one fixed profile; they can’t show language, or any structure in the 1977 observation itself.',
     about: 'A reconstruction of the Wow! signal. On 15 August 1977 Ohio State University’s Big Ear telescope recorded a narrowband signal near the 1420 MHz hydrogen line, in one 10 kHz channel, for the 72 seconds Sagittarius took to drift through its beam; it has never been seen again. Only its intensity survives, one reading every 12 seconds: 6EQUJ5 on the printout, up to about 30 times the noise. Here those six readings, one per time step, light a single channel in noise.',
   },
   { id: 'tone', label: 'Drifting tone', about: 'A narrow line drifting at a constant rate, like a transmitter on a moving planet.' },
