@@ -130,8 +130,8 @@
         "tsamp_s": 18.253611008,
         "first_channel": 552122,
         "centre_freq_mhz": 1142.5000003267353,
-        "drift_channels_per_step": -0.009191763199053299,
-        "drift_hz_per_s": 0.001406926535913303,
+        "drift_channels_per_step": -0.009191763185829408,
+        "drift_hz_per_s": 0.0014069265338892034,
         "snr": 35.30238723754883,
         "pool": {
           "id": "sky-pool/v1",
@@ -185,8 +185,8 @@
         "tsamp_s": 18.253611008,
         "first_channel": 105768,
         "centre_freq_mhz": 1143.747100051395,
-        "drift_channels_per_step": 0.23409141005063444,
-        "drift_hz_per_s": -0.03583092922406018,
+        "drift_channels_per_step": 0.23409141005146092,
+        "drift_hz_per_s": -0.035830929224186674,
         "snr": 33.69172286987305,
         "pool": {
           "id": "sky-pool/v1",
@@ -401,8 +401,8 @@
         "tsamp_s": 18.253611008,
         "first_channel": 146673,
         "centre_freq_mhz": 2069.9999994943964,
-        "drift_channels_per_step": 0.003446432240338226,
-        "drift_hz_per_s": -0.0005275241396186526,
+        "drift_channels_per_step": 0.003446432243644199,
+        "drift_hz_per_s": -0.0005275241401246774,
         "snr": 553.7855834960938,
         "pool": {
           "id": "sky-pool/v1",
@@ -562,8 +562,8 @@
         "tsamp_s": 17.986224128,
         "first_channel": 517717,
         "centre_freq_mhz": 1499.996491728465,
-        "drift_channels_per_step": 3.537125373877164,
-        "drift_hz_per_s": -0.5576229350723455,
+        "drift_channels_per_step": 3.537125373885712,
+        "drift_hz_per_s": -0.5576229350736931,
         "snr": 1170.2762451171875,
         "pool": {
           "id": "sky-pool/v1",
@@ -1316,8 +1316,8 @@
         "tsamp_s": 17.986224128,
         "first_channel": 854060,
         "centre_freq_mhz": 1584.0037283488941,
-        "drift_channels_per_step": -0.07720214976378804,
-        "drift_hz_per_s": 0.012170812395600793,
+        "drift_channels_per_step": -0.07720214978362389,
+        "drift_hz_per_s": 0.012170812398727887,
         "snr": 13.362897872924805,
         "pool": {
           "id": "sky-pool/v1",
@@ -1724,6 +1724,62 @@
       }
     },
     {
+      "id": "proxcen-58602-55301-blc1",
+      "family": "stars",
+      "group": "blc1 window",
+      "file": "proxcen-58602-55301-blc1.bin",
+      "dtype": "float32-le",
+      "shape": [
+        16,
+        256
+      ],
+      "units": "noise sigma, bandpass-flattened",
+      "sha256": "7ac67f46e70833ae051c3c23c51f2441dc7a9a3ef9c40a1e26ae09059a35c5b7",
+      "source": {
+        "file": "blc03_ProxCen_S_2019-04-29T15:21:41.000.fil",
+        "source_name": "ProxCen_S",
+        "tstart_mjd": 58602.64005787037,
+        "fch1_mhz": 981.5,
+        "foff_hz": 3.814697265625,
+        "tsamp_s": 16.777216,
+        "first_channel": 131618,
+        "centre_freq_mhz": 982.002571105957,
+        "window_type": "window at blc1's frequency",
+        "window_of": "blc1: detected at 982.002571 MHz, drifting +0.038 Hz/s, over about 2.5 hours on 2019-04-29 (Smith et al. 2021, arXiv:2111.08007); shown to be interference (Sheikh et al. 2021)",
+        "snr": 6.1723737716674805,
+        "pool": {
+          "id": "sky-pool/v1",
+          "key": "proxcen"
+        },
+        "archive": {
+          "target": "PROXCEN_S",
+          "telescope": "Parkes",
+          "utc": "Mon, 29 Apr 2019 15:21:41 GMT",
+          "mjd": 58602.64005787037,
+          "ra": 217.42875,
+          "decl": -61.99828,
+          "center_freq": 1024.00000000629,
+          "file_type": "filterbank",
+          "size": 14361297202,
+          "md5sum": "173475242b298941dcd26caf25b80d69",
+          "url": "http://blpd2.ssl.berkeley.edu/PKSUWL/blc03/PKSUWL/blc03_ProxCen_S_2019-04-29T15:21:41.000.fil"
+        },
+        "coarse_channel": 22,
+        "time_steps": "the first 16 of 107",
+        "sky": {
+          "ra_hours": 14.495264,
+          "dec_deg": -61.998289,
+          "frame": "J2000, the telescope's pointing from the file header",
+          "epoch": "2019-04-29T15:21:41Z",
+          "constellation": "Centaurus",
+          "telescope": "Parkes",
+          "target": "Proxima Centauri",
+          "distance_label": "4.24 light-years"
+        },
+        "url": "http://blpd2.ssl.berkeley.edu/PKSUWL/blc03/PKSUWL/blc03_ProxCen_S_2019-04-29T15:21:41.000.fil"
+      }
+    },
+    {
       "id": "proxcen-58602-55301-blind-1",
       "family": "blind-window",
       "group": "blind window",
@@ -1829,6 +1885,62 @@
           "distance_label": "4.24 light-years"
         },
         "url": "http://blpd2.ssl.berkeley.edu/PKSUWL/blc03/PKSUWL/blc03_ProxCen_S_2019-04-29T15:21:41.000.fil"
+      }
+    },
+    {
+      "id": "proxcen-58602-64466-blc1",
+      "family": "stars",
+      "group": "blc1 window",
+      "file": "proxcen-58602-64466-blc1.bin",
+      "dtype": "float32-le",
+      "shape": [
+        16,
+        256
+      ],
+      "units": "noise sigma, bandpass-flattened",
+      "sha256": "ef000085c24cca38fcf6c59fe207ea9e5798b7a79bb246fd8f46dac19e948437",
+      "source": {
+        "file": "blc03_ProxCen_S_2019-04-29T17:54:26.000.fil",
+        "source_name": "ProxCen_S",
+        "tstart_mjd": 58602.74613425926,
+        "fch1_mhz": 981.5,
+        "foff_hz": 3.814697265625,
+        "tsamp_s": 16.777216,
+        "first_channel": 131618,
+        "centre_freq_mhz": 982.002571105957,
+        "window_type": "window at blc1's frequency",
+        "window_of": "blc1: detected at 982.002571 MHz, drifting +0.038 Hz/s, over about 2.5 hours on 2019-04-29 (Smith et al. 2021, arXiv:2111.08007); shown to be interference (Sheikh et al. 2021)",
+        "snr": 7.1139702796936035,
+        "pool": {
+          "id": "sky-pool/v1",
+          "key": "proxcen"
+        },
+        "archive": {
+          "target": "PROXCEN_S",
+          "telescope": "Parkes",
+          "utc": "Mon, 29 Apr 2019 17:54:26 GMT",
+          "mjd": 58602.74613425926,
+          "ra": 217.42875,
+          "decl": -61.99828,
+          "center_freq": 1024.00000000629,
+          "file_type": "filterbank",
+          "size": 14361297202,
+          "md5sum": "7e5cc1f7937db51724e3c54f1544a1f9",
+          "url": "http://blpd2.ssl.berkeley.edu/PKSUWL/blc03/PKSUWL/blc03_ProxCen_S_2019-04-29T17:54:26.000.fil"
+        },
+        "coarse_channel": 22,
+        "time_steps": "the first 16 of 107",
+        "sky": {
+          "ra_hours": 14.495264,
+          "dec_deg": -61.998289,
+          "frame": "J2000, the telescope's pointing from the file header",
+          "epoch": "2019-04-29T17:54:26Z",
+          "constellation": "Centaurus",
+          "telescope": "Parkes",
+          "target": "Proxima Centauri",
+          "distance_label": "4.24 light-years"
+        },
+        "url": "http://blpd2.ssl.berkeley.edu/PKSUWL/blc03/PKSUWL/blc03_ProxCen_S_2019-04-29T17:54:26.000.fil"
       }
     },
     {
@@ -2176,8 +2288,8 @@
         "tsamp_s": 18.253611008,
         "first_channel": 495542,
         "centre_freq_mhz": 3375.224729574903,
-        "drift_channels_per_step": 0.45704579164097986,
-        "drift_hz_per_s": 0.0699571821490599,
+        "drift_channels_per_step": 0.4570457916475918,
+        "drift_hz_per_s": 0.06995718215007193,
         "snr": 35.576072692871094,
         "pool": {
           "id": "sky-pool/v1",
@@ -2392,8 +2504,8 @@
         "tsamp_s": 18.253611008,
         "first_channel": 474210,
         "centre_freq_mhz": 3354.6573155140063,
-        "drift_channels_per_step": -2.6725328060098015,
-        "drift_hz_per_s": -0.40906812343265053,
+        "drift_channels_per_step": -2.6725328060064957,
+        "drift_hz_per_s": -0.40906812343214455,
         "snr": 47.33203887939453,
         "pool": {
           "id": "sky-pool/v1",
