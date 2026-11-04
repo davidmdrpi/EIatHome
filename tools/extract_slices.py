@@ -82,6 +82,11 @@ class SkipFile(Exception):
     """A file the tool can't cut slices from (too short, outside its band, an unsupported format)."""
 
 
+class Unsuitable(SkipFile):
+    """A file its header rules out (too few time steps, too coarse, the wrong band) before any
+    of its data is read."""
+
+
 class RangeFile(io.RawIOBase):
     """A remote file for h5py, fetched with HTTP range requests: only the bytes h5py reads. A file
     of at most WHOLE bytes is fetched in one request instead, which servers that rate-limit many
@@ -253,7 +258,7 @@ def time_rows(n_t, steps, name):
     if steps is None:
         return n_t
     if n_t < steps:
-        raise SkipFile(f"{name} has {n_t} time steps; a slice needs {steps}")
+        raise Unsuitable(f"{name} has {n_t} time steps; a slice needs {steps}")
     return steps
 
 
@@ -284,8 +289,17 @@ def read_fil_header(handle):
     return header, handle.tell()
 
 
-def load_fil(handle, size, remote, coarse_at, steps, name):
+def apply_hints(header, hints):
+    """What the archive knows that the header doesn't: a telescope the header names by an id
+    this tool doesn't know (some Parkes filterbank files)."""
+    if hints and "telescope_id" in hints and int(header.get("telescope_id", -1)) not in COARSE_MHZ:
+        header["telescope_id"] = hints["telescope_id"]
+    return header
+
+
+def load_fil(handle, size, remote, coarse_at, steps, name, hints=None):
     header, offset = read_fil_header(handle)
+    apply_hints(header, hints)
     if int(header.get("nbits", 32)) != 32 or int(header.get("nifs", 1)) != 1:
         raise SkipFile(f"{name}: only 32-bit, single-polarization filterbank files are supported")
     n_chans = int(header["nchans"])
@@ -303,10 +317,10 @@ def load_fil(handle, size, remote, coarse_at, steps, name):
     return data, header
 
 
-def load_h5(source, remote, coarse_at, steps, name):
+def load_h5(source, remote, coarse_at, steps, name, hints=None):
     with h5py.File(source, "r") as f:
         dset = f["data"]  # (time, feed, frequency)
-        header = {k: (v.decode() if isinstance(v, bytes) else v) for k, v in dset.attrs.items()}
+        header = apply_hints({k: (v.decode() if isinstance(v, bytes) else v) for k, v in dset.attrs.items()}, hints)
         header["time_steps"] = dset.shape[0]
         lo, hi = (0, dset.shape[2]) if coarse_at is None else coarse_range(header, dset.shape[2], coarse_at, name)
         rows = time_rows(dset.shape[0], steps, name)
@@ -321,7 +335,7 @@ def load_h5(source, remote, coarse_at, steps, name):
     return data, header
 
 
-def load(path, coarse_at=None, steps=None):
+def load(path, coarse_at=None, steps=None, hints=None):
     """The spectrogram (time x frequency) and header. With coarse_at (MHz), only the coarse
     channel containing that frequency, with the header's fch1 and nchans describing it. With
     steps, only the first that many time steps (SkipFile if the scan has fewer)."""
@@ -333,10 +347,10 @@ def load(path, coarse_at=None, steps=None):
         magic = handle.read(8)
         handle.seek(0)
         if magic == b"\x89HDF\r\n\x1a\n":
-            data, header = load_h5(remote or path, remote, coarse_at, steps, name)
+            data, header = load_h5(remote or path, remote, coarse_at, steps, name, hints)
         else:
             size = remote.size if remote else Path(path).stat().st_size
-            data, header = load_fil(handle, size, remote, coarse_at, steps, name)
+            data, header = load_fil(handle, size, remote, coarse_at, steps, name, hints)
     finally:
         if not remote:
             handle.close()
@@ -495,15 +509,18 @@ def dc_spike(data):
     return float(spectrum[mid] / np.median(near))
 
 
-def prepare(path, coarse_at=None, steps=None, check_dc=False):
+def prepare(path, coarse_at=None, steps=None, check_dc=False, hints=None):
     """A file's bandpass-flattened spectrogram, its header, and its de-Doppler search. With
     check_dc, a coarse channel without its DC spike in the middle is refused: the file's
     channelization isn't the one assumed, so the spike would pass for a signal."""
-    data, header = load(path, coarse_at, steps)
+    data, header = load(path, coarse_at, steps, hints)
     if check_dc and (height := dc_spike(data)) < 1.5:
         raise SkipFile(f"no DC spike in the middle of coarse channel {header.get('coarse_channel')} "
                        f"(height {height:.2f}), so its channelization isn't {header['nchans']:,} channels as assumed")
     z = flatten_frames(mask_dc_spike(data))
+    if check_dc and not np.abs(z).max() < 1e5:
+        # Quantized data (2-bit recordings, say) can leave the noise scale near zero.
+        raise SkipFile(f"coarse channel {header.get('coarse_channel')} doesn't normalize to noise-sigma units (peak {np.abs(z).max():.3g} sigma)")
     snr, best_drift = dedoppler(z, drift_trials(z.shape[0]))
     return z, header, snr, best_drift
 
@@ -640,6 +657,8 @@ def extract_off(path, args, references):
 # ---------- the slice pool (--pool) ----------
 
 DEFAULT_LIMITS = {"max_slices": 100, "max_bytes": 1_500_000, "max_targets": 8}
+ARCHIVE_TELESCOPES = {"GBT": 6, "Parkes": 4}  # the archive's telescope names, as sigproc ids
+MAX_CANDIDATES = 40  # archive files examined per target, at most
 
 
 def draw(seed, *parts):
@@ -671,12 +690,23 @@ def query_files(api, params, allow_http):
     return reply.get("data") or []
 
 
-def fine_resolution(entry, product="0000"):
-    """Whether an archive entry is a high-frequency-resolution filterbank product (HDF5 or .fil)."""
+# Breakthrough Listen's lower-resolution products (0001: high time resolution, 0002: mid), named
+# in the file name; fine-resolution files are 0000, "fine", or (some Parkes files) unmarked. The
+# header's channel width settles it once the file is opened (FINE_HZ).
+COARSER_PRODUCT = re.compile(r"[._]000[12][._]|_(mid|time)\.", re.IGNORECASE)
+FINE_HZ = 10.0
+
+
+def fine_resolution(entry, product=None):
+    """Whether an archive entry may be a high-frequency-resolution filterbank product (HDF5 or
+    .fil): not a lower-resolution product, nor a 2-bit recording, whose quantized samples don't
+    normalize. product: a marker the file name must contain."""
     url = str(entry.get("url", ""))
     name = PurePosixPath(urlparse(url).path).name
     kind = str(entry.get("file_type", "")).lower()
-    return ("hdf5" in kind or "filterbank" in kind or name.endswith((".h5", ".fil"))) and product in name
+    filterbank = "hdf5" in kind or "filterbank" in kind or name.endswith((".h5", ".fil"))
+    return (filterbank and not COARSER_PRODUCT.search(name) and "2bit" not in name.lower()
+            and (product is None or product in name))
 
 
 OFF_SOURCE = re.compile(r"(^|[^A-Z])OFF([^A-Z]|$)", re.IGNORECASE)
@@ -687,7 +717,7 @@ def choose_files(entries, target, seed, wanted=None):
     frequency if it has one, then in a seeded random order, one per observing session first.
     wanted: how many (all usable ones, in that order, if None)."""
     freq = target.get("freq_mhz")
-    usable = [e for e in entries if fine_resolution(e, target.get("product", "0000"))
+    usable = [e for e in entries if fine_resolution(e, target.get("product"))
               and not OFF_SOURCE.search(str(e.get("target", "")))]
     if freq is not None:
         window = float(target.get("freq_window_mhz", 2000))
@@ -774,13 +804,21 @@ def archive_record(entry):
 def pool_slices(path, target, pool, args, archive=None):
     """Hits and blind windows from one file of a pool target."""
     seed, key, width = pool["seed"], target["key"], args.width
+    hints = {"telescope_id": ARCHIVE_TELESCOPES[archive["telescope"]]} if archive and archive.get("telescope") in ARCHIVE_TELESCOPES else None
     header, n_chans = peek_header(path)
+    apply_hints(header, hints)
+    if abs(float(header["foff"])) * 1e6 > FINE_HZ:
+        raise Unsuitable(f"{name_of(path)} has {abs(float(header['foff'])) * 1e6:.3g} Hz channels: not a fine-resolution product")
+    if target.get("freq_mhz") is not None:
+        edges = sorted([float(header["fch1"]), float(header["fch1"]) + float(header["foff"]) * n_chans])
+        if not edges[0] <= float(target["freq_mhz"]) <= edges[1]:
+            raise Unsuitable(f"{name_of(path)} covers {edges[0]:.1f}-{edges[1]:.1f} MHz, not {target['freq_mhz']} MHz")
     freqs = coarse_frequencies(header, n_chans, target, path, seed)
     wanted_hits, wanted_blind = int(target.get("hits", 3)), int(target.get("blind", 2))
     threshold = float(target.get("threshold", pool.get("threshold", 10)))
     out = []
     for i, freq in enumerate(freqs):
-        z, header, snr, best_drift = prepare(path, freq, TIME_STEPS, check_dc=True)
+        z, header, snr, best_drift = prepare(path, freq, TIME_STEPS, check_dc=True, hints=hints)
         label = scan_label(header)
         coarse = header.get("coarse_channel", 0)
         extra = {"pool": {"id": pool["id"], "key": key}}
@@ -881,21 +919,27 @@ def run_pool(args):
                 break
         cut = 0
         wanted_files = int(target.get("files", 2))
-        used_files = tried = 0
+        used_files = tried = examined = 0
         for path, archive in paths:
             if full:
                 break
-            # Archive files: until `files` of them give slices, trying at most three times as many.
-            if archive is not None and (used_files == wanted_files or tried == 3 * wanted_files):
+            # Archive files: until `files` of them give slices, reading at most three times as many
+            # (files ruled out by their headers alone don't count) of the first MAX_CANDIDATES.
+            if archive is not None and (used_files == wanted_files or tried == 3 * wanted_files or examined == MAX_CANDIDATES):
                 break
-            tried += archive is not None
+            examined += archive is not None
             if is_url(path) and path.startswith("http://") and not args.allow_http:
                 raise SystemExit(f"{path} is plain HTTP: pass --allow-http to read it")
             try:
                 slices = pool_slices(path, target, pool, args, archive)
+            except Unsuitable as err:
+                print(f"  passed over {name_of(path)}: {err}")
+                continue
             except (Exception, SystemExit) as err:  # noqa: BLE001 (a remote file we can't use: report it and go on)
                 print(f"  skipped {name_of(path)}: {type(err).__name__}: {err}")
+                tried += archive is not None
                 continue
+            tried += archive is not None
             used_files += archive is not None and bool(slices)
             for payload, entry in slices:
                 if entry["sha256"] in known_hashes or entry["id"] in known_ids:

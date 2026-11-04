@@ -273,9 +273,11 @@ class PoolTests(unittest.TestCase):
         args = argparse.Namespace(pool=pool_path, out=out, only=only, allow_http=allow_http, width=256,
                                   product=None, source_base_url=None)
         log = io.StringIO()
-        with redirect_stdout(log):
-            x.run_pool(args)
-        self.last_log = log.getvalue()
+        try:
+            with redirect_stdout(log):
+                x.run_pool(args)
+        finally:
+            self.last_log = log.getvalue()
         return json.loads((out / "index.json").read_text())["slices"]
 
     def archive(self, name, mjd, **extra):
@@ -380,11 +382,47 @@ class PoolTests(unittest.TestCase):
             self.archive("short.0000.h5", 57800.25), self.archive("nodc.0000.h5", 57801.25),
             {**self.archive("off.0000.h5", 57802.25), "target": "TRAPPIST1_OFF"}, self.archive("good.0000.h5", 57803.25)])
         target = {"key": "trappist1", "name": "TRAPPIST-1", "queries": [{"target": "TRAPPIST"}], "files": 1, "hits": 1, "blind": 1}
-        slices = self.run_pool([target])
+        # The seeded order of the files (the server's port changes the URLs): good last.
+        order = {"short": 0.1, "nodc": 0.2, "off": 0.3, "good": 0.4}
+        draw = x.draw
+        def ordered(seed, *parts):
+            name = str(parts[-1]).rsplit("/", 1)[-1].split(".")[0] if len(parts) == 2 else None
+            return order[name] if name in order else draw(seed, *parts)
+        with mock.patch.object(x, "draw", ordered):
+            slices = self.run_pool([target])
         self.assertEqual({e["source"]["archive"]["url"].rsplit("/", 1)[1] for e in slices}, {"good.0000.h5"})
         self.assertIn("has 3 time steps", self.last_log)
         self.assertIn("no DC spike in the middle", self.last_log)
         self.assertNotIn("off.0000.h5", self.last_log, "an off-source scan is never read as on-target")
+
+    def test_fine_resolution_products_by_name(self):
+        def ok(name, kind="HDF5"):
+            return x.fine_resolution({"url": f"http://h/{name}", "file_type": kind})
+        self.assertTrue(ok("spliced_blc0001020304050607_guppi_57532_02535_GJ406_0007.gpuspec.0000.h5"))
+        self.assertTrue(ok("Parkes_58031_47052_HIP8102_S_fine.h5"))
+        self.assertTrue(ok("blc01_ProxCen_S_2019-04-29T12:56:23.000.fil", "filterbank"), "unmarked: the header decides")
+        self.assertFalse(ok("blc00_guppi_57807_78936_DIAG_TRAPPIST1_0032.gpuspec.0001.fil", "filterbank"))
+        self.assertFalse(ok("spliced_blc0001020304050607_guppi_57532_02535_GJ406_0007.gpuspec.0002.h5"))
+        self.assertFalse(ok("spliced_blc02030405_2bit_guppi_57457_48661_GJ699_0005.gpuspec.0000.h5"), "2-bit samples don't normalize")
+        self.assertFalse(ok("guppi_59337_61382_ProxCen_S_0001.0000.raw", "baseband data"))
+
+    def test_the_archive_names_the_telescope_when_the_header_does_not(self):
+        header = {"telescope_id": 64, "foff": 2.0e-06}
+        self.assertEqual(x.channels_per_coarse(header), x.COARSE_WIDTH, "an id this tool doesn't know")
+        x.apply_hints(header, {"telescope_id": 4})
+        self.assertEqual(x.channels_per_coarse(header), 500_000)
+        gbt = {"telescope_id": 6, "foff": -2.7939677238464355e-06}
+        self.assertEqual(x.apply_hints(dict(gbt), {"telescope_id": 4}), gbt, "a header that names a known telescope wins")
+
+    def test_files_outside_the_targets_band_are_passed_over_without_counting(self):
+        scans = {f"{n}.0000.h5": self.scan(f"{n}.0000.h5", 57800.25 + n, line_at=900, seed=n) for n in range(5)}
+        self.setup_archive(scans, lambda q: [self.archive(f"{n}.0000.h5", 57800.25 + n) for n in range(5)])
+        # The scans cover 1500 MHz down by 2 x 4096 channels; this frequency is in none of them.
+        target = {"key": "trappist1", "name": "TRAPPIST-1", "queries": [{"target": "TRAPPIST"}], "files": 1, "hits": 1,
+                  "blind": 1, "freq_mhz": 982.0}
+        with self.assertRaisesRegex(SystemExit, "no slices"):
+            self.run_pool([target])
+        self.assertEqual(self.last_log.count("passed over"), 5, "every candidate is looked at, none counts as a try")
 
     def test_plain_http_needs_allow_http(self):
         self.setup_archive({}, lambda q: [])

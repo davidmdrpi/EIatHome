@@ -41,16 +41,18 @@ adds two families to Voyager's:
 - **Nearby stars** (family `stars`, group `hit`): on-target hits. For each target in
   `tools/slice_pool.json`, the [Breakthrough Listen Open Data Archive](http://seti.berkeley.edu/opendata)'s
   `api/query-files` lists its observations, and the tool picks a few on-target
-  fine-resolution files (`.0000.h5` or `.0000.fil`; never a scan whose target is marked `OFF`)
-  in a seeded random order, from different sessions where it can, trying the next file when
-  one can't be used. In one coarse channel of each (the one containing the target's
+  fine-resolution files in a seeded random order, from different sessions where it can, trying
+  the next file when one can't be used. Fine resolution means HDF5 or filterbank files not named
+  as a lower-resolution product (`0001`, `0002`) whose channels are at most 10 Hz wide; it never
+  picks a scan whose target is marked `OFF`, nor a 2-bit recording, whose quantized samples
+  don't normalize to noise-sigma units. In one coarse channel of each (the one containing the target's
   `freq_mhz`, else up to `tries` drawn at random away from the band edges), it runs the
   de-Doppler search and cuts a window around each of the strongest hits above SNR 10, like
   Voyager's. Only the first 16 time steps of a longer scan are read. Almost every hit like this
   is human interference.
   - A coarse channel's width in fine channels is the telescope's coarse bandwidth (2.9296875 MHz
-    at Green Bank, 1 MHz at Parkes, whose coarse channels are centred on whole MHz) over the
-    file's channel width: 2^20 at Green Bank's usual 2.79 Hz, 1,033,216 at the 2.84 Hz of its
+    at Green Bank, 1 MHz at Parkes, whose coarse channels are centred on whole MHz; the archive
+    names the telescope when a file's header doesn't) over the file's channel width: 2^20 at Green Bank's usual 2.79 Hz, 1,033,216 at the 2.84 Hz of its
     2016 files, 500,000 at Parkes's 2 Hz. The tool checks that the coarse channel it read has its
     DC spike in the middle, and skips the file if not: a misplaced spike would pass for a hit.
   - **Proxima Centauri** is blc1's window: Parkes (Murriyang) scans from 2019-04-29, the day
