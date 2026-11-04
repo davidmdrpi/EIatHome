@@ -392,7 +392,7 @@ class PoolTests(unittest.TestCase):
             slices = self.run_pool([target])
         self.assertEqual({e["source"]["archive"]["url"].rsplit("/", 1)[1] for e in slices}, {"good.0000.h5"})
         self.assertIn("has 3 time steps", self.last_log)
-        self.assertIn("no DC spike in the middle", self.last_log)
+        self.assertIn("no alignment puts a DC spike in the middle", self.last_log)
         self.assertNotIn("off.0000.h5", self.last_log, "an off-source scan is never read as on-target")
 
     def test_parkes_coarse_channels_are_tried_on_both_alignments(self):
@@ -420,6 +420,33 @@ class PoolTests(unittest.TestCase):
         self.assertEqual(hit["source"]["coarse_channel"], 2)
         self.assertAlmostEqual(hit["source"]["fch1_mhz"], 980.0 + foff * 2 * n)
         self.assertLess(abs(hit["source"]["first_channel"] + 128 - (300 + 0.5 * 8)), 3)
+
+    def test_a_suppressed_dc_spike_is_taken_and_hits_that_look_like_one_are_left_out(self):
+        # Parkes-like coarse channels of 2048, centred on whole MHz (the blocks' edges), whose DC
+        # spikes the pipeline has suppressed to a small bump; a one-channel line that doesn't drift
+        # (what a spike looks like) and a drifting line in the same coarse channel.
+        n = 2048
+        rng = np.random.default_rng(6)
+        data = (100 + rng.normal(size=(16, 4 * n))).astype(np.float32)
+        data[:, n::n] *= 1.25  # the bumps, at whole MHz
+        steps = np.arange(16)
+        data[:, n + 600] += 40  # one channel, no drift
+        data[steps, np.round(n - 700 + 0.5 * steps).astype(int)] += 8
+        fil = self.folder / "pks.fil"
+        foff = 1 / n
+        write_fil(fil, data, telescope_id=4, source_name="PROXCEN", fch1=980.0, foff=foff, tsamp=16.78,
+                  tstart=58602.5, src_raj=142942.95, src_dej=-624046.2)
+        self.setup_archive({"pks.fil": fil.read_bytes()}, lambda q: [{**self.archive("pks.fil", 58602.5), "telescope": "Parkes", "file_type": "filterbank"}])
+        target = {"key": "proxcen", "name": "Proxima Centauri", "queries": [{"target": "PROXCEN"}], "files": 1, "hits": 3,
+                  "blind": 1, "freq_mhz": 981.0}
+        with mock.patch.object(x, "searchable", lambda snr, width: x.np.where(np.arange(snr.size) % (snr.size // 2) < 8, -np.inf, snr)), \
+                mock.patch.object(x, "FINE_HZ", 1e4):
+            slices = self.run_pool([target])
+        self.assertIn("a suppressed DC spike", self.last_log)
+        self.assertIn("left out a hit", self.last_log)
+        hits = [e for e in slices if e["family"] == "stars"]
+        self.assertEqual(len(hits), 1, self.last_log)
+        self.assertAlmostEqual(hits[0]["source"]["drift_channels_per_step"], 0.5, delta=0.05)
 
     def test_fine_resolution_products_by_name(self):
         def ok(name, kind="HDF5"):

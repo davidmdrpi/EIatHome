@@ -88,6 +88,10 @@ class SkipFile(Exception):
 class NoDCSpike(SkipFile):
     """A coarse channel without its DC spike in the middle: not the channelization assumed."""
 
+    def __init__(self, message, height):
+        super().__init__(message)
+        self.height = height
+
 
 class Unsuitable(SkipFile):
     """A file its header rules out (too few time steps, too coarse, the wrong band) before any
@@ -522,14 +526,21 @@ def dc_spike(data):
     return float(spectrum[mid] / np.median(near))
 
 
-def prepare(path, coarse_at=None, steps=None, check_dc=False, hints=None):
+# How far a coarse channel's DC spike must stand above its neighbours: clearly (DC_CLEAR), or,
+# where no alignment shows one that clearly, at least DC_RESIDUAL, the bump a pipeline leaves when
+# it suppresses the spike (some Parkes files). Noise moves the height by about 0.03.
+DC_CLEAR, DC_RESIDUAL = 1.5, 1.1
+
+
+def prepare(path, coarse_at=None, steps=None, check_dc=False, hints=None, dc_min=DC_CLEAR):
     """A file's bandpass-flattened spectrogram, its header, and its de-Doppler search. With
-    check_dc, a coarse channel without its DC spike in the middle is refused: the file's
-    channelization isn't the one assumed, so the spike would pass for a signal."""
+    check_dc, a coarse channel whose middle doesn't stand dc_min above its neighbours is refused:
+    the file's channelization isn't the one assumed, so a DC spike elsewhere would pass for a
+    signal."""
     data, header = load(path, coarse_at, steps, hints)
-    if check_dc and (height := dc_spike(data)) < 1.5:
+    if check_dc and (height := dc_spike(data)) < dc_min:
         raise NoDCSpike(f"no DC spike in the middle of coarse channel {header.get('coarse_channel')} "
-                       f"(height {height:.2f}): its coarse channels aren't {header['nchans']:,} fine channels, aligned as assumed")
+                        f"(height {height:.2f}): its coarse channels aren't {header['nchans']:,} fine channels, aligned as assumed", height)
     z = flatten_frames(mask_dc_spike(data))
     if check_dc and not np.abs(z).max() < 1e5:
         # Quantized data (2-bit recordings, say) can leave the noise scale near zero.
@@ -829,25 +840,50 @@ def pool_slices(path, target, pool, args, archive=None):
     phases = COARSE_PHASES.get(int(header.get("telescope_id", -1)), (None,))
     wanted_hits, wanted_blind = int(target.get("hits", 3)), int(target.get("blind", 2))
     threshold = float(target.get("threshold", pool.get("threshold", 10)))
-    for phase in phases:
+    def attempt(phase, dc_min):
+        nonlocal hints
         if phase is not None:
             hints = {**(hints or {}), "coarse_phase": phase}
             header["coarse_phase"] = phase
+        cut = cut_file(path, target, pool, args, archive, header, n_chans, hints, wanted_hits, wanted_blind, threshold, dc_min)
+        return located_slices(cut, target, archive)
+
+    heights = {}
+    for phase in phases:
         try:
-            return located_slices(cut_file(path, target, pool, args, archive, header, n_chans, hints, wanted_hits, wanted_blind, threshold), target, archive)
+            return attempt(phase, DC_CLEAR)
         except NoDCSpike as err:
-            if phase == phases[-1]:
-                raise
-            print(f"  {name_of(path)}: {err}; trying coarse channels offset by {phases[phases.index(phase) + 1]} of a channel")
+            heights[phase] = err.height
+            if phase != phases[-1]:
+                print(f"  {name_of(path)}: {err}; trying coarse channels offset by {phases[phases.index(phase) + 1]} of a channel")
+    # No alignment shows a clear spike. A residual bump where one alignment puts it means the
+    # pipeline suppressed the spike there; a misplaced spike would show nothing at all.
+    best = max(heights, key=heights.get)
+    if heights[best] < DC_RESIDUAL:
+        raise NoDCSpike(f"no alignment puts a DC spike in the middle of a coarse channel (heights {heights})", heights[best])
+    print(f"  {name_of(path)}: a suppressed DC spike (height {heights[best]:.2f}) where coarse channels"
+          f"{'' if best is None else f' offset by {best} of a channel'} put it; taking that alignment")
+    return attempt(best, DC_RESIDUAL)
 
 
-def cut_file(path, target, pool, args, archive, header, n_chans, hints, wanted_hits, wanted_blind, threshold):
-    """The hits and blind windows of one file, with one coarse channel alignment."""
+def dc_like(window):
+    """Whether a hit's window holds what a DC spike would: all its power in one channel in the
+    middle, the same at every step (no drift)."""
+    middle = window.shape[1] // 2
+    columns = window.mean(axis=0)
+    centre = int(np.argmax(columns[middle - 2:middle + 3])) + middle - 2
+    return columns[centre] > 4 * max(columns[centre - 1], columns[centre + 1], 1.0)
+
+
+def cut_file(path, target, pool, args, archive, header, n_chans, hints, wanted_hits, wanted_blind, threshold, dc_min=DC_CLEAR):
+    """The hits and blind windows of one file, with one coarse channel alignment. When the
+    alignment rests on a suppressed DC spike (dc_min below DC_CLEAR), a hit that looks like one is
+    left out."""
     seed, key, width = pool["seed"], target["key"], args.width
     freqs = coarse_frequencies(header, n_chans, target, path, seed)
     out = []
     for i, freq in enumerate(freqs):
-        z, header, snr, best_drift = prepare(path, freq, TIME_STEPS, check_dc=True, hints=hints)
+        z, header, snr, best_drift = prepare(path, freq, TIME_STEPS, check_dc=True, hints=hints, dc_min=dc_min)
         label = scan_label(header)
         coarse = header.get("coarse_channel", 0)
         extra = {"pool": {"id": pool["id"], "key": key}}
@@ -866,8 +902,13 @@ def cut_file(path, target, pool, args, archive, header, n_chans, hints, wanted_h
         if wanted_hits:
             peaks = find_peaks(searchable(snr, width), wanted_hits, threshold, exclusion=width)
             print(f"  {name_of(path)} coarse channel {coarse} ({freq:.3f} MHz): {len(peaks)} hits above SNR {threshold:g}")
-            for n, p in enumerate(sorted(peaks, key=lambda p: -snr[p]), 1):
+            n = 0
+            for p in sorted(peaks, key=lambda p: -snr[p]):
                 window, source = hit_window(z, header, snr, best_drift, p, width)
+                if dc_min < DC_CLEAR and abs(source["drift_channels_per_step"]) < 0.05 and dc_like(window):
+                    print(f"  left out a hit at {source['centre_freq_mhz']:.6f} MHz: one channel wide and not drifting, like a DC spike")
+                    continue
+                n += 1
                 out.append(make_entry(path, args, header, window, f"{key}-{label}-hit-{n}", "stars", "hit", {**source, **extra}))
             if peaks:
                 break

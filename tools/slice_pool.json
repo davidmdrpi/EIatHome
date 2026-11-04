@@ -1,10 +1,14 @@
 {
   "id": "sky-pool/v1",
-  "about": "The Live Lab's pool of real sky samples (tools/extract_slices.py --pool). For each target, a few observations from the Breakthrough Listen Open Data Archive (the first query that finds fine-resolution files wins), or files listed directly. From each file: up to `hits` on-target hits (family stars), the strongest narrowband signals the de-Doppler search finds above `threshold` in one coarse channel (the one containing `freq_mhz`, else up to `tries` drawn at random), and `blind` blind windows (family blind-window) at seeded random frequencies in the first coarse channel read. The seed fixes every random choice, so re-running the pool cuts the same slices.",
+  "about": "The Live Lab's pool of real sky samples (tools/extract_slices.py --pool). For each target, a few observations from the Breakthrough Listen Open Data Archive (the first query that finds fine-resolution files wins), or files listed directly. From each file: up to `hits` on-target hits (family stars), the strongest narrowband signals the de-Doppler search finds above `threshold` in one coarse channel (the one containing `freq_mhz`, else up to `tries` drawn at random), and `blind` blind windows (family blind-window) at seeded random frequencies in the first coarse channel read. The seed fixes every random choice, so re-running the pool cuts the same slices. TRAPPIST-1 and Epsilon Eridani were tried and left out: the archive's TRAPPIST-1 scans have only 3 time steps (a slice needs 16), and it lists no Epsilon Eridani files.",
   "seed": 20261104,
   "api": "http://seti.berkeley.edu/opendata/api",
   "threshold": 10,
-  "limits": { "max_slices": 100, "max_bytes": 1500000, "max_targets": 8 },
+  "limits": {
+    "max_slices": 100,
+    "max_bytes": 1500000,
+    "max_targets": 8
+  },
   "targets": [
     {
       "key": "voyager1",
@@ -25,23 +29,27 @@
       "distance_label": "4.24 light-years",
       "about": "blc1's window: Parkes (Murriyang) scans of Proxima Centauri from the day blc1 was recorded (2019-04-29), in the coarse channel containing 982.002 MHz, where blc1 drifted. Then any Parkes scan of the star.",
       "queries": [
-        { "target": "PROXCEN", "telescopes": "Parkes", "time-start": 58602, "time-end": 58603 },
-        { "target": "", "pos-ra": 217.42896, "pos-dec": -62.67949, "pos-rad": 0.1, "telescopes": "Parkes", "time-start": 58602, "time-end": 58603 },
-        { "target": "PROX", "telescopes": "Parkes" }
+        {
+          "target": "PROXCEN",
+          "telescopes": "Parkes",
+          "time-start": 58602,
+          "time-end": 58603
+        },
+        {
+          "target": "",
+          "pos-ra": 217.42896,
+          "pos-dec": -62.67949,
+          "pos-rad": 0.1,
+          "telescopes": "Parkes",
+          "time-start": 58602,
+          "time-end": 58603
+        },
+        {
+          "target": "PROX",
+          "telescopes": "Parkes"
+        }
       ],
       "freq_mhz": 982.002,
-      "files": 2,
-      "hits": 3,
-      "blind": 2
-    },
-    {
-      "key": "trappist1",
-      "name": "TRAPPIST-1",
-      "distance_label": "40.7 light-years",
-      "queries": [
-        { "target": "TRAPPIST" },
-        { "target": "", "pos-ra": 346.62224, "pos-dec": -5.0413, "pos-rad": 0.1 }
-      ],
       "files": 2,
       "hits": 3,
       "blind": 2
@@ -51,9 +59,18 @@
       "name": "Tau Ceti",
       "distance_label": "11.9 light-years",
       "queries": [
-        { "target": "TAUCETI" },
-        { "target": "HIP8102" },
-        { "target": "", "pos-ra": 26.01701, "pos-dec": -15.93748, "pos-rad": 0.1 }
+        {
+          "target": "TAUCETI"
+        },
+        {
+          "target": "HIP8102"
+        },
+        {
+          "target": "",
+          "pos-ra": 26.01701,
+          "pos-dec": -15.93748,
+          "pos-rad": 0.1
+        }
       ],
       "files": 2,
       "hits": 3,
@@ -64,9 +81,18 @@
       "name": "Barnard's Star",
       "distance_label": "5.96 light-years",
       "queries": [
-        { "target": "GJ699" },
-        { "target": "HIP87937" },
-        { "target": "", "pos-ra": 269.45208, "pos-dec": 4.69336, "pos-rad": 0.1 }
+        {
+          "target": "GJ699"
+        },
+        {
+          "target": "HIP87937"
+        },
+        {
+          "target": "",
+          "pos-ra": 269.45208,
+          "pos-dec": 4.69336,
+          "pos-rad": 0.1
+        }
       ],
       "files": 2,
       "hits": 3,
@@ -77,9 +103,18 @@
       "name": "Lalande 21185",
       "distance_label": "8.31 light-years",
       "queries": [
-        { "target": "GJ411" },
-        { "target": "HIP54035" },
-        { "target": "", "pos-ra": 165.83414, "pos-dec": 35.96988, "pos-rad": 0.1 }
+        {
+          "target": "GJ411"
+        },
+        {
+          "target": "HIP54035"
+        },
+        {
+          "target": "",
+          "pos-ra": 165.83414,
+          "pos-dec": 35.96988,
+          "pos-rad": 0.1
+        }
       ],
       "files": 2,
       "hits": 3,
@@ -90,21 +125,15 @@
       "name": "Wolf 359",
       "distance_label": "7.86 light-years",
       "queries": [
-        { "target": "GJ406" },
-        { "target": "", "pos-ra": 164.12025, "pos-dec": 7.01469, "pos-rad": 0.1 }
-      ],
-      "files": 2,
-      "hits": 3,
-      "blind": 2
-    },
-    {
-      "key": "epseri",
-      "name": "Epsilon Eridani",
-      "distance_label": "10.5 light-years",
-      "queries": [
-        { "target": "HIP16537" },
-        { "target": "EPSERI" },
-        { "target": "", "pos-ra": 53.23268, "pos-dec": -9.45826, "pos-rad": 0.1 }
+        {
+          "target": "GJ406"
+        },
+        {
+          "target": "",
+          "pos-ra": 164.12025,
+          "pos-dec": 7.01469,
+          "pos-rad": 0.1
+        }
       ],
       "files": 2,
       "hits": 3,
@@ -115,9 +144,18 @@
       "name": "Ross 128",
       "distance_label": "11.0 light-years",
       "queries": [
-        { "target": "GJ447" },
-        { "target": "HIP57548" },
-        { "target": "", "pos-ra": 176.93496, "pos-dec": 0.80451, "pos-rad": 0.1 }
+        {
+          "target": "GJ447"
+        },
+        {
+          "target": "HIP57548"
+        },
+        {
+          "target": "",
+          "pos-ra": 176.93496,
+          "pos-dec": 0.80451,
+          "pos-rad": 0.1
+        }
       ],
       "files": 2,
       "hits": 3,
@@ -128,9 +166,18 @@
       "name": "61 Cygni",
       "distance_label": "11.4 light-years",
       "queries": [
-        { "target": "HIP104214" },
-        { "target": "61CYG" },
-        { "target": "", "pos-ra": 316.72475, "pos-dec": 38.74942, "pos-rad": 0.1 }
+        {
+          "target": "HIP104214"
+        },
+        {
+          "target": "61CYG"
+        },
+        {
+          "target": "",
+          "pos-ra": 316.72475,
+          "pos-dec": 38.74942,
+          "pos-rad": 0.1
+        }
       ],
       "files": 2,
       "hits": 3,

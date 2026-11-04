@@ -37,7 +37,7 @@ export const FAMILIES = [
     real: true,
     window: 'on-target hit',
     control: 'blind-window',
-    about: 'Real Breakthrough Listen scans of nearby stars (Proxima Centauri with Parkes, the others with Green Bank): windows around the strongest narrowband hits a de-Doppler search found while the telescope pointed at the star. Hits like these are almost always human interference. blc1, at 982 MHz towards Proxima Centauri, turned out to be interference too.',
+    about: 'Real Breakthrough Listen scans of nearby stars (Proxima Centauri and Tau Ceti with Parkes, the others with Green Bank): windows around the strongest narrowband hits a de-Doppler search found while the telescope pointed at the star. Hits like these are almost always human interference. blc1, at 982 MHz towards Proxima Centauri, turned out to be interference too.',
   },
   {
     id: 'blind-window',
