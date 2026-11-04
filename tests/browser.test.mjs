@@ -745,6 +745,28 @@ test('one click on the random sky sample picks a real slice, slews to where it c
   await page.close();
 });
 
+test('with Shuffle frames on, the waterfall keeps showing the sample, in its own shuffled order', async () => {
+  const { page, errors } = await openLab();
+  await waitForPublished(page);
+  await page.fill('#epochs', '1');
+  await page.selectOption('#ntrain', '400');
+  await page.check('#shuffle');
+  await page.click('#sample');
+  const picked = await page.getAttribute('#sample-status', 'data-slice');
+  assert.ok(picked);
+  assert.equal(await page.textContent('#wf-actual-caption'), 'Actual: the sample, frames shuffled');
+  const preview = await page.$eval('#wf-actual', (c) => c.toDataURL());
+  // Training on the shuffled family still shows the sample, not another random example.
+  await page.waitForFunction(() => /^Actual: the sample, frames shuffled \((held out|in the training data)\)$/.test(document.getElementById('wf-actual-caption').textContent), null, { timeout: 120000 });
+  await page.waitForFunction(() => /^(Done|Stopped)/.test(document.getElementById('lab-status').textContent), null, { timeout: 120000 });
+  assert.equal(await page.getAttribute('#sample-status', 'data-slice'), picked);
+  // The same frames in the same order: the worker's waterfall drops the first two frames of the
+  // 16, as the preview does, so the two images match.
+  assert.equal(await page.$eval('#wf-actual', (c) => c.toDataURL()), preview, 'the preview and the training waterfall show the same shuffled sample');
+  assert.deepEqual(errors, []);
+  await page.close();
+});
+
 test('the Wow! signal slews the map to where it came from, and both of its fields are on it', async () => {
   const { page, errors } = await openLab();
   await page.click('#families button[data-family="wow"]');

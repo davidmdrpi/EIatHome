@@ -1,7 +1,8 @@
 // The Live Lab's random sky sample: one real slice, picked at random, and what the sky map's
 // marker card says about it.
 
-import { driftToHzPerS, familyById } from './signals.js';
+import { deriveSeed, makeRng } from './rng.js';
+import { T, driftToHzPerS, familyById } from './signals.js';
 import { mjdDate } from './splits.js';
 
 // Whether a slice records where the telescope pointed (manifest version 2).
@@ -14,6 +15,10 @@ export function pointingId(slice) {
   const sky = slice.source.sky;
   return `${slice.family}@${sky.ra_hours.toFixed(4)},${sky.dec_deg.toFixed(3)}@${String(sky.epoch ?? '').slice(0, 10)}`;
 }
+
+// The order the sample's frames are shown in with Shuffle frames on: one permutation per seed and
+// slice, the same in the preview and in the training worker's waterfall.
+export const sampleOrder = (seed, id) => makeRng(deriveSeed(seed, `sample-shuffle-${id}`)).permutation(T);
 
 // A random slice, never the one already shown (currentId). Slices with a pointing come first,
 // so the map can show where the sample came from. null if there's nothing else to pick.

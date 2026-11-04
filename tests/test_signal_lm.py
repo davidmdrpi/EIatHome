@@ -13,7 +13,7 @@ from unittest import mock
 import numpy as np
 import torch
 
-from tracks.llm.data import Tokenizer, digest, groups, load_slices, markov_probabilities, split_records, split_sizes, surrogate, SESSION_GAP_DAYS
+from tracks.llm.data import Tokenizer, control_family, digest, groups, load_slices, markov_probabilities, split_records, split_sizes, surrogate, SESSION_GAP_DAYS
 from tracks.llm.model import RotaryBlock, SignalLM, evaluate, fit, generate, windows
 from tracks.llm.sample import load_checkpoint, main as sample_main
 from tracks.llm.train import parser, run, window_starts
@@ -66,6 +66,18 @@ class PublishedDataTests(unittest.TestCase):
     def test_current_manifest_integrity_without_assuming_size_or_sessions(self):
         entries = json.loads(MANIFEST.read_text())['slices']
         self.assertEqual(len(load_slices(MANIFEST)), len(entries))
+
+    def test_each_real_family_is_scored_against_its_own_control(self):
+        # With all four real families published, the pairs hold in both directions; families
+        # without a pair keep off-source first.
+        records = load_slices(MANIFEST)
+        self.assertEqual({r["entry"]["family"] for r in records} >= {"voyager", "offsource", "stars", "blind-window"}, True)
+        pairs = {"voyager": "offsource", "offsource": "voyager", "stars": "blind-window", "blind-window": "stars"}
+        for family, control in pairs.items():
+            self.assertEqual(control_family(records, family), control, family)
+        self.assertEqual(control_family(records, "rosetta"), "offsource")
+        without_blind = [r for r in records if r["entry"]["family"] != "blind-window"]
+        self.assertEqual(control_family(without_blind, "stars"), "offsource", "no pair loaded: off-source first")
 
     def test_version_1_and_2_manifests_load_alike_and_version_2_needs_a_pointing(self):
         with tempfile.TemporaryDirectory() as tmp:

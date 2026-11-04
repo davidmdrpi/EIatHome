@@ -111,10 +111,18 @@ def dataset_digest(records):
     return digest(json.dumps(identity, sort_keys=True).encode())
 
 
+# Each real family's own control when the manifest has it, as in the Live Lab (web/js/signals.js's
+# `control`): Voyager and off-source pair up, as do the SETI targets and the blind windows.
+CONTROL_PAIRS = {"voyager": "offsource", "offsource": "voyager", "stars": "blind-window", "blind-window": "stars"}
+
+
 def control_family(records, family):
-    """The family a run on `family` is scored on as a control: another family in the manifest,
-    off-source first (real noise, nothing in the beam). None if there isn't one."""
+    """The family a run on `family` is scored on as a control: its pair (CONTROL_PAIRS) if the
+    manifest has it, else another family, off-source first (real noise, nothing in the beam).
+    None if there isn't one."""
     others = sorted({r["entry"]["family"] for r in records} - {family})
+    if CONTROL_PAIRS.get(family) in others:
+        return CONTROL_PAIRS[family]
     return "offsource" if "offsource" in others else (others[0] if others else None)
 
 

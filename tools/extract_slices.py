@@ -52,6 +52,7 @@ import re
 import struct
 import sys
 import time
+import urllib.error
 from urllib.parse import urlencode, urljoin, urlparse
 import urllib.request
 
@@ -79,6 +80,11 @@ COARSE_PHASES = {4: (0.5, 0.0)}
 TIME_STEPS = 16  # time steps per Live Lab slice (web/js/signals.js's T)
 # Archive hosts with valid TLS certificates: their http:// URLs are read over https instead.
 HTTPS_HOSTS = {"bldata.berkeley.edu"}
+# Every failure to retrieve something, after retries: a pool run keeps the earlier slices of any
+# target it couldn't fully retrieve (run_pool). A file the server says isn't there (404, 410) is
+# no such failure: it's skipped like any other unusable file.
+RETRIEVAL_FAILURES = []
+GONE = (404, 410)
 
 
 class SkipFile(Exception):
@@ -129,10 +135,17 @@ class RangeFile(io.RawIOBase):
         for attempt in range(4):
             try:
                 return urllib.request.urlopen(request, timeout=120)
-            except OSError:
-                if attempt == 3:
+            except urllib.error.HTTPError as err:
+                if err.code in GONE:
                     raise
-                time.sleep(2 ** attempt)
+                if attempt == 3:
+                    RETRIEVAL_FAILURES.append(f"{self.url}: {err}")
+                    raise
+            except OSError as err:
+                if attempt == 3:
+                    RETRIEVAL_FAILURES.append(f"{self.url}: {err}")
+                    raise
+            time.sleep(2 ** attempt)
 
     def _get(self, offset, length):
         with self._request({"Range": f"bytes={offset}-{offset + length - 1}"}) as response:
@@ -141,6 +154,7 @@ class RangeFile(io.RawIOBase):
                 raise OSError(f"{self.url} doesn't support range requests (HTTP {response.status})")
             data = response.read()
         if len(data) != length:
+            RETRIEVAL_FAILURES.append(f"{self.url}: short read at byte {offset}")
             raise OSError(f"{self.url}: short read at byte {offset}")
         self.fetched += length
         return data
@@ -700,8 +714,9 @@ def fetch_json(url, allow_http):
         try:
             with urllib.request.urlopen(url, timeout=120) as response:
                 return json.loads(response.read())
-        except OSError:
+        except (OSError, ValueError) as err:  # ValueError: a reply that isn't JSON (an error page)
             if attempt == 3:
+                RETRIEVAL_FAILURES.append(f"{url}: {err}")
                 raise
             time.sleep(2 ** attempt)
 
@@ -961,7 +976,12 @@ def located_slices(cut, target, archive):
 
 
 def run_pool(args):
-    """Cut the slice pool: every target's hits and blind windows, replacing the pool's earlier ones."""
+    """Cut the slice pool: every target's hits and blind windows, replacing the pool's earlier ones.
+
+    Each target's refresh is staged. If anything couldn't be retrieved while refreshing a target
+    (its archive query, or one of its files, after retries), the target keeps its earlier slices
+    as they were, and once the rest of the pool is written the run exits with an error, so the
+    workflow commits nothing and no slice is lost to a passing network failure."""
     pool = json.loads(args.pool.read_text())
     limits = {**DEFAULT_LIMITS, **pool.get("limits", {})}
     targets = [t for t in pool["targets"] if not args.only or t["key"] in args.only]
@@ -973,14 +993,17 @@ def run_pool(args):
         record = e["source"].get("pool", {})
         return record.get("id") == pool["id"] and (not args.only or record.get("key") in args.only)
     kept = [e for e in manifest["slices"] if not mine(e)]
-    replaced = [e for e in manifest["slices"] if mine(e)]
+    previous = [e for e in manifest["slices"] if mine(e)]
     others = sum(1 for e in kept if e["source"].get("pool", {}).get("id") == pool["id"])
     known_hashes = {e["sha256"] for e in kept}
     known_ids = {e["id"] for e in kept}
 
-    added, report = [], []
+    final = []  # (payload, entry); payload None for an earlier slice kept as it is
+    report, failed = [], []
     budget_slices = limits["max_slices"] - others
     budget_bytes = limits["max_bytes"] - others * TIME_STEPS * args.width * 4
+    slice_bytes = TIME_STEPS * args.width * 4
+    fits = lambda n: n <= budget_slices and n * slice_bytes <= budget_bytes  # noqa: E731
     full = False
     stars = 0  # archive targets that gave slices
     for target in targets:
@@ -992,17 +1015,20 @@ def run_pool(args):
         if queries and stars == limits["max_targets"]:
             report.append((target["key"], 0, f"not read: {stars} archive targets already have slices"))
             continue
-        cut = used_files = 0
+        used_files = 0
         wanted_files = int(target.get("files", 2))
+        failures_before = len(RETRIEVAL_FAILURES)
+        fresh, fresh_hashes, fresh_ids = [], set(), set()
+        retrieval_failed = lambda: len(RETRIEVAL_FAILURES) > failures_before  # noqa: E731
 
         def read(sources):
             """Slices from these (path, archive record) sources, until the target has its files:
             at most three tries per file wanted (files ruled out by their headers alone don't
-            count) among the first MAX_CANDIDATES."""
-            nonlocal cut, used_files, full
+            count) among the first MAX_CANDIDATES. Stops at a retrieval failure."""
+            nonlocal used_files, full
             tried = examined = 0
             for path, archive in sources:
-                if full or (archive is not None and (used_files == wanted_files or tried == 3 * wanted_files or examined == MAX_CANDIDATES)):
+                if full or retrieval_failed() or (archive is not None and (used_files == wanted_files or tried == 3 * wanted_files or examined == MAX_CANDIDATES)):
                     return
                 examined += archive is not None
                 if is_url(path) and path.startswith("http://") and not args.allow_http:
@@ -1019,21 +1045,20 @@ def run_pool(args):
                 tried += archive is not None
                 used_files += archive is not None and bool(slices)
                 for payload, entry in slices:
-                    if entry["sha256"] in known_hashes or entry["id"] in known_ids:
+                    if entry["sha256"] in known_hashes | fresh_hashes or entry["id"] in known_ids | fresh_ids:
                         print(f"  skipped {entry['id']}: already in the manifest")
                         continue
-                    if len(added) + 1 > budget_slices or (len(added) + 1) * len(payload) > budget_bytes:
-                        print(f"  stopped at {len(added)} slices: the pool's limits are {limits}")
+                    if not fits(len(final) + len(fresh) + 1):
+                        print(f"  stopped at {len(final) + len(fresh)} slices: the pool's limits are {limits}")
                         full = True
                         return
-                    added.append((payload, entry))
-                    known_hashes.add(entry["sha256"])
-                    known_ids.add(entry["id"])
-                    cut += 1
+                    fresh.append((payload, entry))
+                    fresh_hashes.add(entry["sha256"])
+                    fresh_ids.add(entry["id"])
 
         read([(input_path(u) if not args.allow_http else prefer_https(u), None) for u in target.get("urls", [])])
         for query in queries:  # in order, while the target still wants files
-            if full or used_files == wanted_files:
+            if full or used_files == wanted_files or retrieval_failed():
                 break
             try:
                 entries = query_files(pool["api"], query, args.allow_http)
@@ -1047,19 +1072,45 @@ def run_pool(args):
                 print(f"    none usable: {dict(kinds.most_common(4))}, e.g. {[PurePosixPath(urlparse(str(e.get('url', ''))).path).name for e in entries[:3]]}")
             # The archive's URLs are absolute; resolve any that aren't against the API's site.
             read([(prefer_https(urljoin(pool["api"], e["url"])), e) for e in candidates])
-        stars += bool(queries and cut)
-        report.append((target["key"], cut, "" if cut else "no slices"))
 
-    for e in replaced:
-        (args.out / e["file"]).unlink(missing_ok=True)
-    for payload, entry in added:
-        (args.out / entry["file"]).write_bytes(payload)
-    write_manifest(manifest_path, kept + [e for _, e in added])
-    print(f"Pool {pool['id']}: {len(added)} slices from {sum(1 for _, n, _ in report if n)} targets "
-          f"(replacing {len(replaced)}); {len(kept) + len(added)} in the manifest")
+        if retrieval_failed():
+            # Not a refresh: keep what the last complete one cut for this target.
+            earlier = [e for e in previous if e["source"]["pool"].get("key") == target["key"]]
+            print(f"  kept its {len(earlier)} earlier slices: couldn't retrieve {RETRIEVAL_FAILURES[-1]}")
+            failed.append(target["key"])
+            chosen = [(None, e) for e in earlier]
+        else:
+            chosen = fresh
+        for payload, entry in chosen:
+            if not fits(len(final) + 1):
+                print(f"  stopped at {len(final)} slices: the pool's limits are {limits}")
+                full = True
+                break
+            final.append((payload, entry))
+            known_hashes.add(entry["sha256"])
+            known_ids.add(entry["id"])
+        cut = sum(1 for _, e in final if e["source"]["pool"].get("key") == target["key"])
+        stars += bool(queries and cut)
+        report.append((target["key"], cut, "kept its earlier slices: retrieval failed" if target["key"] in failed else "" if cut else "no slices"))
+
+    entries = [e for _, e in final]
+    in_use = {e["file"] for e in kept + entries}
+    for e in previous:
+        if e["file"] not in in_use:
+            (args.out / e["file"]).unlink(missing_ok=True)
+    for payload, entry in final:
+        if payload is not None:
+            (args.out / entry["file"]).write_bytes(payload)
+    write_manifest(manifest_path, kept + entries)
+    new = sum(1 for payload, _ in final if payload is not None)
+    print(f"Pool {pool['id']}: {len(entries)} slices from {sum(1 for _, n, _ in report if n)} targets "
+          f"({new} cut now, replacing {len(previous)}); {len(kept) + len(entries)} in the manifest")
     for key, n, note in report:
         print(f"  {key:<20} {n:3d} slices {note}")
-    if not added:
+    if failed:
+        raise SystemExit(f"Couldn't retrieve everything for {', '.join(failed)}, so they kept their earlier slices; "
+                         "the rest of the pool was refreshed. Run it again to refresh them.")
+    if not entries:
         raise SystemExit("The pool produced no slices.")
 
 

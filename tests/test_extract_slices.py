@@ -211,6 +211,11 @@ class FileServer:
                     return
                 if callable(payload):
                     payload = payload(self.path)
+                if isinstance(payload, int):  # a status code to answer with instead (503, 404, ...)
+                    self.send_response(payload)
+                    self.send_header("Content-Length", "0")
+                    self.end_headers()
+                    return
                 match = re.fullmatch(r"bytes=(\d+)-(\d+)", self.headers.get("Range", ""))
                 body, status = payload, 200
                 if match:
@@ -295,7 +300,8 @@ class PoolTests(unittest.TestCase):
                 if path.startswith("/api/query-files"):
                     query = dict(urllib.parse.parse_qsl(urllib.parse.urlsplit(path).query))
                     queries.append(query)
-                    return json.dumps({"result": "success", "data": listing_for(query)}).encode()
+                    listing = listing_for(query)
+                    return listing if isinstance(listing, int) else json.dumps({"result": "success", "data": listing}).encode()
                 return dict.get(inner, path, default)
 
         self.server = FileServer(Files(files))
@@ -483,6 +489,69 @@ class PoolTests(unittest.TestCase):
         with self.assertRaisesRegex(SystemExit, "no slices"):
             self.run_pool([target])
         self.assertEqual(self.last_log.count("passed over"), 5, "every candidate is looked at, none counts as a try")
+
+    def two_targets(self):
+        """Two targets with one file each, served directly (no archive query)."""
+        files = {f"/dl/{k}.0000.h5": self.scan(f"{k}.0000.h5", 57800.25 + n, line_at=900, seed=n) for n, k in enumerate("ab")}
+        self.server = FileServer(files)
+        self.addCleanup(self.server.close)
+        targets = [{"key": k, "name": k.upper(), "urls": [f"{self.server.base}/dl/{k}.0000.h5"], "hits": 1, "blind": 1} for k in "ab"]
+        return files, targets
+
+    def rerun(self, targets, out):
+        """Run the pool again from the server (no cached files), without waiting out retries."""
+        x._remotes.clear()
+        with mock.patch.object(x.time, "sleep"):
+            return self.run_pool(targets, out=out)
+
+    def test_a_target_that_cant_be_retrieved_keeps_its_earlier_slices_and_the_run_fails(self):
+        files, targets = self.two_targets()
+        out = self.folder / "slices"
+        first = self.run_pool(targets, out=out)
+        bins = {p.name: p.read_bytes() for p in out.glob("*.bin")}
+        self.assertEqual({e["source"]["pool"]["key"] for e in first}, {"a", "b"})
+
+        # Partial: a's file fails to download; b changes (two blind windows now) and is refreshed.
+        files["/dl/a.0000.h5"] = 503
+        targets[1]["blind"] = 2
+        with self.assertRaisesRegex(SystemExit, "Couldn't retrieve everything for a"):
+            self.rerun(targets, out)
+        self.assertIn("kept its 2 earlier slices", self.last_log)
+        second = json.loads((out / "index.json").read_text())["slices"]
+        self.assertEqual([e for e in second if e["source"]["pool"]["key"] == "a"], [e for e in first if e["source"]["pool"]["key"] == "a"])
+        self.assertEqual(sum(e["family"] == "blind-window" and e["source"]["pool"]["key"] == "b" for e in second), 2, "b was refreshed")
+        for e in second:
+            self.assertTrue((out / e["file"]).exists(), e["file"])
+        for e in (e for e in first if e["source"]["pool"]["key"] == "a"):
+            self.assertEqual((out / e["file"]).read_bytes(), bins[e["file"]], "a's slices are untouched")
+
+        # Total: nothing can be retrieved. Every earlier slice stays, and so does the manifest.
+        files["/dl/b.0000.h5"] = 503
+        with self.assertRaisesRegex(SystemExit, "Couldn't retrieve everything for a, b"):
+            self.rerun(targets, out)
+        self.assertEqual(json.loads((out / "index.json").read_text())["slices"], second)
+        self.assertEqual(sorted(p.name for p in out.glob("*.bin")), sorted(e["file"] for e in second))
+
+    def test_an_archive_query_that_fails_keeps_the_targets_earlier_slices(self):
+        scans = {"a.0000.h5": self.scan("a.0000.h5", 57800.25, line_at=900)}
+        state = {"up": True}
+        self.setup_archive(scans, lambda q: [self.archive("a.0000.h5", 57800.25)] if state["up"] else 503)
+        target = {"key": "trappist1", "name": "TRAPPIST-1", "queries": [{"target": "TRAPPIST"}], "files": 1, "hits": 1, "blind": 1}
+        out = self.folder / "slices"
+        first = self.run_pool([target], out=out)
+        state["up"] = False
+        with self.assertRaisesRegex(SystemExit, "Couldn't retrieve everything for trappist1"):
+            self.rerun([target], out)
+        self.assertEqual(json.loads((out / "index.json").read_text())["slices"], first)
+
+    def test_a_file_the_server_says_is_gone_is_skipped_not_a_failure(self):
+        files, targets = self.two_targets()
+        out = self.folder / "slices"
+        self.run_pool(targets, out=out)
+        files["/dl/a.0000.h5"] = 404
+        after = self.rerun(targets, out)  # no error: a 404 is an answer, not a failed retrieval
+        self.assertEqual({e["source"]["pool"]["key"] for e in after}, {"b"})
+        self.assertIn("HTTP Error 404", self.last_log)
 
     def test_plain_http_needs_allow_http(self):
         self.setup_archive({}, lambda q: [])

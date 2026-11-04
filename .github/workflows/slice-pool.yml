@@ -13,7 +13,9 @@ name: Cut the slice pool
 # SHA-256, and the tests below check every slice before anything is committed.
 #
 # It runs when the pool or the extractor changes on a branch other than main, or by hand. Run by
-# hand on main, it pushes a new branch (slice-pool/<run id>) for a pull request instead.
+# hand on main, it pushes a new branch (slice-pool/<run id>) for a pull request instead. If a
+# target's query or files can't be retrieved, the extraction keeps that target's earlier slices
+# and fails, so this job stops before committing anything; run it again.
 
 on:
   push:

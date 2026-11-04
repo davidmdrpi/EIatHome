@@ -9,7 +9,7 @@ import { deriveSeed, makeRng } from './rng.js';
 import { forWorkers, loadPublishedSlices, loadSliceFiles } from './slices.js';
 import { SCAN_GAP_DAYS, groups, mjdDate, sessions } from './splits.js';
 import { C, FAMILIES, ROSETTA_TEXT, T, driftToHzPerS, familyById, makeSnippet, normalise, shuffleFrames } from './signals.js';
-import { describeSample, pickSample, pointingId, sampleLines } from './sample.js';
+import { describeSample, pickSample, pointingId, sampleLines, sampleOrder } from './sample.js';
 import { GREEN_BANK, OUTCOMES, SkyMap, constellationAt, horizonToEquatorial, loadSky, siderealHours } from './skymap.js';
 import { centralWindow } from './trackb-splits.js';
 import { MAX_UNIT, SPEC, specSlices, workUnitConfig } from './workunits.js';
@@ -315,21 +315,35 @@ function labTarget(id) {
   return own && viewports.lab?.target(own) ? own : targetForFamily(id);
 }
 
-// The sample's slice, as the waterfall shows it: its central window, normalized.
-const sampleFrames = () => (state.sample?.family === state.family ? centralWindow(state.sample) : null);
+// The sample's slice, as the waterfall shows it: its central window, normalized, in the order
+// Shuffle frames gives it (the training worker uses the same one).
+function sampleFrames(seed) {
+  if (state.sample?.family !== state.family) return null;
+  const x = centralWindow(state.sample);
+  return $('shuffle').checked ? shuffleFrames(x, sampleOrder(seed, state.sample.id)) : x;
+}
+
+// The waterfall's caption for the sample: before training (focus null), as the checkbox stands;
+// during training, as the run was configured.
+function sampleCaption(focus) {
+  const shuffled = focus ? focus.shuffled : $('shuffle').checked;
+  return `Actual: the sample${shuffled ? ', frames shuffled' : ''}${focus ? ` (${focus.heldOut ? 'held out' : 'in the training data'})` : ''}`;
+}
 
 // Before training: show a sample of the chosen family.
 function renderPreview() {
   const seed = Number($('seed').value) || 0;
   const rng = makeRng(deriveSeed(seed, `preview-${state.family}`));
-  let x = sampleFrames();
-  $('wf-actual-caption').textContent = x ? 'Actual: the sample' : 'Actual';
-  try {
-    x ??= normalise(makeSnippet(state.family, rng, { slices: forWorkers(state.slices), region: 'eval', text: state.text || undefined }).raw);
-  } catch {
-    return;
+  let x = sampleFrames(seed);
+  $('wf-actual-caption').textContent = x ? sampleCaption(null) : 'Actual';
+  if (!x) {
+    try {
+      x = normalise(makeSnippet(state.family, rng, { slices: forWorkers(state.slices), region: 'eval', text: state.text || undefined }).raw);
+    } catch {
+      return;
+    }
+    if ($('shuffle').checked) x = shuffleFrames(x, rng.permutation(T));
   }
-  if ($('shuffle').checked) x = shuffleFrames(x, rng.permutation(T));
   const frames = x.slice(2 * C);
   heatmap($('wf-actual'), frames, T - 2, C, { range: [-1, Math.max(3, ...frames)], label: 'power (asinh)' });
   for (const id of ['wf-pred', 'wf-resid']) {
@@ -350,7 +364,7 @@ function renderLab() {
   const e = state.lastEpoch;
   if (!e) return;
   const { actual, predicted, residual, rows, focus } = e.example;
-  $('wf-actual-caption').textContent = focus ? `Actual: the sample (${focus.heldOut ? 'held out' : 'in the training data'})` : 'Actual';
+  $('wf-actual-caption').textContent = focus ? sampleCaption(focus) : 'Actual';
   const top = Math.max(3, ...actual);
   heatmap($('wf-actual'), actual, rows, C, { range: [-1, top], label: 'power (asinh)' });
   heatmap($('wf-pred'), predicted, rows, C, { range: [-1, top], label: 'predicted' });

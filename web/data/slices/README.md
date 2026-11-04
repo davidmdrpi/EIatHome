@@ -146,6 +146,12 @@ python tools/extract_slices.py --pool tools/slice_pool.json --allow-http
 slices stay. A full run replaces every slice the pool cut before, so a target dropped from the
 pool loses its slices. Commit the `.bin` files and `index.json` together.
 
+A run never loses slices to a network failure. Each target's refresh is staged: if its archive
+query or one of its files can't be retrieved (after retries), the target keeps its earlier slices
+as they were, the rest of the pool is refreshed, and the run exits with an error naming the
+targets, so the workflow commits nothing; run it again. A file the server says is gone (404) is
+no such failure: it's skipped like any other unusable file.
+
 ### Held-out scores
 
 With two Voyager sessions, the Live Lab trains on one and evaluates on the other, so the Voyager

@@ -9,6 +9,7 @@ import { C, DEFAULT_FOFF_HZ, DEFAULT_TSAMP_S, FAMILIES, REAL_FAMILIES, T, driftT
 import { canonicalOrder, datasetId, sha256Hex } from './slices.js';
 import { sessionPools } from './splits.js';
 import { centralWindow } from './trackb-splits.js';
+import { sampleOrder } from './sample.js';
 import { ANCHOR, anchorTheta0, flatten, layoutProblems, unflatten } from './anchor.js';
 import { attentionStates, buildTokenModel } from './layers.js';
 import { ARMS, addDelta, armConfig, mergeCardV1, mergeConfigV1, mergeDeltas, mergeTokens, shardTrain, unigramBits } from './merge.js';
@@ -501,10 +502,16 @@ async function liveTrain(config) {
   }
   const mapAll = concatSets(Object.values(mapSets));
   // The Live Lab's random sky sample: its slice's central window is the example the waterfall
-  // shows, whether or not the split held its scan out (it says which). Not with shuffled frames.
-  const focusSlice = config.focus && !config.shuffle ? inputs.slices.find((s) => s.id === config.focus && s.family === config.target) : null;
+  // shows, whether or not the split held its scan out (it says which). With shuffled frames, in
+  // the sample's own fixed order (sampleOrder), as the preview showed it.
+  const focusSlice = config.focus ? inputs.slices.find((s) => s.id === config.focus && s.family === config.target) : null;
   const focus = focusSlice
-    ? { id: focusSlice.id, x: centralWindow(focusSlice), heldOut: pools.eval.includes(focusSlice) && !pools.train.includes(focusSlice) }
+    ? {
+        id: focusSlice.id,
+        x: config.shuffle ? shuffleFrames(centralWindow(focusSlice), sampleOrder(config.seed, focusSlice.id)) : centralWindow(focusSlice),
+        heldOut: pools.eval.includes(focusSlice) && !pools.train.includes(focusSlice),
+        shuffled: Boolean(config.shuffle),
+      }
     : null;
 
   const result = await train(config, async (state) => {
@@ -530,7 +537,7 @@ async function liveTrain(config) {
       gains: state.gains,
       shuffledGains: state.shuffledGains,
       reconstruction: state.reconstruction,
-      example: { actual, predicted, residual, rows: T - 2, focus: focus && { id: focus.id, heldOut: focus.heldOut } },
+      example: { actual, predicted, residual, rows: T - 2, focus: focus && { id: focus.id, heldOut: focus.heldOut, shuffled: focus.shuffled } },
       map: { points, families: mapAll.families },
       backend: tf.getBackend(),
     });
