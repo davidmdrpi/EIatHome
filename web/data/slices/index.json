@@ -130,8 +130,8 @@
         "tsamp_s": 18.253611008,
         "first_channel": 552122,
         "centre_freq_mhz": 1142.5000003267353,
-        "drift_channels_per_step": -0.009191763199053299,
-        "drift_hz_per_s": 0.001406926535913303,
+        "drift_channels_per_step": -0.009191763185829408,
+        "drift_hz_per_s": 0.0014069265338892034,
         "snr": 35.30238723754883,
         "pool": {
           "id": "sky-pool/v1",
@@ -185,8 +185,8 @@
         "tsamp_s": 18.253611008,
         "first_channel": 105768,
         "centre_freq_mhz": 1143.747100051395,
-        "drift_channels_per_step": 0.23409141005063444,
-        "drift_hz_per_s": -0.03583092922406018,
+        "drift_channels_per_step": 0.23409141005146092,
+        "drift_hz_per_s": -0.035830929224186674,
         "snr": 33.69172286987305,
         "pool": {
           "id": "sky-pool/v1",
@@ -401,8 +401,8 @@
         "tsamp_s": 18.253611008,
         "first_channel": 146673,
         "centre_freq_mhz": 2069.9999994943964,
-        "drift_channels_per_step": 0.003446432240338226,
-        "drift_hz_per_s": -0.0005275241396186526,
+        "drift_channels_per_step": 0.003446432243644199,
+        "drift_hz_per_s": -0.0005275241401246774,
         "snr": 553.7855834960938,
         "pool": {
           "id": "sky-pool/v1",
@@ -446,17 +446,17 @@
         256
       ],
       "units": "noise sigma, bandpass-flattened",
-      "sha256": "03d6497ab6bd2493bb3c3b9caa14190cf8b3d38c723885c78a8da88f295898af",
+      "sha256": "736735b4353ea8152456044f3a67e3816735f006061b585f313dc9c5e22aab72",
       "source": {
         "file": "spliced_blc0001020304050607_guppi_57532_02535_GJ406_0007.gpuspec.0000.h5",
         "source_name": "GJ406",
         "tstart_mjd": 57532.029340277775,
-        "fch1_mhz": 1501.096092201437,
+        "fch1_mhz": 1501.46484375,
         "foff_hz": -2.835503418452676,
         "tsamp_s": 17.986224128,
-        "first_channel": 232752,
-        "centre_freq_mhz": 1500.4357601653476,
-        "snr": 3.595045328140259,
+        "first_channel": 966632,
+        "centre_freq_mhz": 1498.7235924651766,
+        "snr": 3.885557174682617,
         "pool": {
           "id": "sky-pool/v1",
           "key": "gj406"
@@ -474,7 +474,7 @@
           "md5sum": "e490770dd0a95d43141d31a0611bfe48",
           "url": "https://bldata.berkeley.edu/pipeline/AGBT16A_999_200/holding/spliced_blc0001020304050607_guppi_57532_02535_GJ406_0007.gpuspec.0000.h5"
         },
-        "coarse_channel": 143,
+        "coarse_channel": 145,
         "sky": {
           "ra_hours": 10.940277,
           "dec_deg": 7.002506,
@@ -499,17 +499,17 @@
         256
       ],
       "units": "noise sigma, bandpass-flattened",
-      "sha256": "64167f2232fe69726d1ed42c51cc5e3cabc7d9c6b7f877e258e6a8e9e3429b51",
+      "sha256": "26a12723c568e2ec9947959cd16f926095eace39005d2076d7e495a7d44dc52d",
       "source": {
         "file": "spliced_blc0001020304050607_guppi_57532_02535_GJ406_0007.gpuspec.0000.h5",
         "source_name": "GJ406",
         "tstart_mjd": 57532.029340277775,
-        "fch1_mhz": 1501.096092201437,
+        "fch1_mhz": 1501.46484375,
         "foff_hz": -2.835503418452676,
         "tsamp_s": 17.986224128,
-        "first_channel": 113510,
-        "centre_freq_mhz": 1500.7738712639707,
-        "snr": 3.878692388534546,
+        "first_channel": 321779,
+        "centre_freq_mhz": 1500.5520753510762,
+        "snr": 3.833296775817871,
         "pool": {
           "id": "sky-pool/v1",
           "key": "gj406"
@@ -527,7 +527,7 @@
           "md5sum": "e490770dd0a95d43141d31a0611bfe48",
           "url": "https://bldata.berkeley.edu/pipeline/AGBT16A_999_200/holding/spliced_blc0001020304050607_guppi_57532_02535_GJ406_0007.gpuspec.0000.h5"
         },
-        "coarse_channel": 143,
+        "coarse_channel": 145,
         "sky": {
           "ra_hours": 10.940277,
           "dec_deg": 7.002506,
@@ -552,19 +552,19 @@
         256
       ],
       "units": "noise sigma, bandpass-flattened",
-      "sha256": "8ca9ef41ba6b3bb7d28b118652457f2602f7bc0b8ce7137f8ff72a1c6e8fefa3",
+      "sha256": "efd69cb54d6facffdc9c7c5e324c3e5f04894339639b399228d7e4cf5d03cf60",
       "source": {
         "file": "spliced_blc0001020304050607_guppi_57532_02535_GJ406_0007.gpuspec.0000.h5",
         "source_name": "GJ406",
         "tstart_mjd": 57532.029340277775,
-        "fch1_mhz": 1501.096092201437,
+        "fch1_mhz": 1501.46484375,
         "foff_hz": -2.835503418452676,
         "tsamp_s": 17.986224128,
-        "first_channel": 386432,
-        "centre_freq_mhz": 1500.0000000001257,
-        "drift_channels_per_step": -4.8625157691373646e-06,
-        "drift_hz_per_s": 7.665689022636559e-07,
-        "snr": 1113506.0,
+        "first_channel": 517717,
+        "centre_freq_mhz": 1499.996491728465,
+        "drift_channels_per_step": 3.537125373885712,
+        "drift_hz_per_s": -0.5576229350736931,
+        "snr": 1170.2762451171875,
         "pool": {
           "id": "sky-pool/v1",
           "key": "gj406"
@@ -582,7 +582,7 @@
           "md5sum": "e490770dd0a95d43141d31a0611bfe48",
           "url": "https://bldata.berkeley.edu/pipeline/AGBT16A_999_200/holding/spliced_blc0001020304050607_guppi_57532_02535_GJ406_0007.gpuspec.0000.h5"
         },
-        "coarse_channel": 143,
+        "coarse_channel": 145,
         "sky": {
           "ra_hours": 10.940277,
           "dec_deg": 7.002506,
@@ -607,19 +607,19 @@
         256
       ],
       "units": "noise sigma, bandpass-flattened",
-      "sha256": "a05ec2c5de9d3457e515f3debb461090b3fd66edab5717dd4eb526396f90c20e",
+      "sha256": "8b837135ec3a5369b75255c5a14edd8cdb60a5fdafd037f429bbbef89e2958aa",
       "source": {
         "file": "spliced_blc0001020304050607_guppi_57532_02535_GJ406_0007.gpuspec.0000.h5",
         "source_name": "GJ406",
         "tstart_mjd": 57532.029340277775,
-        "fch1_mhz": 1501.096092201437,
+        "fch1_mhz": 1501.46484375,
         "foff_hz": -2.835503418452676,
         "tsamp_s": 17.986224128,
-        "first_channel": 387669,
-        "centre_freq_mhz": 1499.996491728465,
-        "drift_channels_per_step": 3.5371253688245408,
-        "drift_hz_per_s": -0.5576229342758064,
-        "snr": 1169.819091796875,
+        "first_channel": 523288,
+        "centre_freq_mhz": 1499.9806964044037,
+        "drift_channels_per_step": -0.8778469825527646,
+        "drift_hz_per_s": 0.13839136564698828,
+        "snr": 271.1148681640625,
         "pool": {
           "id": "sky-pool/v1",
           "key": "gj406"
@@ -637,7 +637,7 @@
           "md5sum": "e490770dd0a95d43141d31a0611bfe48",
           "url": "https://bldata.berkeley.edu/pipeline/AGBT16A_999_200/holding/spliced_blc0001020304050607_guppi_57532_02535_GJ406_0007.gpuspec.0000.h5"
         },
-        "coarse_channel": 143,
+        "coarse_channel": 145,
         "sky": {
           "ra_hours": 10.940277,
           "dec_deg": 7.002506,
@@ -662,19 +662,19 @@
         256
       ],
       "units": "noise sigma, bandpass-flattened",
-      "sha256": "e37bd58fb06032a01c462919653fc3243100d385f4db2a03bc607d9e502b7602",
+      "sha256": "e91e7ee1faedfad963d1cb94c8933235e90a25766d510e1d2fd2295cd02e7577",
       "source": {
         "file": "spliced_blc0001020304050607_guppi_57532_02535_GJ406_0007.gpuspec.0000.h5",
         "source_name": "GJ406",
         "tstart_mjd": 57532.029340277775,
-        "fch1_mhz": 1501.096092201437,
+        "fch1_mhz": 1501.46484375,
         "foff_hz": -2.835503418452676,
         "tsamp_s": 17.986224128,
-        "first_channel": 393240,
-        "centre_freq_mhz": 1499.9806964044037,
-        "drift_channels_per_step": -0.8778469779569608,
-        "drift_hz_per_s": 0.13839136492246612,
-        "snr": 271.00927734375,
+        "first_channel": 464974,
+        "centre_freq_mhz": 1500.1460453602588,
+        "drift_channels_per_step": -0.0035386098904207726,
+        "drift_hz_per_s": 0.00055785696705728,
+        "snr": 23.846662521362305,
         "pool": {
           "id": "sky-pool/v1",
           "key": "gj406"
@@ -692,7 +692,7 @@
           "md5sum": "e490770dd0a95d43141d31a0611bfe48",
           "url": "https://bldata.berkeley.edu/pipeline/AGBT16A_999_200/holding/spliced_blc0001020304050607_guppi_57532_02535_GJ406_0007.gpuspec.0000.h5"
         },
-        "coarse_channel": 143,
+        "coarse_channel": 145,
         "sky": {
           "ra_hours": 10.940277,
           "dec_deg": 7.002506,
@@ -823,17 +823,17 @@
         256
       ],
       "units": "noise sigma, bandpass-flattened",
-      "sha256": "8210602cd0fca19d5e77ddae5343d58aa3eb65399dd37f9b502d8957c208c931",
+      "sha256": "0f5f4f993deff156057c37e9a37d0ad2d5614cb380bd53ed033f345519611268",
       "source": {
         "file": "spliced_blc0001020304050607_guppi_57542_85812_GJ411_0007.gpuspec.0000.h5",
         "source_name": "GJ411",
         "tstart_mjd": 57542.99319444445,
-        "fch1_mhz": 1658.677856324331,
+        "fch1_mhz": 1659.66796875,
         "foff_hz": -2.835503418452676,
         "tsamp_s": 17.986224128,
-        "first_channel": 811658,
-        "centre_freq_mhz": 1656.376034346279,
-        "snr": 4.732331275939941,
+        "first_channel": 658135,
+        "centre_freq_mhz": 1657.801461763259,
+        "snr": 3.7178306579589844,
         "pool": {
           "id": "sky-pool/v1",
           "key": "gj411"
@@ -851,7 +851,7 @@
           "md5sum": "26b9b7d50318fde276ff90346b2fdd7d",
           "url": "https://bldata.berkeley.edu/pipeline/AGBT16A_999_213/holding/spliced_blc0001020304050607_guppi_57542_85812_GJ411_0007.gpuspec.0000.h5"
         },
-        "coarse_channel": 90,
+        "coarse_channel": 91,
         "sky": {
           "ra_hours": 11.055389,
           "dec_deg": 35.948614,
@@ -876,17 +876,17 @@
         256
       ],
       "units": "noise sigma, bandpass-flattened",
-      "sha256": "2828604a951ec3df730a4628e8d302971dc488c2a7d17f741e1d28bf1f4d19d1",
+      "sha256": "1d7b43ab4d38d804e286e4d800c81b836cf7b2a3ebe1263573ee3d0d6bcee2d1",
       "source": {
         "file": "spliced_blc0001020304050607_guppi_57542_85812_GJ411_0007.gpuspec.0000.h5",
         "source_name": "GJ411",
         "tstart_mjd": 57542.99319444445,
-        "fch1_mhz": 1658.677856324331,
+        "fch1_mhz": 1659.66796875,
         "foff_hz": -2.835503418452676,
         "tsamp_s": 17.986224128,
-        "first_channel": 591420,
-        "centre_freq_mhz": 1657.0005199481523,
-        "snr": 3.725184679031372,
+        "first_channel": 550848,
+        "centre_freq_mhz": 1658.1056744185146,
+        "snr": 4.013797283172607,
         "pool": {
           "id": "sky-pool/v1",
           "key": "gj411"
@@ -904,7 +904,7 @@
           "md5sum": "26b9b7d50318fde276ff90346b2fdd7d",
           "url": "https://bldata.berkeley.edu/pipeline/AGBT16A_999_213/holding/spliced_blc0001020304050607_guppi_57542_85812_GJ411_0007.gpuspec.0000.h5"
         },
-        "coarse_channel": 90,
+        "coarse_channel": 91,
         "sky": {
           "ra_hours": 11.055389,
           "dec_deg": 35.948614,
@@ -929,19 +929,19 @@
         256
       ],
       "units": "noise sigma, bandpass-flattened",
-      "sha256": "f758c4375df1b01b37f1a64f7758d47948ee84b45059c34826c901ad78832bbf",
+      "sha256": "cc14c32f40817b023bb3a79cb3f374afeeae0bf81e77557ccf4506ab9c78c3b5",
       "source": {
         "file": "spliced_blc0001020304050607_guppi_57542_85812_GJ411_0007.gpuspec.0000.h5",
         "source_name": "GJ411",
         "tstart_mjd": 57542.99319444445,
-        "fch1_mhz": 1658.677856324331,
+        "fch1_mhz": 1659.66796875,
         "foff_hz": -2.835503418452676,
         "tsamp_s": 17.986224128,
-        "first_channel": 167296,
-        "centre_freq_mhz": 1658.2031250003113,
-        "drift_channels_per_step": -0.00013845340794209248,
-        "drift_hz_per_s": 2.1826988739958513e-05,
-        "snr": 11072.3544921875,
+        "first_channel": 284654,
+        "centre_freq_mhz": 1658.8604674611177,
+        "drift_channels_per_step": -3.2820341328237608,
+        "drift_hz_per_s": 0.5174081528658764,
+        "snr": 11.296065330505371,
         "pool": {
           "id": "sky-pool/v1",
           "key": "gj411"
@@ -959,7 +959,7 @@
           "md5sum": "26b9b7d50318fde276ff90346b2fdd7d",
           "url": "https://bldata.berkeley.edu/pipeline/AGBT16A_999_213/holding/spliced_blc0001020304050607_guppi_57542_85812_GJ411_0007.gpuspec.0000.h5"
         },
-        "coarse_channel": 90,
+        "coarse_channel": 91,
         "sky": {
           "ra_hours": 11.055389,
           "dec_deg": 35.948614,
@@ -1090,17 +1090,17 @@
         256
       ],
       "units": "noise sigma, bandpass-flattened",
-      "sha256": "22966a767632200e85601b1df04dbffe5fea1d352d9abe5671ef77ad9e8424d6",
+      "sha256": "f8d3d1421ce894d2ebdcd03b803c0895aae92bea85fd987d650e51dc4125e421",
       "source": {
         "file": "spliced_blc0001020304050607_guppi_57532_03272_GJ447_0009.gpuspec.0000.h5",
         "source_name": "GJ447",
         "tstart_mjd": 57532.03787037037,
-        "fch1_mhz": 1587.3200763441525,
+        "fch1_mhz": 1586.42578125,
         "foff_hz": -2.835503418452676,
         "tsamp_s": 17.986224128,
-        "first_channel": 290246,
-        "centre_freq_mhz": 1586.4967198745228,
-        "snr": 4.1033124923706055,
+        "first_channel": 155622,
+        "centre_freq_mhz": 1585.984151592576,
+        "snr": 4.017814636230469,
         "pool": {
           "id": "sky-pool/v1",
           "key": "gj447"
@@ -1118,7 +1118,7 @@
           "md5sum": "99a9c4a6ece7771f45a50cc6ba009677",
           "url": "https://bldata.berkeley.edu/pipeline/AGBT16A_999_200/holding/spliced_blc0001020304050607_guppi_57532_03272_GJ447_0009.gpuspec.0000.h5"
         },
-        "coarse_channel": 114,
+        "coarse_channel": 116,
         "sky": {
           "ra_hours": 11.795832,
           "dec_deg": 0.798894,
@@ -1143,17 +1143,17 @@
         256
       ],
       "units": "noise sigma, bandpass-flattened",
-      "sha256": "c80233e675a0f909eea91e7c7e6af157f64c7a98d1650b0aee00da759dbecba7",
+      "sha256": "ee8cef5b95816d6b0d98ac140d47717acdf9716859193af11d071303a8147f0e",
       "source": {
         "file": "spliced_blc0001020304050607_guppi_57532_03272_GJ447_0009.gpuspec.0000.h5",
         "source_name": "GJ447",
         "tstart_mjd": 57532.03787037037,
-        "fch1_mhz": 1587.3200763441525,
+        "fch1_mhz": 1586.42578125,
         "foff_hz": -2.835503418452676,
         "tsamp_s": 17.986224128,
-        "first_channel": 741340,
-        "centre_freq_mhz": 1585.2176412954793,
-        "snr": 4.112664222717285,
+        "first_channel": 733021,
+        "centre_freq_mhz": 1584.3469347542648,
+        "snr": 4.698376655578613,
         "pool": {
           "id": "sky-pool/v1",
           "key": "gj447"
@@ -1171,7 +1171,7 @@
           "md5sum": "99a9c4a6ece7771f45a50cc6ba009677",
           "url": "https://bldata.berkeley.edu/pipeline/AGBT16A_999_200/holding/spliced_blc0001020304050607_guppi_57532_03272_GJ447_0009.gpuspec.0000.h5"
         },
-        "coarse_channel": 114,
+        "coarse_channel": 116,
         "sky": {
           "ra_hours": 11.795832,
           "dec_deg": 0.798894,
@@ -1196,19 +1196,19 @@
         256
       ],
       "units": "noise sigma, bandpass-flattened",
-      "sha256": "0cdf4d2ad6f9ab74606d6cc19c95570bc7152a1ac44a645922cd6d9ff3283764",
+      "sha256": "a69a8e642b7b008db9991e34112400eee02ad5861cdce9345ec2e7c9f2aab601",
       "source": {
         "file": "spliced_blc0001020304050607_guppi_57532_03272_GJ447_0009.gpuspec.0000.h5",
         "source_name": "GJ447",
         "tstart_mjd": 57532.03787037037,
-        "fch1_mhz": 1587.3200763441525,
+        "fch1_mhz": 1586.42578125,
         "foff_hz": -2.835503418452676,
         "tsamp_s": 17.986224128,
-        "first_channel": 831872,
-        "centre_freq_mhz": 1584.9609374979082,
-        "drift_channels_per_step": 1.0216062754731428e-05,
-        "drift_hz_per_s": -1.6105481983332276e-06,
-        "snr": 15304.1435546875,
+        "first_channel": 272918,
+        "centre_freq_mhz": 1585.6515590859442,
+        "drift_channels_per_step": 1.5185962642984263,
+        "drift_hz_per_s": -0.2394046058819162,
+        "snr": 40.18318557739258,
         "pool": {
           "id": "sky-pool/v1",
           "key": "gj447"
@@ -1226,7 +1226,7 @@
           "md5sum": "99a9c4a6ece7771f45a50cc6ba009677",
           "url": "https://bldata.berkeley.edu/pipeline/AGBT16A_999_200/holding/spliced_blc0001020304050607_guppi_57532_03272_GJ447_0009.gpuspec.0000.h5"
         },
-        "coarse_channel": 114,
+        "coarse_channel": 116,
         "sky": {
           "ra_hours": 11.795832,
           "dec_deg": 0.798894,
@@ -1251,19 +1251,19 @@
         256
       ],
       "units": "noise sigma, bandpass-flattened",
-      "sha256": "0cb15cf111c39b82a62dc99d71377443d7bb501eadd4e2852094c1078f204438",
+      "sha256": "699ebfe6c7a2f3c9d2947453c7837dc8f52e8e4ff7d0741fd0f126f6f9242443",
       "source": {
         "file": "spliced_blc0001020304050607_guppi_57532_03272_GJ447_0009.gpuspec.0000.h5",
         "source_name": "GJ447",
         "tstart_mjd": 57532.03787037037,
-        "fch1_mhz": 1587.3200763441525,
+        "fch1_mhz": 1586.42578125,
         "foff_hz": -2.835503418452676,
         "tsamp_s": 17.986224128,
-        "first_channel": 588310,
-        "centre_freq_mhz": 1585.651559085944,
-        "drift_channels_per_step": 1.5185963058163587,
-        "drift_hz_per_s": -0.2394046124271609,
-        "snr": 40.178993225097656,
+        "first_channel": 273741,
+        "centre_freq_mhz": 1585.649225205082,
+        "drift_channels_per_step": 2.062194047181614,
+        "drift_hz_per_s": -0.3251020463596564,
+        "snr": 20.411788940429688,
         "pool": {
           "id": "sky-pool/v1",
           "key": "gj447"
@@ -1281,7 +1281,7 @@
           "md5sum": "99a9c4a6ece7771f45a50cc6ba009677",
           "url": "https://bldata.berkeley.edu/pipeline/AGBT16A_999_200/holding/spliced_blc0001020304050607_guppi_57532_03272_GJ447_0009.gpuspec.0000.h5"
         },
-        "coarse_channel": 114,
+        "coarse_channel": 116,
         "sky": {
           "ra_hours": 11.795832,
           "dec_deg": 0.798894,
@@ -1306,19 +1306,19 @@
         256
       ],
       "units": "noise sigma, bandpass-flattened",
-      "sha256": "e9e9592b4ed127cc0c08ee75a095379170940b59ff896e1a20ea81a1ce200aef",
+      "sha256": "7d0b83b5140886446b377c92996887a4569d60930b6e2e3611788127efda5453",
       "source": {
         "file": "spliced_blc0001020304050607_guppi_57532_03272_GJ447_0009.gpuspec.0000.h5",
         "source_name": "GJ447",
         "tstart_mjd": 57532.03787037037,
-        "fch1_mhz": 1587.3200763441525,
+        "fch1_mhz": 1586.42578125,
         "foff_hz": -2.835503418452676,
         "tsamp_s": 17.986224128,
-        "first_channel": 589133,
-        "centre_freq_mhz": 1585.649225205082,
-        "drift_channels_per_step": 2.0621940613096905,
-        "drift_hz_per_s": -0.3251020485869281,
-        "snr": 20.4114990234375,
+        "first_channel": 854060,
+        "centre_freq_mhz": 1584.0037283488941,
+        "drift_channels_per_step": -0.07720214978362389,
+        "drift_hz_per_s": 0.012170812398727887,
+        "snr": 13.362897872924805,
         "pool": {
           "id": "sky-pool/v1",
           "key": "gj447"
@@ -1336,7 +1336,7 @@
           "md5sum": "99a9c4a6ece7771f45a50cc6ba009677",
           "url": "https://bldata.berkeley.edu/pipeline/AGBT16A_999_200/holding/spliced_blc0001020304050607_guppi_57532_03272_GJ447_0009.gpuspec.0000.h5"
         },
-        "coarse_channel": 114,
+        "coarse_channel": 116,
         "sky": {
           "ra_hours": 11.795832,
           "dec_deg": 0.798894,
@@ -1512,219 +1512,274 @@
       }
     },
     {
-      "id": "gj699-57457-48988-blind-1",
+      "id": "gj699-57457-48661-blind-1",
       "family": "blind-window",
       "group": "blind window",
-      "file": "gj699-57457-48988-blind-1.bin",
+      "file": "gj699-57457-48661-blind-1.bin",
       "dtype": "float32-le",
       "shape": [
         16,
         256
       ],
       "units": "noise sigma, bandpass-flattened",
-      "sha256": "4497a5540777569df99b6a487e6397f323174371be0502e8784f43491a83c686",
+      "sha256": "afaf5052b6a80bb02a815bec3c921e8e7befc5b56c80d0f3109f09649504d8a7",
       "source": {
-        "file": "spliced_blc02030405_2bit_guppi_57457_48988_GJ699_OFF_0006.gpuspec.0000.h5",
-        "source_name": "GJ699_OFF",
-        "tstart_mjd": 57457.56699074074,
-        "fch1_mhz": 1406.6927922138257,
+        "file": "spliced_blc02030405_2bit_guppi_57457_48661_GJ699_0005.gpuspec.0000.h5",
+        "source_name": "GJ699",
+        "tstart_mjd": 57457.563206018516,
+        "fch1_mhz": 1554.19921875,
         "foff_hz": -2.835503418452676,
         "tsamp_s": 17.986224128,
-        "first_channel": 256834,
-        "centre_freq_mhz": 1405.9641755844132,
-        "snr": 3.8188822269439697,
+        "first_channel": 161460,
+        "centre_freq_mhz": 1553.741035423619,
+        "snr": 4.291214942932129,
         "pool": {
           "id": "sky-pool/v1",
           "key": "gj699"
         },
         "archive": {
-          "target": "GJ699_OFF",
+          "target": "GJ699",
           "telescope": "GBT",
-          "utc": "Thu, 10 Mar 2016 13:36:28 GMT",
-          "mjd": 57457.56699074074,
+          "utc": "Thu, 10 Mar 2016 13:31:00 GMT",
+          "mjd": 57457.56319444445,
           "ra": 269.448325,
-          "decl": 6.7391691667,
+          "decl": 4.7391741667,
           "center_freq": 1501.46484375,
           "file_type": "HDF5",
-          "size": 12780819036,
-          "md5sum": "692bc686df56e60bdc06b3d70a15d2c6",
-          "url": "https://bldata.berkeley.edu/pipeline/AGBT16A_999_81/holding/spliced_blc02030405_2bit_guppi_57457_48988_GJ699_OFF_0006.gpuspec.0000.h5"
+          "size": 12785252313,
+          "md5sum": "d28e20cb3ac42ffd62c92f3e0ce23f05",
+          "url": "https://bldata.berkeley.edu/pipeline/AGBT16A_999_81/holding/spliced_blc02030405_2bit_guppi_57457_48661_GJ699_0005.gpuspec.0000.h5"
         },
-        "coarse_channel": 158,
+        "coarse_channel": 110,
         "sky": {
           "ra_hours": 17.963222,
-          "dec_deg": 6.739169,
+          "dec_deg": 4.739174,
           "frame": "J2000, the telescope's pointing from the file header",
-          "epoch": "2016-03-10T13:36:28Z",
+          "epoch": "2016-03-10T13:31:01Z",
           "constellation": "Ophiuchus",
           "telescope": "Green Bank Telescope",
           "target": "Barnard's Star",
           "distance_label": "5.96 light-years"
         },
-        "url": "https://bldata.berkeley.edu/pipeline/AGBT16A_999_81/holding/spliced_blc02030405_2bit_guppi_57457_48988_GJ699_OFF_0006.gpuspec.0000.h5"
+        "url": "https://bldata.berkeley.edu/pipeline/AGBT16A_999_81/holding/spliced_blc02030405_2bit_guppi_57457_48661_GJ699_0005.gpuspec.0000.h5"
       }
     },
     {
-      "id": "gj699-57457-48988-blind-2",
+      "id": "gj699-57457-48661-blind-2",
       "family": "blind-window",
       "group": "blind window",
-      "file": "gj699-57457-48988-blind-2.bin",
+      "file": "gj699-57457-48661-blind-2.bin",
       "dtype": "float32-le",
       "shape": [
         16,
         256
       ],
       "units": "noise sigma, bandpass-flattened",
-      "sha256": "9eb09257a353377052de6614c49aed8d6198ddc7651b8e78409f700b3f314f54",
+      "sha256": "2677821ffea570c191238b5d716929145b8b8b6b0b7b3b53e2c0194490531771",
       "source": {
-        "file": "spliced_blc02030405_2bit_guppi_57457_48988_GJ699_OFF_0006.gpuspec.0000.h5",
-        "source_name": "GJ699_OFF",
-        "tstart_mjd": 57457.56699074074,
-        "fch1_mhz": 1406.6927922138257,
+        "file": "spliced_blc02030405_2bit_guppi_57457_48661_GJ699_0005.gpuspec.0000.h5",
+        "source_name": "GJ699",
+        "tstart_mjd": 57457.563206018516,
+        "fch1_mhz": 1554.19921875,
         "foff_hz": -2.835503418452676,
         "tsamp_s": 17.986224128,
-        "first_channel": 732861,
-        "centre_freq_mhz": 1404.6143993986375,
-        "snr": 3.68225359916687,
+        "first_channel": 868478,
+        "centre_freq_mhz": 1551.7362834677115,
+        "snr": 3.8793790340423584,
         "pool": {
           "id": "sky-pool/v1",
           "key": "gj699"
         },
         "archive": {
-          "target": "GJ699_OFF",
+          "target": "GJ699",
           "telescope": "GBT",
-          "utc": "Thu, 10 Mar 2016 13:36:28 GMT",
-          "mjd": 57457.56699074074,
+          "utc": "Thu, 10 Mar 2016 13:31:00 GMT",
+          "mjd": 57457.56319444445,
           "ra": 269.448325,
-          "decl": 6.7391691667,
+          "decl": 4.7391741667,
           "center_freq": 1501.46484375,
           "file_type": "HDF5",
-          "size": 12780819036,
-          "md5sum": "692bc686df56e60bdc06b3d70a15d2c6",
-          "url": "https://bldata.berkeley.edu/pipeline/AGBT16A_999_81/holding/spliced_blc02030405_2bit_guppi_57457_48988_GJ699_OFF_0006.gpuspec.0000.h5"
+          "size": 12785252313,
+          "md5sum": "d28e20cb3ac42ffd62c92f3e0ce23f05",
+          "url": "https://bldata.berkeley.edu/pipeline/AGBT16A_999_81/holding/spliced_blc02030405_2bit_guppi_57457_48661_GJ699_0005.gpuspec.0000.h5"
         },
-        "coarse_channel": 158,
+        "coarse_channel": 110,
         "sky": {
           "ra_hours": 17.963222,
-          "dec_deg": 6.739169,
+          "dec_deg": 4.739174,
           "frame": "J2000, the telescope's pointing from the file header",
-          "epoch": "2016-03-10T13:36:28Z",
+          "epoch": "2016-03-10T13:31:01Z",
           "constellation": "Ophiuchus",
           "telescope": "Green Bank Telescope",
           "target": "Barnard's Star",
           "distance_label": "5.96 light-years"
         },
-        "url": "https://bldata.berkeley.edu/pipeline/AGBT16A_999_81/holding/spliced_blc02030405_2bit_guppi_57457_48988_GJ699_OFF_0006.gpuspec.0000.h5"
+        "url": "https://bldata.berkeley.edu/pipeline/AGBT16A_999_81/holding/spliced_blc02030405_2bit_guppi_57457_48661_GJ699_0005.gpuspec.0000.h5"
       }
     },
     {
-      "id": "gj699-57457-48988-hit-1",
+      "id": "gj699-57457-48661-hit-1",
       "family": "stars",
       "group": "hit",
-      "file": "gj699-57457-48988-hit-1.bin",
+      "file": "gj699-57457-48661-hit-1.bin",
       "dtype": "float32-le",
       "shape": [
         16,
         256
       ],
       "units": "noise sigma, bandpass-flattened",
-      "sha256": "40f4650d98c6c1c89924b05347443af17ddca5245adce902fbc9ea2fa79e7574",
+      "sha256": "7463180556989d0bccc035f0f62e9db5e6e038e29d4b41b637612c2477640cc3",
       "source": {
-        "file": "spliced_blc02030405_2bit_guppi_57457_48988_GJ699_OFF_0006.gpuspec.0000.h5",
-        "source_name": "GJ699_OFF",
-        "tstart_mjd": 57457.56699074074,
-        "fch1_mhz": 1406.6927922138257,
+        "file": "spliced_blc02030405_2bit_guppi_57457_48661_GJ699_0005.gpuspec.0000.h5",
+        "source_name": "GJ699",
+        "tstart_mjd": 57457.563206018516,
+        "fch1_mhz": 1554.19921875,
         "foff_hz": -2.835503418452676,
         "tsamp_s": 17.986224128,
-        "first_channel": 156032,
-        "centre_freq_mhz": 1406.2499999999748,
-        "drift_channels_per_step": 5.867175124152718e-06,
-        "drift_hz_per_s": -9.249520634682228e-07,
-        "snr": 150625.96875,
+        "first_channel": 320854,
+        "centre_freq_mhz": 1553.2890729852902,
+        "drift_channels_per_step": -0.02448237228599664,
+        "drift_hz_per_s": 0.003859612212921632,
+        "snr": 6410159.5,
         "pool": {
           "id": "sky-pool/v1",
           "key": "gj699"
         },
         "archive": {
-          "target": "GJ699_OFF",
+          "target": "GJ699",
           "telescope": "GBT",
-          "utc": "Thu, 10 Mar 2016 13:36:28 GMT",
-          "mjd": 57457.56699074074,
+          "utc": "Thu, 10 Mar 2016 13:31:00 GMT",
+          "mjd": 57457.56319444445,
           "ra": 269.448325,
-          "decl": 6.7391691667,
+          "decl": 4.7391741667,
           "center_freq": 1501.46484375,
           "file_type": "HDF5",
-          "size": 12780819036,
-          "md5sum": "692bc686df56e60bdc06b3d70a15d2c6",
-          "url": "https://bldata.berkeley.edu/pipeline/AGBT16A_999_81/holding/spliced_blc02030405_2bit_guppi_57457_48988_GJ699_OFF_0006.gpuspec.0000.h5"
+          "size": 12785252313,
+          "md5sum": "d28e20cb3ac42ffd62c92f3e0ce23f05",
+          "url": "https://bldata.berkeley.edu/pipeline/AGBT16A_999_81/holding/spliced_blc02030405_2bit_guppi_57457_48661_GJ699_0005.gpuspec.0000.h5"
         },
-        "coarse_channel": 158,
+        "coarse_channel": 110,
         "sky": {
           "ra_hours": 17.963222,
-          "dec_deg": 6.739169,
+          "dec_deg": 4.739174,
           "frame": "J2000, the telescope's pointing from the file header",
-          "epoch": "2016-03-10T13:36:28Z",
+          "epoch": "2016-03-10T13:31:01Z",
           "constellation": "Ophiuchus",
           "telescope": "Green Bank Telescope",
           "target": "Barnard's Star",
           "distance_label": "5.96 light-years"
         },
-        "url": "https://bldata.berkeley.edu/pipeline/AGBT16A_999_81/holding/spliced_blc02030405_2bit_guppi_57457_48988_GJ699_OFF_0006.gpuspec.0000.h5"
+        "url": "https://bldata.berkeley.edu/pipeline/AGBT16A_999_81/holding/spliced_blc02030405_2bit_guppi_57457_48661_GJ699_0005.gpuspec.0000.h5"
       }
     },
     {
-      "id": "gj699-57457-48988-hit-2",
+      "id": "gj699-57457-48661-hit-2",
       "family": "stars",
       "group": "hit",
-      "file": "gj699-57457-48988-hit-2.bin",
+      "file": "gj699-57457-48661-hit-2.bin",
       "dtype": "float32-le",
       "shape": [
         16,
         256
       ],
       "units": "noise sigma, bandpass-flattened",
-      "sha256": "301cdddef8800281a7d2168826b7105608331b12b7719956a6e2154ec0d070b4",
+      "sha256": "27bc528ac33f414eeddaf5a7b809a6dc069f49ceb7b0e3fcab0e7f1c8aa6cc46",
       "source": {
-        "file": "spliced_blc02030405_2bit_guppi_57457_48988_GJ699_OFF_0006.gpuspec.0000.h5",
-        "source_name": "GJ699_OFF",
-        "tstart_mjd": 57457.56699074074,
-        "fch1_mhz": 1406.6927922138257,
+        "file": "spliced_blc02030405_2bit_guppi_57457_48661_GJ699_0005.gpuspec.0000.h5",
+        "source_name": "GJ699",
+        "tstart_mjd": 57457.563206018516,
+        "fch1_mhz": 1554.19921875,
         "foff_hz": -2.835503418452676,
         "tsamp_s": 17.986224128,
-        "first_channel": 137899,
-        "centre_freq_mhz": 1406.3014158417122,
-        "drift_channels_per_step": -2.804708240473023,
-        "drift_hz_per_s": 0.44215838449623307,
-        "snr": 34.19099807739258,
+        "first_channel": 310979,
+        "centre_freq_mhz": 1553.3170730543684,
+        "drift_channels_per_step": -0.05655359131615387,
+        "drift_hz_per_s": 0.008915595644840943,
+        "snr": 1452949.75,
         "pool": {
           "id": "sky-pool/v1",
           "key": "gj699"
         },
         "archive": {
-          "target": "GJ699_OFF",
+          "target": "GJ699",
           "telescope": "GBT",
-          "utc": "Thu, 10 Mar 2016 13:36:28 GMT",
-          "mjd": 57457.56699074074,
+          "utc": "Thu, 10 Mar 2016 13:31:00 GMT",
+          "mjd": 57457.56319444445,
           "ra": 269.448325,
-          "decl": 6.7391691667,
+          "decl": 4.7391741667,
           "center_freq": 1501.46484375,
           "file_type": "HDF5",
-          "size": 12780819036,
-          "md5sum": "692bc686df56e60bdc06b3d70a15d2c6",
-          "url": "https://bldata.berkeley.edu/pipeline/AGBT16A_999_81/holding/spliced_blc02030405_2bit_guppi_57457_48988_GJ699_OFF_0006.gpuspec.0000.h5"
+          "size": 12785252313,
+          "md5sum": "d28e20cb3ac42ffd62c92f3e0ce23f05",
+          "url": "https://bldata.berkeley.edu/pipeline/AGBT16A_999_81/holding/spliced_blc02030405_2bit_guppi_57457_48661_GJ699_0005.gpuspec.0000.h5"
         },
-        "coarse_channel": 158,
+        "coarse_channel": 110,
         "sky": {
           "ra_hours": 17.963222,
-          "dec_deg": 6.739169,
+          "dec_deg": 4.739174,
           "frame": "J2000, the telescope's pointing from the file header",
-          "epoch": "2016-03-10T13:36:28Z",
+          "epoch": "2016-03-10T13:31:01Z",
           "constellation": "Ophiuchus",
           "telescope": "Green Bank Telescope",
           "target": "Barnard's Star",
           "distance_label": "5.96 light-years"
         },
-        "url": "https://bldata.berkeley.edu/pipeline/AGBT16A_999_81/holding/spliced_blc02030405_2bit_guppi_57457_48988_GJ699_OFF_0006.gpuspec.0000.h5"
+        "url": "https://bldata.berkeley.edu/pipeline/AGBT16A_999_81/holding/spliced_blc02030405_2bit_guppi_57457_48661_GJ699_0005.gpuspec.0000.h5"
+      }
+    },
+    {
+      "id": "gj699-57457-48661-hit-3",
+      "family": "stars",
+      "group": "hit",
+      "file": "gj699-57457-48661-hit-3.bin",
+      "dtype": "float32-le",
+      "shape": [
+        16,
+        256
+      ],
+      "units": "noise sigma, bandpass-flattened",
+      "sha256": "30c99011647f9381915d45619e08d32a784087ed94e3dec2b2c6b1b89d426a22",
+      "source": {
+        "file": "spliced_blc02030405_2bit_guppi_57457_48661_GJ699_0005.gpuspec.0000.h5",
+        "source_name": "GJ699",
+        "tstart_mjd": 57457.563206018516,
+        "fch1_mhz": 1554.19921875,
+        "foff_hz": -2.835503418452676,
+        "tsamp_s": 17.986224128,
+        "first_channel": 320149,
+        "centre_freq_mhz": 1553.291072674578,
+        "drift_channels_per_step": -0.03470103804259131,
+        "drift_hz_per_s": 0.0054705707709072765,
+        "snr": 1360464.75,
+        "pool": {
+          "id": "sky-pool/v1",
+          "key": "gj699"
+        },
+        "archive": {
+          "target": "GJ699",
+          "telescope": "GBT",
+          "utc": "Thu, 10 Mar 2016 13:31:00 GMT",
+          "mjd": 57457.56319444445,
+          "ra": 269.448325,
+          "decl": 4.7391741667,
+          "center_freq": 1501.46484375,
+          "file_type": "HDF5",
+          "size": 12785252313,
+          "md5sum": "d28e20cb3ac42ffd62c92f3e0ce23f05",
+          "url": "https://bldata.berkeley.edu/pipeline/AGBT16A_999_81/holding/spliced_blc02030405_2bit_guppi_57457_48661_GJ699_0005.gpuspec.0000.h5"
+        },
+        "coarse_channel": 110,
+        "sky": {
+          "ra_hours": 17.963222,
+          "dec_deg": 4.739174,
+          "frame": "J2000, the telescope's pointing from the file header",
+          "epoch": "2016-03-10T13:31:01Z",
+          "constellation": "Ophiuchus",
+          "telescope": "Green Bank Telescope",
+          "target": "Barnard's Star",
+          "distance_label": "5.96 light-years"
+        },
+        "url": "https://bldata.berkeley.edu/pipeline/AGBT16A_999_81/holding/spliced_blc02030405_2bit_guppi_57457_48661_GJ699_0005.gpuspec.0000.h5"
       }
     },
     {
@@ -1831,282 +1886,6 @@
           "distance_label": "5.96 light-years"
         },
         "url": "https://bldata.berkeley.edu/pipeline/AGBT16B_999_55/holding/spliced_blc1011121314151617_guppi_57689_79487_GJ699_0043.gpuspec.0000.h5"
-      }
-    },
-    {
-      "id": "proxcen-59337-61382-blind-1",
-      "family": "blind-window",
-      "group": "blind window",
-      "file": "proxcen-59337-61382-blind-1.bin",
-      "dtype": "float32-le",
-      "shape": [
-        16,
-        256
-      ],
-      "units": "noise sigma, bandpass-flattened",
-      "sha256": "507b950010949a8f8c0d40c3edc91399f6fb6190dbec5d71c854dbe9456be373",
-      "source": {
-        "file": "guppi_59337_61382_6180043724_ProxCen_S_0001.0000.fil",
-        "source_name": "ProxCen_S",
-        "tstart_mjd": 59337.710439814815,
-        "fch1_mhz": 980.97152,
-        "foff_hz": 2.0,
-        "tsamp_s": 15.0,
-        "first_channel": 76320,
-        "centre_freq_mhz": 981.1244160000001,
-        "snr": 4.117561340332031,
-        "pool": {
-          "id": "sky-pool/v1",
-          "key": "proxcen"
-        },
-        "archive": {
-          "target": "PROXCEN_S",
-          "telescope": "Parkes",
-          "utc": "Mon, 03 May 2021 17:03:02 GMT",
-          "mjd": 59337.710439814815,
-          "ra": 217.42875,
-          "decl": -62.6795,
-          "center_freq": 1024.0,
-          "file_type": "filterbank",
-          "size": 30720000395,
-          "md5sum": "a30043ef79b83f72aad6e50e2e5a250d",
-          "url": "http://blpd1.ssl.berkeley.edu/P1018_2/blc02/P1018/GUPPI/guppi_59337_61382_6180043724_ProxCen_S_0001.0000.fil"
-        },
-        "coarse_channel": 10,
-        "time_steps": "the first 16 of 120",
-        "sky": {
-          "ra_hours": 14.49526,
-          "dec_deg": -62.6795,
-          "frame": "J2000, the telescope's pointing from the file header",
-          "epoch": "2021-05-03T17:03:02Z",
-          "constellation": "Centaurus",
-          "target": "Proxima Centauri",
-          "distance_label": "4.24 light-years",
-          "telescope": "Parkes"
-        },
-        "url": "http://blpd1.ssl.berkeley.edu/P1018_2/blc02/P1018/GUPPI/guppi_59337_61382_6180043724_ProxCen_S_0001.0000.fil"
-      }
-    },
-    {
-      "id": "proxcen-59337-61382-blind-2",
-      "family": "blind-window",
-      "group": "blind window",
-      "file": "proxcen-59337-61382-blind-2.bin",
-      "dtype": "float32-le",
-      "shape": [
-        16,
-        256
-      ],
-      "units": "noise sigma, bandpass-flattened",
-      "sha256": "3905a0c70e2207a230b590a7afbdf891bc2e9a28b6ec1905d69cb5d80418a217",
-      "source": {
-        "file": "guppi_59337_61382_6180043724_ProxCen_S_0001.0000.fil",
-        "source_name": "ProxCen_S",
-        "tstart_mjd": 59337.710439814815,
-        "fch1_mhz": 980.97152,
-        "foff_hz": 2.0,
-        "tsamp_s": 15.0,
-        "first_channel": 637694,
-        "centre_freq_mhz": 982.2471640000001,
-        "snr": 4.063081741333008,
-        "pool": {
-          "id": "sky-pool/v1",
-          "key": "proxcen"
-        },
-        "archive": {
-          "target": "PROXCEN_S",
-          "telescope": "Parkes",
-          "utc": "Mon, 03 May 2021 17:03:02 GMT",
-          "mjd": 59337.710439814815,
-          "ra": 217.42875,
-          "decl": -62.6795,
-          "center_freq": 1024.0,
-          "file_type": "filterbank",
-          "size": 30720000395,
-          "md5sum": "a30043ef79b83f72aad6e50e2e5a250d",
-          "url": "http://blpd1.ssl.berkeley.edu/P1018_2/blc02/P1018/GUPPI/guppi_59337_61382_6180043724_ProxCen_S_0001.0000.fil"
-        },
-        "coarse_channel": 10,
-        "time_steps": "the first 16 of 120",
-        "sky": {
-          "ra_hours": 14.49526,
-          "dec_deg": -62.6795,
-          "frame": "J2000, the telescope's pointing from the file header",
-          "epoch": "2021-05-03T17:03:02Z",
-          "constellation": "Centaurus",
-          "target": "Proxima Centauri",
-          "distance_label": "4.24 light-years",
-          "telescope": "Parkes"
-        },
-        "url": "http://blpd1.ssl.berkeley.edu/P1018_2/blc02/P1018/GUPPI/guppi_59337_61382_6180043724_ProxCen_S_0001.0000.fil"
-      }
-    },
-    {
-      "id": "proxcen-59337-61382-hit-1",
-      "family": "stars",
-      "group": "hit",
-      "file": "proxcen-59337-61382-hit-1.bin",
-      "dtype": "float32-le",
-      "shape": [
-        16,
-        256
-      ],
-      "units": "noise sigma, bandpass-flattened",
-      "sha256": "feb1ae57ec37ac596073f4a1cd695f9ce41da17599e39b3109ff4d6786bc6e11",
-      "source": {
-        "file": "guppi_59337_61382_6180043724_ProxCen_S_0001.0000.fil",
-        "source_name": "ProxCen_S",
-        "tstart_mjd": 59337.710439814815,
-        "fch1_mhz": 980.97152,
-        "foff_hz": 2.0,
-        "tsamp_s": 15.0,
-        "first_channel": 721679,
-        "centre_freq_mhz": 982.41513381512,
-        "drift_channels_per_step": 0.08004684370356675,
-        "drift_hz_per_s": 0.010672912493808898,
-        "snr": 45.807857513427734,
-        "pool": {
-          "id": "sky-pool/v1",
-          "key": "proxcen"
-        },
-        "archive": {
-          "target": "PROXCEN_S",
-          "telescope": "Parkes",
-          "utc": "Mon, 03 May 2021 17:03:02 GMT",
-          "mjd": 59337.710439814815,
-          "ra": 217.42875,
-          "decl": -62.6795,
-          "center_freq": 1024.0,
-          "file_type": "filterbank",
-          "size": 30720000395,
-          "md5sum": "a30043ef79b83f72aad6e50e2e5a250d",
-          "url": "http://blpd1.ssl.berkeley.edu/P1018_2/blc02/P1018/GUPPI/guppi_59337_61382_6180043724_ProxCen_S_0001.0000.fil"
-        },
-        "coarse_channel": 10,
-        "time_steps": "the first 16 of 120",
-        "sky": {
-          "ra_hours": 14.49526,
-          "dec_deg": -62.6795,
-          "frame": "J2000, the telescope's pointing from the file header",
-          "epoch": "2021-05-03T17:03:02Z",
-          "constellation": "Centaurus",
-          "target": "Proxima Centauri",
-          "distance_label": "4.24 light-years",
-          "telescope": "Parkes"
-        },
-        "url": "http://blpd1.ssl.berkeley.edu/P1018_2/blc02/P1018/GUPPI/guppi_59337_61382_6180043724_ProxCen_S_0001.0000.fil"
-      }
-    },
-    {
-      "id": "proxcen-59337-61382-hit-2",
-      "family": "stars",
-      "group": "hit",
-      "file": "proxcen-59337-61382-hit-2.bin",
-      "dtype": "float32-le",
-      "shape": [
-        16,
-        256
-      ],
-      "units": "noise sigma, bandpass-flattened",
-      "sha256": "a59af5abdc75d102c127a309d8e723b4b7455432eea453c151b2c4ebd543b327",
-      "source": {
-        "file": "guppi_59337_61382_6180043724_ProxCen_S_0001.0000.fil",
-        "source_name": "ProxCen_S",
-        "tstart_mjd": 59337.710439814815,
-        "fch1_mhz": 980.97152,
-        "foff_hz": 2.0,
-        "tsamp_s": 15.0,
-        "first_channel": 514112,
-        "centre_freq_mhz": 981.9999999614606,
-        "drift_channels_per_step": -0.10300850101749678,
-        "drift_hz_per_s": -0.013734466802332904,
-        "snr": 24.98971939086914,
-        "pool": {
-          "id": "sky-pool/v1",
-          "key": "proxcen"
-        },
-        "archive": {
-          "target": "PROXCEN_S",
-          "telescope": "Parkes",
-          "utc": "Mon, 03 May 2021 17:03:02 GMT",
-          "mjd": 59337.710439814815,
-          "ra": 217.42875,
-          "decl": -62.6795,
-          "center_freq": 1024.0,
-          "file_type": "filterbank",
-          "size": 30720000395,
-          "md5sum": "a30043ef79b83f72aad6e50e2e5a250d",
-          "url": "http://blpd1.ssl.berkeley.edu/P1018_2/blc02/P1018/GUPPI/guppi_59337_61382_6180043724_ProxCen_S_0001.0000.fil"
-        },
-        "coarse_channel": 10,
-        "time_steps": "the first 16 of 120",
-        "sky": {
-          "ra_hours": 14.49526,
-          "dec_deg": -62.6795,
-          "frame": "J2000, the telescope's pointing from the file header",
-          "epoch": "2021-05-03T17:03:02Z",
-          "constellation": "Centaurus",
-          "target": "Proxima Centauri",
-          "distance_label": "4.24 light-years",
-          "telescope": "Parkes"
-        },
-        "url": "http://blpd1.ssl.berkeley.edu/P1018_2/blc02/P1018/GUPPI/guppi_59337_61382_6180043724_ProxCen_S_0001.0000.fil"
-      }
-    },
-    {
-      "id": "proxcen-59337-61382-hit-3",
-      "family": "stars",
-      "group": "hit",
-      "file": "proxcen-59337-61382-hit-3.bin",
-      "dtype": "float32-le",
-      "shape": [
-        16,
-        256
-      ],
-      "units": "noise sigma, bandpass-flattened",
-      "sha256": "a7171709146362ba7e6988bb93dc71b908fc21af43ea6ae2c499450b730ad3ab",
-      "source": {
-        "file": "guppi_59337_61382_6180043724_ProxCen_S_0001.0000.fil",
-        "source_name": "ProxCen_S",
-        "tstart_mjd": 59337.710439814815,
-        "fch1_mhz": 980.97152,
-        "foff_hz": 2.0,
-        "tsamp_s": 15.0,
-        "first_channel": 768314,
-        "centre_freq_mhz": 982.508404049457,
-        "drift_channels_per_step": 0.022400309878671167,
-        "drift_hz_per_s": 0.002986707983822822,
-        "snr": 15.03819465637207,
-        "pool": {
-          "id": "sky-pool/v1",
-          "key": "proxcen"
-        },
-        "archive": {
-          "target": "PROXCEN_S",
-          "telescope": "Parkes",
-          "utc": "Mon, 03 May 2021 17:03:02 GMT",
-          "mjd": 59337.710439814815,
-          "ra": 217.42875,
-          "decl": -62.6795,
-          "center_freq": 1024.0,
-          "file_type": "filterbank",
-          "size": 30720000395,
-          "md5sum": "a30043ef79b83f72aad6e50e2e5a250d",
-          "url": "http://blpd1.ssl.berkeley.edu/P1018_2/blc02/P1018/GUPPI/guppi_59337_61382_6180043724_ProxCen_S_0001.0000.fil"
-        },
-        "coarse_channel": 10,
-        "time_steps": "the first 16 of 120",
-        "sky": {
-          "ra_hours": 14.49526,
-          "dec_deg": -62.6795,
-          "frame": "J2000, the telescope's pointing from the file header",
-          "epoch": "2021-05-03T17:03:02Z",
-          "constellation": "Centaurus",
-          "target": "Proxima Centauri",
-          "distance_label": "4.24 light-years",
-          "telescope": "Parkes"
-        },
-        "url": "http://blpd1.ssl.berkeley.edu/P1018_2/blc02/P1018/GUPPI/guppi_59337_61382_6180043724_ProxCen_S_0001.0000.fil"
       }
     },
     {
