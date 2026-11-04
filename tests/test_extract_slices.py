@@ -243,15 +243,15 @@ class PoolTests(unittest.TestCase):
         self.tmp = tempfile.TemporaryDirectory()
         self.addCleanup(self.tmp.cleanup)
         self.folder = Path(self.tmp.name)
-        patch = mock.patch.object(x, "COARSE_WIDTH", self.WIDTH)
-        patch.start()
-        self.addCleanup(patch.stop)
         x._remotes.clear()
 
-    def scan(self, name, tstart, line_at=None, n_t=16, seed=0):
-        """A two-coarse-channel scan of TRAPPIST-1, with a drifting line in the second channel."""
+    def scan(self, name, tstart, line_at=None, n_t=16, seed=0, dc=True):
+        """A two-coarse-channel scan of TRAPPIST-1 (nfpc in the header gives the channelization),
+        with a DC spike in the middle of each coarse channel and maybe a drifting line."""
         rng = np.random.default_rng(seed)
         data = (100 + rng.normal(size=(n_t, 2 * self.WIDTH))).astype(np.float32)
+        if dc:
+            data[:, self.WIDTH // 2::self.WIDTH] *= 20
         if line_at is not None:
             steps = np.arange(n_t)
             data[steps, np.round(line_at + 0.5 * steps).astype(int)] += 8
@@ -259,7 +259,7 @@ class PoolTests(unittest.TestCase):
         with h5py.File(path, "w") as f:
             dset = f.create_dataset("data", data=data[:, None, :], chunks=(1, 1, 1024))
             dset.attrs.update(fch1=1500.0, foff=-2.7939677238464355e-06, tsamp=18.253611008, tstart=tstart,
-                              nchans=data.shape[1], source_name=b"TRAPPIST1", telescope_id=6,
+                              nchans=data.shape[1], source_name=b"TRAPPIST1", telescope_id=6, nfpc=self.WIDTH,
                               src_raj=23.108133, src_dej=-5.041389)
         return path.read_bytes()
 
@@ -272,8 +272,10 @@ class PoolTests(unittest.TestCase):
         out.mkdir(exist_ok=True)
         args = argparse.Namespace(pool=pool_path, out=out, only=only, allow_http=allow_http, width=256,
                                   product=None, source_base_url=None)
-        with redirect_stdout(io.StringIO()):
+        log = io.StringIO()
+        with redirect_stdout(log):
             x.run_pool(args)
+        self.last_log = log.getvalue()
         return json.loads((out / "index.json").read_text())["slices"]
 
     def archive(self, name, mjd, **extra):
@@ -369,6 +371,21 @@ class PoolTests(unittest.TestCase):
         slices = self.run_pool(two, limits={"max_targets": 2})
         self.assertEqual({e["source"]["pool"]["key"] for e in slices}, {"star0", "star1"})
 
+    def test_a_file_that_fails_is_replaced_and_off_source_scans_are_never_on_target(self):
+        scans = {"short.0000.h5": self.scan("short.0000.h5", 57800.25, n_t=3),
+                 "nodc.0000.h5": self.scan("nodc.0000.h5", 57801.25, line_at=900, dc=False),
+                 "off.0000.h5": self.scan("off.0000.h5", 57802.25, line_at=900),
+                 "good.0000.h5": self.scan("good.0000.h5", 57803.25, line_at=900)}
+        self.setup_archive(scans, lambda q: [
+            self.archive("short.0000.h5", 57800.25), self.archive("nodc.0000.h5", 57801.25),
+            {**self.archive("off.0000.h5", 57802.25), "target": "TRAPPIST1_OFF"}, self.archive("good.0000.h5", 57803.25)])
+        target = {"key": "trappist1", "name": "TRAPPIST-1", "queries": [{"target": "TRAPPIST"}], "files": 1, "hits": 1, "blind": 1}
+        slices = self.run_pool([target])
+        self.assertEqual({e["source"]["archive"]["url"].rsplit("/", 1)[1] for e in slices}, {"good.0000.h5"})
+        self.assertIn("has 3 time steps", self.last_log)
+        self.assertIn("no DC spike in the middle", self.last_log)
+        self.assertNotIn("off.0000.h5", self.last_log, "an off-source scan is never read as on-target")
+
     def test_plain_http_needs_allow_http(self):
         self.setup_archive({}, lambda q: [])
         with self.assertRaisesRegex(SystemExit, "allow-http"):
@@ -380,11 +397,12 @@ class PoolTests(unittest.TestCase):
         entries = [{"url": f"http://h/{n}.0000.h5", "file_type": "HDF5", "mjd": mjd, "center_freq": f}
                    for n, (mjd, f) in enumerate([(58602.1, 1000), (58602.2, 980), (58610.0, 990), (58620.0, 3000)])]
         entries.append({"url": "http://h/raw.0000.raw", "file_type": "baseband data", "mjd": 58630.0, "center_freq": 982})
-        target = {"key": "proxcen", "freq_mhz": 982.0, "freq_window_mhz": 100, "files": 2}
-        chosen = x.choose_files(entries, target, 7)
+        target = {"key": "proxcen", "freq_mhz": 982.0, "freq_window_mhz": 100}
+        chosen = x.choose_files(entries, target, 7, wanted=2)
         self.assertEqual([e["url"] for e in chosen], ["http://h/1.0000.h5", "http://h/2.0000.h5"],
                          "nearest the frequency, one per session; never baseband data or a file far off in frequency")
-        self.assertEqual(len(x.choose_files(entries, {**target, "files": 3}, 7)), 3, "then another from a session already used")
+        self.assertEqual([e["url"] for e in x.choose_files(entries, target, 7)], ["http://h/1.0000.h5", "http://h/2.0000.h5", "http://h/0.0000.h5"],
+                         "then the rest, from sessions already used")
 
 
 class FormatTests(unittest.TestCase):
@@ -398,7 +416,8 @@ class FormatTests(unittest.TestCase):
         rng = np.random.default_rng(4)
         data = rng.normal(size=(16, 8 * 512)).astype(np.float32)
         fil = self.folder / "scan.fil"
-        write_fil(fil, data, telescope_id=4, source_name="PROXCEN", fch1=1000.0, foff=-0.001, tsamp=16.78,
+        foff = -1 / 512  # Parkes's 1 MHz coarse channels, in 512 fine channels here
+        write_fil(fil, data, telescope_id=4, source_name="PROXCEN", fch1=1000.0, foff=foff, tsamp=16.78,
                   tstart=58602.5, src_raj=142942.95, src_dej=-624046.2)
         full, header = x.load(fil)
         np.testing.assert_array_equal(full, data)
@@ -407,16 +426,33 @@ class FormatTests(unittest.TestCase):
         self.assertAlmostEqual(dec, -(62 + 40 / 60 + 46.2 / 3600))
         self.assertEqual(x.sky_of(header)["telescope"], "Parkes")
         self.assertEqual(x.sky_of(header)["constellation"], "Centaurus")
-        self.assertEqual(x.channels_per_coarse(header), x.PARKES_COARSE_WIDTH)
-        with mock.patch.object(x, "PARKES_COARSE_WIDTH", 512):
-            part, part_header = x.load(fil, 1000.0 - 0.001 * (3 * 512 + 7))
-            np.testing.assert_array_equal(part, data[:, 3 * 512:4 * 512])
-            self.assertEqual(part_header["coarse_channel"], 3)
-            server = FileServer({"/scan.fil": fil.read_bytes()})
-            self.addCleanup(server.close)
-            with mock.patch.object(x.RangeFile, "WHOLE", 0):
-                remote, _ = x.load(f"{server.base}/scan.fil", 1000.0 - 0.001 * (3 * 512 + 7))
-            np.testing.assert_array_equal(remote, part)
+        self.assertEqual(x.channels_per_coarse(header), 512)
+        # Parkes's coarse channels are centred on whole MHz: half a channel before the
+        # fch1-aligned blocks. Channel 3 * 512 + 7 is in the coarse channel spanning 1280-1791.
+        freq = 1000.0 + foff * (3 * 512 + 7)
+        part, part_header = x.load(fil, freq)
+        np.testing.assert_array_equal(part, data[:, 1280:1792])
+        self.assertEqual(part_header["coarse_channel"], 3)
+        self.assertAlmostEqual(part_header["fch1"], 1000.0 + foff * 1280)
+        server = FileServer({"/scan.fil": fil.read_bytes()})
+        self.addCleanup(server.close)
+        with mock.patch.object(x.RangeFile, "WHOLE", 0):
+            remote, _ = x.load(f"{server.base}/scan.fil", freq)
+        np.testing.assert_array_equal(remote, part)
+
+    def test_fine_channels_per_coarse_channel_follow_the_telescope_and_the_channel_width(self):
+        gbt, parkes = {"telescope_id": 6}, {"telescope_id": 4}
+        self.assertEqual(x.channels_per_coarse({**gbt, "foff": -2.7939677238464355e-06}), 1 << 20)
+        self.assertEqual(x.channels_per_coarse({**gbt, "foff": -2.835503418452676e-06}), 1_033_216, "2016's 2.84 Hz files")
+        self.assertEqual(x.channels_per_coarse({**parkes, "foff": 2.0e-06}), 500_000)
+        self.assertEqual(x.channels_per_coarse({**parkes, "foff": 2.0e-06, "nfpc": 1 << 19}), 1 << 19, "the header's nfpc wins")
+        self.assertEqual(x.channels_per_coarse({**gbt, "foff": -3.3e-06}), x.COARSE_WIDTH, "not a whole number: the default")
+        self.assertEqual(x.coarse_shift({**parkes, "foff": 2.0e-06}, 500_000), 250_000)
+        self.assertEqual(x.coarse_shift({**gbt, "foff": -2.79e-06}, 1 << 20), 0)
+        spike = np.ones((16, 1024), np.float32)
+        spike[:, 512] = 30
+        self.assertGreater(x.dc_spike(spike), 20)
+        self.assertAlmostEqual(x.dc_spike(np.ones((16, 1024), np.float32)), 1.0)
 
     def test_long_scans_give_their_first_16_steps_and_short_ones_none(self):
         data = np.arange(20 * 64, dtype=np.float32).reshape(20, 64)

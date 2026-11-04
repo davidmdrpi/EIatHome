@@ -40,7 +40,7 @@ them; the Cut the slice pool workflow (.github/workflows/slice-pool.yml) runs it
 """
 
 import argparse
-from collections import OrderedDict
+from collections import Counter, OrderedDict
 from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timedelta, timezone
 import hashlib
@@ -64,9 +64,15 @@ from skycoords import constellation_at, separation  # noqa: E402
 
 VERSION = "0.6.0"
 SESSION_GAP_DAYS = 0.5  # as in web/js/splits.js
-COARSE_WIDTH = 1 << 20  # fine channels per coarse channel in Green Bank's high-frequency-resolution products
-# Parkes's high-resolution products split each 1 MHz coarse channel into 2^18 fine channels of 3.81 Hz.
-PARKES_COARSE_WIDTH = 1 << 18
+COARSE_WIDTH = 1 << 20  # fine channels per coarse channel when nothing says otherwise
+# Coarse channel bandwidths (MHz) by sigproc telescope_id: Green Bank's 187.5 MHz nodes hold 64,
+# and Parkes's are 1 MHz. A file's fine channels per coarse channel are its coarse bandwidth over
+# its channel width: 2^20 at Green Bank's usual 2.79 Hz, 1,033,216 at the 2.84 Hz of 2016's
+# files, 500,000 at Parkes's 2 Hz.
+COARSE_MHZ = {6: 2.9296875, 4: 1.0}
+# Where coarse channels start, in coarse channels before the fch1-aligned blocks: Parkes's are
+# centred on whole MHz, so on the blocks' edges (its DC spikes fall at whole MHz).
+COARSE_PHASE = {4: 0.5}
 TIME_STEPS = 16  # time steps per Live Lab slice (web/js/signals.js's T)
 # Archive hosts with valid TLS certificates: their http:// URLs are read over https instead.
 HTTPS_HOSTS = {"bldata.berkeley.edu"}
@@ -211,10 +217,21 @@ def input_path(text):
 
 
 def channels_per_coarse(header):
-    """Fine channels per coarse channel: the header's nfpc when it has one, else the telescope's."""
+    """Fine channels per coarse channel: the header's nfpc when it has one, else the telescope's
+    coarse bandwidth over the channel width (when that's a whole number), else COARSE_WIDTH."""
     if "nfpc" in header:
         return int(header["nfpc"])
-    return PARKES_COARSE_WIDTH if int(header.get("telescope_id", -1)) == 4 else COARSE_WIDTH
+    bandwidth = COARSE_MHZ.get(int(header.get("telescope_id", -1)))
+    if bandwidth:
+        n = bandwidth / abs(float(header["foff"]))
+        if abs(n - round(n)) < 0.01:
+            return int(round(n))
+    return COARSE_WIDTH
+
+
+def coarse_shift(header, width):
+    """Fine channels by which coarse channels start before the fch1-aligned blocks (COARSE_PHASE)."""
+    return int(round(COARSE_PHASE.get(int(header.get("telescope_id", -1)), 0) * width)) if "nfpc" not in header else 0
 
 
 def coarse_range(header, n_chans, coarse_at, name):
@@ -222,10 +239,11 @@ def coarse_range(header, n_chans, coarse_at, name):
     fch1 and nchans to describe it."""
     fch1, foff = float(header["fch1"]), float(header["foff"])
     width = channels_per_coarse(header)
-    coarse = int(np.floor((coarse_at - fch1) / foff)) // width
-    if not 0 <= coarse < n_chans // width:
+    shift = coarse_shift(header, width)
+    coarse = (int(np.floor((coarse_at - fch1) / foff)) + shift) // width
+    lo, hi = coarse * width - shift, (coarse + 1) * width - shift
+    if lo < 0 or hi > n_chans:
         raise SystemExit(f"{name}: {coarse_at} MHz is outside the file.")
-    lo, hi = coarse * width, (coarse + 1) * width
     header.update(fch1=fch1 + foff * lo, nchans=width, coarse_channel=coarse)
     return lo, hi
 
@@ -468,9 +486,23 @@ def sky_of(header, reference=None):
     return sky
 
 
-def prepare(path, coarse_at=None, steps=None):
-    """A file's bandpass-flattened spectrogram, its header, and its de-Doppler search."""
+def dc_spike(data):
+    """How far the middle channel of a coarse channel stands above its neighbours, averaged over
+    time: the DC spike's height. Well above 1 when the coarse channel is where the tool thinks."""
+    spectrum = data.mean(axis=0)
+    mid = spectrum.size // 2
+    near = np.concatenate([spectrum[mid - 64:mid - 2], spectrum[mid + 3:mid + 65]])
+    return float(spectrum[mid] / np.median(near))
+
+
+def prepare(path, coarse_at=None, steps=None, check_dc=False):
+    """A file's bandpass-flattened spectrogram, its header, and its de-Doppler search. With
+    check_dc, a coarse channel without its DC spike in the middle is refused: the file's
+    channelization isn't the one assumed, so the spike would pass for a signal."""
     data, header = load(path, coarse_at, steps)
+    if check_dc and (height := dc_spike(data)) < 1.5:
+        raise SkipFile(f"no DC spike in the middle of coarse channel {header.get('coarse_channel')} "
+                       f"(height {height:.2f}), so its channelization isn't {header['nchans']:,} channels as assumed")
     z = flatten_frames(mask_dc_spike(data))
     snr, best_drift = dedoppler(z, drift_trials(z.shape[0]))
     return z, header, snr, best_drift
@@ -647,12 +679,16 @@ def fine_resolution(entry, product="0000"):
     return ("hdf5" in kind or "filterbank" in kind or name.endswith((".h5", ".fil"))) and product in name
 
 
-def choose_files(entries, target, seed):
-    """Up to target["files"] archive entries: fine-resolution products, nearest the target's
-    frequency if it has one, then in a seeded random order, one per observing session first."""
-    wanted = int(target.get("files", 2))
+OFF_SOURCE = re.compile(r"(^|[^A-Z])OFF([^A-Z]|$)", re.IGNORECASE)
+
+
+def choose_files(entries, target, seed, wanted=None):
+    """Archive entries to read, in order: on-target fine-resolution products, nearest the target's
+    frequency if it has one, then in a seeded random order, one per observing session first.
+    wanted: how many (all usable ones, in that order, if None)."""
     freq = target.get("freq_mhz")
-    usable = [e for e in entries if fine_resolution(e, target.get("product", "0000"))]
+    usable = [e for e in entries if fine_resolution(e, target.get("product", "0000"))
+              and not OFF_SOURCE.search(str(e.get("target", "")))]
     if freq is not None:
         window = float(target.get("freq_window_mhz", 2000))
         usable = [e for e in usable if e.get("center_freq") is None or abs(float(e["center_freq"]) - freq) <= window]
@@ -661,6 +697,7 @@ def choose_files(entries, target, seed):
         return (round(distance), draw(seed, target["key"], e.get("url")))
     usable.sort(key=order)
     chosen = []
+    wanted = len(usable) if wanted is None else wanted
     for distinct in (True, False):  # distinct sessions first, then anything left
         for e in usable:
             if len(chosen) == wanted:
@@ -696,17 +733,18 @@ def coarse_frequencies(header, n_chans, target, path, seed):
     if target.get("freq_mhz") is not None:
         return [float(target["freq_mhz"])]
     width = channels_per_coarse(header)
-    n_coarse = n_chans // width
+    shift = coarse_shift(header, width)
+    n_coarse = (n_chans + shift) // width
     if n_coarse < 1:
         raise SkipFile(f"{name_of(path)} has fewer channels than one coarse channel")
-    lo, hi = (n_coarse // 10, n_coarse - n_coarse // 10) if n_coarse >= 10 else (0, n_coarse)
+    lo, hi = (n_coarse // 10, n_coarse - n_coarse // 10) if n_coarse >= 10 else (int(shift > 0), n_coarse)
     picks = []
     for i in range(int(target.get("tries", 2))):
         c = lo + int(draw(seed, target["key"], name_of(path), "coarse", i) * (hi - lo))
         if c not in picks:
             picks.append(c)
     fch1, foff = float(header["fch1"]), float(header["foff"])
-    return [fch1 + foff * (c * width + width // 2) for c in picks]
+    return [fch1 + foff * (c * width - shift + width // 2) for c in picks]
 
 
 def blind_starts(n_chan, width, count, seed, key, path, coarse):
@@ -742,7 +780,7 @@ def pool_slices(path, target, pool, args, archive=None):
     threshold = float(target.get("threshold", pool.get("threshold", 10)))
     out = []
     for i, freq in enumerate(freqs):
-        z, header, snr, best_drift = prepare(path, freq, TIME_STEPS)
+        z, header, snr, best_drift = prepare(path, freq, TIME_STEPS, check_dc=True)
         label = scan_label(header)
         coarse = header.get("coarse_channel", 0)
         extra = {"pool": {"id": pool["id"], "key": key}}
@@ -832,16 +870,25 @@ def run_pool(args):
             except Exception as err:  # noqa: BLE001 (the archive is remote: report it and go on)
                 print(f"  couldn't query the archive with {query}: {err}")
                 continue
-            chosen = choose_files(entries, target, pool["seed"])
-            print(f"  {query}: the archive lists {len(entries)} files; {len(chosen)} chosen")
-            if chosen:
+            candidates = choose_files(entries, target, pool["seed"])
+            print(f"  {query}: the archive lists {len(entries)} files; {len(candidates)} usable")
+            if not candidates and entries:
+                kinds = Counter(f"{e.get('file_type')} {PurePosixPath(urlparse(str(e.get('url', ''))).path).suffix}" for e in entries)
+                print(f"    none usable: {dict(kinds.most_common(4))}, e.g. {[PurePosixPath(urlparse(str(e.get('url', ''))).path).name for e in entries[:3]]}")
+            if candidates:
                 # The archive's URLs are absolute; resolve any that aren't against the API's site.
-                paths += [(prefer_https(urljoin(pool["api"], e["url"])), e) for e in chosen]
+                paths += [(prefer_https(urljoin(pool["api"], e["url"])), e) for e in candidates]
                 break
         cut = 0
+        wanted_files = int(target.get("files", 2))
+        used_files = tried = 0
         for path, archive in paths:
             if full:
                 break
+            # Archive files: until `files` of them give slices, trying at most three times as many.
+            if archive is not None and (used_files == wanted_files or tried == 3 * wanted_files):
+                break
+            tried += archive is not None
             if is_url(path) and path.startswith("http://") and not args.allow_http:
                 raise SystemExit(f"{path} is plain HTTP: pass --allow-http to read it")
             try:
@@ -849,6 +896,7 @@ def run_pool(args):
             except (Exception, SystemExit) as err:  # noqa: BLE001 (a remote file we can't use: report it and go on)
                 print(f"  skipped {name_of(path)}: {type(err).__name__}: {err}")
                 continue
+            used_files += archive is not None and bool(slices)
             for payload, entry in slices:
                 if entry["sha256"] in known_hashes or entry["id"] in known_ids:
                     print(f"  skipped {entry['id']}: already in the manifest")
