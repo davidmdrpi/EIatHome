@@ -708,6 +708,7 @@ test('one click on the random sky sample picks a real slice, slews to where it c
   assert.equal(await page.getAttribute(`#families button[data-family="${slice.family}"]`, 'aria-checked'), 'true');
   assert.equal(await page.isDisabled('#train'), true, 'Track A started');
   assert.equal(await page.isDisabled('#sample'), true, 'one sample at a time');
+  assert.match(await page.textContent('#lab-status'), /^Building snippets/);
 
   // The map slews to the slice's pointing; the job runs there, and the card describes the slice.
   const { ra_hours: ra, dec_deg: dec, telescope } = slice.source.sky;
@@ -719,13 +720,14 @@ test('one click on the random sky sample picks a real slice, slews to where it c
   assert.equal(target, `${slice.family}@${ra.toFixed(4)},${dec.toFixed(3)}@${slice.source.sky.epoch.slice(0, 10)}`);
   await page.waitForFunction((t) => document.querySelector('#lab-viewport canvas').dataset.job === t, target, { timeout: 10000 });
   const card = await page.textContent('#lab-viewport .hud-sample');
-  const window = { voyager: 'On-target hit', stars: 'On-target hit', offsource: 'Off-source', 'blind-window': 'Random blind window' }[slice.family];
+  const window = slice.source.window_type
+    ? `Window at ${slice.source.window_type.slice('window at '.length)}`
+    : { voyager: 'On-target hit', stars: 'On-target hit', offsource: 'Off-source', 'blind-window': 'Random blind window' }[slice.family];
   assert.ok(card.startsWith(window), card);
   assert.ok(card.includes(telescope), card);
   assert.match(card, new RegExp(`MJD ${slice.source.tstart_mjd.toFixed(4).replace('.', '\\.')}`));
   assert.match(card, new RegExp(`${Number(slice.source.centre_freq_mhz).toFixed(6).replace('.', '\\.')} MHz`));
   assert.match(card, /drift [+−]\d\.\d{3} Hz\/s · SNR|no drift measured · peak SNR/);
-  assert.match(await page.textContent('#lab-status'), /Building snippets|epoch/);
 
   // Track B tokenizes the family meanwhile; once Track A is done, the token model trains.
   await page.waitForFunction(() => /^(Done|Stopped)/.test(document.getElementById('lab-status').textContent), null, { timeout: 120000 });

@@ -346,9 +346,9 @@ EIatHome/
 - [x] Publish real Voyager micro-slices (one 2020 session: 3 on-source scans, 9 slices)
 - [x] Publish off-source control slices from the same cadence (3 off-source scans, 9 slices), as a real-data family in the Live Lab
 - [ ] Add a second Voyager session, so Voyager scores are held out ([how](web/data/slices/README.md#adding-slices))
-- [ ] Add slices of a public SETI signal of interest as a second real-data preset (the slice pool reads blc1's window toward Proxima Centauri; whether the signal itself is in the slices depends on the archive's files)
+- [ ] Add slices of a public SETI signal of interest as a second real-data preset (the slice pool has two windows at blc1's frequency from Parkes's 2019-04-29 scans of Proxima Centauri, but blc1 doesn't stand out in their first 16 steps)
 - [x] One-click random sky sample: a random real slice, its pointing on the sky map with the slice in its card, then Track A and Track B on its family
-- [x] A slice pool from the Breakthrough Listen Open Data Archive, cut in CI: on-target hits toward nearby stars and blind windows at seeded random frequencies (`tools/slice_pool.json`), with `track-a/v0` units still reading only their own families' slices
+- [x] A slice pool from the Breakthrough Listen Open Data Archive, cut in CI: 55 slices from 7 nearby stars and Voyager 1, on-target hits and blind windows at seeded random frequencies (`tools/slice_pool.json`), with `track-a/v0` units still reading only their own families' slices
 - [x] Collect submitted result cards automatically, retry any a run missed, and show replication status per slice dataset
 - [x] Train and save causal signal-token transformers in Python, with train-only tokenization and surrogate controls
 - [x] 49-frame slices from the 6-second product, rotary positions and offset training windows, scored on windows that start mid-scan ([issue #7](https://github.com/davidmdrpi/EIatHome/issues/7))

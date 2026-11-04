@@ -82,7 +82,23 @@ adds two families to Voyager's:
   the 2020 windows lands on Voyager's carrier (SNR 615).
 
 The pool's seed fixes every random choice, so re-running it cuts the same slices. Its limits
-keep it small: at most 100 slices and 1.5 MB.
+keep it small: at most 100 slices and 1.5 MB. As published, it holds 55 slices (880 KB) from 7
+stars and Voyager 1:
+
+| Target | Telescope | Scans | Hits | Blind windows | Other |
+|---|---|---|---|---|---|
+| Voyager 1 | Green Bank | 2016-09-19; 2020-07-16 (3 scans) | (its own family) | 8 | |
+| Proxima Centauri | Parkes | 2019-04-29 (2 scans) | 0 | 4 | 2 windows at blc1's frequency |
+| Tau Ceti | Parkes | 2017-09-14; 2017-09-29 | 5 | 4 | |
+| Barnard's Star | Green Bank | 2016-10-28 (2 scans) | 0 | 4 | |
+| Lalande 21185 | Green Bank | 2016-06-03; 2016-09-29 | 1 | 4 | |
+| Wolf 359 | Green Bank | 2016-05-24; 2016-10-10 | 3 | 4 | |
+| Ross 128 | Green Bank | 2016-05-24; 2016-11-03 | 4 | 4 | |
+| 61 Cygni | Green Bank | 2016-07-18; 2017-02-06 | 4 | 4 | |
+
+A "0" means the coarse channels searched had nothing above SNR 10 in their first 16 steps; those
+scans still give blind windows. Proxima's one hit near blc1's channel, a line one channel wide
+that doesn't drift, was left out as spike-like, and its blc1 windows peak at SNR 6 to 7.
 
 Every pool slice records, as well as the usual `source` fields:
 
