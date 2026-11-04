@@ -1512,27 +1512,27 @@
       }
     },
     {
-      "id": "gj699-57457-48661-blind-1",
+      "id": "gj699-57689-78091-blind-1",
       "family": "blind-window",
       "group": "blind window",
-      "file": "gj699-57457-48661-blind-1.bin",
+      "file": "gj699-57689-78091-blind-1.bin",
       "dtype": "float32-le",
       "shape": [
         16,
         256
       ],
       "units": "noise sigma, bandpass-flattened",
-      "sha256": "afaf5052b6a80bb02a815bec3c921e8e7befc5b56c80d0f3109f09649504d8a7",
+      "sha256": "0db6f8eb838dc7620b14ada99473bc6799a461ac6df81f673fef8fee7d65d2cf",
       "source": {
-        "file": "spliced_blc02030405_2bit_guppi_57457_48661_GJ699_0005.gpuspec.0000.h5",
+        "file": "spliced_blc1011121314151617_guppi_57689_78091_GJ699_0039.gpuspec.0000.h5",
         "source_name": "GJ699",
-        "tstart_mjd": 57457.563206018516,
-        "fch1_mhz": 1554.19921875,
-        "foff_hz": -2.835503418452676,
-        "tsamp_s": 17.986224128,
-        "first_channel": 161460,
-        "centre_freq_mhz": 1553.741035423619,
-        "snr": 4.291214942932129,
+        "tstart_mjd": 57689.90383101852,
+        "fch1_mhz": 2542.08984375,
+        "foff_hz": -2.7939677238464355,
+        "tsamp_s": 18.253611008,
+        "first_channel": 570466,
+        "centre_freq_mhz": 2540.4956225305796,
+        "snr": 3.7164134979248047,
         "pool": {
           "id": "sky-pool/v1",
           "key": "gj699"
@@ -1540,52 +1540,52 @@
         "archive": {
           "target": "GJ699",
           "telescope": "GBT",
-          "utc": "Thu, 10 Mar 2016 13:31:00 GMT",
-          "mjd": 57457.56319444445,
-          "ra": 269.448325,
-          "decl": 4.7391741667,
-          "center_freq": 1501.46484375,
+          "utc": "Fri, 28 Oct 2016 21:41:30 GMT",
+          "mjd": 57689.903819444444,
+          "ra": 269.448238158,
+          "decl": 4.7391688112,
+          "center_freq": 2269.62890625,
           "file_type": "HDF5",
-          "size": 12785252313,
-          "md5sum": "d28e20cb3ac42ffd62c92f3e0ce23f05",
-          "url": "https://bldata.berkeley.edu/pipeline/AGBT16A_999_81/holding/spliced_blc02030405_2bit_guppi_57457_48661_GJ699_0005.gpuspec.0000.h5"
+          "size": 15607871882,
+          "md5sum": "88aacb745415121297a5f96660558135",
+          "url": "https://bldata.berkeley.edu/pipeline/AGBT16B_999_55/holding/spliced_blc1011121314151617_guppi_57689_78091_GJ699_0039.gpuspec.0000.h5"
         },
-        "coarse_channel": 110,
+        "coarse_channel": 61,
         "sky": {
-          "ra_hours": 17.963222,
-          "dec_deg": 4.739174,
+          "ra_hours": 17.963216,
+          "dec_deg": 4.739169,
           "frame": "J2000, the telescope's pointing from the file header",
-          "epoch": "2016-03-10T13:31:01Z",
+          "epoch": "2016-10-28T21:41:31Z",
           "constellation": "Ophiuchus",
           "telescope": "Green Bank Telescope",
           "target": "Barnard's Star",
           "distance_label": "5.96 light-years"
         },
-        "url": "https://bldata.berkeley.edu/pipeline/AGBT16A_999_81/holding/spliced_blc02030405_2bit_guppi_57457_48661_GJ699_0005.gpuspec.0000.h5"
+        "url": "https://bldata.berkeley.edu/pipeline/AGBT16B_999_55/holding/spliced_blc1011121314151617_guppi_57689_78091_GJ699_0039.gpuspec.0000.h5"
       }
     },
     {
-      "id": "gj699-57457-48661-blind-2",
+      "id": "gj699-57689-78091-blind-2",
       "family": "blind-window",
       "group": "blind window",
-      "file": "gj699-57457-48661-blind-2.bin",
+      "file": "gj699-57689-78091-blind-2.bin",
       "dtype": "float32-le",
       "shape": [
         16,
         256
       ],
       "units": "noise sigma, bandpass-flattened",
-      "sha256": "2677821ffea570c191238b5d716929145b8b8b6b0b7b3b53e2c0194490531771",
+      "sha256": "e1acd16479262d99b2e1b6f0ba3b1fbe8510a61a5ec1283db33c9a50b7e0e339",
       "source": {
-        "file": "spliced_blc02030405_2bit_guppi_57457_48661_GJ699_0005.gpuspec.0000.h5",
+        "file": "spliced_blc1011121314151617_guppi_57689_78091_GJ699_0039.gpuspec.0000.h5",
         "source_name": "GJ699",
-        "tstart_mjd": 57457.563206018516,
-        "fch1_mhz": 1554.19921875,
-        "foff_hz": -2.835503418452676,
-        "tsamp_s": 17.986224128,
-        "first_channel": 868478,
-        "centre_freq_mhz": 1551.7362834677115,
-        "snr": 3.8793790340423584,
+        "tstart_mjd": 57689.90383101852,
+        "fch1_mhz": 2542.08984375,
+        "foff_hz": -2.7939677238464355,
+        "tsamp_s": 18.253611008,
+        "first_channel": 945623,
+        "centre_freq_mhz": 2539.4474459812045,
+        "snr": 3.9059841632843018,
         "pool": {
           "id": "sky-pool/v1",
           "key": "gj699"
@@ -1593,193 +1593,28 @@
         "archive": {
           "target": "GJ699",
           "telescope": "GBT",
-          "utc": "Thu, 10 Mar 2016 13:31:00 GMT",
-          "mjd": 57457.56319444445,
-          "ra": 269.448325,
-          "decl": 4.7391741667,
-          "center_freq": 1501.46484375,
+          "utc": "Fri, 28 Oct 2016 21:41:30 GMT",
+          "mjd": 57689.903819444444,
+          "ra": 269.448238158,
+          "decl": 4.7391688112,
+          "center_freq": 2269.62890625,
           "file_type": "HDF5",
-          "size": 12785252313,
-          "md5sum": "d28e20cb3ac42ffd62c92f3e0ce23f05",
-          "url": "https://bldata.berkeley.edu/pipeline/AGBT16A_999_81/holding/spliced_blc02030405_2bit_guppi_57457_48661_GJ699_0005.gpuspec.0000.h5"
+          "size": 15607871882,
+          "md5sum": "88aacb745415121297a5f96660558135",
+          "url": "https://bldata.berkeley.edu/pipeline/AGBT16B_999_55/holding/spliced_blc1011121314151617_guppi_57689_78091_GJ699_0039.gpuspec.0000.h5"
         },
-        "coarse_channel": 110,
+        "coarse_channel": 61,
         "sky": {
-          "ra_hours": 17.963222,
-          "dec_deg": 4.739174,
+          "ra_hours": 17.963216,
+          "dec_deg": 4.739169,
           "frame": "J2000, the telescope's pointing from the file header",
-          "epoch": "2016-03-10T13:31:01Z",
+          "epoch": "2016-10-28T21:41:31Z",
           "constellation": "Ophiuchus",
           "telescope": "Green Bank Telescope",
           "target": "Barnard's Star",
           "distance_label": "5.96 light-years"
         },
-        "url": "https://bldata.berkeley.edu/pipeline/AGBT16A_999_81/holding/spliced_blc02030405_2bit_guppi_57457_48661_GJ699_0005.gpuspec.0000.h5"
-      }
-    },
-    {
-      "id": "gj699-57457-48661-hit-1",
-      "family": "stars",
-      "group": "hit",
-      "file": "gj699-57457-48661-hit-1.bin",
-      "dtype": "float32-le",
-      "shape": [
-        16,
-        256
-      ],
-      "units": "noise sigma, bandpass-flattened",
-      "sha256": "7463180556989d0bccc035f0f62e9db5e6e038e29d4b41b637612c2477640cc3",
-      "source": {
-        "file": "spliced_blc02030405_2bit_guppi_57457_48661_GJ699_0005.gpuspec.0000.h5",
-        "source_name": "GJ699",
-        "tstart_mjd": 57457.563206018516,
-        "fch1_mhz": 1554.19921875,
-        "foff_hz": -2.835503418452676,
-        "tsamp_s": 17.986224128,
-        "first_channel": 320854,
-        "centre_freq_mhz": 1553.2890729852902,
-        "drift_channels_per_step": -0.02448237228599664,
-        "drift_hz_per_s": 0.003859612212921632,
-        "snr": 6410159.5,
-        "pool": {
-          "id": "sky-pool/v1",
-          "key": "gj699"
-        },
-        "archive": {
-          "target": "GJ699",
-          "telescope": "GBT",
-          "utc": "Thu, 10 Mar 2016 13:31:00 GMT",
-          "mjd": 57457.56319444445,
-          "ra": 269.448325,
-          "decl": 4.7391741667,
-          "center_freq": 1501.46484375,
-          "file_type": "HDF5",
-          "size": 12785252313,
-          "md5sum": "d28e20cb3ac42ffd62c92f3e0ce23f05",
-          "url": "https://bldata.berkeley.edu/pipeline/AGBT16A_999_81/holding/spliced_blc02030405_2bit_guppi_57457_48661_GJ699_0005.gpuspec.0000.h5"
-        },
-        "coarse_channel": 110,
-        "sky": {
-          "ra_hours": 17.963222,
-          "dec_deg": 4.739174,
-          "frame": "J2000, the telescope's pointing from the file header",
-          "epoch": "2016-03-10T13:31:01Z",
-          "constellation": "Ophiuchus",
-          "telescope": "Green Bank Telescope",
-          "target": "Barnard's Star",
-          "distance_label": "5.96 light-years"
-        },
-        "url": "https://bldata.berkeley.edu/pipeline/AGBT16A_999_81/holding/spliced_blc02030405_2bit_guppi_57457_48661_GJ699_0005.gpuspec.0000.h5"
-      }
-    },
-    {
-      "id": "gj699-57457-48661-hit-2",
-      "family": "stars",
-      "group": "hit",
-      "file": "gj699-57457-48661-hit-2.bin",
-      "dtype": "float32-le",
-      "shape": [
-        16,
-        256
-      ],
-      "units": "noise sigma, bandpass-flattened",
-      "sha256": "27bc528ac33f414eeddaf5a7b809a6dc069f49ceb7b0e3fcab0e7f1c8aa6cc46",
-      "source": {
-        "file": "spliced_blc02030405_2bit_guppi_57457_48661_GJ699_0005.gpuspec.0000.h5",
-        "source_name": "GJ699",
-        "tstart_mjd": 57457.563206018516,
-        "fch1_mhz": 1554.19921875,
-        "foff_hz": -2.835503418452676,
-        "tsamp_s": 17.986224128,
-        "first_channel": 310979,
-        "centre_freq_mhz": 1553.3170730543684,
-        "drift_channels_per_step": -0.05655359131615387,
-        "drift_hz_per_s": 0.008915595644840943,
-        "snr": 1452949.75,
-        "pool": {
-          "id": "sky-pool/v1",
-          "key": "gj699"
-        },
-        "archive": {
-          "target": "GJ699",
-          "telescope": "GBT",
-          "utc": "Thu, 10 Mar 2016 13:31:00 GMT",
-          "mjd": 57457.56319444445,
-          "ra": 269.448325,
-          "decl": 4.7391741667,
-          "center_freq": 1501.46484375,
-          "file_type": "HDF5",
-          "size": 12785252313,
-          "md5sum": "d28e20cb3ac42ffd62c92f3e0ce23f05",
-          "url": "https://bldata.berkeley.edu/pipeline/AGBT16A_999_81/holding/spliced_blc02030405_2bit_guppi_57457_48661_GJ699_0005.gpuspec.0000.h5"
-        },
-        "coarse_channel": 110,
-        "sky": {
-          "ra_hours": 17.963222,
-          "dec_deg": 4.739174,
-          "frame": "J2000, the telescope's pointing from the file header",
-          "epoch": "2016-03-10T13:31:01Z",
-          "constellation": "Ophiuchus",
-          "telescope": "Green Bank Telescope",
-          "target": "Barnard's Star",
-          "distance_label": "5.96 light-years"
-        },
-        "url": "https://bldata.berkeley.edu/pipeline/AGBT16A_999_81/holding/spliced_blc02030405_2bit_guppi_57457_48661_GJ699_0005.gpuspec.0000.h5"
-      }
-    },
-    {
-      "id": "gj699-57457-48661-hit-3",
-      "family": "stars",
-      "group": "hit",
-      "file": "gj699-57457-48661-hit-3.bin",
-      "dtype": "float32-le",
-      "shape": [
-        16,
-        256
-      ],
-      "units": "noise sigma, bandpass-flattened",
-      "sha256": "30c99011647f9381915d45619e08d32a784087ed94e3dec2b2c6b1b89d426a22",
-      "source": {
-        "file": "spliced_blc02030405_2bit_guppi_57457_48661_GJ699_0005.gpuspec.0000.h5",
-        "source_name": "GJ699",
-        "tstart_mjd": 57457.563206018516,
-        "fch1_mhz": 1554.19921875,
-        "foff_hz": -2.835503418452676,
-        "tsamp_s": 17.986224128,
-        "first_channel": 320149,
-        "centre_freq_mhz": 1553.291072674578,
-        "drift_channels_per_step": -0.03470103804259131,
-        "drift_hz_per_s": 0.0054705707709072765,
-        "snr": 1360464.75,
-        "pool": {
-          "id": "sky-pool/v1",
-          "key": "gj699"
-        },
-        "archive": {
-          "target": "GJ699",
-          "telescope": "GBT",
-          "utc": "Thu, 10 Mar 2016 13:31:00 GMT",
-          "mjd": 57457.56319444445,
-          "ra": 269.448325,
-          "decl": 4.7391741667,
-          "center_freq": 1501.46484375,
-          "file_type": "HDF5",
-          "size": 12785252313,
-          "md5sum": "d28e20cb3ac42ffd62c92f3e0ce23f05",
-          "url": "https://bldata.berkeley.edu/pipeline/AGBT16A_999_81/holding/spliced_blc02030405_2bit_guppi_57457_48661_GJ699_0005.gpuspec.0000.h5"
-        },
-        "coarse_channel": 110,
-        "sky": {
-          "ra_hours": 17.963222,
-          "dec_deg": 4.739174,
-          "frame": "J2000, the telescope's pointing from the file header",
-          "epoch": "2016-03-10T13:31:01Z",
-          "constellation": "Ophiuchus",
-          "telescope": "Green Bank Telescope",
-          "target": "Barnard's Star",
-          "distance_label": "5.96 light-years"
-        },
-        "url": "https://bldata.berkeley.edu/pipeline/AGBT16A_999_81/holding/spliced_blc02030405_2bit_guppi_57457_48661_GJ699_0005.gpuspec.0000.h5"
+        "url": "https://bldata.berkeley.edu/pipeline/AGBT16B_999_55/holding/spliced_blc1011121314151617_guppi_57689_78091_GJ699_0039.gpuspec.0000.h5"
       }
     },
     {
@@ -1886,6 +1721,493 @@
           "distance_label": "5.96 light-years"
         },
         "url": "https://bldata.berkeley.edu/pipeline/AGBT16B_999_55/holding/spliced_blc1011121314151617_guppi_57689_79487_GJ699_0043.gpuspec.0000.h5"
+      }
+    },
+    {
+      "id": "tauceti-58010-55222-blind-1",
+      "family": "blind-window",
+      "group": "blind window",
+      "file": "tauceti-58010-55222-blind-1.bin",
+      "dtype": "float32-le",
+      "shape": [
+        16,
+        256
+      ],
+      "units": "noise sigma, bandpass-flattened",
+      "sha256": "35ece73903f59e5b8627a523321aa0d50e0bfbe34389752cb83a8be733e3611c",
+      "source": {
+        "file": "Parkes_58010_55222_HIP8102_R_fine.h5",
+        "source_name": "HIP8102_R",
+        "tstart_mjd": 58010.63914351852,
+        "fch1_mhz": 3283.01953125,
+        "foff_hz": 2.7939677238464355,
+        "tsamp_s": 18.253611008,
+        "first_channel": 713280,
+        "centre_freq_mhz": 3285.012770175934,
+        "snr": 3.7080798149108887,
+        "pool": {
+          "id": "sky-pool/v1",
+          "key": "tauceti"
+        },
+        "archive": {
+          "target": "HIP8102_R",
+          "telescope": "Parkes",
+          "utc": "Thu, 14 Sep 2017 15:20:22 GMT",
+          "mjd": 58010.63914351852,
+          "ra": 26.0170833333,
+          "decl": -14.5625,
+          "center_freq": 3094.0546875,
+          "file_type": "HDF5",
+          "size": 12076990031,
+          "md5sum": "f3cd359da37d13a6f2d61a23b6107699",
+          "url": "http://blpd8.ssl.berkeley.edu/dl/Parkes_58010_55222_HIP8102_R_fine.h5"
+        },
+        "coarse_channel": 184,
+        "sky": {
+          "ra_hours": 1.734472,
+          "dec_deg": -14.5625,
+          "frame": "J2000, the telescope's pointing from the file header",
+          "epoch": "2017-09-14T15:20:22Z",
+          "constellation": "Cetus",
+          "telescope": "Green Bank Telescope",
+          "target": "Tau Ceti",
+          "distance_label": "11.9 light-years"
+        },
+        "url": "http://blpd8.ssl.berkeley.edu/dl/Parkes_58010_55222_HIP8102_R_fine.h5"
+      }
+    },
+    {
+      "id": "tauceti-58010-55222-blind-2",
+      "family": "blind-window",
+      "group": "blind window",
+      "file": "tauceti-58010-55222-blind-2.bin",
+      "dtype": "float32-le",
+      "shape": [
+        16,
+        256
+      ],
+      "units": "noise sigma, bandpass-flattened",
+      "sha256": "b0d5107bd9fa5f80323b57b9236c0d243b332897fdc9ce436cdde1b5d92e5de8",
+      "source": {
+        "file": "Parkes_58010_55222_HIP8102_R_fine.h5",
+        "source_name": "HIP8102_R",
+        "tstart_mjd": 58010.63914351852,
+        "fch1_mhz": 3283.01953125,
+        "foff_hz": 2.7939677238464355,
+        "tsamp_s": 18.253611008,
+        "first_channel": 930053,
+        "centre_freq_mhz": 3285.618426941335,
+        "snr": 3.8909013271331787,
+        "pool": {
+          "id": "sky-pool/v1",
+          "key": "tauceti"
+        },
+        "archive": {
+          "target": "HIP8102_R",
+          "telescope": "Parkes",
+          "utc": "Thu, 14 Sep 2017 15:20:22 GMT",
+          "mjd": 58010.63914351852,
+          "ra": 26.0170833333,
+          "decl": -14.5625,
+          "center_freq": 3094.0546875,
+          "file_type": "HDF5",
+          "size": 12076990031,
+          "md5sum": "f3cd359da37d13a6f2d61a23b6107699",
+          "url": "http://blpd8.ssl.berkeley.edu/dl/Parkes_58010_55222_HIP8102_R_fine.h5"
+        },
+        "coarse_channel": 184,
+        "sky": {
+          "ra_hours": 1.734472,
+          "dec_deg": -14.5625,
+          "frame": "J2000, the telescope's pointing from the file header",
+          "epoch": "2017-09-14T15:20:22Z",
+          "constellation": "Cetus",
+          "telescope": "Green Bank Telescope",
+          "target": "Tau Ceti",
+          "distance_label": "11.9 light-years"
+        },
+        "url": "http://blpd8.ssl.berkeley.edu/dl/Parkes_58010_55222_HIP8102_R_fine.h5"
+      }
+    },
+    {
+      "id": "tauceti-58010-55222-hit-1",
+      "family": "stars",
+      "group": "hit",
+      "file": "tauceti-58010-55222-hit-1.bin",
+      "dtype": "float32-le",
+      "shape": [
+        16,
+        256
+      ],
+      "units": "noise sigma, bandpass-flattened",
+      "sha256": "5727ae3ce32a2daa4a7c6052049829222750a64e535406b278a4d0f9ed900736",
+      "source": {
+        "file": "Parkes_58010_55222_HIP8102_R_fine.h5",
+        "source_name": "HIP8102_R",
+        "tstart_mjd": 58010.63914351852,
+        "fch1_mhz": 3373.83984375,
+        "foff_hz": 2.7939677238464355,
+        "tsamp_s": 18.253611008,
+        "first_channel": 404439,
+        "centre_freq_mhz": 3374.9701901076724,
+        "drift_channels_per_step": 0.25549105943240724,
+        "drift_hz_per_s": 0.03910644164996316,
+        "snr": 476.33636474609375,
+        "pool": {
+          "id": "sky-pool/v1",
+          "key": "tauceti"
+        },
+        "archive": {
+          "target": "HIP8102_R",
+          "telescope": "Parkes",
+          "utc": "Thu, 14 Sep 2017 15:20:22 GMT",
+          "mjd": 58010.63914351852,
+          "ra": 26.0170833333,
+          "decl": -14.5625,
+          "center_freq": 3094.0546875,
+          "file_type": "HDF5",
+          "size": 12076990031,
+          "md5sum": "f3cd359da37d13a6f2d61a23b6107699",
+          "url": "http://blpd8.ssl.berkeley.edu/dl/Parkes_58010_55222_HIP8102_R_fine.h5"
+        },
+        "coarse_channel": 215,
+        "sky": {
+          "ra_hours": 1.734472,
+          "dec_deg": -14.5625,
+          "frame": "J2000, the telescope's pointing from the file header",
+          "epoch": "2017-09-14T15:20:22Z",
+          "constellation": "Cetus",
+          "telescope": "Green Bank Telescope",
+          "target": "Tau Ceti",
+          "distance_label": "11.9 light-years"
+        },
+        "url": "http://blpd8.ssl.berkeley.edu/dl/Parkes_58010_55222_HIP8102_R_fine.h5"
+      }
+    },
+    {
+      "id": "tauceti-58010-55222-hit-2",
+      "family": "stars",
+      "group": "hit",
+      "file": "tauceti-58010-55222-hit-2.bin",
+      "dtype": "float32-le",
+      "shape": [
+        16,
+        256
+      ],
+      "units": "noise sigma, bandpass-flattened",
+      "sha256": "82f6884fd98b2275aa9497c90690fdd920d97efb40670882aec83f0f36ad9e38",
+      "source": {
+        "file": "Parkes_58010_55222_HIP8102_R_fine.h5",
+        "source_name": "HIP8102_R",
+        "tstart_mjd": 58010.63914351852,
+        "fch1_mhz": 3373.83984375,
+        "foff_hz": 2.7939677238464355,
+        "tsamp_s": 18.253611008,
+        "first_channel": 463466,
+        "centre_freq_mhz": 3375.1351113865508,
+        "drift_channels_per_step": 1.0416767790912067,
+        "drift_hz_per_s": 0.15944304380024318,
+        "snr": 43.94902038574219,
+        "pool": {
+          "id": "sky-pool/v1",
+          "key": "tauceti"
+        },
+        "archive": {
+          "target": "HIP8102_R",
+          "telescope": "Parkes",
+          "utc": "Thu, 14 Sep 2017 15:20:22 GMT",
+          "mjd": 58010.63914351852,
+          "ra": 26.0170833333,
+          "decl": -14.5625,
+          "center_freq": 3094.0546875,
+          "file_type": "HDF5",
+          "size": 12076990031,
+          "md5sum": "f3cd359da37d13a6f2d61a23b6107699",
+          "url": "http://blpd8.ssl.berkeley.edu/dl/Parkes_58010_55222_HIP8102_R_fine.h5"
+        },
+        "coarse_channel": 215,
+        "sky": {
+          "ra_hours": 1.734472,
+          "dec_deg": -14.5625,
+          "frame": "J2000, the telescope's pointing from the file header",
+          "epoch": "2017-09-14T15:20:22Z",
+          "constellation": "Cetus",
+          "telescope": "Green Bank Telescope",
+          "target": "Tau Ceti",
+          "distance_label": "11.9 light-years"
+        },
+        "url": "http://blpd8.ssl.berkeley.edu/dl/Parkes_58010_55222_HIP8102_R_fine.h5"
+      }
+    },
+    {
+      "id": "tauceti-58010-55222-hit-3",
+      "family": "stars",
+      "group": "hit",
+      "file": "tauceti-58010-55222-hit-3.bin",
+      "dtype": "float32-le",
+      "shape": [
+        16,
+        256
+      ],
+      "units": "noise sigma, bandpass-flattened",
+      "sha256": "6371985e9f5608a399f2f89e5c8487d401db59cd8a40343082013e97383f68ac",
+      "source": {
+        "file": "Parkes_58010_55222_HIP8102_R_fine.h5",
+        "source_name": "HIP8102_R",
+        "tstart_mjd": 58010.63914351852,
+        "fch1_mhz": 3373.83984375,
+        "foff_hz": 2.7939677238464355,
+        "tsamp_s": 18.253611008,
+        "first_channel": 495542,
+        "centre_freq_mhz": 3375.224729574903,
+        "drift_channels_per_step": 0.4570457916475918,
+        "drift_hz_per_s": 0.06995718215007193,
+        "snr": 35.576072692871094,
+        "pool": {
+          "id": "sky-pool/v1",
+          "key": "tauceti"
+        },
+        "archive": {
+          "target": "HIP8102_R",
+          "telescope": "Parkes",
+          "utc": "Thu, 14 Sep 2017 15:20:22 GMT",
+          "mjd": 58010.63914351852,
+          "ra": 26.0170833333,
+          "decl": -14.5625,
+          "center_freq": 3094.0546875,
+          "file_type": "HDF5",
+          "size": 12076990031,
+          "md5sum": "f3cd359da37d13a6f2d61a23b6107699",
+          "url": "http://blpd8.ssl.berkeley.edu/dl/Parkes_58010_55222_HIP8102_R_fine.h5"
+        },
+        "coarse_channel": 215,
+        "sky": {
+          "ra_hours": 1.734472,
+          "dec_deg": -14.5625,
+          "frame": "J2000, the telescope's pointing from the file header",
+          "epoch": "2017-09-14T15:20:22Z",
+          "constellation": "Cetus",
+          "telescope": "Green Bank Telescope",
+          "target": "Tau Ceti",
+          "distance_label": "11.9 light-years"
+        },
+        "url": "http://blpd8.ssl.berkeley.edu/dl/Parkes_58010_55222_HIP8102_R_fine.h5"
+      }
+    },
+    {
+      "id": "tauceti-58025-53633-blind-1",
+      "family": "blind-window",
+      "group": "blind window",
+      "file": "tauceti-58025-53633-blind-1.bin",
+      "dtype": "float32-le",
+      "shape": [
+        16,
+        256
+      ],
+      "units": "noise sigma, bandpass-flattened",
+      "sha256": "659af404f72febf46ca7ccce4edf382a7f2a31cef4931b13470ed3149eaa3ed5",
+      "source": {
+        "file": "Parkes_58025_53633_HIP8102_R_fine.h5",
+        "source_name": "HIP8102_R",
+        "tstart_mjd": 58025.62075231481,
+        "fch1_mhz": 3353.33203125,
+        "foff_hz": 2.7939677238464355,
+        "tsamp_s": 18.253611008,
+        "first_channel": 430016,
+        "centre_freq_mhz": 3354.533839702606,
+        "snr": 4.078487873077393,
+        "pool": {
+          "id": "sky-pool/v1",
+          "key": "tauceti"
+        },
+        "archive": {
+          "target": "HIP8102_R",
+          "telescope": "Parkes",
+          "utc": "Fri, 29 Sep 2017 14:53:52 GMT",
+          "mjd": 58025.62074074074,
+          "ra": 26.0170833333,
+          "decl": -14.5625,
+          "center_freq": 3094.0546875,
+          "file_type": "HDF5",
+          "size": 12073805192,
+          "md5sum": "d54a095e68eef1e0909e826312aa5ee8",
+          "url": "http://blpd8.ssl.berkeley.edu/dl/Parkes_58025_53633_HIP8102_R_fine.h5"
+        },
+        "coarse_channel": 208,
+        "sky": {
+          "ra_hours": 1.734472,
+          "dec_deg": -14.5625,
+          "frame": "J2000, the telescope's pointing from the file header",
+          "epoch": "2017-09-29T14:53:53Z",
+          "constellation": "Cetus",
+          "telescope": "Green Bank Telescope",
+          "target": "Tau Ceti",
+          "distance_label": "11.9 light-years"
+        },
+        "url": "http://blpd8.ssl.berkeley.edu/dl/Parkes_58025_53633_HIP8102_R_fine.h5"
+      }
+    },
+    {
+      "id": "tauceti-58025-53633-blind-2",
+      "family": "blind-window",
+      "group": "blind window",
+      "file": "tauceti-58025-53633-blind-2.bin",
+      "dtype": "float32-le",
+      "shape": [
+        16,
+        256
+      ],
+      "units": "noise sigma, bandpass-flattened",
+      "sha256": "9bb3d4296105cbd9df83a858aa1032f45a15b8c7313b2a8c42d9dccb91845693",
+      "source": {
+        "file": "Parkes_58025_53633_HIP8102_R_fine.h5",
+        "source_name": "HIP8102_R",
+        "tstart_mjd": 58025.62075231481,
+        "fch1_mhz": 3353.33203125,
+        "foff_hz": 2.7939677238464355,
+        "tsamp_s": 18.253611008,
+        "first_channel": 464912,
+        "centre_freq_mhz": 3354.6313380002975,
+        "snr": 4.372624397277832,
+        "pool": {
+          "id": "sky-pool/v1",
+          "key": "tauceti"
+        },
+        "archive": {
+          "target": "HIP8102_R",
+          "telescope": "Parkes",
+          "utc": "Fri, 29 Sep 2017 14:53:52 GMT",
+          "mjd": 58025.62074074074,
+          "ra": 26.0170833333,
+          "decl": -14.5625,
+          "center_freq": 3094.0546875,
+          "file_type": "HDF5",
+          "size": 12073805192,
+          "md5sum": "d54a095e68eef1e0909e826312aa5ee8",
+          "url": "http://blpd8.ssl.berkeley.edu/dl/Parkes_58025_53633_HIP8102_R_fine.h5"
+        },
+        "coarse_channel": 208,
+        "sky": {
+          "ra_hours": 1.734472,
+          "dec_deg": -14.5625,
+          "frame": "J2000, the telescope's pointing from the file header",
+          "epoch": "2017-09-29T14:53:53Z",
+          "constellation": "Cetus",
+          "telescope": "Green Bank Telescope",
+          "target": "Tau Ceti",
+          "distance_label": "11.9 light-years"
+        },
+        "url": "http://blpd8.ssl.berkeley.edu/dl/Parkes_58025_53633_HIP8102_R_fine.h5"
+      }
+    },
+    {
+      "id": "tauceti-58025-53633-hit-1",
+      "family": "stars",
+      "group": "hit",
+      "file": "tauceti-58025-53633-hit-1.bin",
+      "dtype": "float32-le",
+      "shape": [
+        16,
+        256
+      ],
+      "units": "noise sigma, bandpass-flattened",
+      "sha256": "d70e27bbf02602437fcf78d682307f593e5ebf4eda6c792a51829be5e98ba17b",
+      "source": {
+        "file": "Parkes_58025_53633_HIP8102_R_fine.h5",
+        "source_name": "HIP8102_R",
+        "tstart_mjd": 58025.62075231481,
+        "fch1_mhz": 3353.33203125,
+        "foff_hz": 2.7939677238464355,
+        "tsamp_s": 18.253611008,
+        "first_channel": 954775,
+        "centre_freq_mhz": 3355.999999972396,
+        "drift_channels_per_step": 0.02396379179214637,
+        "drift_hz_per_s": 0.0036679898995814674,
+        "snr": 51.77531433105469,
+        "pool": {
+          "id": "sky-pool/v1",
+          "key": "tauceti"
+        },
+        "archive": {
+          "target": "HIP8102_R",
+          "telescope": "Parkes",
+          "utc": "Fri, 29 Sep 2017 14:53:52 GMT",
+          "mjd": 58025.62074074074,
+          "ra": 26.0170833333,
+          "decl": -14.5625,
+          "center_freq": 3094.0546875,
+          "file_type": "HDF5",
+          "size": 12073805192,
+          "md5sum": "d54a095e68eef1e0909e826312aa5ee8",
+          "url": "http://blpd8.ssl.berkeley.edu/dl/Parkes_58025_53633_HIP8102_R_fine.h5"
+        },
+        "coarse_channel": 208,
+        "sky": {
+          "ra_hours": 1.734472,
+          "dec_deg": -14.5625,
+          "frame": "J2000, the telescope's pointing from the file header",
+          "epoch": "2017-09-29T14:53:53Z",
+          "constellation": "Cetus",
+          "telescope": "Green Bank Telescope",
+          "target": "Tau Ceti",
+          "distance_label": "11.9 light-years"
+        },
+        "url": "http://blpd8.ssl.berkeley.edu/dl/Parkes_58025_53633_HIP8102_R_fine.h5"
+      }
+    },
+    {
+      "id": "tauceti-58025-53633-hit-2",
+      "family": "stars",
+      "group": "hit",
+      "file": "tauceti-58025-53633-hit-2.bin",
+      "dtype": "float32-le",
+      "shape": [
+        16,
+        256
+      ],
+      "units": "noise sigma, bandpass-flattened",
+      "sha256": "b47602d2c3f0c3e0fc20cdcb7acbcb994ee6a48efaf81e2a214b95a2f9a2a0ec",
+      "source": {
+        "file": "Parkes_58025_53633_HIP8102_R_fine.h5",
+        "source_name": "HIP8102_R",
+        "tstart_mjd": 58025.62075231481,
+        "fch1_mhz": 3353.33203125,
+        "foff_hz": 2.7939677238464355,
+        "tsamp_s": 18.253611008,
+        "first_channel": 474210,
+        "centre_freq_mhz": 3354.6573155140063,
+        "drift_channels_per_step": -2.6725328060064957,
+        "drift_hz_per_s": -0.40906812343214455,
+        "snr": 47.33203887939453,
+        "pool": {
+          "id": "sky-pool/v1",
+          "key": "tauceti"
+        },
+        "archive": {
+          "target": "HIP8102_R",
+          "telescope": "Parkes",
+          "utc": "Fri, 29 Sep 2017 14:53:52 GMT",
+          "mjd": 58025.62074074074,
+          "ra": 26.0170833333,
+          "decl": -14.5625,
+          "center_freq": 3094.0546875,
+          "file_type": "HDF5",
+          "size": 12073805192,
+          "md5sum": "d54a095e68eef1e0909e826312aa5ee8",
+          "url": "http://blpd8.ssl.berkeley.edu/dl/Parkes_58025_53633_HIP8102_R_fine.h5"
+        },
+        "coarse_channel": 208,
+        "sky": {
+          "ra_hours": 1.734472,
+          "dec_deg": -14.5625,
+          "frame": "J2000, the telescope's pointing from the file header",
+          "epoch": "2017-09-29T14:53:53Z",
+          "constellation": "Cetus",
+          "telescope": "Green Bank Telescope",
+          "target": "Tau Ceti",
+          "distance_label": "11.9 light-years"
+        },
+        "url": "http://blpd8.ssl.berkeley.edu/dl/Parkes_58025_53633_HIP8102_R_fine.h5"
       }
     },
     {
