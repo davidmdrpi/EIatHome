@@ -130,8 +130,8 @@
         "tsamp_s": 18.253611008,
         "first_channel": 552122,
         "centre_freq_mhz": 1142.5000003267353,
-        "drift_channels_per_step": -0.009191763185829408,
-        "drift_hz_per_s": 0.0014069265338892034,
+        "drift_channels_per_step": -0.009191763199053299,
+        "drift_hz_per_s": 0.001406926535913303,
         "snr": 35.30238723754883,
         "pool": {
           "id": "sky-pool/v1",
@@ -185,8 +185,8 @@
         "tsamp_s": 18.253611008,
         "first_channel": 105768,
         "centre_freq_mhz": 1143.747100051395,
-        "drift_channels_per_step": 0.23409141005146092,
-        "drift_hz_per_s": -0.035830929224186674,
+        "drift_channels_per_step": 0.23409141005063444,
+        "drift_hz_per_s": -0.03583092922406018,
         "snr": 33.69172286987305,
         "pool": {
           "id": "sky-pool/v1",
@@ -401,8 +401,8 @@
         "tsamp_s": 18.253611008,
         "first_channel": 146673,
         "centre_freq_mhz": 2069.9999994943964,
-        "drift_channels_per_step": 0.003446432243644199,
-        "drift_hz_per_s": -0.0005275241401246774,
+        "drift_channels_per_step": 0.003446432240338226,
+        "drift_hz_per_s": -0.0005275241396186526,
         "snr": 553.7855834960938,
         "pool": {
           "id": "sky-pool/v1",
@@ -562,8 +562,8 @@
         "tsamp_s": 17.986224128,
         "first_channel": 517717,
         "centre_freq_mhz": 1499.996491728465,
-        "drift_channels_per_step": 3.537125373885712,
-        "drift_hz_per_s": -0.5576229350736931,
+        "drift_channels_per_step": 3.537125373877164,
+        "drift_hz_per_s": -0.5576229350723455,
         "snr": 1170.2762451171875,
         "pool": {
           "id": "sky-pool/v1",
@@ -1316,8 +1316,8 @@
         "tsamp_s": 17.986224128,
         "first_channel": 854060,
         "centre_freq_mhz": 1584.0037283488941,
-        "drift_channels_per_step": -0.07720214978362389,
-        "drift_hz_per_s": 0.012170812398727887,
+        "drift_channels_per_step": -0.07720214976378804,
+        "drift_hz_per_s": 0.012170812395600793,
         "snr": 13.362897872924805,
         "pool": {
           "id": "sky-pool/v1",
@@ -1769,7 +1769,7 @@
           "frame": "J2000, the telescope's pointing from the file header",
           "epoch": "2017-09-14T15:20:22Z",
           "constellation": "Cetus",
-          "telescope": "Green Bank Telescope",
+          "telescope": "Parkes",
           "target": "Tau Ceti",
           "distance_label": "11.9 light-years"
         },
@@ -1822,7 +1822,7 @@
           "frame": "J2000, the telescope's pointing from the file header",
           "epoch": "2017-09-14T15:20:22Z",
           "constellation": "Cetus",
-          "telescope": "Green Bank Telescope",
+          "telescope": "Parkes",
           "target": "Tau Ceti",
           "distance_label": "11.9 light-years"
         },
@@ -1877,7 +1877,7 @@
           "frame": "J2000, the telescope's pointing from the file header",
           "epoch": "2017-09-14T15:20:22Z",
           "constellation": "Cetus",
-          "telescope": "Green Bank Telescope",
+          "telescope": "Parkes",
           "target": "Tau Ceti",
           "distance_label": "11.9 light-years"
         },
@@ -1932,7 +1932,7 @@
           "frame": "J2000, the telescope's pointing from the file header",
           "epoch": "2017-09-14T15:20:22Z",
           "constellation": "Cetus",
-          "telescope": "Green Bank Telescope",
+          "telescope": "Parkes",
           "target": "Tau Ceti",
           "distance_label": "11.9 light-years"
         },
@@ -1960,8 +1960,8 @@
         "tsamp_s": 18.253611008,
         "first_channel": 495542,
         "centre_freq_mhz": 3375.224729574903,
-        "drift_channels_per_step": 0.4570457916475918,
-        "drift_hz_per_s": 0.06995718215007193,
+        "drift_channels_per_step": 0.45704579164097986,
+        "drift_hz_per_s": 0.0699571821490599,
         "snr": 35.576072692871094,
         "pool": {
           "id": "sky-pool/v1",
@@ -1987,7 +1987,7 @@
           "frame": "J2000, the telescope's pointing from the file header",
           "epoch": "2017-09-14T15:20:22Z",
           "constellation": "Cetus",
-          "telescope": "Green Bank Telescope",
+          "telescope": "Parkes",
           "target": "Tau Ceti",
           "distance_label": "11.9 light-years"
         },
@@ -2040,7 +2040,7 @@
           "frame": "J2000, the telescope's pointing from the file header",
           "epoch": "2017-09-29T14:53:53Z",
           "constellation": "Cetus",
-          "telescope": "Green Bank Telescope",
+          "telescope": "Parkes",
           "target": "Tau Ceti",
           "distance_label": "11.9 light-years"
         },
@@ -2093,7 +2093,7 @@
           "frame": "J2000, the telescope's pointing from the file header",
           "epoch": "2017-09-29T14:53:53Z",
           "constellation": "Cetus",
-          "telescope": "Green Bank Telescope",
+          "telescope": "Parkes",
           "target": "Tau Ceti",
           "distance_label": "11.9 light-years"
         },
@@ -2148,7 +2148,7 @@
           "frame": "J2000, the telescope's pointing from the file header",
           "epoch": "2017-09-29T14:53:53Z",
           "constellation": "Cetus",
-          "telescope": "Green Bank Telescope",
+          "telescope": "Parkes",
           "target": "Tau Ceti",
           "distance_label": "11.9 light-years"
         },
@@ -2176,8 +2176,8 @@
         "tsamp_s": 18.253611008,
         "first_channel": 474210,
         "centre_freq_mhz": 3354.6573155140063,
-        "drift_channels_per_step": -2.6725328060064957,
-        "drift_hz_per_s": -0.40906812343214455,
+        "drift_channels_per_step": -2.6725328060098015,
+        "drift_hz_per_s": -0.40906812343265053,
         "snr": 47.33203887939453,
         "pool": {
           "id": "sky-pool/v1",
@@ -2203,7 +2203,7 @@
           "frame": "J2000, the telescope's pointing from the file header",
           "epoch": "2017-09-29T14:53:53Z",
           "constellation": "Cetus",
-          "telescope": "Green Bank Telescope",
+          "telescope": "Parkes",
           "target": "Tau Ceti",
           "distance_label": "11.9 light-years"
         },
