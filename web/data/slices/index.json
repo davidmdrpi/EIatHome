@@ -1724,6 +1724,222 @@
       }
     },
     {
+      "id": "proxcen-58602-55301-blind-1",
+      "family": "blind-window",
+      "group": "blind window",
+      "file": "proxcen-58602-55301-blind-1.bin",
+      "dtype": "float32-le",
+      "shape": [
+        16,
+        256
+      ],
+      "units": "noise sigma, bandpass-flattened",
+      "sha256": "c604b13435cbe2147ade561287112ea3c95587ad9296416c3da7dd605c6b5713",
+      "source": {
+        "file": "blc03_ProxCen_S_2019-04-29T15:21:41.000.fil",
+        "source_name": "ProxCen_S",
+        "tstart_mjd": 58602.64005787037,
+        "fch1_mhz": 981.5,
+        "foff_hz": 3.814697265625,
+        "tsamp_s": 16.777216,
+        "first_channel": 162286,
+        "centre_freq_mhz": 982.1195602416992,
+        "snr": 4.27974796295166,
+        "pool": {
+          "id": "sky-pool/v1",
+          "key": "proxcen"
+        },
+        "archive": {
+          "target": "PROXCEN_S",
+          "telescope": "Parkes",
+          "utc": "Mon, 29 Apr 2019 15:21:41 GMT",
+          "mjd": 58602.64005787037,
+          "ra": 217.42875,
+          "decl": -61.99828,
+          "center_freq": 1024.00000000629,
+          "file_type": "filterbank",
+          "size": 14361297202,
+          "md5sum": "173475242b298941dcd26caf25b80d69",
+          "url": "http://blpd2.ssl.berkeley.edu/PKSUWL/blc03/PKSUWL/blc03_ProxCen_S_2019-04-29T15:21:41.000.fil"
+        },
+        "coarse_channel": 22,
+        "time_steps": "the first 16 of 107",
+        "sky": {
+          "ra_hours": 14.495264,
+          "dec_deg": -61.998289,
+          "frame": "J2000, the telescope's pointing from the file header",
+          "epoch": "2019-04-29T15:21:41Z",
+          "constellation": "Centaurus",
+          "telescope": "Parkes",
+          "target": "Proxima Centauri",
+          "distance_label": "4.24 light-years"
+        },
+        "url": "http://blpd2.ssl.berkeley.edu/PKSUWL/blc03/PKSUWL/blc03_ProxCen_S_2019-04-29T15:21:41.000.fil"
+      }
+    },
+    {
+      "id": "proxcen-58602-55301-blind-2",
+      "family": "blind-window",
+      "group": "blind window",
+      "file": "proxcen-58602-55301-blind-2.bin",
+      "dtype": "float32-le",
+      "shape": [
+        16,
+        256
+      ],
+      "units": "noise sigma, bandpass-flattened",
+      "sha256": "bb51ac9cbee73b06711d1b98e9a288cd99074650b3a09724f4e39959620abde6",
+      "source": {
+        "file": "blc03_ProxCen_S_2019-04-29T15:21:41.000.fil",
+        "source_name": "ProxCen_S",
+        "tstart_mjd": 58602.64005787037,
+        "fch1_mhz": 981.5,
+        "foff_hz": 3.814697265625,
+        "tsamp_s": 16.777216,
+        "first_channel": 81104,
+        "centre_freq_mhz": 981.8098754882812,
+        "snr": 3.762887477874756,
+        "pool": {
+          "id": "sky-pool/v1",
+          "key": "proxcen"
+        },
+        "archive": {
+          "target": "PROXCEN_S",
+          "telescope": "Parkes",
+          "utc": "Mon, 29 Apr 2019 15:21:41 GMT",
+          "mjd": 58602.64005787037,
+          "ra": 217.42875,
+          "decl": -61.99828,
+          "center_freq": 1024.00000000629,
+          "file_type": "filterbank",
+          "size": 14361297202,
+          "md5sum": "173475242b298941dcd26caf25b80d69",
+          "url": "http://blpd2.ssl.berkeley.edu/PKSUWL/blc03/PKSUWL/blc03_ProxCen_S_2019-04-29T15:21:41.000.fil"
+        },
+        "coarse_channel": 22,
+        "time_steps": "the first 16 of 107",
+        "sky": {
+          "ra_hours": 14.495264,
+          "dec_deg": -61.998289,
+          "frame": "J2000, the telescope's pointing from the file header",
+          "epoch": "2019-04-29T15:21:41Z",
+          "constellation": "Centaurus",
+          "telescope": "Parkes",
+          "target": "Proxima Centauri",
+          "distance_label": "4.24 light-years"
+        },
+        "url": "http://blpd2.ssl.berkeley.edu/PKSUWL/blc03/PKSUWL/blc03_ProxCen_S_2019-04-29T15:21:41.000.fil"
+      }
+    },
+    {
+      "id": "proxcen-58602-64466-blind-1",
+      "family": "blind-window",
+      "group": "blind window",
+      "file": "proxcen-58602-64466-blind-1.bin",
+      "dtype": "float32-le",
+      "shape": [
+        16,
+        256
+      ],
+      "units": "noise sigma, bandpass-flattened",
+      "sha256": "4291df13bdbb3b8cedd05a23ecff7ee7ed1f98e86b91489edf522a4674ff57a2",
+      "source": {
+        "file": "blc03_ProxCen_S_2019-04-29T17:54:26.000.fil",
+        "source_name": "ProxCen_S",
+        "tstart_mjd": 58602.74613425926,
+        "fch1_mhz": 981.5,
+        "foff_hz": 3.814697265625,
+        "tsamp_s": 16.777216,
+        "first_channel": 110165,
+        "centre_freq_mhz": 981.9207344055176,
+        "snr": 3.904092788696289,
+        "pool": {
+          "id": "sky-pool/v1",
+          "key": "proxcen"
+        },
+        "archive": {
+          "target": "PROXCEN_S",
+          "telescope": "Parkes",
+          "utc": "Mon, 29 Apr 2019 17:54:26 GMT",
+          "mjd": 58602.74613425926,
+          "ra": 217.42875,
+          "decl": -61.99828,
+          "center_freq": 1024.00000000629,
+          "file_type": "filterbank",
+          "size": 14361297202,
+          "md5sum": "7e5cc1f7937db51724e3c54f1544a1f9",
+          "url": "http://blpd2.ssl.berkeley.edu/PKSUWL/blc03/PKSUWL/blc03_ProxCen_S_2019-04-29T17:54:26.000.fil"
+        },
+        "coarse_channel": 22,
+        "time_steps": "the first 16 of 107",
+        "sky": {
+          "ra_hours": 14.495264,
+          "dec_deg": -61.998289,
+          "frame": "J2000, the telescope's pointing from the file header",
+          "epoch": "2019-04-29T17:54:26Z",
+          "constellation": "Centaurus",
+          "telescope": "Parkes",
+          "target": "Proxima Centauri",
+          "distance_label": "4.24 light-years"
+        },
+        "url": "http://blpd2.ssl.berkeley.edu/PKSUWL/blc03/PKSUWL/blc03_ProxCen_S_2019-04-29T17:54:26.000.fil"
+      }
+    },
+    {
+      "id": "proxcen-58602-64466-blind-2",
+      "family": "blind-window",
+      "group": "blind window",
+      "file": "proxcen-58602-64466-blind-2.bin",
+      "dtype": "float32-le",
+      "shape": [
+        16,
+        256
+      ],
+      "units": "noise sigma, bandpass-flattened",
+      "sha256": "387f32f18ca8e112cf63aba1739ada8caa5fa7b978e9c0cba986085d07770112",
+      "source": {
+        "file": "blc03_ProxCen_S_2019-04-29T17:54:26.000.fil",
+        "source_name": "ProxCen_S",
+        "tstart_mjd": 58602.74613425926,
+        "fch1_mhz": 981.5,
+        "foff_hz": 3.814697265625,
+        "tsamp_s": 16.777216,
+        "first_channel": 66950,
+        "centre_freq_mhz": 981.7558822631836,
+        "snr": 4.330123424530029,
+        "pool": {
+          "id": "sky-pool/v1",
+          "key": "proxcen"
+        },
+        "archive": {
+          "target": "PROXCEN_S",
+          "telescope": "Parkes",
+          "utc": "Mon, 29 Apr 2019 17:54:26 GMT",
+          "mjd": 58602.74613425926,
+          "ra": 217.42875,
+          "decl": -61.99828,
+          "center_freq": 1024.00000000629,
+          "file_type": "filterbank",
+          "size": 14361297202,
+          "md5sum": "7e5cc1f7937db51724e3c54f1544a1f9",
+          "url": "http://blpd2.ssl.berkeley.edu/PKSUWL/blc03/PKSUWL/blc03_ProxCen_S_2019-04-29T17:54:26.000.fil"
+        },
+        "coarse_channel": 22,
+        "time_steps": "the first 16 of 107",
+        "sky": {
+          "ra_hours": 14.495264,
+          "dec_deg": -61.998289,
+          "frame": "J2000, the telescope's pointing from the file header",
+          "epoch": "2019-04-29T17:54:26Z",
+          "constellation": "Centaurus",
+          "telescope": "Parkes",
+          "target": "Proxima Centauri",
+          "distance_label": "4.24 light-years"
+        },
+        "url": "http://blpd2.ssl.berkeley.edu/PKSUWL/blc03/PKSUWL/blc03_ProxCen_S_2019-04-29T17:54:26.000.fil"
+      }
+    },
+    {
       "id": "tauceti-58010-55222-blind-1",
       "family": "blind-window",
       "group": "blind window",
