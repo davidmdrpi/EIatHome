@@ -1,6 +1,6 @@
-// Signal families for the Live Lab: two real ones from pre-extracted slices (Voyager 1, and
-// the off-source scans of the same cadence), a reconstruction of the 1977 Wow! signal, and
-// several synthetic controls with known answers.
+// Signal families for the Live Lab: real ones from pre-extracted slices (Voyager 1, the
+// off-source scans of the same cadence, nearby stars, and blind windows), a reconstruction of
+// the 1977 Wow! signal, and several synthetic controls with known answers.
 // Every generator returns a raw snippet in noise-sigma units (T time steps x C channels,
 // row-major), before normalization.
 
@@ -12,13 +12,40 @@ export const C = 64; // channels per snippet
 export const DEFAULT_FOFF_HZ = -2.7939677238464355;
 export const DEFAULT_TSAMP_S = 18.253611008;
 
+// A real family's `window` says how its slices were cut, and `control` is the real family Track B
+// scores with this one's tokenizer and models, as a control.
 export const FAMILIES = [
-  { id: 'voyager', label: 'Voyager 1', real: true, about: 'Real Green Bank data: Voyager 1’s carrier and telemetry sidebands. Needs extracted slices (see the Data tab).' },
+  {
+    id: 'voyager',
+    label: 'Voyager 1',
+    real: true,
+    window: 'on-target hit',
+    control: 'offsource',
+    about: 'Real Green Bank data: Voyager 1’s carrier and telemetry sidebands. Needs extracted slices (see the Data tab).',
+  },
   {
     id: 'offsource',
     label: 'Off-source',
     real: true,
+    window: 'off-source',
+    control: 'voyager',
     about: 'Real Green Bank data from the same cadence with the telescope pointed 1° away from Voyager 1: the same receiver, frequencies and processing, at the channels where Voyager’s signals would be, but nothing in the beam. The real-data counterpart of Noise.',
+  },
+  {
+    id: 'stars',
+    label: 'Nearby stars',
+    real: true,
+    window: 'on-target hit',
+    control: 'blind-window',
+    about: 'Real Breakthrough Listen scans of nearby stars (Proxima Centauri with Parkes, the others with Green Bank): windows around the strongest narrowband hits a de-Doppler search found while the telescope pointed at the star. Hits like these are almost always human interference. blc1, at 982 MHz towards Proxima Centauri, turned out to be interference too.',
+  },
+  {
+    id: 'blind-window',
+    label: 'Blind windows',
+    real: true,
+    window: 'random blind window',
+    control: 'stars',
+    about: 'Real windows at random frequencies in the same on-target scans (the stars and Voyager 1). A seeded draw fixes where they fall before anyone looks at the data, so they show the sky, the receiver and whatever interference happens to be there, with no detection steering the cut.',
   },
   {
     id: 'wow',
@@ -178,11 +205,15 @@ const GENERATORS = {
     return { raw, label: { drift: slice.driftChannelsPerStep, group: slice.group, slice: slice.id, foffHz: slice.foffHz, tsamp: slice.tsamp } };
   },
 
-  offsource(rng, ctx) {
-    const { raw, slice } = sliceWindow('offsource', rng, ctx);
-    return { raw, label: { group: slice.group, slice: slice.id } };
-  },
+  offsource: (rng, ctx) => sliceSnippet('offsource', rng, ctx),
+  stars: (rng, ctx) => sliceSnippet('stars', rng, ctx),
+  'blind-window': (rng, ctx) => sliceSnippet('blind-window', rng, ctx),
 };
+
+function sliceSnippet(family, rng, ctx) {
+  const { raw, slice } = sliceWindow(family, rng, ctx);
+  return { raw, label: { group: slice.group, slice: slice.id } };
+}
 
 // A C-channel window, shifted by up to 6 channels, from a random slice of `family`.
 function sliceWindow(family, rng, ctx) {

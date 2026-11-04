@@ -26,7 +26,17 @@ or, for an off-source scan, how far and in which direction it pointed from the t
 Inputs can also be https:// URLs, read with HTTP range requests. With --coarse-channel-at, only
 the coarse channel containing that frequency is read and processed, as if it were a
 single-coarse-channel file. Together they cut slices from a whole-node file (such as the
-10.5 GB 6-second product) while downloading only the chunks of one coarse channel.
+10.5 GB 6-second product) while downloading only the chunks of one coarse channel. Inputs can be
+filterbank HDF5 or SIGPROC filterbank (.fil) files.
+
+--pool cuts a whole pool of slices from a JSON file (tools/slice_pool.json): for each target, the
+Breakthrough Listen Open Data Archive's query-files API lists its observations, and from a few of
+them the tool cuts on-target hits (the strongest narrowband signals the de-Doppler search finds
+in one coarse channel; family "stars") and blind windows (at seeded random frequencies, placed
+before looking at the data; family "blind-window"). A target can also list file URLs directly.
+Re-running the pool replaces the slices it cut before and leaves every other slice alone. The
+archive serves its API and most files over plain HTTP only, so --allow-http is needed to reach
+them; the Cut the slice pool workflow (.github/workflows/slice-pool.yml) runs it in GitHub Actions.
 """
 
 import argparse
@@ -39,9 +49,10 @@ import json
 import math
 from pathlib import Path, PurePosixPath
 import re
+import struct
 import sys
 import time
-from urllib.parse import urlparse
+from urllib.parse import urlencode, urljoin, urlparse
 import urllib.request
 
 import h5py
@@ -51,20 +62,42 @@ import numpy as np
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from skycoords import constellation_at, separation  # noqa: E402
 
-VERSION = "0.5.0"
+VERSION = "0.6.0"
 SESSION_GAP_DAYS = 0.5  # as in web/js/splits.js
-COARSE_WIDTH = 1 << 20  # fine channels per coarse channel in the high-frequency-resolution products
+COARSE_WIDTH = 1 << 20  # fine channels per coarse channel in Green Bank's high-frequency-resolution products
+# Parkes's high-resolution products split each 1 MHz coarse channel into 2^18 fine channels of 3.81 Hz.
+PARKES_COARSE_WIDTH = 1 << 18
+TIME_STEPS = 16  # time steps per Live Lab slice (web/js/signals.js's T)
+# Archive hosts with valid TLS certificates: their http:// URLs are read over https instead.
+HTTPS_HOSTS = {"bldata.berkeley.edu"}
+
+
+class SkipFile(Exception):
+    """A file the tool can't cut slices from (too short, outside its band, an unsupported format)."""
 
 
 class RangeFile(io.RawIOBase):
-    """A remote file for h5py, fetched with HTTP range requests: only the bytes h5py reads."""
+    """A remote file for h5py, fetched with HTTP range requests: only the bytes h5py reads. A file
+    of at most WHOLE bytes is fetched in one request instead, which servers that rate-limit many
+    small requests (GitHub's release downloads) prefer."""
 
     BLOCK = 1 << 16  # small (metadata) reads are fetched and cached in blocks of this size
+    WHOLE = 64 << 20
 
     def __init__(self, url, cached_blocks=1024):
         self.url, self.pos, self.fetched = url, 0, 0
-        with self._request(method="HEAD") as response:
-            self.size = int(response.headers["Content-Length"])
+        # The size from a one-byte range request rather than HEAD: pre-signed download URLs (a
+        # GitHub release asset's, say) accept only the method they were signed for.
+        with self._request({"Range": "bytes=0-0"}) as response:
+            if response.status != 206:
+                raise OSError(f"{url} doesn't support range requests (HTTP {response.status})")
+            total = response.headers.get("Content-Range", "").rpartition("/")[2]
+        if total.isdigit():
+            self.size = int(total)
+        else:
+            with self._request(method="HEAD") as response:
+                self.size = int(response.headers["Content-Length"])
+        self.whole = self._get(0, self.size) if self.size <= self.WHOLE else None
         self.blocks = OrderedDict()
         self.cached_blocks = cached_blocks
         self.prefetched = {}  # (offset, length) -> bytes, for whole chunks read once
@@ -92,6 +125,8 @@ class RangeFile(io.RawIOBase):
 
     def prefetch(self, ranges, workers=8):
         """Fetch these (offset, length) ranges in parallel, for the reads h5py is about to make."""
+        if self.whole is not None:
+            return
         ranges = [r for r in dict.fromkeys(ranges) if r not in self.prefetched]  # each once
         with ThreadPoolExecutor(workers) as pool:
             for r, data in zip(ranges, pool.map(lambda r: self._get(*r), ranges)):
@@ -121,6 +156,10 @@ class RangeFile(io.RawIOBase):
 
     def readinto(self, b):
         n = min(len(b), self.size - self.pos)
+        if self.whole is not None:
+            b[:n] = self.whole[self.pos:self.pos + n]
+            self.pos += n
+            return n
         data = self.prefetched.pop((self.pos, n), None)
         if data is None and n > self.BLOCK:
             data = self._get(self.pos, n)
@@ -138,8 +177,27 @@ class RangeFile(io.RawIOBase):
         return n
 
 
+_remotes = OrderedDict()
+
+
+def remote_file(url):
+    """An open RangeFile for url, shared by consecutive reads of one file (its header, then data)."""
+    if url not in _remotes:
+        _remotes[url] = RangeFile(url)
+        while len(_remotes) > 2:
+            _remotes.popitem(last=False)
+    _remotes[url].seek(0)
+    return _remotes[url]
+
+
 def is_url(path):
-    return isinstance(path, str) and path.startswith("https://")
+    return isinstance(path, str) and path.startswith(("https://", "http://"))
+
+
+def prefer_https(url):
+    """An archive URL, over TLS when its host serves a valid certificate."""
+    parts = urlparse(url)
+    return url.replace("http://", "https://", 1) if parts.scheme == "http" and parts.hostname in HTTPS_HOSTS else url
 
 
 def name_of(path):
@@ -152,31 +210,122 @@ def input_path(text):
     return text if is_url(text) else Path(text)
 
 
-def load(path, coarse_at=None):
-    """The spectrogram (time x frequency) and header. With coarse_at (MHz), only the coarse
-    channel containing that frequency, with the header's fch1 and nchans describing it."""
-    remote = RangeFile(path) if is_url(path) else None
-    with h5py.File(remote or path, "r") as f:
+def channels_per_coarse(header):
+    """Fine channels per coarse channel: the header's nfpc when it has one, else the telescope's."""
+    if "nfpc" in header:
+        return int(header["nfpc"])
+    return PARKES_COARSE_WIDTH if int(header.get("telescope_id", -1)) == 4 else COARSE_WIDTH
+
+
+def coarse_range(header, n_chans, coarse_at, name):
+    """The fine channels of the coarse channel containing coarse_at (MHz), updating the header's
+    fch1 and nchans to describe it."""
+    fch1, foff = float(header["fch1"]), float(header["foff"])
+    width = channels_per_coarse(header)
+    coarse = int(np.floor((coarse_at - fch1) / foff)) // width
+    if not 0 <= coarse < n_chans // width:
+        raise SystemExit(f"{name}: {coarse_at} MHz is outside the file.")
+    lo, hi = coarse * width, (coarse + 1) * width
+    header.update(fch1=fch1 + foff * lo, nchans=width, coarse_channel=coarse)
+    return lo, hi
+
+
+def time_rows(n_t, steps, name):
+    """How many time steps to read: all, or the first `steps` of a longer scan."""
+    if steps is None:
+        return n_t
+    if n_t < steps:
+        raise SkipFile(f"{name} has {n_t} time steps; a slice needs {steps}")
+    return steps
+
+
+FIL_KEYS = {
+    "telescope_id": "i", "machine_id": "i", "data_type": "i", "barycentric": "i", "pulsarcentric": "i",
+    "nbits": "i", "nsamples": "i", "nchans": "i", "nifs": "i", "nbeams": "i", "ibeam": "i",
+    "rawdatafile": "s", "source_name": "s", "az_start": "d", "za_start": "d", "src_raj": "d", "src_dej": "d",
+    "tstart": "d", "tsamp": "d", "fch1": "d", "foff": "d", "refdm": "d", "period": "d",
+}
+
+
+def read_fil_header(handle):
+    """A SIGPROC filterbank header: its keywords, and where the data starts."""
+    def string():
+        (n,) = struct.unpack("<i", handle.read(4))
+        if not 0 < n < 256:
+            raise SkipFile("not a SIGPROC filterbank file")
+        return handle.read(n).decode("ascii", "replace")
+
+    if string() != "HEADER_START":
+        raise SkipFile("not a SIGPROC filterbank file")
+    header = {}
+    while (key := string()) != "HEADER_END":
+        kind = FIL_KEYS.get(key)
+        if kind is None:
+            raise SkipFile(f"unknown filterbank header keyword {key!r}")
+        header[key] = string() if kind == "s" else struct.unpack(f"<{kind}", handle.read(struct.calcsize(kind)))[0]
+    return header, handle.tell()
+
+
+def load_fil(handle, size, remote, coarse_at, steps, name):
+    header, offset = read_fil_header(handle)
+    if int(header.get("nbits", 32)) != 32 or int(header.get("nifs", 1)) != 1:
+        raise SkipFile(f"{name}: only 32-bit, single-polarization filterbank files are supported")
+    n_chans = int(header["nchans"])
+    n_t = (size - offset) // (n_chans * 4)
+    header["time_steps"] = n_t
+    lo, hi = (0, n_chans) if coarse_at is None else coarse_range(header, n_chans, coarse_at, name)
+    rows = time_rows(n_t, steps, name)
+    ranges = [(offset + (t * n_chans + lo) * 4, (hi - lo) * 4) for t in range(rows)]
+    if remote:
+        remote.prefetch(ranges)
+    data = np.empty((rows, hi - lo), dtype=np.float32)
+    for t, (start, length) in enumerate(ranges):
+        handle.seek(start)
+        data[t] = np.frombuffer(handle.read(length), dtype="<f4")
+    return data, header
+
+
+def load_h5(source, remote, coarse_at, steps, name):
+    with h5py.File(source, "r") as f:
         dset = f["data"]  # (time, feed, frequency)
         header = {k: (v.decode() if isinstance(v, bytes) else v) for k, v in dset.attrs.items()}
-        lo, hi = 0, dset.shape[2]
-        if coarse_at is not None:
-            fch1, foff = float(header["fch1"]), float(header["foff"])
-            coarse = int(np.floor((coarse_at - fch1) / foff)) // COARSE_WIDTH
-            if not 0 <= coarse < dset.shape[2] // COARSE_WIDTH:
-                raise SystemExit(f"{name_of(path)}: {coarse_at} MHz is outside the file.")
-            lo, hi = coarse * COARSE_WIDTH, (coarse + 1) * COARSE_WIDTH
-            header.update(fch1=fch1 + foff * lo, nchans=COARSE_WIDTH, coarse_channel=coarse)
+        header["time_steps"] = dset.shape[0]
+        lo, hi = (0, dset.shape[2]) if coarse_at is None else coarse_range(header, dset.shape[2], coarse_at, name)
+        rows = time_rows(dset.shape[0], steps, name)
         if remote and dset.chunks:
-            # Every chunk of the selected channels, fetched in parallel before h5py reads them.
-            # Chunk origins only: a chunk can span several time steps (and feeds).
+            # Every chunk of the selected channels and time steps, fetched in parallel before h5py
+            # reads them. Chunk origins only: a chunk can span several time steps (and feeds).
             t_step, f_step = dset.chunks[0], dset.chunks[2]
-            chunks = (dset.id.get_chunk_info_by_coord((t, 0, c)) for t in range(0, dset.shape[0], t_step)
+            chunks = (dset.id.get_chunk_info_by_coord((t, 0, c)) for t in range(0, rows, t_step)
                       for c in range(lo - lo % f_step, hi, f_step))
             remote.prefetch([(c.byte_offset, c.size) for c in chunks])
-        data = dset[:, 0, lo:hi].astype(np.float32)
-    if remote:
-        print(f"  {name_of(path)}: read {remote.fetched / 1e6:,.0f} MB of {remote.size / 1e6:,.0f} MB")
+        data = dset[:rows, 0, lo:hi].astype(np.float32)
+    return data, header
+
+
+def load(path, coarse_at=None, steps=None):
+    """The spectrogram (time x frequency) and header. With coarse_at (MHz), only the coarse
+    channel containing that frequency, with the header's fch1 and nchans describing it. With
+    steps, only the first that many time steps (SkipFile if the scan has fewer)."""
+    name = name_of(path)
+    remote = remote_file(path) if is_url(path) else None
+    handle = remote or open(path, "rb")
+    fetched = remote.fetched if remote else 0
+    try:
+        magic = handle.read(8)
+        handle.seek(0)
+        if magic == b"\x89HDF\r\n\x1a\n":
+            data, header = load_h5(remote or path, remote, coarse_at, steps, name)
+        else:
+            size = remote.size if remote else Path(path).stat().st_size
+            data, header = load_fil(handle, size, remote, coarse_at, steps, name)
+    finally:
+        if not remote:
+            handle.close()
+    if remote and remote.whole is not None:
+        print(f"  {name}: {remote.size / 1e6:,.0f} MB, fetched whole")
+    elif remote:
+        print(f"  {name}: read {(remote.fetched - fetched) / 1e6:,.0f} MB of {remote.size / 1e6:,.0f} MB")
     return data, header
 
 
@@ -272,11 +421,20 @@ def target_key(name):
     return re.sub(r"[^a-z0-9]", "", str(name).lower())
 
 
+def unpack_sexagesimal(value):
+    """SIGPROC's packed angles: hhmmss.s (or ddmmss.s) as one number, e.g. 142942.95 is 14h29m42.95s."""
+    sign, value = (-1 if value < 0 else 1), abs(value)
+    return sign * (value // 10000 + (value // 100 % 100) / 60 + value % 100 / 3600)
+
+
 def pointing(header):
-    """Where the telescope pointed, from the header: (RA in hours, Dec in degrees), or None."""
+    """Where the telescope pointed, from the header: (RA in hours, Dec in degrees), or None.
+    Filterbank files pack them as hhmmss.s and ddmmss.s; Breakthrough Listen's HDF5 files usually
+    store plain hours and degrees. A value out of range for the plain form is a packed one."""
     if "src_raj" not in header or "src_dej" not in header:
         return None
-    return float(header["src_raj"]), float(header["src_dej"])
+    ra, dec = float(header["src_raj"]), float(header["src_dej"])
+    return (unpack_sexagesimal(ra) if abs(ra) >= 24 else ra), (unpack_sexagesimal(dec) if abs(dec) > 90 else dec)
 
 
 def sky_of(header, reference=None):
@@ -310,9 +468,9 @@ def sky_of(header, reference=None):
     return sky
 
 
-def prepare(path, coarse_at=None):
+def prepare(path, coarse_at=None, steps=None):
     """A file's bandpass-flattened spectrogram, its header, and its de-Doppler search."""
-    data, header = load(path, coarse_at)
+    data, header = load(path, coarse_at, steps)
     z = flatten_frames(mask_dc_spike(data))
     snr, best_drift = dedoppler(z, drift_trials(z.shape[0]))
     return z, header, snr, best_drift
@@ -330,6 +488,8 @@ def make_entry(path, args, header, window, slice_id, family, group, source):
     }
     if "coarse_channel" in header:
         source["coarse_channel"] = int(header["coarse_channel"])
+    if header.get("time_steps", window.shape[0]) > window.shape[0]:
+        source["time_steps"] = f"the first {window.shape[0]} of {int(header['time_steps'])}"
     sky = sky_of(header, source.pop("reference", None))
     if sky:
         source["sky"] = sky
@@ -353,18 +513,41 @@ def make_entry(path, args, header, window, slice_id, family, group, source):
     }
 
 
+def searchable(snr, width):
+    """The de-Doppler SNRs a hit may come from: not the band edges (the bandpass rolls off), nor
+    the coarse channel's DC spike in the middle."""
+    snr = snr.copy()
+    n_chan = snr.size
+    mid, edge = n_chan // 2, n_chan // 20
+    snr[:edge] = -np.inf
+    snr[-edge:] = -np.inf
+    snr[mid - width: mid + width] = -np.inf
+    return snr
+
+
+def hit_window(z, header, snr, best_drift, p, width):
+    """The window centred on the signal found at channel p, tracked frame by frame, and what it
+    records: where it is, its drift and its SNR."""
+    n_t = z.shape[0]
+    fch1, foff, tsamp = float(header["fch1"]), float(header["foff"]), float(header["tsamp"])
+    positions = track(z, p, best_drift[p])
+    slope, intercept = np.polyfit(np.arange(n_t), positions, 1)
+    centre = intercept + slope * n_t / 2
+    first = int(round(centre)) - width // 2
+    return z[:, first:first + width], {
+        "first_channel": first,
+        "centre_freq_mhz": fch1 + foff * centre,
+        "drift_channels_per_step": float(slope),
+        "drift_hz_per_s": float(slope * foff * 1e6 / tsamp),
+        "snr": float(snr[p]),
+    }
+
+
 def extract(path, args):
     """Slices for every signal found in one file."""
     z, header, snr, best_drift = prepare(path, args.coarse_channel_at)
-    n_t, n_chan = z.shape
-    fch1, foff, tsamp = float(header["fch1"]), float(header["foff"]), float(header["tsamp"])
-    foff_hz = foff * 1e6
-    mid, edge = n_chan // 2, n_chan // 20
-
-    snr[:edge] = -np.inf
-    snr[-edge:] = -np.inf
-    snr[mid - args.width: mid + args.width] = -np.inf
-    peaks = find_peaks(snr, args.max_signals, args.threshold, exclusion=args.width)
+    fch1, foff = float(header["fch1"]), float(header["foff"])
+    peaks = find_peaks(searchable(snr, args.width), args.max_signals, args.threshold, exclusion=args.width)
     if not peaks:
         # Normal for the off-source scans of an on/off cadence: the transmitter isn't in the beam.
         print(f"  skipped {name_of(path)}: no signal above SNR {args.threshold:g} (an off-source scan?)")
@@ -375,23 +558,13 @@ def extract(path, args):
     slices = []
     sidebands = 0
     for p in sorted(peaks, key=lambda p: fch1 + foff * p):
-        positions = track(z, p, best_drift[p])
-        slope, intercept = np.polyfit(np.arange(n_t), positions, 1)
-        centre = intercept + slope * n_t / 2
-        first = int(round(centre)) - args.width // 2
-        window = z[:, first:first + args.width]
+        window, source = hit_window(z, header, snr, best_drift, p, args.width)
         if p == brightest:
             group, name = "carrier", "carrier"
         else:
             sidebands += 1
             group, name = "sideband", f"sideband-{sidebands}"
-        slices.append(make_entry(path, args, header, window, f"{args.prefix}-{label}-{name}", "voyager", group, {
-            "first_channel": first,
-            "centre_freq_mhz": fch1 + foff * centre,
-            "drift_channels_per_step": float(slope),
-            "drift_hz_per_s": float(slope * foff_hz / tsamp),
-            "snr": float(snr[p]),
-        }))
+        slices.append(make_entry(path, args, header, window, f"{args.prefix}-{label}-{name}", "voyager", group, source))
     return slices
 
 
@@ -432,6 +605,288 @@ def extract_off(path, args, references):
     return slices
 
 
+# ---------- the slice pool (--pool) ----------
+
+DEFAULT_LIMITS = {"max_slices": 100, "max_bytes": 1_500_000, "max_targets": 8}
+
+
+def draw(seed, *parts):
+    """A number in [0, 1) fixed by the pool's seed and the parts: the same on every run."""
+    digest = hashlib.sha256(":".join(str(p) for p in (seed, *parts)).encode()).digest()
+    return int.from_bytes(digest[:8], "big") / 2 ** 64
+
+
+def fetch_json(url, allow_http):
+    """GET a JSON document, retrying network errors."""
+    url = prefer_https(url)
+    if url.startswith("http://") and not allow_http:
+        raise SystemExit(f"{url} is plain HTTP: pass --allow-http to read it")
+    for attempt in range(4):
+        try:
+            with urllib.request.urlopen(url, timeout=120) as response:
+                return json.loads(response.read())
+        except OSError:
+            if attempt == 3:
+                raise
+            time.sleep(2 ** attempt)
+
+
+def query_files(api, params, allow_http):
+    """The archive's files matching params (api/query-files), as it lists them."""
+    reply = fetch_json(f"{api.rstrip('/')}/query-files?{urlencode(params)}", allow_http)
+    if reply.get("result") != "success":
+        raise RuntimeError(f"query-files {params}: {reply.get('message', 'no result')}")
+    return reply.get("data") or []
+
+
+def fine_resolution(entry, product="0000"):
+    """Whether an archive entry is a high-frequency-resolution filterbank product (HDF5 or .fil)."""
+    url = str(entry.get("url", ""))
+    name = PurePosixPath(urlparse(url).path).name
+    kind = str(entry.get("file_type", "")).lower()
+    return ("hdf5" in kind or "filterbank" in kind or name.endswith((".h5", ".fil"))) and product in name
+
+
+def choose_files(entries, target, seed):
+    """Up to target["files"] archive entries: fine-resolution products, nearest the target's
+    frequency if it has one, then in a seeded random order, one per observing session first."""
+    wanted = int(target.get("files", 2))
+    freq = target.get("freq_mhz")
+    usable = [e for e in entries if fine_resolution(e, target.get("product", "0000"))]
+    if freq is not None:
+        window = float(target.get("freq_window_mhz", 2000))
+        usable = [e for e in usable if e.get("center_freq") is None or abs(float(e["center_freq"]) - freq) <= window]
+    def order(e):
+        distance = abs(float(e["center_freq"]) - freq) if freq is not None and e.get("center_freq") is not None else 0
+        return (round(distance), draw(seed, target["key"], e.get("url")))
+    usable.sort(key=order)
+    chosen = []
+    for distinct in (True, False):  # distinct sessions first, then anything left
+        for e in usable:
+            if len(chosen) == wanted:
+                break
+            mjd = float(e.get("mjd") or 0)
+            if e in chosen or (distinct and any(abs(mjd - float(c.get("mjd") or 0)) <= SESSION_GAP_DAYS for c in chosen)):
+                continue
+            chosen.append(e)
+    return chosen
+
+
+def peek_header(path):
+    """A file's header and channel count, reading only its metadata."""
+    remote = remote_file(path) if is_url(path) else None
+    handle = remote or open(path, "rb")
+    try:
+        if handle.read(8) == b"\x89HDF\r\n\x1a\n":
+            with h5py.File(remote or path, "r") as f:
+                dset = f["data"]
+                header = {k: (v.decode() if isinstance(v, bytes) else v) for k, v in dset.attrs.items()}
+                return header, dset.shape[2]
+        handle.seek(0)
+        header, _ = read_fil_header(handle)
+        return header, int(header["nchans"])
+    finally:
+        if not remote:
+            handle.close()
+
+
+def coarse_frequencies(header, n_chans, target, path, seed):
+    """The coarse channels to search, as the frequency at the middle of each: the target's
+    frequency, or channels drawn at random away from the band edges (up to target["tries"])."""
+    if target.get("freq_mhz") is not None:
+        return [float(target["freq_mhz"])]
+    width = channels_per_coarse(header)
+    n_coarse = n_chans // width
+    if n_coarse < 1:
+        raise SkipFile(f"{name_of(path)} has fewer channels than one coarse channel")
+    lo, hi = (n_coarse // 10, n_coarse - n_coarse // 10) if n_coarse >= 10 else (0, n_coarse)
+    picks = []
+    for i in range(int(target.get("tries", 2))):
+        c = lo + int(draw(seed, target["key"], name_of(path), "coarse", i) * (hi - lo))
+        if c not in picks:
+            picks.append(c)
+    fch1, foff = float(header["fch1"]), float(header["foff"])
+    return [fch1 + foff * (c * width + width // 2) for c in picks]
+
+
+def blind_starts(n_chan, width, count, seed, key, path, coarse):
+    """Where blind windows start: seeded draws fixed before looking at the data, away from the
+    band edges and the DC spike."""
+    edge, mid = n_chan // 20, n_chan // 2
+    allowed = [(edge, mid - width - width // 2), (mid + width // 2, n_chan - edge - width)]
+    spans = [(a, b) for a, b in allowed if b > a]
+    total = sum(b - a for a, b in spans)
+    starts = []
+    for i in range(count):
+        u = int(draw(seed, key, name_of(path), coarse, "blind", i) * total)
+        for a, b in spans:
+            if u < b - a:
+                starts.append(a + u)
+                break
+            u -= b - a
+    return starts
+
+
+def archive_record(entry):
+    """What the archive said about the file a slice came from."""
+    keys = ("target", "telescope", "utc", "mjd", "ra", "decl", "center_freq", "file_type", "size", "md5sum", "url")
+    return {k: entry[k] for k in keys if entry.get(k) is not None}
+
+
+def pool_slices(path, target, pool, args, archive=None):
+    """Hits and blind windows from one file of a pool target."""
+    seed, key, width = pool["seed"], target["key"], args.width
+    header, n_chans = peek_header(path)
+    freqs = coarse_frequencies(header, n_chans, target, path, seed)
+    wanted_hits, wanted_blind = int(target.get("hits", 3)), int(target.get("blind", 2))
+    threshold = float(target.get("threshold", pool.get("threshold", 10)))
+    out = []
+    for i, freq in enumerate(freqs):
+        z, header, snr, best_drift = prepare(path, freq, TIME_STEPS)
+        label = scan_label(header)
+        coarse = header.get("coarse_channel", 0)
+        extra = {"pool": {"id": pool["id"], "key": key}}
+        if archive:
+            extra["archive"] = archive_record(archive)
+        if i == 0:  # blind windows come from the first coarse channel drawn, hits or not
+            for n, first in enumerate(blind_starts(z.shape[1], width, wanted_blind, seed, key, path, coarse), 1):
+                window = z[:, first:first + width]
+                out.append(make_entry(path, args, header, window, f"{key}-{label}-blind-{n}", "blind-window", "blind window", {
+                    "first_channel": first,
+                    "centre_freq_mhz": float(header["fch1"]) + float(header["foff"]) * (first + width / 2),
+                    # The strongest de-Doppler peak in the window: noise level when nothing's there.
+                    "snr": float(snr[first:first + width].max()),
+                    **extra,
+                }))
+        if wanted_hits:
+            peaks = find_peaks(searchable(snr, width), wanted_hits, threshold, exclusion=width)
+            print(f"  {name_of(path)} coarse channel {coarse} ({freq:.3f} MHz): {len(peaks)} hits above SNR {threshold:g}")
+            for n, p in enumerate(sorted(peaks, key=lambda p: -snr[p]), 1):
+                window, source = hit_window(z, header, snr, best_drift, p, width)
+                out.append(make_entry(path, args, header, window, f"{key}-{label}-hit-{n}", "stars", "hit", {**source, **extra}))
+            if peaks:
+                break
+    located = []
+    for payload, entry in out:
+        sky = entry["source"].get("sky")
+        if sky is None and archive and archive.get("ra") is not None and archive.get("decl") is not None:
+            # No pointing in the header: the archive's record of it (RA in degrees).
+            ra, dec = float(archive["ra"]) / 15, float(archive["decl"])
+            sky = entry["source"]["sky"] = {
+                "ra_hours": round(ra, 6), "dec_deg": round(dec, 6), "frame": "J2000, from the archive's record",
+                "epoch": (MJD_EPOCH + timedelta(days=float(header["tstart"]))).strftime("%Y-%m-%dT%H:%M:%SZ"),
+                "constellation": constellation_at(ra * 15, dec),
+            }
+        if sky is None:
+            print(f"  skipped {entry['id']}: neither the file nor the archive says where the telescope pointed")
+            continue
+        if archive and archive.get("ra") is not None and archive.get("decl") is not None:
+            off = separation(sky["ra_hours"] * 15, sky["dec_deg"], float(archive["ra"]), float(archive["decl"]))
+            if off > 0.5:
+                print(f"  warning: {entry['id']} points {off:.2f}° from the archive's position for it")
+        sky["target"] = target["name"]
+        if target.get("distance_label"):
+            sky["distance_label"] = target["distance_label"]
+        if "telescope" not in sky and archive and archive.get("telescope"):
+            sky["telescope"] = str(archive["telescope"])
+        located.append((payload, entry))
+    return located
+
+
+def run_pool(args):
+    """Cut the slice pool: every target's hits and blind windows, replacing the pool's earlier ones."""
+    pool = json.loads(args.pool.read_text())
+    limits = {**DEFAULT_LIMITS, **pool.get("limits", {})}
+    targets = [t for t in pool["targets"] if not args.only or t["key"] in args.only]
+    manifest_path = args.out / "index.json"
+    manifest = json.loads(manifest_path.read_text()) if manifest_path.exists() else {"slices": []}
+    # The pool's earlier slices: all of them (a target dropped from the pool loses its slices), or
+    # with --only, those of the targets named.
+    def mine(e):
+        record = e["source"].get("pool", {})
+        return record.get("id") == pool["id"] and (not args.only or record.get("key") in args.only)
+    kept = [e for e in manifest["slices"] if not mine(e)]
+    replaced = [e for e in manifest["slices"] if mine(e)]
+    others = sum(1 for e in kept if e["source"].get("pool", {}).get("id") == pool["id"])
+    known_hashes = {e["sha256"] for e in kept}
+    known_ids = {e["id"] for e in kept}
+
+    added, report = [], []
+    budget_slices = limits["max_slices"] - others
+    budget_bytes = limits["max_bytes"] - others * TIME_STEPS * args.width * 4
+    full = False
+    stars = 0  # archive targets that gave slices
+    for target in targets:
+        if full:
+            report.append((target["key"], 0, "not read: the pool was full"))
+            continue
+        print(f"{target['name']} ({target['key']}):")
+        paths = [(input_path(u) if not args.allow_http else prefer_https(u), None) for u in target.get("urls", [])]
+        queries = target.get("queries", [])
+        if queries and stars == limits["max_targets"]:
+            report.append((target["key"], 0, f"not read: {stars} archive targets already have slices"))
+            continue
+        for query in queries:  # the first query that finds usable files
+            try:
+                entries = query_files(pool["api"], query, args.allow_http)
+            except Exception as err:  # noqa: BLE001 (the archive is remote: report it and go on)
+                print(f"  couldn't query the archive with {query}: {err}")
+                continue
+            chosen = choose_files(entries, target, pool["seed"])
+            print(f"  {query}: the archive lists {len(entries)} files; {len(chosen)} chosen")
+            if chosen:
+                # The archive's URLs are absolute; resolve any that aren't against the API's site.
+                paths += [(prefer_https(urljoin(pool["api"], e["url"])), e) for e in chosen]
+                break
+        cut = 0
+        for path, archive in paths:
+            if full:
+                break
+            if is_url(path) and path.startswith("http://") and not args.allow_http:
+                raise SystemExit(f"{path} is plain HTTP: pass --allow-http to read it")
+            try:
+                slices = pool_slices(path, target, pool, args, archive)
+            except (Exception, SystemExit) as err:  # noqa: BLE001 (a remote file we can't use: report it and go on)
+                print(f"  skipped {name_of(path)}: {type(err).__name__}: {err}")
+                continue
+            for payload, entry in slices:
+                if entry["sha256"] in known_hashes or entry["id"] in known_ids:
+                    print(f"  skipped {entry['id']}: already in the manifest")
+                    continue
+                if len(added) + 1 > budget_slices or (len(added) + 1) * len(payload) > budget_bytes:
+                    print(f"  stopped at {len(added)} slices: the pool's limits are {limits}")
+                    full = True
+                    break
+                added.append((payload, entry))
+                known_hashes.add(entry["sha256"])
+                known_ids.add(entry["id"])
+                cut += 1
+        stars += bool(queries and cut)
+        report.append((target["key"], cut, "" if cut else "no slices"))
+
+    for e in replaced:
+        (args.out / e["file"]).unlink(missing_ok=True)
+    for payload, entry in added:
+        (args.out / entry["file"]).write_bytes(payload)
+    write_manifest(manifest_path, kept + [e for _, e in added])
+    print(f"Pool {pool['id']}: {len(added)} slices from {sum(1 for _, n, _ in report if n)} targets "
+          f"(replacing {len(replaced)}); {len(kept) + len(added)} in the manifest")
+    for key, n, note in report:
+        print(f"  {key:<20} {n:3d} slices {note}")
+    if not added:
+        raise SystemExit("The pool produced no slices.")
+
+
+def write_manifest(path, entries):
+    manifest = {
+        "format": "eiathome-slices",
+        "version": 2,
+        "extracted_by": f"tools/extract_slices.py {VERSION}",
+        "slices": sorted(entries, key=lambda e: e["id"]),
+    }
+    path.write_text(json.dumps(manifest, indent=2) + "\n")
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("h5", type=input_path, nargs="*", help="Breakthrough Listen filterbank HDF5 file(s) or https:// URL(s), on-source")
@@ -446,9 +901,18 @@ def main():
     parser.add_argument("--coarse-channel-at", type=float, metavar="MHZ",
                         help="read only the coarse channel (2^20 fine channels) containing this frequency")
     parser.add_argument("--product", help="name of the data product, recorded for each slice (e.g. 6_sec_integration)")
+    parser.add_argument("--pool", type=Path, help="cut the slice pool this JSON file defines (tools/slice_pool.json)")
+    parser.add_argument("--only", nargs="+", metavar="KEY", help="with --pool: only these targets (the others' slices stay)")
+    parser.add_argument("--allow-http", action="store_true",
+                        help="with --pool: read plain-HTTP URLs (the archive's API and files), which have no TLS")
     args = parser.parse_args()
 
     args.out.mkdir(parents=True, exist_ok=True)
+    if args.pool:
+        if args.h5 or args.off:
+            raise SystemExit("--pool takes its files from the pool, not the command line.")
+        run_pool(args)
+        return
     manifest_path = args.out / "index.json"
     entries = []
     if args.append and manifest_path.exists():
@@ -479,14 +943,7 @@ def main():
         for payload, entry in extract_off(path, args, references):
             add(payload, entry)
 
-
-    manifest = {
-        "format": "eiathome-slices",
-        "version": 2,
-        "extracted_by": f"tools/extract_slices.py {VERSION}",
-        "slices": sorted(entries, key=lambda e: e["id"]),
-    }
-    manifest_path.write_text(json.dumps(manifest, indent=2) + "\n")
+    write_manifest(manifest_path, entries)
 
     print(f"Added {len(added)} slices to {args.out}/ ({len(entries)} in total)")
     for e in added:

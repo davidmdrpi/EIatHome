@@ -9,7 +9,7 @@
 // - real data: one fixed central window per slice, holding out whole scans (or sessions).
 
 import { deriveSeed, makeRng } from './rng.js';
-import { C, REAL_FAMILIES, T, familyById, makeSnippet, normalise, rosettaStream } from './signals.js';
+import { C, T, familyById, makeSnippet, normalise, rosettaStream } from './signals.js';
 import { holdoutSplits } from './splits.js';
 import { SPLITS } from './trackb.js';
 
@@ -58,14 +58,16 @@ export function centralWindow(slice) {
 export function realSplits(slices, family) {
   const split = holdoutSplits(slices, family);
   if (split.error) throw new Error(`${familyById[family].label}: ${split.error}`);
-  // Control: the other real family's slices, without copies or windows this family also has.
+  // Control: the family's control family (Voyager and off-source pair up, as do the stars and
+  // the blind windows), without copies or windows this family also has.
+  const controlFamily = familyById[family].control;
   const own = new Set(slices.filter((s) => s.family === family).map((s) => s.sha256));
   const seen = new Set();
-  const control = slices.filter((s) => s.family !== family && REAL_FAMILIES.includes(s.family) && !own.has(s.sha256) && !seen.has(s.sha256) && seen.add(s.sha256));
+  const control = slices.filter((s) => s.family === controlFamily && !own.has(s.sha256) && !seen.has(s.sha256) && seen.add(s.sha256));
   return {
     frameSplits: Object.fromEntries(SPLITS.map((name) => [name, split[name].map(centralWindow)])),
     control: control.map(centralWindow),
-    controlFamily: control.length ? control[0].family : null,
+    controlFamily: control.length ? controlFamily : null,
     split,
   };
 }

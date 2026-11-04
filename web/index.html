@@ -44,6 +44,10 @@
       <div id="lab-viewport" class="viewport-host" aria-label="Observatory viewport"></div>
       <div class="panel">
         <h2>1. Pick a signal</h2>
+        <div class="sample-row">
+          <button id="sample" class="primary" type="button" disabled>Random sky sample &amp; analyze</button>
+          <p id="sample-status" class="muted small" role="status" aria-live="polite">One click picks a random real slice, shows where the telescope pointed on the sky map, and runs Track A and Track B on its family. Or pick a signal yourself:</p>
+        </div>
         <div id="families" class="switcher" role="radiogroup" aria-label="Signal family"></div>
         <p id="family-about" class="muted"></p>
         <div class="controls">
@@ -72,7 +76,7 @@
           <h2>2. Waterfall and next-frame prediction</h2>
           <p class="muted">The model sees frames 1 to <i>t</i> and predicts frame <i>t</i>+1. Left: the real frames. Middle: the model’s predictions. Right: what it got wrong (blue: too high, red: too low).</p>
           <div class="triptych">
-            <figure><figcaption>Actual</figcaption><canvas id="wf-actual" data-height="190" aria-label="Actual spectrogram"></canvas></figure>
+            <figure><figcaption id="wf-actual-caption">Actual</figcaption><canvas id="wf-actual" data-height="190" aria-label="Actual spectrogram"></canvas></figure>
             <figure><figcaption>Model prediction</figcaption><canvas id="wf-pred" data-height="190" aria-label="Predicted spectrogram"></canvas></figure>
             <figure><figcaption>Residual (actual − prediction)</figcaption><canvas id="wf-resid" data-height="190" aria-label="Residual"></canvas></figure>
           </div>
@@ -314,10 +318,11 @@
     <!-- ================= Data ================= -->
     <section id="tab-data" class="tab" role="tabpanel" hidden>
       <div class="panel">
-        <h2>Real data: Voyager 1 and off-source micro-slices</h2>
+        <h2>Real data: micro-slices</h2>
         <p id="slice-status" role="status">Checking for published slices…</p>
-        <p>Instead of multi-gigabyte HDF5 files, the Live Lab uses <b>micro-slices</b>: 16 time steps × 256 channels around each signal, about 16 KB each. They’re cut from the Breakthrough Listen observation by <code>tools/extract_slices.py</code> and published in <code>web/data/slices/</code>.</p>
-        <p>The <b>off-source</b> slices come from the same on/off cadence with the telescope pointed 1° away from Voyager, cut where Voyager’s signals would have drifted to by then. They’re real receiver noise and interference with nothing in the beam: if a model scores as well on them as on Voyager, it isn’t learning the signal.</p>
+        <p>Instead of multi-gigabyte HDF5 files, the Live Lab uses <b>micro-slices</b>: 16 time steps × 256 channels of a Breakthrough Listen observation, about 16 KB each. They’re cut by <code>tools/extract_slices.py</code> and published in <code>web/data/slices/</code>.</p>
+        <p>The <b>off-source</b> slices come from Voyager’s on/off cadence with the telescope pointed 1° away, cut where Voyager’s signals would have drifted to by then. They’re real receiver noise and interference with nothing in the beam: if a model scores as well on them as on Voyager, it isn’t learning the signal.</p>
+        <p>The <b>nearby stars</b> are on-target hits: the strongest narrowband signals a de-Doppler search found while the telescope pointed at a star (among them Proxima Centauri at 982 MHz, where blc1 was seen). The <b>blind windows</b> come from the same scans at random frequencies, placed by a seeded draw before anyone looked. The random sky sample draws from all of them.</p>
         <div id="drop" class="drop" tabindex="0">
           <p><b>Drop slice files here</b>: an <code>index.json</code> manifest plus its <code>.bin</code> files.</p>
           <label class="button">Choose files<input id="slice-files" type="file" multiple accept=".json,.bin" hidden></label>

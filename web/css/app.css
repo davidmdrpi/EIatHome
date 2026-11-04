@@ -275,6 +275,24 @@ canvas {
   }
 }
 
+.sample-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 14px;
+  margin: 4px 0 14px;
+}
+
+.sample-row button.primary {
+  padding: 10px 18px;
+  font-size: 1rem;
+}
+
+.sample-row p {
+  flex: 1 1 260px;
+  margin: 0;
+}
+
 .switcher {
   display: flex;
   flex-wrap: wrap;
@@ -629,6 +647,19 @@ textarea {
 
 .viewport .hud-title {
   font-size: 0.98rem;
+}
+
+/* The random sky sample's slice, in its target's card. */
+.viewport .hud-sample {
+  display: flex;
+  flex-direction: column;
+  margin-top: 4px;
+  padding-left: 8px;
+  border-left: 2px solid var(--sky-accent);
+}
+
+.viewport .hud-sample[hidden] {
+  display: none;
 }
 
 .viewport .hud-view {

@@ -9,8 +9,9 @@ import numpy as np
 CHANNELS = 64
 SPLITS = ("train", "validation", "test")
 # Real families, and the synthetic ones (tracks/llm/synthetic.py: the Rosetta control and an RFI
-# sweep), in the same units.
-FAMILIES = ("voyager", "offsource", "rosetta", "sweep")
+# sweep), in the same units. The Live Lab's slice pool adds two more real ones: on-target hits
+# toward nearby stars, and blind windows (web/data/slices/README.md).
+FAMILIES = ("voyager", "offsource", "rosetta", "sweep", "stars", "blind-window")
 SESSION_GAP_DAYS = 0.5  # as in web/js/splits.js and tools/extract_slices.py
 SCAN_GAP_DAYS = 1e-8
 

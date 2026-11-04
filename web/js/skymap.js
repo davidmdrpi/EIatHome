@@ -74,9 +74,21 @@ export function horizonToEquatorial(altDeg, azDeg, latDeg, lstHours) {
   return [(((lstHours * 15 - hourAngle / DEG) % 360) + 360) % 360, Math.asin(sinDec) / DEG];
 }
 
-// Green Bank Observatory, and the primary beam (FWHM) of its 100 m telescope: about 12.6' / f(GHz).
+// Green Bank Observatory, and a dish's primary beam (FWHM): about 12.6' / f(GHz) for the 100 m
+// Green Bank Telescope, wider in proportion for a smaller dish.
 export const GREEN_BANK = { lat: 38.4331, lon: -79.8398 };
-export const beamArcmin = (ghz) => 12.6 / ghz;
+export const beamArcmin = (ghz, dishM = 100) => (12.6 * (100 / dishM)) / ghz;
+// The telescopes whose beams the reticle can draw, by the names slices record.
+export const DISHES = { 'Green Bank Telescope': { short: 'GBT', metres: 100 }, Parkes: { short: 'Parkes', metres: 64 } };
+
+// The beam the reticle draws around a target: its telescope at its observing frequency (Voyager's
+// X band at Green Bank when a pointing doesn't say). null for a target no dish here observed.
+export function targetBeam(t) {
+  const dish = DISHES[t.telescope ?? 'Green Bank Telescope'];
+  if (!dish || t.kind === 'reference' || t.kind === 'local') return null;
+  const ghz = Number.isFinite(t.freq_mhz) ? t.freq_mhz / 1000 : 8.42;
+  return { label: `${dish.short} beam ${beamArcmin(ghz, dish.metres).toFixed(1)}′ at ${ghz.toFixed(ghz < 2 ? 2 : 1)} GHz`, arcmin: beamArcmin(ghz, dish.metres) };
+}
 
 // ---------- constellations (IAU boundaries; tools/skycoords.py does the same) ----------
 
@@ -309,6 +321,7 @@ export class SkyMap {
     this.fov = WIDE_FOV;
     this.targets = [];
     this.selected = null;
+    this.sample = null; // a slice shown in its target's card (setSample)
     this.motion = null; // a slew in progress
     this.fovGoal = null; // where the zoom is easing to
     this.job = null; // the computation being shown
@@ -339,6 +352,7 @@ export class SkyMap {
       title: el('b', 'hud-title', this.options.title ?? 'Observatory'),
       place: el('span', 'hud-line'),
       detail: el('span', 'hud-line dim'),
+      sample: el('span', 'hud-line hud-sample'),
       view: el('div', 'hud-view dim'),
       status: el('div', 'hud hud-status dim', 'Loading the sky…'),
       telemetry: el('div', 'hud-telemetry'),
@@ -348,7 +362,8 @@ export class SkyMap {
       legend: el('div', 'hud-legend'),
       stats: el('div', 'hud-stats dim'),
     };
-    target.append(this.hud.title, this.hud.place, this.hud.detail);
+    this.hud.sample.hidden = true;
+    target.append(this.hud.title, this.hud.place, this.hud.detail, this.hud.sample);
     const progress = el('div', 'hud-progress');
     progress.append(this.hud.bar);
     this.hud.telemetry.setAttribute('role', 'status');
@@ -575,7 +590,17 @@ export class SkyMap {
     this.hud.place.textContent = where;
     const date = t.epoch && t.epoch !== 'J2000' ? t.epoch.slice(0, 10) : t.epoch;
     this.hud.detail.textContent = [t.distance_label, t.telescope, date, t.note].filter(Boolean).join(' · ');
-    this.canvas.setAttribute('aria-label', `Sky map centred on ${t.label}: ${where}`);
+    const lines = this.sample?.target === t.id ? this.sample.lines : [];
+    this.hud.sample.replaceChildren(...lines.map((line) => el('span', null, line)));
+    this.hud.sample.hidden = !lines.length;
+    this.canvas.setAttribute('aria-label', `Sky map centred on ${t.label}: ${[where, ...lines].join('. ')}`);
+  }
+
+  // One slice of a target's data, shown in its card while it's selected (the Live Lab's random
+  // sky sample). lines: what to show; null clears it.
+  setSample(targetId, lines) {
+    this.sample = targetId && lines?.length ? { target: targetId, lines } : null;
+    if (this.selected) this.describe(this.selected);
   }
 
   // ----- computations -----
@@ -891,13 +916,13 @@ export class SkyMap {
     if (this.selected) this.drawReticle(ctx, cam, this.selected);
   }
 
-  // The Green Bank Telescope's primary beam at 8.4 GHz around the selected target, drawn at
-  // least large enough to see.
+  // The primary beam of the telescope that observed the selected target, at its frequency, drawn
+  // at least large enough to see. Targets no dish here observed get the smallest reticle.
   drawReticle(ctx, cam, t) {
     const p = cam.project(t.v);
     if (!p) return;
-    const beamDeg = beamArcmin(8.42) / 60;
-    const true_ = (beamDeg / 2) * cam.pxPerDeg;
+    const beam = targetBeam(t);
+    const true_ = beam ? (beam.arcmin / 120) * cam.pxPerDeg : 0;
     const r = Math.max(14, true_);
     ctx.strokeStyle = STYLE.beam;
     ctx.globalAlpha = 0.85;
@@ -909,10 +934,10 @@ export class SkyMap {
       ctx.lineTo(p[0] + dx * (r + 14), p[1] + dy * (r + 14));
     }
     ctx.stroke();
-    if (true_ >= 14) {
+    if (beam && true_ >= 14) {
       ctx.fillStyle = STYLE.beam;
       ctx.textAlign = 'center';
-      ctx.fillText(`GBT beam ${beamArcmin(8.42).toFixed(1)}′ at 8.4 GHz`, p[0], p[1] + r + 28);
+      ctx.fillText(beam.label, p[0], p[1] + r + 28);
     }
     ctx.globalAlpha = 1;
   }

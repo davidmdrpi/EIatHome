@@ -3,6 +3,7 @@
 // (index.json) describes each little-endian float32 .bin file.
 
 import { REAL_FAMILIES, T } from './signals.js';
+import { specSlices } from './workunits.js';
 
 export const MANIFEST_URL = 'data/slices/index.json';
 
@@ -74,10 +75,12 @@ export async function datasetId(slices) {
   return sha256Hex(new TextEncoder().encode(JSON.stringify(canonical)));
 }
 
-// What a result card's slices are checked against: the dataset's identity and its families.
+// What a result card's slices are checked against: the identity and families of the slices a
+// work unit reads (its spec's families only; see specSlices in workunits.js).
 export async function describeDataset(slices) {
-  if (!slices.length) return null;
-  return { datasetId: await datasetId(slices), families: REAL_FAMILIES.filter((f) => slices.some((s) => s.family === f)) };
+  const used = specSlices(slices);
+  if (!used.length) return null;
+  return { datasetId: await datasetId(used), families: REAL_FAMILIES.filter((f) => used.some((s) => s.family === f)) };
 }
 
 // Fetch the slices published with the site. Returns [] if there are none yet.

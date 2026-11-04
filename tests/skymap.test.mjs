@@ -7,7 +7,7 @@ import { test } from 'node:test';
 import { RECOVERY_DATA, runRecoveryUnit, parseRecoveryWindows, tally, windowOutcomes, SIGNALS, STRENGTHS } from '../web/js/recovery.js';
 import {
   BEAM_FOV, OUTCOMES, WIDE_FOV, angleBetween, beamArcmin, bvToRgb, camera, computeFov, constellationAt, equatorialToGalactic,
-  formatDec, formatRA, galacticToEquatorial, horizonToEquatorial, radec, siderealHours, slerp, slew, vec,
+  formatDec, formatRA, galacticToEquatorial, horizonToEquatorial, radec, siderealHours, slerp, slew, targetBeam, vec,
 } from '../web/js/skymap.js';
 
 const sky = JSON.parse(readFileSync(new URL('../web/data/sky/sky.json', import.meta.url)));
@@ -77,6 +77,16 @@ test('computations zoom from the wide view to the telescope beam with progress',
   close(computeFov(0.5), Math.sqrt(WIDE_FOV * BEAM_FOV), 1e-9, 'evenly in log scale');
   assert.equal(computeFov(2), computeFov(1));
   close(beamArcmin(8.42), 1.5, 0.01, "the GBT's beam at Voyager's X band");
+});
+
+test('the reticle draws the beam of the telescope that observed a target, at its frequency', () => {
+  assert.equal(targetBeam({ kind: 'signal', telescope: 'Green Bank Telescope', freq_mhz: 8419.5 }).label, 'GBT beam 1.5′ at 8.4 GHz');
+  assert.equal(targetBeam({ kind: 'off' }).label, 'GBT beam 1.5′ at 8.4 GHz', 'Voyager’s band when a pointing doesn’t say');
+  const parkes = targetBeam({ kind: 'signal', telescope: 'Parkes', freq_mhz: 982.0 });
+  assert.equal(parkes.label, 'Parkes beam 20.0′ at 0.98 GHz', 'the 64 m dish at blc1’s frequency');
+  close(parkes.arcmin, beamArcmin(0.982, 64), 1e-12);
+  assert.equal(targetBeam({ kind: 'reference', telescope: 'Big Ear, Ohio State University' }), null, 'no reticle label for a dish we don’t model');
+  assert.equal(targetBeam({ kind: 'signal', telescope: 'Big Ear, Ohio State University' }), null);
 });
 
 test('sidereal time and the horizon: the zenith is at the latitude and the local sidereal time', () => {
@@ -155,6 +165,8 @@ test('the v2 manifest records where every slice pointed, for both Voyager sessio
     if (s.family === 'voyager') {
       assert.match(k.distance_label, /AU from the Sun/);
       dates.add(k.epoch.slice(0, 4));
+    } else if (s.family !== 'offsource') {
+      assert.ok(k.target && k.telescope, `${s.id}: a pool slice names its target and telescope`);
     } else {
       const on = slices.slices.find((o) => o.id === s.source.window_of).source.sky;
       const off = angleBetween(vec(k.ra_hours * 15, k.dec_deg), vec(on.ra_hours * 15, on.dec_deg));
