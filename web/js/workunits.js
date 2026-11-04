@@ -45,6 +45,6 @@ export const MAX_UNIT = 9999;
 export const SPEC_FAMILIES = ['voyager', 'offsource', 'tone', 'pulsed', 'sweep', 'rosetta', 'randfsk', 'noise'];
 
 // The published slices a track-a/v0 unit reads: only its own families'. Slices of real families
-// added later (nearby stars, blind windows) never enter its inputs or its dataset id, so cards
+// added later (SETI targets, blind windows) never enter its inputs or its dataset id, so cards
 // computed before they were published stay comparable with new ones.
 export const specSlices = (slices) => slices.filter((s) => SPEC_FAMILIES.includes(s.family));

@@ -12,8 +12,9 @@ was cut from, and `source.sky` records where the telescope pointed.
   known technosignature control, from two Green Bank observing sessions four years apart.
   These are the only slices `track-a/v0` work units read, so adding the others changed nothing
   in their inputs or their dataset id.
-- **The slice pool** (families `stars` and `blind-window`, below): the random sky sample's
-  draws, cut by `tools/extract_slices.py --pool` from `tools/slice_pool.json`.
+- **The slice pool** (families `stars`, labelled "SETI targets", and `blind-window`, below):
+  the random sky sample's draws, cut by `tools/extract_slices.py --pool` from
+  `tools/slice_pool.json`.
 
 ### Voyager 1 and off-source
 
@@ -38,7 +39,7 @@ was cut from, and `source.sky` records where the telescope pointed.
 The Live Lab's **Random sky sample & analyze** button draws from every published slice. The pool
 adds two families to Voyager's:
 
-- **Nearby stars** (family `stars`, group `hit`): on-target hits. For each target in
+- **SETI targets** (family `stars`, group `hit`): on-target hits. For each target in
   `tools/slice_pool.json`, the [Breakthrough Listen Open Data Archive](http://seti.berkeley.edu/opendata)'s
   `api/query-files` lists its observations, and the tool picks a few on-target
   fine-resolution files in a seeded random order, from different sessions where it can, trying
@@ -74,6 +75,15 @@ adds two families to Voyager's:
     cone of 0.1° around its position), going on to the next while it still wants files.
     TRAPPIST-1 and Epsilon Eridani were tried and left out: the archive's TRAPPIST-1 scans have
     3 time steps, and it lists no Epsilon Eridani files.
+  - Targets can also list files directly. bldata.berkeley.edu serves several Breakthrough Listen
+    directories over HTTPS with range requests (`pipeline/`, `kepler-transits/`, `ATLAS/`,
+    `blpd30_datax2/`, ...), and five targets come from there: the interstellar comet **3I/ATLAS**
+    (Green Bank, 2025-12-18, one scan in each of the L, C and Ku bands; 49-step scans, of which
+    a slice holds the first 16), **Boyajian's Star** (KIC 8462852) and the Kepler planet host
+    **Kepler-723** (Green Bank's 2018 Kepler-transit session), the TESS target **TIC 265146266**
+    and the Hipparcos star **HIP 29847**. They need no `--allow-http`, so anyone can re-cut them:
+    `python tools/extract_slices.py --pool tools/slice_pool.json --only 3iatlas kic8462852
+    kepler723 tic265146266 hip29847`.
 - **Blind windows** (family `blind-window`, group `blind window`): windows at random frequencies
   in the same on-target scans, two per file, in the first coarse channel read. A seeded draw
   places them before anything is read, away from the band edges and the DC spike in the middle,
@@ -82,8 +92,8 @@ adds two families to Voyager's:
   the 2020 windows lands on Voyager's carrier (SNR 615).
 
 The pool's seed fixes every random choice, so re-running it cuts the same slices. Its limits
-keep it small: at most 100 slices and 1.5 MB. As published, it holds 55 slices (880 KB) from 7
-stars and Voyager 1:
+keep it small: at most 100 slices and 1.5 MB. As published, it holds 79 slices (1.3 MB) from 12
+targets and Voyager 1:
 
 | Target | Telescope | Scans | Hits | Blind windows | Other |
 |---|---|---|---|---|---|
@@ -95,6 +105,11 @@ stars and Voyager 1:
 | Wolf 359 | Green Bank | 2016-05-24; 2016-10-10 | 3 | 4 | |
 | Ross 128 | Green Bank | 2016-05-24; 2016-11-03 | 4 | 4 | |
 | 61 Cygni | Green Bank | 2016-07-18; 2017-02-06 | 4 | 4 | |
+| 3I/ATLAS (interstellar comet) | Green Bank | 2025-12-18 (L, C and Ku band) | 3 | 6 | |
+| Boyajian's Star (KIC 8462852) | Green Bank | 2018-03-25 | 3 | 2 | |
+| Kepler-723 | Green Bank | 2018-03-25 | 3 | 2 | |
+| TIC 265146266 | Green Bank | 2021-06-12 | 1 | 2 | |
+| HIP 29847 | Green Bank | 2021-08-07 | 0 | 2 | |
 
 A "0" means the coarse channels searched had nothing above SNR 10 in their first 16 steps; those
 scans still give blind windows. Proxima's one hit near blc1's channel, a line one channel wide
@@ -106,7 +121,7 @@ Every pool slice records, as well as the usual `source` fields:
   `telescope`, `epoch` and `constellation`; the scan's start is `source.tstart_mjd` and the
   window's centre frequency is `source.centre_freq_mhz`;
 - `source.pool`: the pool's id and the target's key;
-- `source.archive`: what the archive's API said about the file: `target`, `telescope`, `utc`,
+- `source.archive` (targets found through the archive's API): what the API said about the file: `target`, `telescope`, `utc`,
   `mjd`, `ra` and `decl` (degrees), `center_freq`, `file_type`, `size`, `md5sum` and `url`. The
   archive serves most files over plain HTTP, so the slices were read without TLS; with the URL
   and the MD5, anyone can download the file and check a slice against it;

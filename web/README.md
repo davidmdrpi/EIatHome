@@ -32,7 +32,7 @@ browsers don't run module workers from `file://` URLs.
 | `js/merge.js` | The merge work units: `trackb-merge/v1` (seeds on all the text, shards from θ₀ and shards from a warm start, each merged five ways) and the earlier `trackb-merge/v0` (the seeds alone). Task vectors, DARE (with the int8 payload's size), TIES (its own mean, or the mean over all workers), sign agreement and the other delta summaries, and each spec's card and its checks |
 | `js/trackb-splits.js` | Track B's training, validation and test frames for each kind of family, split before anything is fitted |
 | `js/trackb.worker.js`, `js/trackb.js` | Track B: splits each family into training, validation and test segments, fits the k-means tokenizer and the shuffled and Markov-1 surrogates on the training split only, and measures held-out cross-entropy, conditional entropy, mutual information, Zipf and compression without crossing a segment boundary |
-| `js/signals.js` | Signal families (four real-data ones: Voyager 1, off-source, nearby stars and blind windows; a reconstruction of the 1977 Wow! signal from its printout readings, 6EQUJ5; and the synthetic controls) and the Rosetta text; snippet normalization. A real family says how its windows were cut (on-target hit, off-source or random blind window) and which real family is its control |
+| `js/signals.js` | Signal families (four real-data ones: Voyager 1, off-source, SETI targets and blind windows; a reconstruction of the 1977 Wow! signal from its printout readings, 6EQUJ5; and the synthetic controls) and the Rosetta text; snippet normalization. A real family says how its windows were cut (on-target hit, off-source or random blind window) and which real family is its control |
 | `js/sample.js` | The random sky sample: picks a real slice that isn't the one already shown, names its sky-map target, and writes its card (source, telescope, MJD, centre frequency, drift and SNR, and how the window was cut). `main.js` then selects its family, slews the map to it, and runs Track A (with the sample in the waterfall), Track B's tokens and, once Track A is done, the token model |
 | `js/slices.js` | Loads real-data micro-slices (`data/slices/`) or user-dropped files, verifies their SHA-256 and computes the dataset identity |
 | `js/splits.js` | Groups a real family's slices into observing sessions and keeps training and evaluation on different sessions |
@@ -157,7 +157,7 @@ manifest, a file or browser storage into `innerHTML`.
   `python -m tracks.recovery.browser --write`, then pin them in a new spec in `js/recovery.js`.
 - **Add a work-unit spec:** add a new versioned config in `js/workunits.js`. Never change an
   existing spec, because published result cards refer to it. Make a `v1` instead.
-- **Publish real data:** see `data/slices/README.md`. More nearby stars or blind windows go
+- **Publish real data:** see `data/slices/README.md`. More SETI targets or blind windows go
   in `tools/slice_pool.json`; CI cuts them. A new real family also needs an entry with
   `real: true`, its `window` and its `control` in `FAMILIES`, a generator that calls
   `sliceWindow()`, and its name in `FAMILIES` in `tracks/llm/data.py`.

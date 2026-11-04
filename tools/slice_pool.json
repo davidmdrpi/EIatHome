@@ -190,6 +190,60 @@
       "files": 2,
       "hits": 3,
       "blind": 2
+    },
+    {
+      "key": "3iatlas",
+      "name": "3I/ATLAS",
+      "distance_label": "Interstellar comet, the third object seen passing through the Solar System",
+      "about": "The interstellar comet 3I/ATLAS, observed with Green Bank on 2025-12-18 near its closest approach to Earth: one on-target scan in each of three bands (L, C and Ku). Served over HTTPS by bldata.berkeley.edu.",
+      "urls": [
+        "https://bldata.berkeley.edu/ATLAS/GB_ATLAS/blc22_guppi_61027_17226_DIAG_3I_ATLAS_0013.rawspec.0000.h5",
+        "https://bldata.berkeley.edu/ATLAS/GB_ATLAS/blc33_guppi_61027_26882_DIAG_3I_ATLAS_0045.rawspec.0000.h5",
+        "https://bldata.berkeley.edu/ATLAS/GB_ATLAS/blc20_guppi_61027_31308_DIAG_3I_ATLAS_0061.rawspec.0000.h5"
+      ],
+      "hits": 3,
+      "blind": 2
+    },
+    {
+      "key": "kic8462852",
+      "name": "Boyajian's Star (KIC 8462852)",
+      "distance_label": "about 1,470 light-years",
+      "about": "The star with the unexplained dips in brightness, from Green Bank's 2018 Kepler-transit session. HTTPS, bldata.berkeley.edu/kepler-transits.",
+      "urls": [
+        "https://bldata.berkeley.edu/kepler-transits/spliced_blc1011121314151617_guppi_58202_42383_KIC8462852_0009.gpuspec.0000.h5"
+      ],
+      "hits": 3,
+      "blind": 2
+    },
+    {
+      "key": "kepler723",
+      "name": "Kepler-723",
+      "about": "A Kepler planet host, from the same 2018 Kepler-transit session. HTTPS, bldata.berkeley.edu/kepler-transits.",
+      "urls": [
+        "https://bldata.berkeley.edu/kepler-transits/spliced_blc1011121314151617_guppi_58202_51984_kepler723b_0033.gpuspec.0000.h5"
+      ],
+      "hits": 3,
+      "blind": 2
+    },
+    {
+      "key": "tic265146266",
+      "name": "TIC 265146266",
+      "about": "A TESS target, observed with Green Bank in 2021. HTTPS, bldata.berkeley.edu/blpd30_datax2.",
+      "urls": [
+        "https://bldata.berkeley.edu/blpd30_datax2/blc00_guppi_59377_05820_TIC265146266_0044.rawspec.0000.h5"
+      ],
+      "hits": 3,
+      "blind": 2
+    },
+    {
+      "key": "hip29847",
+      "name": "HIP 29847",
+      "about": "A Hipparcos star, observed with Green Bank in 2021. HTTPS, bldata.berkeley.edu/blpd30_datax2.",
+      "urls": [
+        "https://bldata.berkeley.edu/blpd30_datax2/blc26_guppi_59433_43455_HIP29847_0044.rawspec.0000.h5"
+      ],
+      "hits": 3,
+      "blind": 2
     }
   ]
 }

@@ -4,6 +4,381 @@
   "extracted_by": "tools/extract_slices.py 0.6.0",
   "slices": [
     {
+      "id": "3iatlas-61027-17226-blind-1",
+      "family": "blind-window",
+      "group": "blind window",
+      "file": "3iatlas-61027-17226-blind-1.bin",
+      "dtype": "float32-le",
+      "shape": [
+        16,
+        256
+      ],
+      "units": "noise sigma, bandpass-flattened",
+      "sha256": "c84fb01c33c4863c2b4078ac31b020a085811eda48cfe3ffd38258fbb35331cc",
+      "source": {
+        "file": "blc22_guppi_61027_17226_DIAG_3I_ATLAS_0013.rawspec.0000.h5",
+        "source_name": "DIAG_3I_ATLAS",
+        "tstart_mjd": 61027.199375,
+        "fch1_mhz": 1829.58984375,
+        "foff_hz": -2.7939677238464355,
+        "tsamp_s": 6.084537002666661,
+        "first_channel": 787645,
+        "centre_freq_mhz": 1827.3888314142823,
+        "snr": 3.8648667335510254,
+        "pool": {
+          "id": "sky-pool/v1",
+          "key": "3iatlas"
+        },
+        "coarse_channel": 16,
+        "time_steps": "the first 16 of 49",
+        "sky": {
+          "ra_hours": 10.84948,
+          "dec_deg": 6.6859,
+          "frame": "J2000, the telescope's pointing from the file header",
+          "epoch": "2025-12-18T04:47:06Z",
+          "constellation": "Leo",
+          "telescope": "Green Bank Telescope",
+          "target": "3I/ATLAS",
+          "distance_label": "Interstellar comet, the third object seen passing through the Solar System"
+        },
+        "url": "https://bldata.berkeley.edu/ATLAS/GB_ATLAS/blc22_guppi_61027_17226_DIAG_3I_ATLAS_0013.rawspec.0000.h5"
+      }
+    },
+    {
+      "id": "3iatlas-61027-17226-blind-2",
+      "family": "blind-window",
+      "group": "blind window",
+      "file": "3iatlas-61027-17226-blind-2.bin",
+      "dtype": "float32-le",
+      "shape": [
+        16,
+        256
+      ],
+      "units": "noise sigma, bandpass-flattened",
+      "sha256": "4f3437c0376b21907324930d6fbe59834da17a4d52faaf2ad7422cb6c446b4af",
+      "source": {
+        "file": "blc22_guppi_61027_17226_DIAG_3I_ATLAS_0013.rawspec.0000.h5",
+        "source_name": "DIAG_3I_ATLAS",
+        "tstart_mjd": 61027.199375,
+        "fch1_mhz": 1829.58984375,
+        "foff_hz": -2.7939677238464355,
+        "tsamp_s": 6.084537002666661,
+        "first_channel": 338696,
+        "centre_freq_mhz": 1828.6431804299355,
+        "snr": 3.7734172344207764,
+        "pool": {
+          "id": "sky-pool/v1",
+          "key": "3iatlas"
+        },
+        "coarse_channel": 16,
+        "time_steps": "the first 16 of 49",
+        "sky": {
+          "ra_hours": 10.84948,
+          "dec_deg": 6.6859,
+          "frame": "J2000, the telescope's pointing from the file header",
+          "epoch": "2025-12-18T04:47:06Z",
+          "constellation": "Leo",
+          "telescope": "Green Bank Telescope",
+          "target": "3I/ATLAS",
+          "distance_label": "Interstellar comet, the third object seen passing through the Solar System"
+        },
+        "url": "https://bldata.berkeley.edu/ATLAS/GB_ATLAS/blc22_guppi_61027_17226_DIAG_3I_ATLAS_0013.rawspec.0000.h5"
+      }
+    },
+    {
+      "id": "3iatlas-61027-26882-blind-1",
+      "family": "blind-window",
+      "group": "blind window",
+      "file": "3iatlas-61027-26882-blind-1.bin",
+      "dtype": "float32-le",
+      "shape": [
+        16,
+        256
+      ],
+      "units": "noise sigma, bandpass-flattened",
+      "sha256": "947169b28f120da833adcbfb37b03f85188073b0e2a18386a6aeb3b5666ec79d",
+      "source": {
+        "file": "blc33_guppi_61027_26882_DIAG_3I_ATLAS_0045.rawspec.0000.h5",
+        "source_name": "DIAG_3I_ATLAS",
+        "tstart_mjd": 61027.31113425926,
+        "fch1_mhz": 6637.20703125,
+        "foff_hz": -2.7939677238464355,
+        "tsamp_s": 6.084537002666661,
+        "first_channel": 433679,
+        "centre_freq_mhz": 6635.994988493621,
+        "snr": 5.021259784698486,
+        "pool": {
+          "id": "sky-pool/v1",
+          "key": "3iatlas"
+        },
+        "coarse_channel": 39,
+        "time_steps": "the first 16 of 49",
+        "sky": {
+          "ra_hours": 10.840827,
+          "dec_deg": 6.7298,
+          "frame": "J2000, the telescope's pointing from the file header",
+          "epoch": "2025-12-18T07:28:02Z",
+          "constellation": "Leo",
+          "telescope": "Green Bank Telescope",
+          "target": "3I/ATLAS",
+          "distance_label": "Interstellar comet, the third object seen passing through the Solar System"
+        },
+        "url": "https://bldata.berkeley.edu/ATLAS/GB_ATLAS/blc33_guppi_61027_26882_DIAG_3I_ATLAS_0045.rawspec.0000.h5"
+      }
+    },
+    {
+      "id": "3iatlas-61027-26882-blind-2",
+      "family": "blind-window",
+      "group": "blind window",
+      "file": "3iatlas-61027-26882-blind-2.bin",
+      "dtype": "float32-le",
+      "shape": [
+        16,
+        256
+      ],
+      "units": "noise sigma, bandpass-flattened",
+      "sha256": "6991d391d74be0505ab2263d60359c58ae82dbf372fc9ef5c7c83f42e2ef16bd",
+      "source": {
+        "file": "blc33_guppi_61027_26882_DIAG_3I_ATLAS_0045.rawspec.0000.h5",
+        "source_name": "DIAG_3I_ATLAS",
+        "tstart_mjd": 61027.31113425926,
+        "fch1_mhz": 6637.20703125,
+        "foff_hz": -2.7939677238464355,
+        "tsamp_s": 6.084537002666661,
+        "first_channel": 364035,
+        "centre_freq_mhz": 6636.189571581781,
+        "snr": 4.7570600509643555,
+        "pool": {
+          "id": "sky-pool/v1",
+          "key": "3iatlas"
+        },
+        "coarse_channel": 39,
+        "time_steps": "the first 16 of 49",
+        "sky": {
+          "ra_hours": 10.840827,
+          "dec_deg": 6.7298,
+          "frame": "J2000, the telescope's pointing from the file header",
+          "epoch": "2025-12-18T07:28:02Z",
+          "constellation": "Leo",
+          "telescope": "Green Bank Telescope",
+          "target": "3I/ATLAS",
+          "distance_label": "Interstellar comet, the third object seen passing through the Solar System"
+        },
+        "url": "https://bldata.berkeley.edu/ATLAS/GB_ATLAS/blc33_guppi_61027_26882_DIAG_3I_ATLAS_0045.rawspec.0000.h5"
+      }
+    },
+    {
+      "id": "3iatlas-61027-31308-blind-1",
+      "family": "blind-window",
+      "group": "blind window",
+      "file": "3iatlas-61027-31308-blind-1.bin",
+      "dtype": "float32-le",
+      "shape": [
+        16,
+        256
+      ],
+      "units": "noise sigma, bandpass-flattened",
+      "sha256": "8b33a577054adebc386cecfcd4508b439c4469eddb387f8e3a9418b0118438be",
+      "source": {
+        "file": "blc20_guppi_61027_31308_DIAG_3I_ATLAS_0061.rawspec.0000.h5",
+        "source_name": "DIAG_3I_ATLAS",
+        "tstart_mjd": 61027.36236111111,
+        "fch1_mhz": 12320.80078125,
+        "foff_hz": -2.7939677238464355,
+        "tsamp_s": 6.084537002666661,
+        "first_channel": 906421,
+        "centre_freq_mhz": 12318.267912603915,
+        "snr": 3.91330623626709,
+        "pool": {
+          "id": "sky-pool/v1",
+          "key": "3iatlas"
+        },
+        "coarse_channel": 19,
+        "time_steps": "the first 16 of 49",
+        "sky": {
+          "ra_hours": 10.836827,
+          "dec_deg": 6.7498,
+          "frame": "J2000, the telescope's pointing from the file header",
+          "epoch": "2025-12-18T08:41:48Z",
+          "constellation": "Leo",
+          "telescope": "Green Bank Telescope",
+          "target": "3I/ATLAS",
+          "distance_label": "Interstellar comet, the third object seen passing through the Solar System"
+        },
+        "url": "https://bldata.berkeley.edu/ATLAS/GB_ATLAS/blc20_guppi_61027_31308_DIAG_3I_ATLAS_0061.rawspec.0000.h5"
+      }
+    },
+    {
+      "id": "3iatlas-61027-31308-blind-2",
+      "family": "blind-window",
+      "group": "blind window",
+      "file": "3iatlas-61027-31308-blind-2.bin",
+      "dtype": "float32-le",
+      "shape": [
+        16,
+        256
+      ],
+      "units": "noise sigma, bandpass-flattened",
+      "sha256": "ea49c4ea64d6848cedce8068d561ba058a59c478f7383ac90df9b68cc2e98b07",
+      "source": {
+        "file": "blc20_guppi_61027_31308_DIAG_3I_ATLAS_0061.rawspec.0000.h5",
+        "source_name": "DIAG_3I_ATLAS",
+        "tstart_mjd": 61027.36236111111,
+        "fch1_mhz": 12320.80078125,
+        "foff_hz": -2.7939677238464355,
+        "tsamp_s": 6.084537002666661,
+        "first_channel": 227523,
+        "centre_freq_mhz": 12320.164731703699,
+        "snr": 41.93151092529297,
+        "pool": {
+          "id": "sky-pool/v1",
+          "key": "3iatlas"
+        },
+        "coarse_channel": 19,
+        "time_steps": "the first 16 of 49",
+        "sky": {
+          "ra_hours": 10.836827,
+          "dec_deg": 6.7498,
+          "frame": "J2000, the telescope's pointing from the file header",
+          "epoch": "2025-12-18T08:41:48Z",
+          "constellation": "Leo",
+          "telescope": "Green Bank Telescope",
+          "target": "3I/ATLAS",
+          "distance_label": "Interstellar comet, the third object seen passing through the Solar System"
+        },
+        "url": "https://bldata.berkeley.edu/ATLAS/GB_ATLAS/blc20_guppi_61027_31308_DIAG_3I_ATLAS_0061.rawspec.0000.h5"
+      }
+    },
+    {
+      "id": "3iatlas-61027-31308-hit-1",
+      "family": "stars",
+      "group": "hit",
+      "file": "3iatlas-61027-31308-hit-1.bin",
+      "dtype": "float32-le",
+      "shape": [
+        16,
+        256
+      ],
+      "units": "noise sigma, bandpass-flattened",
+      "sha256": "ba1d1c0bddece63a0b69977b6416bfb5971366fb25cd3e7d01a07e142b5c66a1",
+      "source": {
+        "file": "blc20_guppi_61027_31308_DIAG_3I_ATLAS_0061.rawspec.0000.h5",
+        "source_name": "DIAG_3I_ATLAS",
+        "tstart_mjd": 61027.36236111111,
+        "fch1_mhz": 12320.80078125,
+        "foff_hz": -2.7939677238464355,
+        "tsamp_s": 6.084537002666661,
+        "first_channel": 218364,
+        "centre_freq_mhz": 12320.190321707858,
+        "drift_channels_per_step": -0.0028093034302563613,
+        "drift_hz_per_s": 0.0012900082795432642,
+        "snr": 626.4451904296875,
+        "pool": {
+          "id": "sky-pool/v1",
+          "key": "3iatlas"
+        },
+        "coarse_channel": 19,
+        "time_steps": "the first 16 of 49",
+        "sky": {
+          "ra_hours": 10.836827,
+          "dec_deg": 6.7498,
+          "frame": "J2000, the telescope's pointing from the file header",
+          "epoch": "2025-12-18T08:41:48Z",
+          "constellation": "Leo",
+          "telescope": "Green Bank Telescope",
+          "target": "3I/ATLAS",
+          "distance_label": "Interstellar comet, the third object seen passing through the Solar System"
+        },
+        "url": "https://bldata.berkeley.edu/ATLAS/GB_ATLAS/blc20_guppi_61027_31308_DIAG_3I_ATLAS_0061.rawspec.0000.h5"
+      }
+    },
+    {
+      "id": "3iatlas-61027-31308-hit-2",
+      "family": "stars",
+      "group": "hit",
+      "file": "3iatlas-61027-31308-hit-2.bin",
+      "dtype": "float32-le",
+      "shape": [
+        16,
+        256
+      ],
+      "units": "noise sigma, bandpass-flattened",
+      "sha256": "52fce5e6730334a29e214478eb9474bda774e85a3ebc63878bf3be2bda3c5a15",
+      "source": {
+        "file": "blc20_guppi_61027_31308_DIAG_3I_ATLAS_0061.rawspec.0000.h5",
+        "source_name": "DIAG_3I_ATLAS",
+        "tstart_mjd": 61027.36236111111,
+        "fch1_mhz": 12320.80078125,
+        "foff_hz": -2.7939677238464355,
+        "tsamp_s": 6.084537002666661,
+        "first_channel": 723285,
+        "centre_freq_mhz": 12318.779588207422,
+        "drift_channels_per_step": -0.0012887916718631646,
+        "drift_hz_per_s": 0.0005918021917476437,
+        "snr": 443.9644775390625,
+        "pool": {
+          "id": "sky-pool/v1",
+          "key": "3iatlas"
+        },
+        "coarse_channel": 19,
+        "time_steps": "the first 16 of 49",
+        "sky": {
+          "ra_hours": 10.836827,
+          "dec_deg": 6.7498,
+          "frame": "J2000, the telescope's pointing from the file header",
+          "epoch": "2025-12-18T08:41:48Z",
+          "constellation": "Leo",
+          "telescope": "Green Bank Telescope",
+          "target": "3I/ATLAS",
+          "distance_label": "Interstellar comet, the third object seen passing through the Solar System"
+        },
+        "url": "https://bldata.berkeley.edu/ATLAS/GB_ATLAS/blc20_guppi_61027_31308_DIAG_3I_ATLAS_0061.rawspec.0000.h5"
+      }
+    },
+    {
+      "id": "3iatlas-61027-31308-hit-3",
+      "family": "stars",
+      "group": "hit",
+      "file": "3iatlas-61027-31308-hit-3.bin",
+      "dtype": "float32-le",
+      "shape": [
+        16,
+        256
+      ],
+      "units": "noise sigma, bandpass-flattened",
+      "sha256": "227792e799a1b917abd844d697f389219a17225fda3551aee5c8ab2ff367ef3b",
+      "source": {
+        "file": "blc20_guppi_61027_31308_DIAG_3I_ATLAS_0061.rawspec.0000.h5",
+        "source_name": "DIAG_3I_ATLAS",
+        "tstart_mjd": 61027.36236111111,
+        "fch1_mhz": 12320.80078125,
+        "foff_hz": -2.7939677238464355,
+        "tsamp_s": 6.084537002666661,
+        "first_channel": 453643,
+        "centre_freq_mhz": 12319.53295979157,
+        "drift_channels_per_step": 0.0009848134689387992,
+        "drift_hz_per_s": -0.000452217982242254,
+        "snr": 417.91558837890625,
+        "pool": {
+          "id": "sky-pool/v1",
+          "key": "3iatlas"
+        },
+        "coarse_channel": 19,
+        "time_steps": "the first 16 of 49",
+        "sky": {
+          "ra_hours": 10.836827,
+          "dec_deg": 6.7498,
+          "frame": "J2000, the telescope's pointing from the file header",
+          "epoch": "2025-12-18T08:41:48Z",
+          "constellation": "Leo",
+          "telescope": "Green Bank Telescope",
+          "target": "3I/ATLAS",
+          "distance_label": "Interstellar comet, the third object seen passing through the Solar System"
+        },
+        "url": "https://bldata.berkeley.edu/ATLAS/GB_ATLAS/blc20_guppi_61027_31308_DIAG_3I_ATLAS_0061.rawspec.0000.h5"
+      }
+    },
+    {
       "id": "61cyg-57587-25490-blind-1",
       "family": "blind-window",
       "group": "blind window",
@@ -1724,6 +2099,491 @@
       }
     },
     {
+      "id": "hip29847-59433-43455-blind-1",
+      "family": "blind-window",
+      "group": "blind window",
+      "file": "hip29847-59433-43455-blind-1.bin",
+      "dtype": "float32-le",
+      "shape": [
+        16,
+        256
+      ],
+      "units": "noise sigma, bandpass-flattened",
+      "sha256": "715143dd4b76d76be6cc97bf1584c91afeec7a3cc2402b2334212b1c9f4e4c6e",
+      "source": {
+        "file": "blc26_guppi_59433_43455_HIP29847_0044.rawspec.0000.h5",
+        "source_name": "HIP29847",
+        "tstart_mjd": 59433.50295138889,
+        "fch1_mhz": 4990.72265625,
+        "foff_hz": -2.7939677238464355,
+        "tsamp_s": 18.253611007999982,
+        "first_channel": 259942,
+        "centre_freq_mhz": 4989.996029064059,
+        "snr": 3.816394329071045,
+        "pool": {
+          "id": "sky-pool/v1",
+          "key": "hip29847"
+        },
+        "coarse_channel": 25,
+        "sky": {
+          "ra_hours": 6.284832,
+          "dec_deg": -6.558694,
+          "frame": "J2000, the telescope's pointing from the file header",
+          "epoch": "2021-08-07T12:04:15Z",
+          "constellation": "Monoceros",
+          "telescope": "Green Bank Telescope",
+          "target": "HIP 29847"
+        },
+        "url": "https://bldata.berkeley.edu/blpd30_datax2/blc26_guppi_59433_43455_HIP29847_0044.rawspec.0000.h5"
+      }
+    },
+    {
+      "id": "hip29847-59433-43455-blind-2",
+      "family": "blind-window",
+      "group": "blind window",
+      "file": "hip29847-59433-43455-blind-2.bin",
+      "dtype": "float32-le",
+      "shape": [
+        16,
+        256
+      ],
+      "units": "noise sigma, bandpass-flattened",
+      "sha256": "d7ee14655632a7be7b44695b36589ac4096dbff10c5f24bce2552b1281391918",
+      "source": {
+        "file": "blc26_guppi_59433_43455_HIP29847_0044.rawspec.0000.h5",
+        "source_name": "HIP29847",
+        "tstart_mjd": 59433.50295138889,
+        "fch1_mhz": 4990.72265625,
+        "foff_hz": -2.7939677238464355,
+        "tsamp_s": 18.253611007999982,
+        "first_channel": 139401,
+        "centre_freq_mhz": 4990.332816727459,
+        "snr": 3.505690813064575,
+        "pool": {
+          "id": "sky-pool/v1",
+          "key": "hip29847"
+        },
+        "coarse_channel": 25,
+        "sky": {
+          "ra_hours": 6.284832,
+          "dec_deg": -6.558694,
+          "frame": "J2000, the telescope's pointing from the file header",
+          "epoch": "2021-08-07T12:04:15Z",
+          "constellation": "Monoceros",
+          "telescope": "Green Bank Telescope",
+          "target": "HIP 29847"
+        },
+        "url": "https://bldata.berkeley.edu/blpd30_datax2/blc26_guppi_59433_43455_HIP29847_0044.rawspec.0000.h5"
+      }
+    },
+    {
+      "id": "kepler723-58202-51984-blind-1",
+      "family": "blind-window",
+      "group": "blind window",
+      "file": "kepler723-58202-51984-blind-1.bin",
+      "dtype": "float32-le",
+      "shape": [
+        16,
+        256
+      ],
+      "units": "noise sigma, bandpass-flattened",
+      "sha256": "61e98c48c47b2b21ad78be1bc809d89e73bcd5b5d8a92e1355cd4cb6cc58a892",
+      "source": {
+        "file": "spliced_blc1011121314151617_guppi_58202_51984_kepler723b_0033.gpuspec.0000.h5",
+        "source_name": "kepler723b",
+        "tstart_mjd": 58202.60166666667,
+        "fch1_mhz": 1325.68359375,
+        "foff_hz": -2.7939677238464355,
+        "tsamp_s": 18.253611008,
+        "first_channel": 467872,
+        "centre_freq_mhz": 1324.3760168552399,
+        "snr": 3.9994471073150635,
+        "pool": {
+          "id": "sky-pool/v1",
+          "key": "kepler723"
+        },
+        "coarse_channel": 205,
+        "sky": {
+          "ra_hours": 18.983327,
+          "dec_deg": 44.650007,
+          "frame": "J2000, the telescope's pointing from the file header",
+          "epoch": "2018-03-25T14:26:24Z",
+          "constellation": "Lyra",
+          "telescope": "Green Bank Telescope",
+          "target": "Kepler-723"
+        },
+        "url": "https://bldata.berkeley.edu/kepler-transits/spliced_blc1011121314151617_guppi_58202_51984_kepler723b_0033.gpuspec.0000.h5"
+      }
+    },
+    {
+      "id": "kepler723-58202-51984-blind-2",
+      "family": "blind-window",
+      "group": "blind window",
+      "file": "kepler723-58202-51984-blind-2.bin",
+      "dtype": "float32-le",
+      "shape": [
+        16,
+        256
+      ],
+      "units": "noise sigma, bandpass-flattened",
+      "sha256": "2310dea14b4b036f4d7e9a41c1c5b8f076e2f6fade423f6ed5136c4d40bda564",
+      "source": {
+        "file": "spliced_blc1011121314151617_guppi_58202_51984_kepler723b_0033.gpuspec.0000.h5",
+        "source_name": "kepler723b",
+        "tstart_mjd": 58202.60166666667,
+        "fch1_mhz": 1325.68359375,
+        "foff_hz": -2.7939677238464355,
+        "tsamp_s": 18.253611008,
+        "first_channel": 329890,
+        "centre_freq_mhz": 1324.7615341097116,
+        "snr": 3.9829392433166504,
+        "pool": {
+          "id": "sky-pool/v1",
+          "key": "kepler723"
+        },
+        "coarse_channel": 205,
+        "sky": {
+          "ra_hours": 18.983327,
+          "dec_deg": 44.650007,
+          "frame": "J2000, the telescope's pointing from the file header",
+          "epoch": "2018-03-25T14:26:24Z",
+          "constellation": "Lyra",
+          "telescope": "Green Bank Telescope",
+          "target": "Kepler-723"
+        },
+        "url": "https://bldata.berkeley.edu/kepler-transits/spliced_blc1011121314151617_guppi_58202_51984_kepler723b_0033.gpuspec.0000.h5"
+      }
+    },
+    {
+      "id": "kepler723-58202-51984-hit-1",
+      "family": "stars",
+      "group": "hit",
+      "file": "kepler723-58202-51984-hit-1.bin",
+      "dtype": "float32-le",
+      "shape": [
+        16,
+        256
+      ],
+      "units": "noise sigma, bandpass-flattened",
+      "sha256": "1c0a9f87e90583af429db742c5b4451e5fd53e57c8106343f30cede5182313ee",
+      "source": {
+        "file": "spliced_blc1011121314151617_guppi_58202_51984_kepler723b_0033.gpuspec.0000.h5",
+        "source_name": "kepler723b",
+        "tstart_mjd": 58202.60166666667,
+        "fch1_mhz": 1325.68359375,
+        "foff_hz": -2.7939677238464355,
+        "tsamp_s": 18.253611008,
+        "first_channel": 250314,
+        "centre_freq_mhz": 1324.9838679632594,
+        "drift_channels_per_step": -0.01775815899430431,
+        "drift_hz_per_s": 0.0027181319380189736,
+        "snr": 33.874000549316406,
+        "pool": {
+          "id": "sky-pool/v1",
+          "key": "kepler723"
+        },
+        "coarse_channel": 205,
+        "sky": {
+          "ra_hours": 18.983327,
+          "dec_deg": 44.650007,
+          "frame": "J2000, the telescope's pointing from the file header",
+          "epoch": "2018-03-25T14:26:24Z",
+          "constellation": "Lyra",
+          "telescope": "Green Bank Telescope",
+          "target": "Kepler-723"
+        },
+        "url": "https://bldata.berkeley.edu/kepler-transits/spliced_blc1011121314151617_guppi_58202_51984_kepler723b_0033.gpuspec.0000.h5"
+      }
+    },
+    {
+      "id": "kepler723-58202-51984-hit-2",
+      "family": "stars",
+      "group": "hit",
+      "file": "kepler723-58202-51984-hit-2.bin",
+      "dtype": "float32-le",
+      "shape": [
+        16,
+        256
+      ],
+      "units": "noise sigma, bandpass-flattened",
+      "sha256": "d4dbe65c2f66608abbe62fdd1db2db299750077f7e1aa86de0cf5ebb05abcd97",
+      "source": {
+        "file": "spliced_blc1011121314151617_guppi_58202_51984_kepler723b_0033.gpuspec.0000.h5",
+        "source_name": "kepler723b",
+        "tstart_mjd": 58202.60166666667,
+        "fch1_mhz": 1325.68359375,
+        "foff_hz": -2.7939677238464355,
+        "tsamp_s": 18.253611008,
+        "first_channel": 246379,
+        "centre_freq_mhz": 1324.994862072983,
+        "drift_channels_per_step": -0.6653313557544894,
+        "drift_hz_per_s": 0.10183816959977554,
+        "snr": 23.370128631591797,
+        "pool": {
+          "id": "sky-pool/v1",
+          "key": "kepler723"
+        },
+        "coarse_channel": 205,
+        "sky": {
+          "ra_hours": 18.983327,
+          "dec_deg": 44.650007,
+          "frame": "J2000, the telescope's pointing from the file header",
+          "epoch": "2018-03-25T14:26:24Z",
+          "constellation": "Lyra",
+          "telescope": "Green Bank Telescope",
+          "target": "Kepler-723"
+        },
+        "url": "https://bldata.berkeley.edu/kepler-transits/spliced_blc1011121314151617_guppi_58202_51984_kepler723b_0033.gpuspec.0000.h5"
+      }
+    },
+    {
+      "id": "kepler723-58202-51984-hit-3",
+      "family": "stars",
+      "group": "hit",
+      "file": "kepler723-58202-51984-hit-3.bin",
+      "dtype": "float32-le",
+      "shape": [
+        16,
+        256
+      ],
+      "units": "noise sigma, bandpass-flattened",
+      "sha256": "68f4683e82713ed33d994a353d81c17dbac71091f2b988da1dd1ee52cf662e47",
+      "source": {
+        "file": "spliced_blc1011121314151617_guppi_58202_51984_kepler723b_0033.gpuspec.0000.h5",
+        "source_name": "kepler723b",
+        "tstart_mjd": 58202.60166666667,
+        "fch1_mhz": 1325.68359375,
+        "foff_hz": -2.7939677238464355,
+        "tsamp_s": 18.253611008,
+        "first_channel": 234271,
+        "centre_freq_mhz": 1325.0286892493878,
+        "drift_channels_per_step": -0.32775449314805155,
+        "drift_hz_per_s": 0.05016736002536511,
+        "snr": 17.522891998291016,
+        "pool": {
+          "id": "sky-pool/v1",
+          "key": "kepler723"
+        },
+        "coarse_channel": 205,
+        "sky": {
+          "ra_hours": 18.983327,
+          "dec_deg": 44.650007,
+          "frame": "J2000, the telescope's pointing from the file header",
+          "epoch": "2018-03-25T14:26:24Z",
+          "constellation": "Lyra",
+          "telescope": "Green Bank Telescope",
+          "target": "Kepler-723"
+        },
+        "url": "https://bldata.berkeley.edu/kepler-transits/spliced_blc1011121314151617_guppi_58202_51984_kepler723b_0033.gpuspec.0000.h5"
+      }
+    },
+    {
+      "id": "kic8462852-58202-42383-blind-1",
+      "family": "blind-window",
+      "group": "blind window",
+      "file": "kic8462852-58202-42383-blind-1.bin",
+      "dtype": "float32-le",
+      "shape": [
+        16,
+        256
+      ],
+      "units": "noise sigma, bandpass-flattened",
+      "sha256": "8964245d7dc5f383f64080f5b02065bd76c9d1dc428d26dbba3141ee9c7edec1",
+      "source": {
+        "file": "spliced_blc1011121314151617_guppi_58202_42383_KIC8462852_0009.gpuspec.0000.h5",
+        "source_name": "KIC8462852",
+        "tstart_mjd": 58202.49054398148,
+        "fch1_mhz": 1770.99609375,
+        "foff_hz": -2.7939677238464355,
+        "tsamp_s": 18.253611008,
+        "first_channel": 522487,
+        "centre_freq_mhz": 1769.535924308002,
+        "snr": 4.483130931854248,
+        "pool": {
+          "id": "sky-pool/v1",
+          "key": "kic8462852"
+        },
+        "coarse_channel": 53,
+        "sky": {
+          "ra_hours": 20.104289,
+          "dec_deg": 44.456888,
+          "frame": "J2000, the telescope's pointing from the file header",
+          "epoch": "2018-03-25T11:46:23Z",
+          "constellation": "Cygnus",
+          "telescope": "Green Bank Telescope",
+          "target": "Boyajian's Star (KIC 8462852)",
+          "distance_label": "about 1,470 light-years"
+        },
+        "url": "https://bldata.berkeley.edu/kepler-transits/spliced_blc1011121314151617_guppi_58202_42383_KIC8462852_0009.gpuspec.0000.h5"
+      }
+    },
+    {
+      "id": "kic8462852-58202-42383-blind-2",
+      "family": "blind-window",
+      "group": "blind window",
+      "file": "kic8462852-58202-42383-blind-2.bin",
+      "dtype": "float32-le",
+      "shape": [
+        16,
+        256
+      ],
+      "units": "noise sigma, bandpass-flattened",
+      "sha256": "422aded351d6eb1ca1981b314b7093d907da329b931eb3e1c287311502096ed9",
+      "source": {
+        "file": "spliced_blc1011121314151617_guppi_58202_42383_KIC8462852_0009.gpuspec.0000.h5",
+        "source_name": "KIC8462852",
+        "tstart_mjd": 58202.49054398148,
+        "fch1_mhz": 1770.99609375,
+        "foff_hz": -2.7939677238464355,
+        "tsamp_s": 18.253611008,
+        "first_channel": 375048,
+        "centre_freq_mhz": 1769.9478641152382,
+        "snr": 4.1630377769470215,
+        "pool": {
+          "id": "sky-pool/v1",
+          "key": "kic8462852"
+        },
+        "coarse_channel": 53,
+        "sky": {
+          "ra_hours": 20.104289,
+          "dec_deg": 44.456888,
+          "frame": "J2000, the telescope's pointing from the file header",
+          "epoch": "2018-03-25T11:46:23Z",
+          "constellation": "Cygnus",
+          "telescope": "Green Bank Telescope",
+          "target": "Boyajian's Star (KIC 8462852)",
+          "distance_label": "about 1,470 light-years"
+        },
+        "url": "https://bldata.berkeley.edu/kepler-transits/spliced_blc1011121314151617_guppi_58202_42383_KIC8462852_0009.gpuspec.0000.h5"
+      }
+    },
+    {
+      "id": "kic8462852-58202-42383-hit-1",
+      "family": "stars",
+      "group": "hit",
+      "file": "kic8462852-58202-42383-hit-1.bin",
+      "dtype": "float32-le",
+      "shape": [
+        16,
+        256
+      ],
+      "units": "noise sigma, bandpass-flattened",
+      "sha256": "a95809003d67f704285c2fbdfba4c2d77f57c222cbbd4ff37a92021a850f7ac2",
+      "source": {
+        "file": "spliced_blc1011121314151617_guppi_58202_42383_KIC8462852_0009.gpuspec.0000.h5",
+        "source_name": "KIC8462852",
+        "tstart_mjd": 58202.49054398148,
+        "fch1_mhz": 1604.00390625,
+        "foff_hz": -2.7939677238464355,
+        "tsamp_s": 18.253611008,
+        "first_channel": 889327,
+        "centre_freq_mhz": 1601.5187969557464,
+        "drift_channels_per_step": 4.168254264763284,
+        "drift_hz_per_s": -0.6380089876698807,
+        "snr": 12.744384765625,
+        "pool": {
+          "id": "sky-pool/v1",
+          "key": "kic8462852"
+        },
+        "coarse_channel": 110,
+        "sky": {
+          "ra_hours": 20.104289,
+          "dec_deg": 44.456888,
+          "frame": "J2000, the telescope's pointing from the file header",
+          "epoch": "2018-03-25T11:46:23Z",
+          "constellation": "Cygnus",
+          "telescope": "Green Bank Telescope",
+          "target": "Boyajian's Star (KIC 8462852)",
+          "distance_label": "about 1,470 light-years"
+        },
+        "url": "https://bldata.berkeley.edu/kepler-transits/spliced_blc1011121314151617_guppi_58202_42383_KIC8462852_0009.gpuspec.0000.h5"
+      }
+    },
+    {
+      "id": "kic8462852-58202-42383-hit-2",
+      "family": "stars",
+      "group": "hit",
+      "file": "kic8462852-58202-42383-hit-2.bin",
+      "dtype": "float32-le",
+      "shape": [
+        16,
+        256
+      ],
+      "units": "noise sigma, bandpass-flattened",
+      "sha256": "20f2bcfc29625aa8b6cb28862b0c4e93ee554bcfba6b3225485e1a999f3eda08",
+      "source": {
+        "file": "spliced_blc1011121314151617_guppi_58202_42383_KIC8462852_0009.gpuspec.0000.h5",
+        "source_name": "KIC8462852",
+        "tstart_mjd": 58202.49054398148,
+        "fch1_mhz": 1604.00390625,
+        "foff_hz": -2.7939677238464355,
+        "tsamp_s": 18.253611008,
+        "first_channel": 905434,
+        "centre_freq_mhz": 1601.473796271186,
+        "drift_channels_per_step": 4.171319003685228,
+        "drift_hz_per_s": -0.6384780883659662,
+        "snr": 12.694131851196289,
+        "pool": {
+          "id": "sky-pool/v1",
+          "key": "kic8462852"
+        },
+        "coarse_channel": 110,
+        "sky": {
+          "ra_hours": 20.104289,
+          "dec_deg": 44.456888,
+          "frame": "J2000, the telescope's pointing from the file header",
+          "epoch": "2018-03-25T11:46:23Z",
+          "constellation": "Cygnus",
+          "telescope": "Green Bank Telescope",
+          "target": "Boyajian's Star (KIC 8462852)",
+          "distance_label": "about 1,470 light-years"
+        },
+        "url": "https://bldata.berkeley.edu/kepler-transits/spliced_blc1011121314151617_guppi_58202_42383_KIC8462852_0009.gpuspec.0000.h5"
+      }
+    },
+    {
+      "id": "kic8462852-58202-42383-hit-3",
+      "family": "stars",
+      "group": "hit",
+      "file": "kic8462852-58202-42383-hit-3.bin",
+      "dtype": "float32-le",
+      "shape": [
+        16,
+        256
+      ],
+      "units": "noise sigma, bandpass-flattened",
+      "sha256": "bc574930dee2feb9260f377cbec01c79bac95058d086ea34c50a8d91cabc6407",
+      "source": {
+        "file": "spliced_blc1011121314151617_guppi_58202_42383_KIC8462852_0009.gpuspec.0000.h5",
+        "source_name": "KIC8462852",
+        "tstart_mjd": 58202.49054398148,
+        "fch1_mhz": 1604.00390625,
+        "foff_hz": -2.7939677238464355,
+        "tsamp_s": 18.253611008,
+        "first_channel": 911521,
+        "centre_freq_mhz": 1601.456789518386,
+        "drift_channels_per_step": 4.197556733087466,
+        "drift_hz_per_s": -0.6424941358792359,
+        "snr": 12.441899299621582,
+        "pool": {
+          "id": "sky-pool/v1",
+          "key": "kic8462852"
+        },
+        "coarse_channel": 110,
+        "sky": {
+          "ra_hours": 20.104289,
+          "dec_deg": 44.456888,
+          "frame": "J2000, the telescope's pointing from the file header",
+          "epoch": "2018-03-25T11:46:23Z",
+          "constellation": "Cygnus",
+          "telescope": "Green Bank Telescope",
+          "target": "Boyajian's Star (KIC 8462852)",
+          "distance_label": "about 1,470 light-years"
+        },
+        "url": "https://bldata.berkeley.edu/kepler-transits/spliced_blc1011121314151617_guppi_58202_42383_KIC8462852_0009.gpuspec.0000.h5"
+      }
+    },
+    {
       "id": "proxcen-58602-55301-blc1",
       "family": "stars",
       "group": "blc1 window",
@@ -2536,6 +3396,125 @@
           "distance_label": "11.9 light-years"
         },
         "url": "http://blpd8.ssl.berkeley.edu/dl/Parkes_58025_53633_HIP8102_R_fine.h5"
+      }
+    },
+    {
+      "id": "tic265146266-59377-05820-blind-1",
+      "family": "blind-window",
+      "group": "blind window",
+      "file": "tic265146266-59377-05820-blind-1.bin",
+      "dtype": "float32-le",
+      "shape": [
+        16,
+        256
+      ],
+      "units": "noise sigma, bandpass-flattened",
+      "sha256": "12a2c9e9936fc17776ee20b55af5b3e365a1faca7102cb55c1d1adf4a013ae07",
+      "source": {
+        "file": "blc00_guppi_59377_05820_TIC265146266_0044.rawspec.0000.h5",
+        "source_name": "TIC265146266",
+        "tstart_mjd": 59377.06736111111,
+        "fch1_mhz": 3043.06640625,
+        "foff_hz": -2.7939677238464355,
+        "tsamp_s": 18.253611007999982,
+        "first_channel": 562542,
+        "centre_freq_mhz": 3041.4943244308233,
+        "snr": 4.022510051727295,
+        "pool": {
+          "id": "sky-pool/v1",
+          "key": "tic265146266"
+        },
+        "coarse_channel": 37,
+        "sky": {
+          "ra_hours": 21.1246,
+          "dec_deg": 74.3764,
+          "frame": "J2000, the telescope's pointing from the file header",
+          "epoch": "2021-06-12T01:37:00Z",
+          "constellation": "Cepheus",
+          "telescope": "Green Bank Telescope",
+          "target": "TIC 265146266"
+        },
+        "url": "https://bldata.berkeley.edu/blpd30_datax2/blc00_guppi_59377_05820_TIC265146266_0044.rawspec.0000.h5"
+      }
+    },
+    {
+      "id": "tic265146266-59377-05820-blind-2",
+      "family": "blind-window",
+      "group": "blind window",
+      "file": "tic265146266-59377-05820-blind-2.bin",
+      "dtype": "float32-le",
+      "shape": [
+        16,
+        256
+      ],
+      "units": "noise sigma, bandpass-flattened",
+      "sha256": "0b47e53b8d12b89d57a1eeadc9dc74da73e10561808698dbf395a36015f09126",
+      "source": {
+        "file": "blc00_guppi_59377_05820_TIC265146266_0044.rawspec.0000.h5",
+        "source_name": "TIC265146266",
+        "tstart_mjd": 59377.06736111111,
+        "fch1_mhz": 3043.06640625,
+        "foff_hz": -2.7939677238464355,
+        "tsamp_s": 18.253611007999982,
+        "first_channel": 644898,
+        "centre_freq_mhz": 3041.2642244249582,
+        "snr": 3.8702824115753174,
+        "pool": {
+          "id": "sky-pool/v1",
+          "key": "tic265146266"
+        },
+        "coarse_channel": 37,
+        "sky": {
+          "ra_hours": 21.1246,
+          "dec_deg": 74.3764,
+          "frame": "J2000, the telescope's pointing from the file header",
+          "epoch": "2021-06-12T01:37:00Z",
+          "constellation": "Cepheus",
+          "telescope": "Green Bank Telescope",
+          "target": "TIC 265146266"
+        },
+        "url": "https://bldata.berkeley.edu/blpd30_datax2/blc00_guppi_59377_05820_TIC265146266_0044.rawspec.0000.h5"
+      }
+    },
+    {
+      "id": "tic265146266-59377-05820-hit-1",
+      "family": "stars",
+      "group": "hit",
+      "file": "tic265146266-59377-05820-hit-1.bin",
+      "dtype": "float32-le",
+      "shape": [
+        16,
+        256
+      ],
+      "units": "noise sigma, bandpass-flattened",
+      "sha256": "c13f814cd003c4d02a6a92bd6539491e4d6c1e9e18ea64be4c29b1e18b7b7641",
+      "source": {
+        "file": "blc00_guppi_59377_05820_TIC265146266_0044.rawspec.0000.h5",
+        "source_name": "TIC265146266",
+        "tstart_mjd": 59377.06736111111,
+        "fch1_mhz": 3043.06640625,
+        "foff_hz": -2.7939677238464355,
+        "tsamp_s": 18.253611007999982,
+        "first_channel": 644143,
+        "centre_freq_mhz": 3041.2663341817483,
+        "drift_channels_per_step": 0.06637922414725794,
+        "drift_hz_per_s": -0.010160258686356618,
+        "snr": 24.260009765625,
+        "pool": {
+          "id": "sky-pool/v1",
+          "key": "tic265146266"
+        },
+        "coarse_channel": 37,
+        "sky": {
+          "ra_hours": 21.1246,
+          "dec_deg": 74.3764,
+          "frame": "J2000, the telescope's pointing from the file header",
+          "epoch": "2021-06-12T01:37:00Z",
+          "constellation": "Cepheus",
+          "telescope": "Green Bank Telescope",
+          "target": "TIC 265146266"
+        },
+        "url": "https://bldata.berkeley.edu/blpd30_datax2/blc00_guppi_59377_05820_TIC265146266_0044.rawspec.0000.h5"
       }
     },
     {

@@ -1,5 +1,5 @@
 // Signal families for the Live Lab: real ones from pre-extracted slices (Voyager 1, the
-// off-source scans of the same cadence, nearby stars, and blind windows), a reconstruction of
+// off-source scans of the same cadence, SETI targets, and blind windows), a reconstruction of
 // the 1977 Wow! signal, and several synthetic controls with known answers.
 // Every generator returns a raw snippet in noise-sigma units (T time steps x C channels,
 // row-major), before normalization.
@@ -33,11 +33,11 @@ export const FAMILIES = [
   },
   {
     id: 'stars',
-    label: 'Nearby stars',
+    label: 'SETI targets',
     real: true,
     window: 'on-target hit',
     control: 'blind-window',
-    about: 'Real Breakthrough Listen scans of nearby stars (Proxima Centauri and Tau Ceti with Parkes, the others with Green Bank): windows around the strongest narrowband hits a de-Doppler search found while the telescope pointed at the star. Hits like these are almost always human interference. blc1, at 982 MHz towards Proxima Centauri, turned out to be interference too.',
+    about: 'Real Breakthrough Listen scans of SETI targets: nearby stars (Proxima Centauri and Tau Ceti with Parkes, five more with Green Bank), Boyajian’s Star and a Kepler planet host, TESS and Hipparcos targets, and the interstellar comet 3I/ATLAS. Each window surrounds one of the strongest narrowband hits a de-Doppler search found while the telescope pointed at the target. Hits like these are almost always human interference. blc1, at 982 MHz towards Proxima Centauri, turned out to be interference too.',
   },
   {
     id: 'blind-window',
