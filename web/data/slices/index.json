@@ -4,6 +4,2112 @@
   "extracted_by": "tools/extract_slices.py 0.6.0",
   "slices": [
     {
+      "id": "61cyg-57587-25490-blind-1",
+      "family": "blind-window",
+      "group": "blind window",
+      "file": "61cyg-57587-25490-blind-1.bin",
+      "dtype": "float32-le",
+      "shape": [
+        16,
+        256
+      ],
+      "units": "noise sigma, bandpass-flattened",
+      "sha256": "344521effe5dc755ca0fce99c1ba660b2d57d1f1b412e65652fb440b518242d8",
+      "source": {
+        "file": "spliced_blc0001020304050607_guppi_57587_25490_Gj820b_0029.gpuspec.0000.h5",
+        "source_name": "Gj820b",
+        "tstart_mjd": 57587.295023148145,
+        "fch1_mhz": 1144.04296875,
+        "foff_hz": -2.7939677238464355,
+        "tsamp_s": 18.253611008,
+        "first_channel": 703412,
+        "centre_freq_mhz": 1142.077300697565,
+        "snr": 3.6732521057128906,
+        "pool": {
+          "id": "sky-pool/v1",
+          "key": "61cyg"
+        },
+        "archive": {
+          "target": "GJ820B",
+          "telescope": "GBT",
+          "utc": "Mon, 18 Jul 2016 07:04:49 GMT",
+          "mjd": 57587.295011574075,
+          "ra": 316.7499916667,
+          "decl": 38.755835,
+          "center_freq": 1475.09765625,
+          "file_type": "HDF5",
+          "size": 15511633613,
+          "md5sum": "98bbdd460d97168401f7f2cce76be429",
+          "url": "https://bldata.berkeley.edu/pipeline/AGBT16A_999_241/holding/spliced_blc0001020304050607_guppi_57587_25490_Gj820b_0029.gpuspec.0000.h5"
+        },
+        "coarse_channel": 267,
+        "sky": {
+          "ra_hours": 21.116666,
+          "dec_deg": 38.755835,
+          "frame": "J2000, the telescope's pointing from the file header",
+          "epoch": "2016-07-18T07:04:50Z",
+          "constellation": "Cygnus",
+          "telescope": "Green Bank Telescope",
+          "target": "61 Cygni",
+          "distance_label": "11.4 light-years"
+        },
+        "url": "https://bldata.berkeley.edu/pipeline/AGBT16A_999_241/holding/spliced_blc0001020304050607_guppi_57587_25490_Gj820b_0029.gpuspec.0000.h5"
+      }
+    },
+    {
+      "id": "61cyg-57587-25490-blind-2",
+      "family": "blind-window",
+      "group": "blind window",
+      "file": "61cyg-57587-25490-blind-2.bin",
+      "dtype": "float32-le",
+      "shape": [
+        16,
+        256
+      ],
+      "units": "noise sigma, bandpass-flattened",
+      "sha256": "4b93135dec3182a3ca3e7e3066c0d14f54e8efe428991c935f73d725d7755ece",
+      "source": {
+        "file": "spliced_blc0001020304050607_guppi_57587_25490_Gj820b_0029.gpuspec.0000.h5",
+        "source_name": "Gj820b",
+        "tstart_mjd": 57587.295023148145,
+        "fch1_mhz": 1144.04296875,
+        "foff_hz": -2.7939677238464355,
+        "tsamp_s": 18.253611008,
+        "first_channel": 409556,
+        "centre_freq_mhz": 1142.8983248770237,
+        "snr": 4.451071739196777,
+        "pool": {
+          "id": "sky-pool/v1",
+          "key": "61cyg"
+        },
+        "archive": {
+          "target": "GJ820B",
+          "telescope": "GBT",
+          "utc": "Mon, 18 Jul 2016 07:04:49 GMT",
+          "mjd": 57587.295011574075,
+          "ra": 316.7499916667,
+          "decl": 38.755835,
+          "center_freq": 1475.09765625,
+          "file_type": "HDF5",
+          "size": 15511633613,
+          "md5sum": "98bbdd460d97168401f7f2cce76be429",
+          "url": "https://bldata.berkeley.edu/pipeline/AGBT16A_999_241/holding/spliced_blc0001020304050607_guppi_57587_25490_Gj820b_0029.gpuspec.0000.h5"
+        },
+        "coarse_channel": 267,
+        "sky": {
+          "ra_hours": 21.116666,
+          "dec_deg": 38.755835,
+          "frame": "J2000, the telescope's pointing from the file header",
+          "epoch": "2016-07-18T07:04:50Z",
+          "constellation": "Cygnus",
+          "telescope": "Green Bank Telescope",
+          "target": "61 Cygni",
+          "distance_label": "11.4 light-years"
+        },
+        "url": "https://bldata.berkeley.edu/pipeline/AGBT16A_999_241/holding/spliced_blc0001020304050607_guppi_57587_25490_Gj820b_0029.gpuspec.0000.h5"
+      }
+    },
+    {
+      "id": "61cyg-57587-25490-hit-1",
+      "family": "stars",
+      "group": "hit",
+      "file": "61cyg-57587-25490-hit-1.bin",
+      "dtype": "float32-le",
+      "shape": [
+        16,
+        256
+      ],
+      "units": "noise sigma, bandpass-flattened",
+      "sha256": "f4046f2cd670d82a75913ed5a4cbd5f42ec83c3efd6b9c4ba3569f8284d12a57",
+      "source": {
+        "file": "spliced_blc0001020304050607_guppi_57587_25490_Gj820b_0029.gpuspec.0000.h5",
+        "source_name": "Gj820b",
+        "tstart_mjd": 57587.295023148145,
+        "fch1_mhz": 1144.04296875,
+        "foff_hz": -2.7939677238464355,
+        "tsamp_s": 18.253611008,
+        "first_channel": 552122,
+        "centre_freq_mhz": 1142.5000003267353,
+        "drift_channels_per_step": -0.009191763199053299,
+        "drift_hz_per_s": 0.001406926535913303,
+        "snr": 35.30238723754883,
+        "pool": {
+          "id": "sky-pool/v1",
+          "key": "61cyg"
+        },
+        "archive": {
+          "target": "GJ820B",
+          "telescope": "GBT",
+          "utc": "Mon, 18 Jul 2016 07:04:49 GMT",
+          "mjd": 57587.295011574075,
+          "ra": 316.7499916667,
+          "decl": 38.755835,
+          "center_freq": 1475.09765625,
+          "file_type": "HDF5",
+          "size": 15511633613,
+          "md5sum": "98bbdd460d97168401f7f2cce76be429",
+          "url": "https://bldata.berkeley.edu/pipeline/AGBT16A_999_241/holding/spliced_blc0001020304050607_guppi_57587_25490_Gj820b_0029.gpuspec.0000.h5"
+        },
+        "coarse_channel": 267,
+        "sky": {
+          "ra_hours": 21.116666,
+          "dec_deg": 38.755835,
+          "frame": "J2000, the telescope's pointing from the file header",
+          "epoch": "2016-07-18T07:04:50Z",
+          "constellation": "Cygnus",
+          "telescope": "Green Bank Telescope",
+          "target": "61 Cygni",
+          "distance_label": "11.4 light-years"
+        },
+        "url": "https://bldata.berkeley.edu/pipeline/AGBT16A_999_241/holding/spliced_blc0001020304050607_guppi_57587_25490_Gj820b_0029.gpuspec.0000.h5"
+      }
+    },
+    {
+      "id": "61cyg-57587-25490-hit-2",
+      "family": "stars",
+      "group": "hit",
+      "file": "61cyg-57587-25490-hit-2.bin",
+      "dtype": "float32-le",
+      "shape": [
+        16,
+        256
+      ],
+      "units": "noise sigma, bandpass-flattened",
+      "sha256": "14a3db51a3db317156f7bc62621b9604809565a62d1c3530607c95f72937afca",
+      "source": {
+        "file": "spliced_blc0001020304050607_guppi_57587_25490_Gj820b_0029.gpuspec.0000.h5",
+        "source_name": "Gj820b",
+        "tstart_mjd": 57587.295023148145,
+        "fch1_mhz": 1144.04296875,
+        "foff_hz": -2.7939677238464355,
+        "tsamp_s": 18.253611008,
+        "first_channel": 105768,
+        "centre_freq_mhz": 1143.747100051395,
+        "drift_channels_per_step": 0.23409141005063444,
+        "drift_hz_per_s": -0.03583092922406018,
+        "snr": 33.69172286987305,
+        "pool": {
+          "id": "sky-pool/v1",
+          "key": "61cyg"
+        },
+        "archive": {
+          "target": "GJ820B",
+          "telescope": "GBT",
+          "utc": "Mon, 18 Jul 2016 07:04:49 GMT",
+          "mjd": 57587.295011574075,
+          "ra": 316.7499916667,
+          "decl": 38.755835,
+          "center_freq": 1475.09765625,
+          "file_type": "HDF5",
+          "size": 15511633613,
+          "md5sum": "98bbdd460d97168401f7f2cce76be429",
+          "url": "https://bldata.berkeley.edu/pipeline/AGBT16A_999_241/holding/spliced_blc0001020304050607_guppi_57587_25490_Gj820b_0029.gpuspec.0000.h5"
+        },
+        "coarse_channel": 267,
+        "sky": {
+          "ra_hours": 21.116666,
+          "dec_deg": 38.755835,
+          "frame": "J2000, the telescope's pointing from the file header",
+          "epoch": "2016-07-18T07:04:50Z",
+          "constellation": "Cygnus",
+          "telescope": "Green Bank Telescope",
+          "target": "61 Cygni",
+          "distance_label": "11.4 light-years"
+        },
+        "url": "https://bldata.berkeley.edu/pipeline/AGBT16A_999_241/holding/spliced_blc0001020304050607_guppi_57587_25490_Gj820b_0029.gpuspec.0000.h5"
+      }
+    },
+    {
+      "id": "61cyg-57587-25490-hit-3",
+      "family": "stars",
+      "group": "hit",
+      "file": "61cyg-57587-25490-hit-3.bin",
+      "dtype": "float32-le",
+      "shape": [
+        16,
+        256
+      ],
+      "units": "noise sigma, bandpass-flattened",
+      "sha256": "6d1a6f1947087330fd11362bf7f79bd92cc27943f058db7cf823543447a9afa6",
+      "source": {
+        "file": "spliced_blc0001020304050607_guppi_57587_25490_Gj820b_0029.gpuspec.0000.h5",
+        "source_name": "Gj820b",
+        "tstart_mjd": 57587.295023148145,
+        "fch1_mhz": 1144.04296875,
+        "foff_hz": -2.7939677238464355,
+        "tsamp_s": 18.253611008,
+        "first_channel": 506426,
+        "centre_freq_mhz": 1142.627672126814,
+        "drift_channels_per_step": -0.009010359940076682,
+        "drift_hz_per_s": 0.0013791602572104705,
+        "snr": 18.558069229125977,
+        "pool": {
+          "id": "sky-pool/v1",
+          "key": "61cyg"
+        },
+        "archive": {
+          "target": "GJ820B",
+          "telescope": "GBT",
+          "utc": "Mon, 18 Jul 2016 07:04:49 GMT",
+          "mjd": 57587.295011574075,
+          "ra": 316.7499916667,
+          "decl": 38.755835,
+          "center_freq": 1475.09765625,
+          "file_type": "HDF5",
+          "size": 15511633613,
+          "md5sum": "98bbdd460d97168401f7f2cce76be429",
+          "url": "https://bldata.berkeley.edu/pipeline/AGBT16A_999_241/holding/spliced_blc0001020304050607_guppi_57587_25490_Gj820b_0029.gpuspec.0000.h5"
+        },
+        "coarse_channel": 267,
+        "sky": {
+          "ra_hours": 21.116666,
+          "dec_deg": 38.755835,
+          "frame": "J2000, the telescope's pointing from the file header",
+          "epoch": "2016-07-18T07:04:50Z",
+          "constellation": "Cygnus",
+          "telescope": "Green Bank Telescope",
+          "target": "61 Cygni",
+          "distance_label": "11.4 light-years"
+        },
+        "url": "https://bldata.berkeley.edu/pipeline/AGBT16A_999_241/holding/spliced_blc0001020304050607_guppi_57587_25490_Gj820b_0029.gpuspec.0000.h5"
+      }
+    },
+    {
+      "id": "61cyg-57790-66056-blind-1",
+      "family": "blind-window",
+      "group": "blind window",
+      "file": "61cyg-57790-66056-blind-1.bin",
+      "dtype": "float32-le",
+      "shape": [
+        16,
+        256
+      ],
+      "units": "noise sigma, bandpass-flattened",
+      "sha256": "5f6a6abe20ebc7c46cabbb7e64b42639e90e8470b2702838f9abbc8546dbbd64",
+      "source": {
+        "file": "spliced_blc0001020304050607_guppi_57790_66056_GJ820B_0035.gpuspec.0000.h5",
+        "source_name": "GJ820B",
+        "tstart_mjd": 57790.76453703704,
+        "fch1_mhz": 2284.27734375,
+        "foff_hz": -2.7939677238464355,
+        "tsamp_s": 18.253611008,
+        "first_channel": 623819,
+        "centre_freq_mhz": 2282.534055970609,
+        "snr": 3.942112922668457,
+        "pool": {
+          "id": "sky-pool/v1",
+          "key": "61cyg"
+        },
+        "archive": {
+          "target": "GJ820B",
+          "telescope": "GBT",
+          "utc": "Mon, 06 Feb 2017 18:20:55 GMT",
+          "mjd": 57790.76452546296,
+          "ra": 316.7499166667,
+          "decl": 38.7558347222,
+          "center_freq": 2300.390625,
+          "file_type": "HDF5",
+          "size": 17384509420,
+          "md5sum": "e0cfccb0a003e98583b6b8b73426346b",
+          "url": "https://bldata.berkeley.edu/pipeline/AGBT17A_999_01/holding/spliced_blc0001020304050607_guppi_57790_66056_GJ820B_0035.gpuspec.0000.h5"
+        },
+        "coarse_channel": 177,
+        "sky": {
+          "ra_hours": 21.116661,
+          "dec_deg": 38.755835,
+          "frame": "J2000, the telescope's pointing from the file header",
+          "epoch": "2017-02-06T18:20:56Z",
+          "constellation": "Cygnus",
+          "telescope": "Green Bank Telescope",
+          "target": "61 Cygni",
+          "distance_label": "11.4 light-years"
+        },
+        "url": "https://bldata.berkeley.edu/pipeline/AGBT17A_999_01/holding/spliced_blc0001020304050607_guppi_57790_66056_GJ820B_0035.gpuspec.0000.h5"
+      }
+    },
+    {
+      "id": "61cyg-57790-66056-blind-2",
+      "family": "blind-window",
+      "group": "blind window",
+      "file": "61cyg-57790-66056-blind-2.bin",
+      "dtype": "float32-le",
+      "shape": [
+        16,
+        256
+      ],
+      "units": "noise sigma, bandpass-flattened",
+      "sha256": "9c6a20cb77596791b2935fdaa21a59fb18ec68ed31b0380f5c414c778964be5f",
+      "source": {
+        "file": "spliced_blc0001020304050607_guppi_57790_66056_GJ820B_0035.gpuspec.0000.h5",
+        "source_name": "GJ820B",
+        "tstart_mjd": 57790.76453703704,
+        "fch1_mhz": 2284.27734375,
+        "foff_hz": -2.7939677238464355,
+        "tsamp_s": 18.253611008,
+        "first_channel": 746282,
+        "centre_freq_mhz": 2282.191898301244,
+        "snr": 3.5596742630004883,
+        "pool": {
+          "id": "sky-pool/v1",
+          "key": "61cyg"
+        },
+        "archive": {
+          "target": "GJ820B",
+          "telescope": "GBT",
+          "utc": "Mon, 06 Feb 2017 18:20:55 GMT",
+          "mjd": 57790.76452546296,
+          "ra": 316.7499166667,
+          "decl": 38.7558347222,
+          "center_freq": 2300.390625,
+          "file_type": "HDF5",
+          "size": 17384509420,
+          "md5sum": "e0cfccb0a003e98583b6b8b73426346b",
+          "url": "https://bldata.berkeley.edu/pipeline/AGBT17A_999_01/holding/spliced_blc0001020304050607_guppi_57790_66056_GJ820B_0035.gpuspec.0000.h5"
+        },
+        "coarse_channel": 177,
+        "sky": {
+          "ra_hours": 21.116661,
+          "dec_deg": 38.755835,
+          "frame": "J2000, the telescope's pointing from the file header",
+          "epoch": "2017-02-06T18:20:56Z",
+          "constellation": "Cygnus",
+          "telescope": "Green Bank Telescope",
+          "target": "61 Cygni",
+          "distance_label": "11.4 light-years"
+        },
+        "url": "https://bldata.berkeley.edu/pipeline/AGBT17A_999_01/holding/spliced_blc0001020304050607_guppi_57790_66056_GJ820B_0035.gpuspec.0000.h5"
+      }
+    },
+    {
+      "id": "61cyg-57790-66056-hit-1",
+      "family": "stars",
+      "group": "hit",
+      "file": "61cyg-57790-66056-hit-1.bin",
+      "dtype": "float32-le",
+      "shape": [
+        16,
+        256
+      ],
+      "units": "noise sigma, bandpass-flattened",
+      "sha256": "0bef1a1506cb9fbd8fe3e871c0a6e89e666263246195ad291d6feaca820cc1c4",
+      "source": {
+        "file": "spliced_blc0001020304050607_guppi_57790_66056_GJ820B_0035.gpuspec.0000.h5",
+        "source_name": "GJ820B",
+        "tstart_mjd": 57790.76453703704,
+        "fch1_mhz": 2070.41015625,
+        "foff_hz": -2.7939677238464355,
+        "tsamp_s": 18.253611008,
+        "first_channel": 146673,
+        "centre_freq_mhz": 2069.9999994943964,
+        "drift_channels_per_step": 0.003446432240338226,
+        "drift_hz_per_s": -0.0005275241396186526,
+        "snr": 553.7855834960938,
+        "pool": {
+          "id": "sky-pool/v1",
+          "key": "61cyg"
+        },
+        "archive": {
+          "target": "GJ820B",
+          "telescope": "GBT",
+          "utc": "Mon, 06 Feb 2017 18:20:55 GMT",
+          "mjd": 57790.76452546296,
+          "ra": 316.7499166667,
+          "decl": 38.7558347222,
+          "center_freq": 2300.390625,
+          "file_type": "HDF5",
+          "size": 17384509420,
+          "md5sum": "e0cfccb0a003e98583b6b8b73426346b",
+          "url": "https://bldata.berkeley.edu/pipeline/AGBT17A_999_01/holding/spliced_blc0001020304050607_guppi_57790_66056_GJ820B_0035.gpuspec.0000.h5"
+        },
+        "coarse_channel": 250,
+        "sky": {
+          "ra_hours": 21.116661,
+          "dec_deg": 38.755835,
+          "frame": "J2000, the telescope's pointing from the file header",
+          "epoch": "2017-02-06T18:20:56Z",
+          "constellation": "Cygnus",
+          "telescope": "Green Bank Telescope",
+          "target": "61 Cygni",
+          "distance_label": "11.4 light-years"
+        },
+        "url": "https://bldata.berkeley.edu/pipeline/AGBT17A_999_01/holding/spliced_blc0001020304050607_guppi_57790_66056_GJ820B_0035.gpuspec.0000.h5"
+      }
+    },
+    {
+      "id": "gj406-57532-02535-blind-1",
+      "family": "blind-window",
+      "group": "blind window",
+      "file": "gj406-57532-02535-blind-1.bin",
+      "dtype": "float32-le",
+      "shape": [
+        16,
+        256
+      ],
+      "units": "noise sigma, bandpass-flattened",
+      "sha256": "03d6497ab6bd2493bb3c3b9caa14190cf8b3d38c723885c78a8da88f295898af",
+      "source": {
+        "file": "spliced_blc0001020304050607_guppi_57532_02535_GJ406_0007.gpuspec.0000.h5",
+        "source_name": "GJ406",
+        "tstart_mjd": 57532.029340277775,
+        "fch1_mhz": 1501.096092201437,
+        "foff_hz": -2.835503418452676,
+        "tsamp_s": 17.986224128,
+        "first_channel": 232752,
+        "centre_freq_mhz": 1500.4357601653476,
+        "snr": 3.595045328140259,
+        "pool": {
+          "id": "sky-pool/v1",
+          "key": "gj406"
+        },
+        "archive": {
+          "target": "GJ406",
+          "telescope": "GBT",
+          "utc": "Tue, 24 May 2016 00:42:14 GMT",
+          "mjd": 57532.029328703706,
+          "ra": 164.1041583333,
+          "decl": 7.0025055556,
+          "center_freq": 1475.09765625,
+          "file_type": "HDF5",
+          "size": 15426466768,
+          "md5sum": "e490770dd0a95d43141d31a0611bfe48",
+          "url": "https://bldata.berkeley.edu/pipeline/AGBT16A_999_200/holding/spliced_blc0001020304050607_guppi_57532_02535_GJ406_0007.gpuspec.0000.h5"
+        },
+        "coarse_channel": 143,
+        "sky": {
+          "ra_hours": 10.940277,
+          "dec_deg": 7.002506,
+          "frame": "J2000, the telescope's pointing from the file header",
+          "epoch": "2016-05-24T00:42:15Z",
+          "constellation": "Leo",
+          "telescope": "Green Bank Telescope",
+          "target": "Wolf 359",
+          "distance_label": "7.86 light-years"
+        },
+        "url": "https://bldata.berkeley.edu/pipeline/AGBT16A_999_200/holding/spliced_blc0001020304050607_guppi_57532_02535_GJ406_0007.gpuspec.0000.h5"
+      }
+    },
+    {
+      "id": "gj406-57532-02535-blind-2",
+      "family": "blind-window",
+      "group": "blind window",
+      "file": "gj406-57532-02535-blind-2.bin",
+      "dtype": "float32-le",
+      "shape": [
+        16,
+        256
+      ],
+      "units": "noise sigma, bandpass-flattened",
+      "sha256": "64167f2232fe69726d1ed42c51cc5e3cabc7d9c6b7f877e258e6a8e9e3429b51",
+      "source": {
+        "file": "spliced_blc0001020304050607_guppi_57532_02535_GJ406_0007.gpuspec.0000.h5",
+        "source_name": "GJ406",
+        "tstart_mjd": 57532.029340277775,
+        "fch1_mhz": 1501.096092201437,
+        "foff_hz": -2.835503418452676,
+        "tsamp_s": 17.986224128,
+        "first_channel": 113510,
+        "centre_freq_mhz": 1500.7738712639707,
+        "snr": 3.878692388534546,
+        "pool": {
+          "id": "sky-pool/v1",
+          "key": "gj406"
+        },
+        "archive": {
+          "target": "GJ406",
+          "telescope": "GBT",
+          "utc": "Tue, 24 May 2016 00:42:14 GMT",
+          "mjd": 57532.029328703706,
+          "ra": 164.1041583333,
+          "decl": 7.0025055556,
+          "center_freq": 1475.09765625,
+          "file_type": "HDF5",
+          "size": 15426466768,
+          "md5sum": "e490770dd0a95d43141d31a0611bfe48",
+          "url": "https://bldata.berkeley.edu/pipeline/AGBT16A_999_200/holding/spliced_blc0001020304050607_guppi_57532_02535_GJ406_0007.gpuspec.0000.h5"
+        },
+        "coarse_channel": 143,
+        "sky": {
+          "ra_hours": 10.940277,
+          "dec_deg": 7.002506,
+          "frame": "J2000, the telescope's pointing from the file header",
+          "epoch": "2016-05-24T00:42:15Z",
+          "constellation": "Leo",
+          "telescope": "Green Bank Telescope",
+          "target": "Wolf 359",
+          "distance_label": "7.86 light-years"
+        },
+        "url": "https://bldata.berkeley.edu/pipeline/AGBT16A_999_200/holding/spliced_blc0001020304050607_guppi_57532_02535_GJ406_0007.gpuspec.0000.h5"
+      }
+    },
+    {
+      "id": "gj406-57532-02535-hit-1",
+      "family": "stars",
+      "group": "hit",
+      "file": "gj406-57532-02535-hit-1.bin",
+      "dtype": "float32-le",
+      "shape": [
+        16,
+        256
+      ],
+      "units": "noise sigma, bandpass-flattened",
+      "sha256": "8ca9ef41ba6b3bb7d28b118652457f2602f7bc0b8ce7137f8ff72a1c6e8fefa3",
+      "source": {
+        "file": "spliced_blc0001020304050607_guppi_57532_02535_GJ406_0007.gpuspec.0000.h5",
+        "source_name": "GJ406",
+        "tstart_mjd": 57532.029340277775,
+        "fch1_mhz": 1501.096092201437,
+        "foff_hz": -2.835503418452676,
+        "tsamp_s": 17.986224128,
+        "first_channel": 386432,
+        "centre_freq_mhz": 1500.0000000001257,
+        "drift_channels_per_step": -4.8625157691373646e-06,
+        "drift_hz_per_s": 7.665689022636559e-07,
+        "snr": 1113506.0,
+        "pool": {
+          "id": "sky-pool/v1",
+          "key": "gj406"
+        },
+        "archive": {
+          "target": "GJ406",
+          "telescope": "GBT",
+          "utc": "Tue, 24 May 2016 00:42:14 GMT",
+          "mjd": 57532.029328703706,
+          "ra": 164.1041583333,
+          "decl": 7.0025055556,
+          "center_freq": 1475.09765625,
+          "file_type": "HDF5",
+          "size": 15426466768,
+          "md5sum": "e490770dd0a95d43141d31a0611bfe48",
+          "url": "https://bldata.berkeley.edu/pipeline/AGBT16A_999_200/holding/spliced_blc0001020304050607_guppi_57532_02535_GJ406_0007.gpuspec.0000.h5"
+        },
+        "coarse_channel": 143,
+        "sky": {
+          "ra_hours": 10.940277,
+          "dec_deg": 7.002506,
+          "frame": "J2000, the telescope's pointing from the file header",
+          "epoch": "2016-05-24T00:42:15Z",
+          "constellation": "Leo",
+          "telescope": "Green Bank Telescope",
+          "target": "Wolf 359",
+          "distance_label": "7.86 light-years"
+        },
+        "url": "https://bldata.berkeley.edu/pipeline/AGBT16A_999_200/holding/spliced_blc0001020304050607_guppi_57532_02535_GJ406_0007.gpuspec.0000.h5"
+      }
+    },
+    {
+      "id": "gj406-57532-02535-hit-2",
+      "family": "stars",
+      "group": "hit",
+      "file": "gj406-57532-02535-hit-2.bin",
+      "dtype": "float32-le",
+      "shape": [
+        16,
+        256
+      ],
+      "units": "noise sigma, bandpass-flattened",
+      "sha256": "a05ec2c5de9d3457e515f3debb461090b3fd66edab5717dd4eb526396f90c20e",
+      "source": {
+        "file": "spliced_blc0001020304050607_guppi_57532_02535_GJ406_0007.gpuspec.0000.h5",
+        "source_name": "GJ406",
+        "tstart_mjd": 57532.029340277775,
+        "fch1_mhz": 1501.096092201437,
+        "foff_hz": -2.835503418452676,
+        "tsamp_s": 17.986224128,
+        "first_channel": 387669,
+        "centre_freq_mhz": 1499.996491728465,
+        "drift_channels_per_step": 3.5371253688245408,
+        "drift_hz_per_s": -0.5576229342758064,
+        "snr": 1169.819091796875,
+        "pool": {
+          "id": "sky-pool/v1",
+          "key": "gj406"
+        },
+        "archive": {
+          "target": "GJ406",
+          "telescope": "GBT",
+          "utc": "Tue, 24 May 2016 00:42:14 GMT",
+          "mjd": 57532.029328703706,
+          "ra": 164.1041583333,
+          "decl": 7.0025055556,
+          "center_freq": 1475.09765625,
+          "file_type": "HDF5",
+          "size": 15426466768,
+          "md5sum": "e490770dd0a95d43141d31a0611bfe48",
+          "url": "https://bldata.berkeley.edu/pipeline/AGBT16A_999_200/holding/spliced_blc0001020304050607_guppi_57532_02535_GJ406_0007.gpuspec.0000.h5"
+        },
+        "coarse_channel": 143,
+        "sky": {
+          "ra_hours": 10.940277,
+          "dec_deg": 7.002506,
+          "frame": "J2000, the telescope's pointing from the file header",
+          "epoch": "2016-05-24T00:42:15Z",
+          "constellation": "Leo",
+          "telescope": "Green Bank Telescope",
+          "target": "Wolf 359",
+          "distance_label": "7.86 light-years"
+        },
+        "url": "https://bldata.berkeley.edu/pipeline/AGBT16A_999_200/holding/spliced_blc0001020304050607_guppi_57532_02535_GJ406_0007.gpuspec.0000.h5"
+      }
+    },
+    {
+      "id": "gj406-57532-02535-hit-3",
+      "family": "stars",
+      "group": "hit",
+      "file": "gj406-57532-02535-hit-3.bin",
+      "dtype": "float32-le",
+      "shape": [
+        16,
+        256
+      ],
+      "units": "noise sigma, bandpass-flattened",
+      "sha256": "e37bd58fb06032a01c462919653fc3243100d385f4db2a03bc607d9e502b7602",
+      "source": {
+        "file": "spliced_blc0001020304050607_guppi_57532_02535_GJ406_0007.gpuspec.0000.h5",
+        "source_name": "GJ406",
+        "tstart_mjd": 57532.029340277775,
+        "fch1_mhz": 1501.096092201437,
+        "foff_hz": -2.835503418452676,
+        "tsamp_s": 17.986224128,
+        "first_channel": 393240,
+        "centre_freq_mhz": 1499.9806964044037,
+        "drift_channels_per_step": -0.8778469779569608,
+        "drift_hz_per_s": 0.13839136492246612,
+        "snr": 271.00927734375,
+        "pool": {
+          "id": "sky-pool/v1",
+          "key": "gj406"
+        },
+        "archive": {
+          "target": "GJ406",
+          "telescope": "GBT",
+          "utc": "Tue, 24 May 2016 00:42:14 GMT",
+          "mjd": 57532.029328703706,
+          "ra": 164.1041583333,
+          "decl": 7.0025055556,
+          "center_freq": 1475.09765625,
+          "file_type": "HDF5",
+          "size": 15426466768,
+          "md5sum": "e490770dd0a95d43141d31a0611bfe48",
+          "url": "https://bldata.berkeley.edu/pipeline/AGBT16A_999_200/holding/spliced_blc0001020304050607_guppi_57532_02535_GJ406_0007.gpuspec.0000.h5"
+        },
+        "coarse_channel": 143,
+        "sky": {
+          "ra_hours": 10.940277,
+          "dec_deg": 7.002506,
+          "frame": "J2000, the telescope's pointing from the file header",
+          "epoch": "2016-05-24T00:42:15Z",
+          "constellation": "Leo",
+          "telescope": "Green Bank Telescope",
+          "target": "Wolf 359",
+          "distance_label": "7.86 light-years"
+        },
+        "url": "https://bldata.berkeley.edu/pipeline/AGBT16A_999_200/holding/spliced_blc0001020304050607_guppi_57532_02535_GJ406_0007.gpuspec.0000.h5"
+      }
+    },
+    {
+      "id": "gj406-57671-48294-blind-1",
+      "family": "blind-window",
+      "group": "blind window",
+      "file": "gj406-57671-48294-blind-1.bin",
+      "dtype": "float32-le",
+      "shape": [
+        16,
+        256
+      ],
+      "units": "noise sigma, bandpass-flattened",
+      "sha256": "ed6b5cb58fb4d80861b603a65d7bb4c2dc198353e846b72c193660e0378802ef",
+      "source": {
+        "file": "spliced_blc0001020304050607_guppi_57671_48294_GJ406_0005.gpuspec.0000.h5",
+        "source_name": "GJ406",
+        "tstart_mjd": 57671.558958333335,
+        "fch1_mhz": 2055.76171875,
+        "foff_hz": -2.7939677238464355,
+        "tsamp_s": 18.253611008,
+        "first_channel": 681013,
+        "centre_freq_mhz": 2053.8586327806115,
+        "snr": 4.407812118530273,
+        "pool": {
+          "id": "sky-pool/v1",
+          "key": "gj406"
+        },
+        "archive": {
+          "target": "GJ406",
+          "telescope": "GBT",
+          "utc": "Mon, 10 Oct 2016 13:24:53 GMT",
+          "mjd": 57671.55894675926,
+          "ra": 164.1040791667,
+          "decl": 7.0025022222,
+          "center_freq": 2300.390625,
+          "file_type": "HDF5",
+          "size": 17342241441,
+          "md5sum": "b1d67152ad29c28744306bb149dbf267",
+          "url": "https://bldata.berkeley.edu/pipeline/AGBT16B_999_42/holding/spliced_blc0001020304050607_guppi_57671_48294_GJ406_0005.gpuspec.0000.h5"
+        },
+        "coarse_channel": 255,
+        "sky": {
+          "ra_hours": 10.940272,
+          "dec_deg": 7.002502,
+          "frame": "J2000, the telescope's pointing from the file header",
+          "epoch": "2016-10-10T13:24:54Z",
+          "constellation": "Leo",
+          "telescope": "Green Bank Telescope",
+          "target": "Wolf 359",
+          "distance_label": "7.86 light-years"
+        },
+        "url": "https://bldata.berkeley.edu/pipeline/AGBT16B_999_42/holding/spliced_blc0001020304050607_guppi_57671_48294_GJ406_0005.gpuspec.0000.h5"
+      }
+    },
+    {
+      "id": "gj406-57671-48294-blind-2",
+      "family": "blind-window",
+      "group": "blind window",
+      "file": "gj406-57671-48294-blind-2.bin",
+      "dtype": "float32-le",
+      "shape": [
+        16,
+        256
+      ],
+      "units": "noise sigma, bandpass-flattened",
+      "sha256": "eb487fecfd1d9473beb0a9d3e7b9f7093b12cc4ee43fc96c4ecd1823645ac2df",
+      "source": {
+        "file": "spliced_blc0001020304050607_guppi_57671_48294_GJ406_0005.gpuspec.0000.h5",
+        "source_name": "GJ406",
+        "tstart_mjd": 57671.558958333335,
+        "fch1_mhz": 2055.76171875,
+        "foff_hz": -2.7939677238464355,
+        "tsamp_s": 18.253611008,
+        "first_channel": 988209,
+        "centre_freq_mhz": 2053.000337071717,
+        "snr": 3.8470823764801025,
+        "pool": {
+          "id": "sky-pool/v1",
+          "key": "gj406"
+        },
+        "archive": {
+          "target": "GJ406",
+          "telescope": "GBT",
+          "utc": "Mon, 10 Oct 2016 13:24:53 GMT",
+          "mjd": 57671.55894675926,
+          "ra": 164.1040791667,
+          "decl": 7.0025022222,
+          "center_freq": 2300.390625,
+          "file_type": "HDF5",
+          "size": 17342241441,
+          "md5sum": "b1d67152ad29c28744306bb149dbf267",
+          "url": "https://bldata.berkeley.edu/pipeline/AGBT16B_999_42/holding/spliced_blc0001020304050607_guppi_57671_48294_GJ406_0005.gpuspec.0000.h5"
+        },
+        "coarse_channel": 255,
+        "sky": {
+          "ra_hours": 10.940272,
+          "dec_deg": 7.002502,
+          "frame": "J2000, the telescope's pointing from the file header",
+          "epoch": "2016-10-10T13:24:54Z",
+          "constellation": "Leo",
+          "telescope": "Green Bank Telescope",
+          "target": "Wolf 359",
+          "distance_label": "7.86 light-years"
+        },
+        "url": "https://bldata.berkeley.edu/pipeline/AGBT16B_999_42/holding/spliced_blc0001020304050607_guppi_57671_48294_GJ406_0005.gpuspec.0000.h5"
+      }
+    },
+    {
+      "id": "gj411-57542-85812-blind-1",
+      "family": "blind-window",
+      "group": "blind window",
+      "file": "gj411-57542-85812-blind-1.bin",
+      "dtype": "float32-le",
+      "shape": [
+        16,
+        256
+      ],
+      "units": "noise sigma, bandpass-flattened",
+      "sha256": "8210602cd0fca19d5e77ddae5343d58aa3eb65399dd37f9b502d8957c208c931",
+      "source": {
+        "file": "spliced_blc0001020304050607_guppi_57542_85812_GJ411_0007.gpuspec.0000.h5",
+        "source_name": "GJ411",
+        "tstart_mjd": 57542.99319444445,
+        "fch1_mhz": 1658.677856324331,
+        "foff_hz": -2.835503418452676,
+        "tsamp_s": 17.986224128,
+        "first_channel": 811658,
+        "centre_freq_mhz": 1656.376034346279,
+        "snr": 4.732331275939941,
+        "pool": {
+          "id": "sky-pool/v1",
+          "key": "gj411"
+        },
+        "archive": {
+          "target": "GJ411",
+          "telescope": "GBT",
+          "utc": "Fri, 03 Jun 2016 23:50:11 GMT",
+          "mjd": 57542.99318287037,
+          "ra": 165.8308291667,
+          "decl": 35.9486144444,
+          "center_freq": 1475.09765625,
+          "file_type": "HDF5",
+          "size": 15292265526,
+          "md5sum": "26b9b7d50318fde276ff90346b2fdd7d",
+          "url": "https://bldata.berkeley.edu/pipeline/AGBT16A_999_213/holding/spliced_blc0001020304050607_guppi_57542_85812_GJ411_0007.gpuspec.0000.h5"
+        },
+        "coarse_channel": 90,
+        "sky": {
+          "ra_hours": 11.055389,
+          "dec_deg": 35.948614,
+          "frame": "J2000, the telescope's pointing from the file header",
+          "epoch": "2016-06-03T23:50:12Z",
+          "constellation": "Ursa Major",
+          "telescope": "Green Bank Telescope",
+          "target": "Lalande 21185",
+          "distance_label": "8.31 light-years"
+        },
+        "url": "https://bldata.berkeley.edu/pipeline/AGBT16A_999_213/holding/spliced_blc0001020304050607_guppi_57542_85812_GJ411_0007.gpuspec.0000.h5"
+      }
+    },
+    {
+      "id": "gj411-57542-85812-blind-2",
+      "family": "blind-window",
+      "group": "blind window",
+      "file": "gj411-57542-85812-blind-2.bin",
+      "dtype": "float32-le",
+      "shape": [
+        16,
+        256
+      ],
+      "units": "noise sigma, bandpass-flattened",
+      "sha256": "2828604a951ec3df730a4628e8d302971dc488c2a7d17f741e1d28bf1f4d19d1",
+      "source": {
+        "file": "spliced_blc0001020304050607_guppi_57542_85812_GJ411_0007.gpuspec.0000.h5",
+        "source_name": "GJ411",
+        "tstart_mjd": 57542.99319444445,
+        "fch1_mhz": 1658.677856324331,
+        "foff_hz": -2.835503418452676,
+        "tsamp_s": 17.986224128,
+        "first_channel": 591420,
+        "centre_freq_mhz": 1657.0005199481523,
+        "snr": 3.725184679031372,
+        "pool": {
+          "id": "sky-pool/v1",
+          "key": "gj411"
+        },
+        "archive": {
+          "target": "GJ411",
+          "telescope": "GBT",
+          "utc": "Fri, 03 Jun 2016 23:50:11 GMT",
+          "mjd": 57542.99318287037,
+          "ra": 165.8308291667,
+          "decl": 35.9486144444,
+          "center_freq": 1475.09765625,
+          "file_type": "HDF5",
+          "size": 15292265526,
+          "md5sum": "26b9b7d50318fde276ff90346b2fdd7d",
+          "url": "https://bldata.berkeley.edu/pipeline/AGBT16A_999_213/holding/spliced_blc0001020304050607_guppi_57542_85812_GJ411_0007.gpuspec.0000.h5"
+        },
+        "coarse_channel": 90,
+        "sky": {
+          "ra_hours": 11.055389,
+          "dec_deg": 35.948614,
+          "frame": "J2000, the telescope's pointing from the file header",
+          "epoch": "2016-06-03T23:50:12Z",
+          "constellation": "Ursa Major",
+          "telescope": "Green Bank Telescope",
+          "target": "Lalande 21185",
+          "distance_label": "8.31 light-years"
+        },
+        "url": "https://bldata.berkeley.edu/pipeline/AGBT16A_999_213/holding/spliced_blc0001020304050607_guppi_57542_85812_GJ411_0007.gpuspec.0000.h5"
+      }
+    },
+    {
+      "id": "gj411-57542-85812-hit-1",
+      "family": "stars",
+      "group": "hit",
+      "file": "gj411-57542-85812-hit-1.bin",
+      "dtype": "float32-le",
+      "shape": [
+        16,
+        256
+      ],
+      "units": "noise sigma, bandpass-flattened",
+      "sha256": "f758c4375df1b01b37f1a64f7758d47948ee84b45059c34826c901ad78832bbf",
+      "source": {
+        "file": "spliced_blc0001020304050607_guppi_57542_85812_GJ411_0007.gpuspec.0000.h5",
+        "source_name": "GJ411",
+        "tstart_mjd": 57542.99319444445,
+        "fch1_mhz": 1658.677856324331,
+        "foff_hz": -2.835503418452676,
+        "tsamp_s": 17.986224128,
+        "first_channel": 167296,
+        "centre_freq_mhz": 1658.2031250003113,
+        "drift_channels_per_step": -0.00013845340794209248,
+        "drift_hz_per_s": 2.1826988739958513e-05,
+        "snr": 11072.3544921875,
+        "pool": {
+          "id": "sky-pool/v1",
+          "key": "gj411"
+        },
+        "archive": {
+          "target": "GJ411",
+          "telescope": "GBT",
+          "utc": "Fri, 03 Jun 2016 23:50:11 GMT",
+          "mjd": 57542.99318287037,
+          "ra": 165.8308291667,
+          "decl": 35.9486144444,
+          "center_freq": 1475.09765625,
+          "file_type": "HDF5",
+          "size": 15292265526,
+          "md5sum": "26b9b7d50318fde276ff90346b2fdd7d",
+          "url": "https://bldata.berkeley.edu/pipeline/AGBT16A_999_213/holding/spliced_blc0001020304050607_guppi_57542_85812_GJ411_0007.gpuspec.0000.h5"
+        },
+        "coarse_channel": 90,
+        "sky": {
+          "ra_hours": 11.055389,
+          "dec_deg": 35.948614,
+          "frame": "J2000, the telescope's pointing from the file header",
+          "epoch": "2016-06-03T23:50:12Z",
+          "constellation": "Ursa Major",
+          "telescope": "Green Bank Telescope",
+          "target": "Lalande 21185",
+          "distance_label": "8.31 light-years"
+        },
+        "url": "https://bldata.berkeley.edu/pipeline/AGBT16A_999_213/holding/spliced_blc0001020304050607_guppi_57542_85812_GJ411_0007.gpuspec.0000.h5"
+      }
+    },
+    {
+      "id": "gj411-57660-50750-blind-1",
+      "family": "blind-window",
+      "group": "blind window",
+      "file": "gj411-57660-50750-blind-1.bin",
+      "dtype": "float32-le",
+      "shape": [
+        16,
+        256
+      ],
+      "units": "noise sigma, bandpass-flattened",
+      "sha256": "bd9a9e4b06b2d351843714ce398cbd1650dc32e1fd25c9f49936a806565e8b4e",
+      "source": {
+        "file": "spliced_blc0001020304050607_guppi_57660_50750_GJ411_0003.gpuspec.0000.h5",
+        "source_name": "GJ411",
+        "tstart_mjd": 57660.58738425926,
+        "fch1_mhz": 2363.37890625,
+        "foff_hz": -2.7939677238464355,
+        "tsamp_s": 18.253611008,
+        "first_channel": 209377,
+        "centre_freq_mhz": 2362.7935560420156,
+        "snr": 3.9330029487609863,
+        "pool": {
+          "id": "sky-pool/v1",
+          "key": "gj411"
+        },
+        "archive": {
+          "target": "GJ411",
+          "telescope": "GBT",
+          "utc": "Thu, 29 Sep 2016 14:05:49 GMT",
+          "mjd": 57660.587372685186,
+          "ra": 165.8307583333,
+          "decl": 35.9486116667,
+          "center_freq": 2300.390625,
+          "file_type": "HDF5",
+          "size": 17416505634,
+          "md5sum": "a9f0fd79d892d59949618ca78bf093c4",
+          "url": "https://bldata.berkeley.edu/pipeline/AGBT16B_999_32/holding/spliced_blc0001020304050607_guppi_57660_50750_GJ411_0003.gpuspec.0000.h5"
+        },
+        "coarse_channel": 150,
+        "sky": {
+          "ra_hours": 11.055384,
+          "dec_deg": 35.948612,
+          "frame": "J2000, the telescope's pointing from the file header",
+          "epoch": "2016-09-29T14:05:50Z",
+          "constellation": "Ursa Major",
+          "telescope": "Green Bank Telescope",
+          "target": "Lalande 21185",
+          "distance_label": "8.31 light-years"
+        },
+        "url": "https://bldata.berkeley.edu/pipeline/AGBT16B_999_32/holding/spliced_blc0001020304050607_guppi_57660_50750_GJ411_0003.gpuspec.0000.h5"
+      }
+    },
+    {
+      "id": "gj411-57660-50750-blind-2",
+      "family": "blind-window",
+      "group": "blind window",
+      "file": "gj411-57660-50750-blind-2.bin",
+      "dtype": "float32-le",
+      "shape": [
+        16,
+        256
+      ],
+      "units": "noise sigma, bandpass-flattened",
+      "sha256": "ff69073425e08b12d576bda7fd5aba90c7be6586e2566c547f3609ef32e6b311",
+      "source": {
+        "file": "spliced_blc0001020304050607_guppi_57660_50750_GJ411_0003.gpuspec.0000.h5",
+        "source_name": "GJ411",
+        "tstart_mjd": 57660.58738425926,
+        "fch1_mhz": 2363.37890625,
+        "foff_hz": -2.7939677238464355,
+        "tsamp_s": 18.253611008,
+        "first_channel": 671902,
+        "centre_freq_mhz": 2361.5012761205435,
+        "snr": 4.274942398071289,
+        "pool": {
+          "id": "sky-pool/v1",
+          "key": "gj411"
+        },
+        "archive": {
+          "target": "GJ411",
+          "telescope": "GBT",
+          "utc": "Thu, 29 Sep 2016 14:05:49 GMT",
+          "mjd": 57660.587372685186,
+          "ra": 165.8307583333,
+          "decl": 35.9486116667,
+          "center_freq": 2300.390625,
+          "file_type": "HDF5",
+          "size": 17416505634,
+          "md5sum": "a9f0fd79d892d59949618ca78bf093c4",
+          "url": "https://bldata.berkeley.edu/pipeline/AGBT16B_999_32/holding/spliced_blc0001020304050607_guppi_57660_50750_GJ411_0003.gpuspec.0000.h5"
+        },
+        "coarse_channel": 150,
+        "sky": {
+          "ra_hours": 11.055384,
+          "dec_deg": 35.948612,
+          "frame": "J2000, the telescope's pointing from the file header",
+          "epoch": "2016-09-29T14:05:50Z",
+          "constellation": "Ursa Major",
+          "telescope": "Green Bank Telescope",
+          "target": "Lalande 21185",
+          "distance_label": "8.31 light-years"
+        },
+        "url": "https://bldata.berkeley.edu/pipeline/AGBT16B_999_32/holding/spliced_blc0001020304050607_guppi_57660_50750_GJ411_0003.gpuspec.0000.h5"
+      }
+    },
+    {
+      "id": "gj447-57532-03272-blind-1",
+      "family": "blind-window",
+      "group": "blind window",
+      "file": "gj447-57532-03272-blind-1.bin",
+      "dtype": "float32-le",
+      "shape": [
+        16,
+        256
+      ],
+      "units": "noise sigma, bandpass-flattened",
+      "sha256": "22966a767632200e85601b1df04dbffe5fea1d352d9abe5671ef77ad9e8424d6",
+      "source": {
+        "file": "spliced_blc0001020304050607_guppi_57532_03272_GJ447_0009.gpuspec.0000.h5",
+        "source_name": "GJ447",
+        "tstart_mjd": 57532.03787037037,
+        "fch1_mhz": 1587.3200763441525,
+        "foff_hz": -2.835503418452676,
+        "tsamp_s": 17.986224128,
+        "first_channel": 290246,
+        "centre_freq_mhz": 1586.4967198745228,
+        "snr": 4.1033124923706055,
+        "pool": {
+          "id": "sky-pool/v1",
+          "key": "gj447"
+        },
+        "archive": {
+          "target": "GJ447",
+          "telescope": "GBT",
+          "utc": "Tue, 24 May 2016 00:54:31 GMT",
+          "mjd": 57532.0378587963,
+          "ra": 176.9374833333,
+          "decl": 0.7988936111,
+          "center_freq": 1475.09765625,
+          "file_type": "HDF5",
+          "size": 15435150615,
+          "md5sum": "99a9c4a6ece7771f45a50cc6ba009677",
+          "url": "https://bldata.berkeley.edu/pipeline/AGBT16A_999_200/holding/spliced_blc0001020304050607_guppi_57532_03272_GJ447_0009.gpuspec.0000.h5"
+        },
+        "coarse_channel": 114,
+        "sky": {
+          "ra_hours": 11.795832,
+          "dec_deg": 0.798894,
+          "frame": "J2000, the telescope's pointing from the file header",
+          "epoch": "2016-05-24T00:54:32Z",
+          "constellation": "Virgo",
+          "telescope": "Green Bank Telescope",
+          "target": "Ross 128",
+          "distance_label": "11.0 light-years"
+        },
+        "url": "https://bldata.berkeley.edu/pipeline/AGBT16A_999_200/holding/spliced_blc0001020304050607_guppi_57532_03272_GJ447_0009.gpuspec.0000.h5"
+      }
+    },
+    {
+      "id": "gj447-57532-03272-blind-2",
+      "family": "blind-window",
+      "group": "blind window",
+      "file": "gj447-57532-03272-blind-2.bin",
+      "dtype": "float32-le",
+      "shape": [
+        16,
+        256
+      ],
+      "units": "noise sigma, bandpass-flattened",
+      "sha256": "c80233e675a0f909eea91e7c7e6af157f64c7a98d1650b0aee00da759dbecba7",
+      "source": {
+        "file": "spliced_blc0001020304050607_guppi_57532_03272_GJ447_0009.gpuspec.0000.h5",
+        "source_name": "GJ447",
+        "tstart_mjd": 57532.03787037037,
+        "fch1_mhz": 1587.3200763441525,
+        "foff_hz": -2.835503418452676,
+        "tsamp_s": 17.986224128,
+        "first_channel": 741340,
+        "centre_freq_mhz": 1585.2176412954793,
+        "snr": 4.112664222717285,
+        "pool": {
+          "id": "sky-pool/v1",
+          "key": "gj447"
+        },
+        "archive": {
+          "target": "GJ447",
+          "telescope": "GBT",
+          "utc": "Tue, 24 May 2016 00:54:31 GMT",
+          "mjd": 57532.0378587963,
+          "ra": 176.9374833333,
+          "decl": 0.7988936111,
+          "center_freq": 1475.09765625,
+          "file_type": "HDF5",
+          "size": 15435150615,
+          "md5sum": "99a9c4a6ece7771f45a50cc6ba009677",
+          "url": "https://bldata.berkeley.edu/pipeline/AGBT16A_999_200/holding/spliced_blc0001020304050607_guppi_57532_03272_GJ447_0009.gpuspec.0000.h5"
+        },
+        "coarse_channel": 114,
+        "sky": {
+          "ra_hours": 11.795832,
+          "dec_deg": 0.798894,
+          "frame": "J2000, the telescope's pointing from the file header",
+          "epoch": "2016-05-24T00:54:32Z",
+          "constellation": "Virgo",
+          "telescope": "Green Bank Telescope",
+          "target": "Ross 128",
+          "distance_label": "11.0 light-years"
+        },
+        "url": "https://bldata.berkeley.edu/pipeline/AGBT16A_999_200/holding/spliced_blc0001020304050607_guppi_57532_03272_GJ447_0009.gpuspec.0000.h5"
+      }
+    },
+    {
+      "id": "gj447-57532-03272-hit-1",
+      "family": "stars",
+      "group": "hit",
+      "file": "gj447-57532-03272-hit-1.bin",
+      "dtype": "float32-le",
+      "shape": [
+        16,
+        256
+      ],
+      "units": "noise sigma, bandpass-flattened",
+      "sha256": "0cdf4d2ad6f9ab74606d6cc19c95570bc7152a1ac44a645922cd6d9ff3283764",
+      "source": {
+        "file": "spliced_blc0001020304050607_guppi_57532_03272_GJ447_0009.gpuspec.0000.h5",
+        "source_name": "GJ447",
+        "tstart_mjd": 57532.03787037037,
+        "fch1_mhz": 1587.3200763441525,
+        "foff_hz": -2.835503418452676,
+        "tsamp_s": 17.986224128,
+        "first_channel": 831872,
+        "centre_freq_mhz": 1584.9609374979082,
+        "drift_channels_per_step": 1.0216062754731428e-05,
+        "drift_hz_per_s": -1.6105481983332276e-06,
+        "snr": 15304.1435546875,
+        "pool": {
+          "id": "sky-pool/v1",
+          "key": "gj447"
+        },
+        "archive": {
+          "target": "GJ447",
+          "telescope": "GBT",
+          "utc": "Tue, 24 May 2016 00:54:31 GMT",
+          "mjd": 57532.0378587963,
+          "ra": 176.9374833333,
+          "decl": 0.7988936111,
+          "center_freq": 1475.09765625,
+          "file_type": "HDF5",
+          "size": 15435150615,
+          "md5sum": "99a9c4a6ece7771f45a50cc6ba009677",
+          "url": "https://bldata.berkeley.edu/pipeline/AGBT16A_999_200/holding/spliced_blc0001020304050607_guppi_57532_03272_GJ447_0009.gpuspec.0000.h5"
+        },
+        "coarse_channel": 114,
+        "sky": {
+          "ra_hours": 11.795832,
+          "dec_deg": 0.798894,
+          "frame": "J2000, the telescope's pointing from the file header",
+          "epoch": "2016-05-24T00:54:32Z",
+          "constellation": "Virgo",
+          "telescope": "Green Bank Telescope",
+          "target": "Ross 128",
+          "distance_label": "11.0 light-years"
+        },
+        "url": "https://bldata.berkeley.edu/pipeline/AGBT16A_999_200/holding/spliced_blc0001020304050607_guppi_57532_03272_GJ447_0009.gpuspec.0000.h5"
+      }
+    },
+    {
+      "id": "gj447-57532-03272-hit-2",
+      "family": "stars",
+      "group": "hit",
+      "file": "gj447-57532-03272-hit-2.bin",
+      "dtype": "float32-le",
+      "shape": [
+        16,
+        256
+      ],
+      "units": "noise sigma, bandpass-flattened",
+      "sha256": "0cb15cf111c39b82a62dc99d71377443d7bb501eadd4e2852094c1078f204438",
+      "source": {
+        "file": "spliced_blc0001020304050607_guppi_57532_03272_GJ447_0009.gpuspec.0000.h5",
+        "source_name": "GJ447",
+        "tstart_mjd": 57532.03787037037,
+        "fch1_mhz": 1587.3200763441525,
+        "foff_hz": -2.835503418452676,
+        "tsamp_s": 17.986224128,
+        "first_channel": 588310,
+        "centre_freq_mhz": 1585.651559085944,
+        "drift_channels_per_step": 1.5185963058163587,
+        "drift_hz_per_s": -0.2394046124271609,
+        "snr": 40.178993225097656,
+        "pool": {
+          "id": "sky-pool/v1",
+          "key": "gj447"
+        },
+        "archive": {
+          "target": "GJ447",
+          "telescope": "GBT",
+          "utc": "Tue, 24 May 2016 00:54:31 GMT",
+          "mjd": 57532.0378587963,
+          "ra": 176.9374833333,
+          "decl": 0.7988936111,
+          "center_freq": 1475.09765625,
+          "file_type": "HDF5",
+          "size": 15435150615,
+          "md5sum": "99a9c4a6ece7771f45a50cc6ba009677",
+          "url": "https://bldata.berkeley.edu/pipeline/AGBT16A_999_200/holding/spliced_blc0001020304050607_guppi_57532_03272_GJ447_0009.gpuspec.0000.h5"
+        },
+        "coarse_channel": 114,
+        "sky": {
+          "ra_hours": 11.795832,
+          "dec_deg": 0.798894,
+          "frame": "J2000, the telescope's pointing from the file header",
+          "epoch": "2016-05-24T00:54:32Z",
+          "constellation": "Virgo",
+          "telescope": "Green Bank Telescope",
+          "target": "Ross 128",
+          "distance_label": "11.0 light-years"
+        },
+        "url": "https://bldata.berkeley.edu/pipeline/AGBT16A_999_200/holding/spliced_blc0001020304050607_guppi_57532_03272_GJ447_0009.gpuspec.0000.h5"
+      }
+    },
+    {
+      "id": "gj447-57532-03272-hit-3",
+      "family": "stars",
+      "group": "hit",
+      "file": "gj447-57532-03272-hit-3.bin",
+      "dtype": "float32-le",
+      "shape": [
+        16,
+        256
+      ],
+      "units": "noise sigma, bandpass-flattened",
+      "sha256": "e9e9592b4ed127cc0c08ee75a095379170940b59ff896e1a20ea81a1ce200aef",
+      "source": {
+        "file": "spliced_blc0001020304050607_guppi_57532_03272_GJ447_0009.gpuspec.0000.h5",
+        "source_name": "GJ447",
+        "tstart_mjd": 57532.03787037037,
+        "fch1_mhz": 1587.3200763441525,
+        "foff_hz": -2.835503418452676,
+        "tsamp_s": 17.986224128,
+        "first_channel": 589133,
+        "centre_freq_mhz": 1585.649225205082,
+        "drift_channels_per_step": 2.0621940613096905,
+        "drift_hz_per_s": -0.3251020485869281,
+        "snr": 20.4114990234375,
+        "pool": {
+          "id": "sky-pool/v1",
+          "key": "gj447"
+        },
+        "archive": {
+          "target": "GJ447",
+          "telescope": "GBT",
+          "utc": "Tue, 24 May 2016 00:54:31 GMT",
+          "mjd": 57532.0378587963,
+          "ra": 176.9374833333,
+          "decl": 0.7988936111,
+          "center_freq": 1475.09765625,
+          "file_type": "HDF5",
+          "size": 15435150615,
+          "md5sum": "99a9c4a6ece7771f45a50cc6ba009677",
+          "url": "https://bldata.berkeley.edu/pipeline/AGBT16A_999_200/holding/spliced_blc0001020304050607_guppi_57532_03272_GJ447_0009.gpuspec.0000.h5"
+        },
+        "coarse_channel": 114,
+        "sky": {
+          "ra_hours": 11.795832,
+          "dec_deg": 0.798894,
+          "frame": "J2000, the telescope's pointing from the file header",
+          "epoch": "2016-05-24T00:54:32Z",
+          "constellation": "Virgo",
+          "telescope": "Green Bank Telescope",
+          "target": "Ross 128",
+          "distance_label": "11.0 light-years"
+        },
+        "url": "https://bldata.berkeley.edu/pipeline/AGBT16A_999_200/holding/spliced_blc0001020304050607_guppi_57532_03272_GJ447_0009.gpuspec.0000.h5"
+      }
+    },
+    {
+      "id": "gj447-57695-42605-blind-1",
+      "family": "blind-window",
+      "group": "blind window",
+      "file": "gj447-57695-42605-blind-1.bin",
+      "dtype": "float32-le",
+      "shape": [
+        16,
+        256
+      ],
+      "units": "noise sigma, bandpass-flattened",
+      "sha256": "15fbc7dda7e0f8a71081becf3478af6048205cde7869daf32fb565d2f3479b72",
+      "source": {
+        "file": "spliced_blc0001020304050607_guppi_57695_42605_GJ447_0003.gpuspec.0000.h5",
+        "source_name": "GJ447",
+        "tstart_mjd": 57695.493113425924,
+        "fch1_mhz": 2008.88671875,
+        "foff_hz": -2.7939677238464355,
+        "tsamp_s": 18.253611008,
+        "first_channel": 742491,
+        "centre_freq_mhz": 2006.8118652328849,
+        "snr": 3.958401918411255,
+        "pool": {
+          "id": "sky-pool/v1",
+          "key": "gj447"
+        },
+        "archive": {
+          "target": "GJ447",
+          "telescope": "GBT",
+          "utc": "Thu, 03 Nov 2016 11:50:04 GMT",
+          "mjd": 57695.493101851855,
+          "ra": 176.9373958333,
+          "decl": 0.7988902778,
+          "center_freq": 2300.390625,
+          "file_type": "HDF5",
+          "size": 17362375226,
+          "md5sum": "f1222d935554dcc37f2de0b15b61c019",
+          "url": "https://bldata.berkeley.edu/pipeline/AGBT16B_999_60/holding/spliced_blc0001020304050607_guppi_57695_42605_GJ447_0003.gpuspec.0000.h5"
+        },
+        "coarse_channel": 271,
+        "sky": {
+          "ra_hours": 11.795826,
+          "dec_deg": 0.79889,
+          "frame": "J2000, the telescope's pointing from the file header",
+          "epoch": "2016-11-03T11:50:05Z",
+          "constellation": "Virgo",
+          "telescope": "Green Bank Telescope",
+          "target": "Ross 128",
+          "distance_label": "11.0 light-years"
+        },
+        "url": "https://bldata.berkeley.edu/pipeline/AGBT16B_999_60/holding/spliced_blc0001020304050607_guppi_57695_42605_GJ447_0003.gpuspec.0000.h5"
+      }
+    },
+    {
+      "id": "gj447-57695-42605-blind-2",
+      "family": "blind-window",
+      "group": "blind window",
+      "file": "gj447-57695-42605-blind-2.bin",
+      "dtype": "float32-le",
+      "shape": [
+        16,
+        256
+      ],
+      "units": "noise sigma, bandpass-flattened",
+      "sha256": "1c5b669e800de5f8788d2a487899d9b6d98b06b5ee43818911be0a509863c640",
+      "source": {
+        "file": "spliced_blc0001020304050607_guppi_57695_42605_GJ447_0003.gpuspec.0000.h5",
+        "source_name": "GJ447",
+        "tstart_mjd": 57695.493113425924,
+        "fch1_mhz": 2008.88671875,
+        "foff_hz": -2.7939677238464355,
+        "tsamp_s": 18.253611008,
+        "first_channel": 992702,
+        "centre_freq_mhz": 2006.1127837747335,
+        "snr": 4.248130798339844,
+        "pool": {
+          "id": "sky-pool/v1",
+          "key": "gj447"
+        },
+        "archive": {
+          "target": "GJ447",
+          "telescope": "GBT",
+          "utc": "Thu, 03 Nov 2016 11:50:04 GMT",
+          "mjd": 57695.493101851855,
+          "ra": 176.9373958333,
+          "decl": 0.7988902778,
+          "center_freq": 2300.390625,
+          "file_type": "HDF5",
+          "size": 17362375226,
+          "md5sum": "f1222d935554dcc37f2de0b15b61c019",
+          "url": "https://bldata.berkeley.edu/pipeline/AGBT16B_999_60/holding/spliced_blc0001020304050607_guppi_57695_42605_GJ447_0003.gpuspec.0000.h5"
+        },
+        "coarse_channel": 271,
+        "sky": {
+          "ra_hours": 11.795826,
+          "dec_deg": 0.79889,
+          "frame": "J2000, the telescope's pointing from the file header",
+          "epoch": "2016-11-03T11:50:05Z",
+          "constellation": "Virgo",
+          "telescope": "Green Bank Telescope",
+          "target": "Ross 128",
+          "distance_label": "11.0 light-years"
+        },
+        "url": "https://bldata.berkeley.edu/pipeline/AGBT16B_999_60/holding/spliced_blc0001020304050607_guppi_57695_42605_GJ447_0003.gpuspec.0000.h5"
+      }
+    },
+    {
+      "id": "gj447-57695-42605-hit-1",
+      "family": "stars",
+      "group": "hit",
+      "file": "gj447-57695-42605-hit-1.bin",
+      "dtype": "float32-le",
+      "shape": [
+        16,
+        256
+      ],
+      "units": "noise sigma, bandpass-flattened",
+      "sha256": "09215b79dd8ad35a829ab4fbbb20a37659373d9a6d1ca6b3e819e183055df857",
+      "source": {
+        "file": "spliced_blc0001020304050607_guppi_57695_42605_GJ447_0003.gpuspec.0000.h5",
+        "source_name": "GJ447",
+        "tstart_mjd": 57695.493113425924,
+        "fch1_mhz": 2462.98828125,
+        "foff_hz": -2.7939677238464355,
+        "tsamp_s": 18.253611008,
+        "first_channel": 367287,
+        "centre_freq_mhz": 2461.9617352104206,
+        "drift_channels_per_step": 0.4577223266671246,
+        "drift_hz_per_s": -0.07006073519542817,
+        "snr": 15.123851776123047,
+        "pool": {
+          "id": "sky-pool/v1",
+          "key": "gj447"
+        },
+        "archive": {
+          "target": "GJ447",
+          "telescope": "GBT",
+          "utc": "Thu, 03 Nov 2016 11:50:04 GMT",
+          "mjd": 57695.493101851855,
+          "ra": 176.9373958333,
+          "decl": 0.7988902778,
+          "center_freq": 2300.390625,
+          "file_type": "HDF5",
+          "size": 17362375226,
+          "md5sum": "f1222d935554dcc37f2de0b15b61c019",
+          "url": "https://bldata.berkeley.edu/pipeline/AGBT16B_999_60/holding/spliced_blc0001020304050607_guppi_57695_42605_GJ447_0003.gpuspec.0000.h5"
+        },
+        "coarse_channel": 116,
+        "sky": {
+          "ra_hours": 11.795826,
+          "dec_deg": 0.79889,
+          "frame": "J2000, the telescope's pointing from the file header",
+          "epoch": "2016-11-03T11:50:05Z",
+          "constellation": "Virgo",
+          "telescope": "Green Bank Telescope",
+          "target": "Ross 128",
+          "distance_label": "11.0 light-years"
+        },
+        "url": "https://bldata.berkeley.edu/pipeline/AGBT16B_999_60/holding/spliced_blc0001020304050607_guppi_57695_42605_GJ447_0003.gpuspec.0000.h5"
+      }
+    },
+    {
+      "id": "gj699-57457-48988-blind-1",
+      "family": "blind-window",
+      "group": "blind window",
+      "file": "gj699-57457-48988-blind-1.bin",
+      "dtype": "float32-le",
+      "shape": [
+        16,
+        256
+      ],
+      "units": "noise sigma, bandpass-flattened",
+      "sha256": "4497a5540777569df99b6a487e6397f323174371be0502e8784f43491a83c686",
+      "source": {
+        "file": "spliced_blc02030405_2bit_guppi_57457_48988_GJ699_OFF_0006.gpuspec.0000.h5",
+        "source_name": "GJ699_OFF",
+        "tstart_mjd": 57457.56699074074,
+        "fch1_mhz": 1406.6927922138257,
+        "foff_hz": -2.835503418452676,
+        "tsamp_s": 17.986224128,
+        "first_channel": 256834,
+        "centre_freq_mhz": 1405.9641755844132,
+        "snr": 3.8188822269439697,
+        "pool": {
+          "id": "sky-pool/v1",
+          "key": "gj699"
+        },
+        "archive": {
+          "target": "GJ699_OFF",
+          "telescope": "GBT",
+          "utc": "Thu, 10 Mar 2016 13:36:28 GMT",
+          "mjd": 57457.56699074074,
+          "ra": 269.448325,
+          "decl": 6.7391691667,
+          "center_freq": 1501.46484375,
+          "file_type": "HDF5",
+          "size": 12780819036,
+          "md5sum": "692bc686df56e60bdc06b3d70a15d2c6",
+          "url": "https://bldata.berkeley.edu/pipeline/AGBT16A_999_81/holding/spliced_blc02030405_2bit_guppi_57457_48988_GJ699_OFF_0006.gpuspec.0000.h5"
+        },
+        "coarse_channel": 158,
+        "sky": {
+          "ra_hours": 17.963222,
+          "dec_deg": 6.739169,
+          "frame": "J2000, the telescope's pointing from the file header",
+          "epoch": "2016-03-10T13:36:28Z",
+          "constellation": "Ophiuchus",
+          "telescope": "Green Bank Telescope",
+          "target": "Barnard's Star",
+          "distance_label": "5.96 light-years"
+        },
+        "url": "https://bldata.berkeley.edu/pipeline/AGBT16A_999_81/holding/spliced_blc02030405_2bit_guppi_57457_48988_GJ699_OFF_0006.gpuspec.0000.h5"
+      }
+    },
+    {
+      "id": "gj699-57457-48988-blind-2",
+      "family": "blind-window",
+      "group": "blind window",
+      "file": "gj699-57457-48988-blind-2.bin",
+      "dtype": "float32-le",
+      "shape": [
+        16,
+        256
+      ],
+      "units": "noise sigma, bandpass-flattened",
+      "sha256": "9eb09257a353377052de6614c49aed8d6198ddc7651b8e78409f700b3f314f54",
+      "source": {
+        "file": "spliced_blc02030405_2bit_guppi_57457_48988_GJ699_OFF_0006.gpuspec.0000.h5",
+        "source_name": "GJ699_OFF",
+        "tstart_mjd": 57457.56699074074,
+        "fch1_mhz": 1406.6927922138257,
+        "foff_hz": -2.835503418452676,
+        "tsamp_s": 17.986224128,
+        "first_channel": 732861,
+        "centre_freq_mhz": 1404.6143993986375,
+        "snr": 3.68225359916687,
+        "pool": {
+          "id": "sky-pool/v1",
+          "key": "gj699"
+        },
+        "archive": {
+          "target": "GJ699_OFF",
+          "telescope": "GBT",
+          "utc": "Thu, 10 Mar 2016 13:36:28 GMT",
+          "mjd": 57457.56699074074,
+          "ra": 269.448325,
+          "decl": 6.7391691667,
+          "center_freq": 1501.46484375,
+          "file_type": "HDF5",
+          "size": 12780819036,
+          "md5sum": "692bc686df56e60bdc06b3d70a15d2c6",
+          "url": "https://bldata.berkeley.edu/pipeline/AGBT16A_999_81/holding/spliced_blc02030405_2bit_guppi_57457_48988_GJ699_OFF_0006.gpuspec.0000.h5"
+        },
+        "coarse_channel": 158,
+        "sky": {
+          "ra_hours": 17.963222,
+          "dec_deg": 6.739169,
+          "frame": "J2000, the telescope's pointing from the file header",
+          "epoch": "2016-03-10T13:36:28Z",
+          "constellation": "Ophiuchus",
+          "telescope": "Green Bank Telescope",
+          "target": "Barnard's Star",
+          "distance_label": "5.96 light-years"
+        },
+        "url": "https://bldata.berkeley.edu/pipeline/AGBT16A_999_81/holding/spliced_blc02030405_2bit_guppi_57457_48988_GJ699_OFF_0006.gpuspec.0000.h5"
+      }
+    },
+    {
+      "id": "gj699-57457-48988-hit-1",
+      "family": "stars",
+      "group": "hit",
+      "file": "gj699-57457-48988-hit-1.bin",
+      "dtype": "float32-le",
+      "shape": [
+        16,
+        256
+      ],
+      "units": "noise sigma, bandpass-flattened",
+      "sha256": "40f4650d98c6c1c89924b05347443af17ddca5245adce902fbc9ea2fa79e7574",
+      "source": {
+        "file": "spliced_blc02030405_2bit_guppi_57457_48988_GJ699_OFF_0006.gpuspec.0000.h5",
+        "source_name": "GJ699_OFF",
+        "tstart_mjd": 57457.56699074074,
+        "fch1_mhz": 1406.6927922138257,
+        "foff_hz": -2.835503418452676,
+        "tsamp_s": 17.986224128,
+        "first_channel": 156032,
+        "centre_freq_mhz": 1406.2499999999748,
+        "drift_channels_per_step": 5.867175124152718e-06,
+        "drift_hz_per_s": -9.249520634682228e-07,
+        "snr": 150625.96875,
+        "pool": {
+          "id": "sky-pool/v1",
+          "key": "gj699"
+        },
+        "archive": {
+          "target": "GJ699_OFF",
+          "telescope": "GBT",
+          "utc": "Thu, 10 Mar 2016 13:36:28 GMT",
+          "mjd": 57457.56699074074,
+          "ra": 269.448325,
+          "decl": 6.7391691667,
+          "center_freq": 1501.46484375,
+          "file_type": "HDF5",
+          "size": 12780819036,
+          "md5sum": "692bc686df56e60bdc06b3d70a15d2c6",
+          "url": "https://bldata.berkeley.edu/pipeline/AGBT16A_999_81/holding/spliced_blc02030405_2bit_guppi_57457_48988_GJ699_OFF_0006.gpuspec.0000.h5"
+        },
+        "coarse_channel": 158,
+        "sky": {
+          "ra_hours": 17.963222,
+          "dec_deg": 6.739169,
+          "frame": "J2000, the telescope's pointing from the file header",
+          "epoch": "2016-03-10T13:36:28Z",
+          "constellation": "Ophiuchus",
+          "telescope": "Green Bank Telescope",
+          "target": "Barnard's Star",
+          "distance_label": "5.96 light-years"
+        },
+        "url": "https://bldata.berkeley.edu/pipeline/AGBT16A_999_81/holding/spliced_blc02030405_2bit_guppi_57457_48988_GJ699_OFF_0006.gpuspec.0000.h5"
+      }
+    },
+    {
+      "id": "gj699-57457-48988-hit-2",
+      "family": "stars",
+      "group": "hit",
+      "file": "gj699-57457-48988-hit-2.bin",
+      "dtype": "float32-le",
+      "shape": [
+        16,
+        256
+      ],
+      "units": "noise sigma, bandpass-flattened",
+      "sha256": "301cdddef8800281a7d2168826b7105608331b12b7719956a6e2154ec0d070b4",
+      "source": {
+        "file": "spliced_blc02030405_2bit_guppi_57457_48988_GJ699_OFF_0006.gpuspec.0000.h5",
+        "source_name": "GJ699_OFF",
+        "tstart_mjd": 57457.56699074074,
+        "fch1_mhz": 1406.6927922138257,
+        "foff_hz": -2.835503418452676,
+        "tsamp_s": 17.986224128,
+        "first_channel": 137899,
+        "centre_freq_mhz": 1406.3014158417122,
+        "drift_channels_per_step": -2.804708240473023,
+        "drift_hz_per_s": 0.44215838449623307,
+        "snr": 34.19099807739258,
+        "pool": {
+          "id": "sky-pool/v1",
+          "key": "gj699"
+        },
+        "archive": {
+          "target": "GJ699_OFF",
+          "telescope": "GBT",
+          "utc": "Thu, 10 Mar 2016 13:36:28 GMT",
+          "mjd": 57457.56699074074,
+          "ra": 269.448325,
+          "decl": 6.7391691667,
+          "center_freq": 1501.46484375,
+          "file_type": "HDF5",
+          "size": 12780819036,
+          "md5sum": "692bc686df56e60bdc06b3d70a15d2c6",
+          "url": "https://bldata.berkeley.edu/pipeline/AGBT16A_999_81/holding/spliced_blc02030405_2bit_guppi_57457_48988_GJ699_OFF_0006.gpuspec.0000.h5"
+        },
+        "coarse_channel": 158,
+        "sky": {
+          "ra_hours": 17.963222,
+          "dec_deg": 6.739169,
+          "frame": "J2000, the telescope's pointing from the file header",
+          "epoch": "2016-03-10T13:36:28Z",
+          "constellation": "Ophiuchus",
+          "telescope": "Green Bank Telescope",
+          "target": "Barnard's Star",
+          "distance_label": "5.96 light-years"
+        },
+        "url": "https://bldata.berkeley.edu/pipeline/AGBT16A_999_81/holding/spliced_blc02030405_2bit_guppi_57457_48988_GJ699_OFF_0006.gpuspec.0000.h5"
+      }
+    },
+    {
+      "id": "gj699-57689-79487-blind-1",
+      "family": "blind-window",
+      "group": "blind window",
+      "file": "gj699-57689-79487-blind-1.bin",
+      "dtype": "float32-le",
+      "shape": [
+        16,
+        256
+      ],
+      "units": "noise sigma, bandpass-flattened",
+      "sha256": "8b9ff6a7fd76863a16086eacc4858506160d152883b69a93dcfec39a4e820557",
+      "source": {
+        "file": "spliced_blc1011121314151617_guppi_57689_79487_GJ699_0043.gpuspec.0000.h5",
+        "source_name": "GJ699",
+        "tstart_mjd": 57689.91998842593,
+        "fch1_mhz": 2474.70703125,
+        "foff_hz": -2.7939677238464355,
+        "tsamp_s": 18.253611008,
+        "first_channel": 512163,
+        "centre_freq_mhz": 2473.275706730783,
+        "snr": 4.087729454040527,
+        "pool": {
+          "id": "sky-pool/v1",
+          "key": "gj699"
+        },
+        "archive": {
+          "target": "GJ699",
+          "telescope": "GBT",
+          "utc": "Fri, 28 Oct 2016 22:04:46 GMT",
+          "mjd": 57689.91997685185,
+          "ra": 269.448246723,
+          "decl": 4.7391804036,
+          "center_freq": 2269.62890625,
+          "file_type": "HDF5",
+          "size": 15606753746,
+          "md5sum": "55c4d0bb406ad996f7cf1ebdc9cd8dc4",
+          "url": "https://bldata.berkeley.edu/pipeline/AGBT16B_999_55/holding/spliced_blc1011121314151617_guppi_57689_79487_GJ699_0043.gpuspec.0000.h5"
+        },
+        "coarse_channel": 84,
+        "sky": {
+          "ra_hours": 17.963216,
+          "dec_deg": 4.73918,
+          "frame": "J2000, the telescope's pointing from the file header",
+          "epoch": "2016-10-28T22:04:47Z",
+          "constellation": "Ophiuchus",
+          "telescope": "Green Bank Telescope",
+          "target": "Barnard's Star",
+          "distance_label": "5.96 light-years"
+        },
+        "url": "https://bldata.berkeley.edu/pipeline/AGBT16B_999_55/holding/spliced_blc1011121314151617_guppi_57689_79487_GJ699_0043.gpuspec.0000.h5"
+      }
+    },
+    {
+      "id": "gj699-57689-79487-blind-2",
+      "family": "blind-window",
+      "group": "blind window",
+      "file": "gj699-57689-79487-blind-2.bin",
+      "dtype": "float32-le",
+      "shape": [
+        16,
+        256
+      ],
+      "units": "noise sigma, bandpass-flattened",
+      "sha256": "93158053174a0f65cec034d8a196367ed4ad76adff19e7430f3e88c42e7aeb75",
+      "source": {
+        "file": "spliced_blc1011121314151617_guppi_57689_79487_GJ699_0043.gpuspec.0000.h5",
+        "source_name": "GJ699",
+        "tstart_mjd": 57689.91998842593,
+        "fch1_mhz": 2474.70703125,
+        "foff_hz": -2.7939677238464355,
+        "tsamp_s": 18.253611008,
+        "first_channel": 263305,
+        "centre_freq_mhz": 2473.971007950604,
+        "snr": 4.264184474945068,
+        "pool": {
+          "id": "sky-pool/v1",
+          "key": "gj699"
+        },
+        "archive": {
+          "target": "GJ699",
+          "telescope": "GBT",
+          "utc": "Fri, 28 Oct 2016 22:04:46 GMT",
+          "mjd": 57689.91997685185,
+          "ra": 269.448246723,
+          "decl": 4.7391804036,
+          "center_freq": 2269.62890625,
+          "file_type": "HDF5",
+          "size": 15606753746,
+          "md5sum": "55c4d0bb406ad996f7cf1ebdc9cd8dc4",
+          "url": "https://bldata.berkeley.edu/pipeline/AGBT16B_999_55/holding/spliced_blc1011121314151617_guppi_57689_79487_GJ699_0043.gpuspec.0000.h5"
+        },
+        "coarse_channel": 84,
+        "sky": {
+          "ra_hours": 17.963216,
+          "dec_deg": 4.73918,
+          "frame": "J2000, the telescope's pointing from the file header",
+          "epoch": "2016-10-28T22:04:47Z",
+          "constellation": "Ophiuchus",
+          "telescope": "Green Bank Telescope",
+          "target": "Barnard's Star",
+          "distance_label": "5.96 light-years"
+        },
+        "url": "https://bldata.berkeley.edu/pipeline/AGBT16B_999_55/holding/spliced_blc1011121314151617_guppi_57689_79487_GJ699_0043.gpuspec.0000.h5"
+      }
+    },
+    {
+      "id": "proxcen-59337-61382-blind-1",
+      "family": "blind-window",
+      "group": "blind window",
+      "file": "proxcen-59337-61382-blind-1.bin",
+      "dtype": "float32-le",
+      "shape": [
+        16,
+        256
+      ],
+      "units": "noise sigma, bandpass-flattened",
+      "sha256": "507b950010949a8f8c0d40c3edc91399f6fb6190dbec5d71c854dbe9456be373",
+      "source": {
+        "file": "guppi_59337_61382_6180043724_ProxCen_S_0001.0000.fil",
+        "source_name": "ProxCen_S",
+        "tstart_mjd": 59337.710439814815,
+        "fch1_mhz": 980.97152,
+        "foff_hz": 2.0,
+        "tsamp_s": 15.0,
+        "first_channel": 76320,
+        "centre_freq_mhz": 981.1244160000001,
+        "snr": 4.117561340332031,
+        "pool": {
+          "id": "sky-pool/v1",
+          "key": "proxcen"
+        },
+        "archive": {
+          "target": "PROXCEN_S",
+          "telescope": "Parkes",
+          "utc": "Mon, 03 May 2021 17:03:02 GMT",
+          "mjd": 59337.710439814815,
+          "ra": 217.42875,
+          "decl": -62.6795,
+          "center_freq": 1024.0,
+          "file_type": "filterbank",
+          "size": 30720000395,
+          "md5sum": "a30043ef79b83f72aad6e50e2e5a250d",
+          "url": "http://blpd1.ssl.berkeley.edu/P1018_2/blc02/P1018/GUPPI/guppi_59337_61382_6180043724_ProxCen_S_0001.0000.fil"
+        },
+        "coarse_channel": 10,
+        "time_steps": "the first 16 of 120",
+        "sky": {
+          "ra_hours": 14.49526,
+          "dec_deg": -62.6795,
+          "frame": "J2000, the telescope's pointing from the file header",
+          "epoch": "2021-05-03T17:03:02Z",
+          "constellation": "Centaurus",
+          "target": "Proxima Centauri",
+          "distance_label": "4.24 light-years",
+          "telescope": "Parkes"
+        },
+        "url": "http://blpd1.ssl.berkeley.edu/P1018_2/blc02/P1018/GUPPI/guppi_59337_61382_6180043724_ProxCen_S_0001.0000.fil"
+      }
+    },
+    {
+      "id": "proxcen-59337-61382-blind-2",
+      "family": "blind-window",
+      "group": "blind window",
+      "file": "proxcen-59337-61382-blind-2.bin",
+      "dtype": "float32-le",
+      "shape": [
+        16,
+        256
+      ],
+      "units": "noise sigma, bandpass-flattened",
+      "sha256": "3905a0c70e2207a230b590a7afbdf891bc2e9a28b6ec1905d69cb5d80418a217",
+      "source": {
+        "file": "guppi_59337_61382_6180043724_ProxCen_S_0001.0000.fil",
+        "source_name": "ProxCen_S",
+        "tstart_mjd": 59337.710439814815,
+        "fch1_mhz": 980.97152,
+        "foff_hz": 2.0,
+        "tsamp_s": 15.0,
+        "first_channel": 637694,
+        "centre_freq_mhz": 982.2471640000001,
+        "snr": 4.063081741333008,
+        "pool": {
+          "id": "sky-pool/v1",
+          "key": "proxcen"
+        },
+        "archive": {
+          "target": "PROXCEN_S",
+          "telescope": "Parkes",
+          "utc": "Mon, 03 May 2021 17:03:02 GMT",
+          "mjd": 59337.710439814815,
+          "ra": 217.42875,
+          "decl": -62.6795,
+          "center_freq": 1024.0,
+          "file_type": "filterbank",
+          "size": 30720000395,
+          "md5sum": "a30043ef79b83f72aad6e50e2e5a250d",
+          "url": "http://blpd1.ssl.berkeley.edu/P1018_2/blc02/P1018/GUPPI/guppi_59337_61382_6180043724_ProxCen_S_0001.0000.fil"
+        },
+        "coarse_channel": 10,
+        "time_steps": "the first 16 of 120",
+        "sky": {
+          "ra_hours": 14.49526,
+          "dec_deg": -62.6795,
+          "frame": "J2000, the telescope's pointing from the file header",
+          "epoch": "2021-05-03T17:03:02Z",
+          "constellation": "Centaurus",
+          "target": "Proxima Centauri",
+          "distance_label": "4.24 light-years",
+          "telescope": "Parkes"
+        },
+        "url": "http://blpd1.ssl.berkeley.edu/P1018_2/blc02/P1018/GUPPI/guppi_59337_61382_6180043724_ProxCen_S_0001.0000.fil"
+      }
+    },
+    {
+      "id": "proxcen-59337-61382-hit-1",
+      "family": "stars",
+      "group": "hit",
+      "file": "proxcen-59337-61382-hit-1.bin",
+      "dtype": "float32-le",
+      "shape": [
+        16,
+        256
+      ],
+      "units": "noise sigma, bandpass-flattened",
+      "sha256": "feb1ae57ec37ac596073f4a1cd695f9ce41da17599e39b3109ff4d6786bc6e11",
+      "source": {
+        "file": "guppi_59337_61382_6180043724_ProxCen_S_0001.0000.fil",
+        "source_name": "ProxCen_S",
+        "tstart_mjd": 59337.710439814815,
+        "fch1_mhz": 980.97152,
+        "foff_hz": 2.0,
+        "tsamp_s": 15.0,
+        "first_channel": 721679,
+        "centre_freq_mhz": 982.41513381512,
+        "drift_channels_per_step": 0.08004684370356675,
+        "drift_hz_per_s": 0.010672912493808898,
+        "snr": 45.807857513427734,
+        "pool": {
+          "id": "sky-pool/v1",
+          "key": "proxcen"
+        },
+        "archive": {
+          "target": "PROXCEN_S",
+          "telescope": "Parkes",
+          "utc": "Mon, 03 May 2021 17:03:02 GMT",
+          "mjd": 59337.710439814815,
+          "ra": 217.42875,
+          "decl": -62.6795,
+          "center_freq": 1024.0,
+          "file_type": "filterbank",
+          "size": 30720000395,
+          "md5sum": "a30043ef79b83f72aad6e50e2e5a250d",
+          "url": "http://blpd1.ssl.berkeley.edu/P1018_2/blc02/P1018/GUPPI/guppi_59337_61382_6180043724_ProxCen_S_0001.0000.fil"
+        },
+        "coarse_channel": 10,
+        "time_steps": "the first 16 of 120",
+        "sky": {
+          "ra_hours": 14.49526,
+          "dec_deg": -62.6795,
+          "frame": "J2000, the telescope's pointing from the file header",
+          "epoch": "2021-05-03T17:03:02Z",
+          "constellation": "Centaurus",
+          "target": "Proxima Centauri",
+          "distance_label": "4.24 light-years",
+          "telescope": "Parkes"
+        },
+        "url": "http://blpd1.ssl.berkeley.edu/P1018_2/blc02/P1018/GUPPI/guppi_59337_61382_6180043724_ProxCen_S_0001.0000.fil"
+      }
+    },
+    {
+      "id": "proxcen-59337-61382-hit-2",
+      "family": "stars",
+      "group": "hit",
+      "file": "proxcen-59337-61382-hit-2.bin",
+      "dtype": "float32-le",
+      "shape": [
+        16,
+        256
+      ],
+      "units": "noise sigma, bandpass-flattened",
+      "sha256": "a59af5abdc75d102c127a309d8e723b4b7455432eea453c151b2c4ebd543b327",
+      "source": {
+        "file": "guppi_59337_61382_6180043724_ProxCen_S_0001.0000.fil",
+        "source_name": "ProxCen_S",
+        "tstart_mjd": 59337.710439814815,
+        "fch1_mhz": 980.97152,
+        "foff_hz": 2.0,
+        "tsamp_s": 15.0,
+        "first_channel": 514112,
+        "centre_freq_mhz": 981.9999999614606,
+        "drift_channels_per_step": -0.10300850101749678,
+        "drift_hz_per_s": -0.013734466802332904,
+        "snr": 24.98971939086914,
+        "pool": {
+          "id": "sky-pool/v1",
+          "key": "proxcen"
+        },
+        "archive": {
+          "target": "PROXCEN_S",
+          "telescope": "Parkes",
+          "utc": "Mon, 03 May 2021 17:03:02 GMT",
+          "mjd": 59337.710439814815,
+          "ra": 217.42875,
+          "decl": -62.6795,
+          "center_freq": 1024.0,
+          "file_type": "filterbank",
+          "size": 30720000395,
+          "md5sum": "a30043ef79b83f72aad6e50e2e5a250d",
+          "url": "http://blpd1.ssl.berkeley.edu/P1018_2/blc02/P1018/GUPPI/guppi_59337_61382_6180043724_ProxCen_S_0001.0000.fil"
+        },
+        "coarse_channel": 10,
+        "time_steps": "the first 16 of 120",
+        "sky": {
+          "ra_hours": 14.49526,
+          "dec_deg": -62.6795,
+          "frame": "J2000, the telescope's pointing from the file header",
+          "epoch": "2021-05-03T17:03:02Z",
+          "constellation": "Centaurus",
+          "target": "Proxima Centauri",
+          "distance_label": "4.24 light-years",
+          "telescope": "Parkes"
+        },
+        "url": "http://blpd1.ssl.berkeley.edu/P1018_2/blc02/P1018/GUPPI/guppi_59337_61382_6180043724_ProxCen_S_0001.0000.fil"
+      }
+    },
+    {
+      "id": "proxcen-59337-61382-hit-3",
+      "family": "stars",
+      "group": "hit",
+      "file": "proxcen-59337-61382-hit-3.bin",
+      "dtype": "float32-le",
+      "shape": [
+        16,
+        256
+      ],
+      "units": "noise sigma, bandpass-flattened",
+      "sha256": "a7171709146362ba7e6988bb93dc71b908fc21af43ea6ae2c499450b730ad3ab",
+      "source": {
+        "file": "guppi_59337_61382_6180043724_ProxCen_S_0001.0000.fil",
+        "source_name": "ProxCen_S",
+        "tstart_mjd": 59337.710439814815,
+        "fch1_mhz": 980.97152,
+        "foff_hz": 2.0,
+        "tsamp_s": 15.0,
+        "first_channel": 768314,
+        "centre_freq_mhz": 982.508404049457,
+        "drift_channels_per_step": 0.022400309878671167,
+        "drift_hz_per_s": 0.002986707983822822,
+        "snr": 15.03819465637207,
+        "pool": {
+          "id": "sky-pool/v1",
+          "key": "proxcen"
+        },
+        "archive": {
+          "target": "PROXCEN_S",
+          "telescope": "Parkes",
+          "utc": "Mon, 03 May 2021 17:03:02 GMT",
+          "mjd": 59337.710439814815,
+          "ra": 217.42875,
+          "decl": -62.6795,
+          "center_freq": 1024.0,
+          "file_type": "filterbank",
+          "size": 30720000395,
+          "md5sum": "a30043ef79b83f72aad6e50e2e5a250d",
+          "url": "http://blpd1.ssl.berkeley.edu/P1018_2/blc02/P1018/GUPPI/guppi_59337_61382_6180043724_ProxCen_S_0001.0000.fil"
+        },
+        "coarse_channel": 10,
+        "time_steps": "the first 16 of 120",
+        "sky": {
+          "ra_hours": 14.49526,
+          "dec_deg": -62.6795,
+          "frame": "J2000, the telescope's pointing from the file header",
+          "epoch": "2021-05-03T17:03:02Z",
+          "constellation": "Centaurus",
+          "target": "Proxima Centauri",
+          "distance_label": "4.24 light-years",
+          "telescope": "Parkes"
+        },
+        "url": "http://blpd1.ssl.berkeley.edu/P1018_2/blc02/P1018/GUPPI/guppi_59337_61382_6180043724_ProxCen_S_0001.0000.fil"
+      }
+    },
+    {
       "id": "voyager1-57650-67573-blind-1",
       "family": "blind-window",
       "group": "blind window",
