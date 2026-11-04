@@ -61,8 +61,13 @@ adds two families to Voyager's:
     a spike (one channel wide, not drifting) is left out. The telescope a slice names is the
     archive's, since some Parkes files carry Green Bank's id.
   - **Proxima Centauri** is blc1's window: Parkes (Murriyang) scans from 2019-04-29, the day
-    blc1 was recorded, in the coarse channel containing 982.002 MHz, where it drifted. blc1 was
-    later shown to be interference.
+    blc1 was recorded, in the coarse channel containing 982.002 MHz. Besides the hits and blind
+    windows, each scan gives one window centred on blc1's published frequency, 982.002571 MHz
+    (group `blc1 window`; Smith et al. 2021, arXiv:2111.08007). It drifted +0.038 Hz/s, about
+    90 channels over the 2.5 hours it was seen, so the window holds it whenever it was there; its
+    card says "window at blc1's frequency" (`source.window_type`), not "on-target hit", because no
+    detection chose it, and in the first 16 steps of a scan blc1 needn't stand out. blc1 was later
+    shown to be interference (Sheikh et al. 2021).
   - The other targets are nearby stars: Tau Ceti (Parkes), and Barnard's Star (GJ 699), Lalande
     21185, Wolf 359, Ross 128 and 61 Cygni (Green Bank), at most 8 targets from the archive in
     all. Each target lists the archive queries to try in order (its name, its HIP number, then a
@@ -89,7 +94,9 @@ Every pool slice records, as well as the usual `source` fields:
   `mjd`, `ra` and `decl` (degrees), `center_freq`, `file_type`, `size`, `md5sum` and `url`. The
   archive serves most files over plain HTTP, so the slices were read without TLS; with the URL
   and the MD5, anyone can download the file and check a slice against it;
-- `source.time_steps`, for a scan longer than 16 steps: which steps the slice holds.
+- `source.time_steps`, for a scan longer than 16 steps: which steps the slice holds;
+- for a window at a named frequency, `source.window_type` (what the card calls it) and
+  `source.window_of` (what the frequency is).
 
 #### Cutting the pool
 

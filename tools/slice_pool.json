@@ -1,6 +1,6 @@
 {
   "id": "sky-pool/v1",
-  "about": "The Live Lab's pool of real sky samples (tools/extract_slices.py --pool). For each target, a few observations from the Breakthrough Listen Open Data Archive (the first query that finds fine-resolution files wins), or files listed directly. From each file: up to `hits` on-target hits (family stars), the strongest narrowband signals the de-Doppler search finds above `threshold` in one coarse channel (the one containing `freq_mhz`, else up to `tries` drawn at random), and `blind` blind windows (family blind-window) at seeded random frequencies in the first coarse channel read. The seed fixes every random choice, so re-running the pool cuts the same slices. TRAPPIST-1 and Epsilon Eridani were tried and left out: the archive's TRAPPIST-1 scans have only 3 time steps (a slice needs 16), and it lists no Epsilon Eridani files.",
+  "about": "The Live Lab's pool of real sky samples (tools/extract_slices.py --pool). For each target, a few observations from the Breakthrough Listen Open Data Archive (its queries in order, while it still wants files), or files listed directly. From each file: up to `hits` on-target hits (family stars), the strongest narrowband signals the de-Doppler search finds above `threshold` in one coarse channel (the one containing `freq_mhz`, else up to `tries` drawn at random), and `blind` blind windows (family blind-window) at seeded random frequencies in the first coarse channel read, plus a window centred on each of the target's named `windows` (family stars). The seed fixes every random choice, so re-running the pool cuts the same slices. TRAPPIST-1 and Epsilon Eridani were tried and left out: the archive's TRAPPIST-1 scans have only 3 time steps (a slice needs 16), and it lists no Epsilon Eridani files.",
   "seed": 20261104,
   "api": "http://seti.berkeley.edu/opendata/api",
   "threshold": 10,
@@ -27,7 +27,7 @@
       "key": "proxcen",
       "name": "Proxima Centauri",
       "distance_label": "4.24 light-years",
-      "about": "blc1's window: Parkes (Murriyang) scans of Proxima Centauri from the day blc1 was recorded (2019-04-29), in the coarse channel containing 982.002 MHz, where blc1 drifted. Then any Parkes scan of the star.",
+      "about": "blc1's window: Parkes (Murriyang) scans of Proxima Centauri from the day blc1 was recorded (2019-04-29), in the coarse channel containing 982.002 MHz, with a window centred on blc1's published frequency in each. Then any Parkes scan of the star.",
       "queries": [
         {
           "target": "PROXCEN",
@@ -52,7 +52,15 @@
       "freq_mhz": 982.002,
       "files": 2,
       "hits": 3,
-      "blind": 2
+      "blind": 2,
+      "windows": [
+        {
+          "name": "blc1",
+          "freq_mhz": 982.002571,
+          "label": "window at blc1's frequency",
+          "about": "blc1: detected at 982.002571 MHz, drifting +0.038 Hz/s, over about 2.5 hours on 2019-04-29 (Smith et al. 2021, arXiv:2111.08007); shown to be interference (Sheikh et al. 2021)"
+        }
+      ]
     },
     {
       "key": "tauceti",

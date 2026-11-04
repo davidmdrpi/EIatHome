@@ -40,7 +40,8 @@ export function describeSample(slice) {
   return {
     id: slice.id,
     family: slice.family,
-    window: family.window,
+    // A window cut at a named frequency (blc1's, say) says so; otherwise the family's kind.
+    window: source.window_type ?? family.window,
     sourceName: source.source_name || null,
     target: sky.target ?? null,
     telescope: sky.telescope ?? source.archive?.telescope ?? null,

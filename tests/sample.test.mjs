@@ -60,11 +60,23 @@ test('the marker card says where a sample came from and how its window was cut',
 
   for (const s of slices.filter((x) => x.family === 'blind-window' || x.family === 'stars')) {
     const card = describeSample(s);
-    assert.equal(card.window, familyById[s.family].window);
+    assert.equal(card.window, s.source.window_type ?? familyById[s.family].window);
     assert.ok(card.target, `${s.id} names its target`);
     assert.ok(card.telescope && card.mjd && card.freqMhz && card.snr !== null, `${s.id}: ${JSON.stringify(card)}`);
-    assert.match(sampleLines(card)[0], s.family === 'stars' ? /^On-target hit · / : /^Random blind window · /);
+    const kind = s.source.window_type ? /^Window at / : s.family === 'stars' ? /^On-target hit · / : /^Random blind window · /;
+    assert.match(sampleLines(card)[0], kind);
   }
+});
+
+test('a window cut at a named frequency says so on the card', () => {
+  const slice = {
+    id: 'proxcen-58602-55301-blc1', family: 'stars', startMjd: 58602.64,
+    source: { source_name: 'ProxCen', centre_freq_mhz: 982.002571, snr: 7.2, window_type: "window at blc1's frequency",
+      sky: { ra_hours: 14.49526, dec_deg: -62.6795, epoch: '2019-04-29T15:21:41Z', target: 'Proxima Centauri', telescope: 'Parkes' } },
+  };
+  const [what, measured] = sampleLines(describeSample(slice));
+  assert.equal(what, "Window at blc1's frequency · Proxima Centauri (ProxCen) · Parkes");
+  assert.equal(measured, 'MJD 58602.6400 · 982.002571 MHz · no drift measured · peak SNR 7.2 in the window');
 });
 
 test('a sample belongs to the sky map target of its family, pointing and date', async () => {

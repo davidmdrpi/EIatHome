@@ -889,7 +889,21 @@ def cut_file(path, target, pool, args, archive, header, n_chans, hints, wanted_h
         extra = {"pool": {"id": pool["id"], "key": key}}
         if archive:
             extra["archive"] = archive_record(archive)
-        if i == 0:  # blind windows come from the first coarse channel drawn, hits or not
+        if i == 0:  # windows at named frequencies, and blind windows, from the first coarse channel read
+            fch1, foff = float(header["fch1"]), float(header["foff"])
+            for named in target.get("windows", []):
+                first = int(round((float(named["freq_mhz"]) - fch1) / foff)) - width // 2
+                if not 0 <= first <= z.shape[1] - width:
+                    print(f"  {name_of(path)}: {named['name']}'s frequency isn't in coarse channel {coarse}")
+                    continue
+                out.append(make_entry(path, args, header, z[:, first:first + width], f"{key}-{label}-{named['name']}", "stars", f"{named['name']} window", {
+                    "first_channel": first,
+                    "centre_freq_mhz": fch1 + foff * (first + width / 2),
+                    "window_type": named["label"],
+                    "window_of": named["about"],
+                    "snr": float(snr[first:first + width].max()),
+                    **extra,
+                }))
             for n, first in enumerate(blind_starts(z.shape[1], width, wanted_blind, seed, key, path, coarse), 1):
                 window = z[:, first:first + width]
                 out.append(make_entry(path, args, header, window, f"{key}-{label}-blind-{n}", "blind-window", "blind window", {

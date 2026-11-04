@@ -308,14 +308,21 @@ class PoolTests(unittest.TestCase):
                  "c.0002.h5": self.scan("c.0002.h5", 57802.25, seed=2)}  # a mid-resolution product: never chosen
         queries = self.setup_archive(scans, lambda q: [] if q["target"] == "NOPE" else [
             self.archive("a.0000.h5", 57800.25), self.archive("b.0000.h5", 57801.25), self.archive("c.0002.h5", 57802.25)])
+        named = 1500.0 - 2.7939677238464355e-06 * (self.WIDTH + 1500)  # a named frequency in the line's coarse channel
         target = {"key": "trappist1", "name": "TRAPPIST-1", "distance_label": "40.7 light-years",
-                  "queries": [{"target": "NOPE"}, {"target": "TRAPPIST"}], "files": 2, "hits": 1, "blind": 2, "tries": 1}
+                  "queries": [{"target": "NOPE"}, {"target": "TRAPPIST"}], "files": 2, "hits": 1, "blind": 2, "tries": 1,
+                  "windows": [{"name": "soi", "freq_mhz": named, "label": "window at the SOI's frequency", "about": "a signal of interest"}]}
         # Every coarse channel drawn must be the one with the line: give each file one choice.
         with mock.patch.object(x, "coarse_frequencies", lambda header, n, t, path, seed: [1500.0 - 2.7939677238464355e-06 * (1.5 * self.WIDTH)]):
             slices = self.run_pool([target])
         self.assertEqual([q["target"] for q in queries], ["NOPE", "TRAPPIST"], "the first query that finds files wins")
         by_family = Counter(e["family"] for e in slices)
-        self.assertEqual(by_family, {"stars": 2, "blind-window": 4})
+        self.assertEqual(by_family, {"stars": 4, "blind-window": 4}, "a hit and a named window from each file")
+        for soi in (e for e in slices if e["group"] == "soi window"):
+            self.assertEqual(soi["source"]["window_type"], "window at the SOI's frequency")
+            self.assertEqual(soi["source"]["first_channel"], 1500 - 128)
+            self.assertAlmostEqual(soi["source"]["centre_freq_mhz"], named, places=5)
+        slices = [e for e in slices if e["group"] != "soi window"]
         for e in slices:
             src = e["source"]
             self.assertEqual(src["pool"], {"id": "test-pool/v1", "key": "trappist1"})
