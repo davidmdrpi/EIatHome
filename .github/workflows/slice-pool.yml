@@ -51,7 +51,7 @@ jobs:
       - name: Check every slice
         run: |
           python -m unittest discover -s tests -p 'test_extract_slices.py'
-          node --test tests/unit.test.mjs tests/sample.test.mjs
+          node --test --test-reporter=dot tests/unit.test.mjs tests/sample.test.mjs
       - name: Commit the slices
         env:
           REF_NAME: ${{ github.ref_name }}

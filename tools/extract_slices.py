@@ -73,6 +73,9 @@ COARSE_MHZ = {6: 2.9296875, 4: 1.0}
 # Where coarse channels start, in coarse channels before the fch1-aligned blocks: Parkes's are
 # centred on whole MHz, so on the blocks' edges (its DC spikes fall at whole MHz).
 COARSE_PHASE = {4: 0.5}
+# The alignments a pool run tries, in order, until a coarse channel has its DC spike in the middle:
+# Parkes files differ (whole MHz in 2021, half MHz in others).
+COARSE_PHASES = {4: (0.5, 0.0)}
 TIME_STEPS = 16  # time steps per Live Lab slice (web/js/signals.js's T)
 # Archive hosts with valid TLS certificates: their http:// URLs are read over https instead.
 HTTPS_HOSTS = {"bldata.berkeley.edu"}
@@ -80,6 +83,10 @@ HTTPS_HOSTS = {"bldata.berkeley.edu"}
 
 class SkipFile(Exception):
     """A file the tool can't cut slices from (too short, outside its band, an unsupported format)."""
+
+
+class NoDCSpike(SkipFile):
+    """A coarse channel without its DC spike in the middle: not the channelization assumed."""
 
 
 class Unsuitable(SkipFile):
@@ -235,8 +242,12 @@ def channels_per_coarse(header):
 
 
 def coarse_shift(header, width):
-    """Fine channels by which coarse channels start before the fch1-aligned blocks (COARSE_PHASE)."""
-    return int(round(COARSE_PHASE.get(int(header.get("telescope_id", -1)), 0) * width)) if "nfpc" not in header else 0
+    """Fine channels by which coarse channels start before the fch1-aligned blocks: the header's
+    coarse_phase (a pool run's choice), else the telescope's (COARSE_PHASE), in coarse channels."""
+    if "nfpc" in header:
+        return 0
+    phase = header.get("coarse_phase", COARSE_PHASE.get(int(header.get("telescope_id", -1)), 0))
+    return int(round(phase * width))
 
 
 def coarse_range(header, n_chans, coarse_at, name):
@@ -291,9 +302,11 @@ def read_fil_header(handle):
 
 def apply_hints(header, hints):
     """What the archive knows that the header doesn't: a telescope the header names by an id
-    this tool doesn't know (some Parkes filterbank files)."""
+    this tool doesn't know (some Parkes filterbank files). Also a pool run's coarse_phase."""
     if hints and "telescope_id" in hints and int(header.get("telescope_id", -1)) not in COARSE_MHZ:
         header["telescope_id"] = hints["telescope_id"]
+    if hints and "coarse_phase" in hints:
+        header["coarse_phase"] = hints["coarse_phase"]
     return header
 
 
@@ -515,8 +528,8 @@ def prepare(path, coarse_at=None, steps=None, check_dc=False, hints=None):
     channelization isn't the one assumed, so the spike would pass for a signal."""
     data, header = load(path, coarse_at, steps, hints)
     if check_dc and (height := dc_spike(data)) < 1.5:
-        raise SkipFile(f"no DC spike in the middle of coarse channel {header.get('coarse_channel')} "
-                       f"(height {height:.2f}), so its channelization isn't {header['nchans']:,} channels as assumed")
+        raise NoDCSpike(f"no DC spike in the middle of coarse channel {header.get('coarse_channel')} "
+                       f"(height {height:.2f}): its coarse channels aren't {header['nchans']:,} fine channels, aligned as assumed")
     z = flatten_frames(mask_dc_spike(data))
     if check_dc and not np.abs(z).max() < 1e5:
         # Quantized data (2-bit recordings, say) can leave the noise scale near zero.
@@ -803,7 +816,6 @@ def archive_record(entry):
 
 def pool_slices(path, target, pool, args, archive=None):
     """Hits and blind windows from one file of a pool target."""
-    seed, key, width = pool["seed"], target["key"], args.width
     hints = {"telescope_id": ARCHIVE_TELESCOPES[archive["telescope"]]} if archive and archive.get("telescope") in ARCHIVE_TELESCOPES else None
     header, n_chans = peek_header(path)
     apply_hints(header, hints)
@@ -813,9 +825,26 @@ def pool_slices(path, target, pool, args, archive=None):
         edges = sorted([float(header["fch1"]), float(header["fch1"]) + float(header["foff"]) * n_chans])
         if not edges[0] <= float(target["freq_mhz"]) <= edges[1]:
             raise Unsuitable(f"{name_of(path)} covers {edges[0]:.1f}-{edges[1]:.1f} MHz, not {target['freq_mhz']} MHz")
-    freqs = coarse_frequencies(header, n_chans, target, path, seed)
+    # The coarse channel alignments to try, until one has its DC spike in the middle.
+    phases = COARSE_PHASES.get(int(header.get("telescope_id", -1)), (None,))
     wanted_hits, wanted_blind = int(target.get("hits", 3)), int(target.get("blind", 2))
     threshold = float(target.get("threshold", pool.get("threshold", 10)))
+    for phase in phases:
+        if phase is not None:
+            hints = {**(hints or {}), "coarse_phase": phase}
+            header["coarse_phase"] = phase
+        try:
+            return located_slices(cut_file(path, target, pool, args, archive, header, n_chans, hints, wanted_hits, wanted_blind, threshold), target, archive)
+        except NoDCSpike as err:
+            if phase == phases[-1]:
+                raise
+            print(f"  {name_of(path)}: {err}; trying coarse channels offset by {phases[phases.index(phase) + 1]} of a channel")
+
+
+def cut_file(path, target, pool, args, archive, header, n_chans, hints, wanted_hits, wanted_blind, threshold):
+    """The hits and blind windows of one file, with one coarse channel alignment."""
+    seed, key, width = pool["seed"], target["key"], args.width
+    freqs = coarse_frequencies(header, n_chans, target, path, seed)
     out = []
     for i, freq in enumerate(freqs):
         z, header, snr, best_drift = prepare(path, freq, TIME_STEPS, check_dc=True, hints=hints)
@@ -842,6 +871,12 @@ def pool_slices(path, target, pool, args, archive=None):
                 out.append(make_entry(path, args, header, window, f"{key}-{label}-hit-{n}", "stars", "hit", {**source, **extra}))
             if peaks:
                 break
+    return out, header
+
+
+def located_slices(cut, target, archive):
+    """The slices that say where the telescope pointed, with the target's name and telescope."""
+    out, header = cut
     located = []
     for payload, entry in out:
         sky = entry["source"].get("sky")
@@ -863,8 +898,9 @@ def pool_slices(path, target, pool, args, archive=None):
         sky["target"] = target["name"]
         if target.get("distance_label"):
             sky["distance_label"] = target["distance_label"]
-        if "telescope" not in sky and archive and archive.get("telescope"):
-            sky["telescope"] = str(archive["telescope"])
+        if archive and archive.get("telescope"):
+            # The archive's record, over the header: some Parkes files carry Green Bank's id.
+            sky["telescope"] = TELESCOPES.get(ARCHIVE_TELESCOPES.get(archive["telescope"]), str(archive["telescope"]))
         located.append((payload, entry))
     return located
 
@@ -897,12 +933,53 @@ def run_pool(args):
             report.append((target["key"], 0, "not read: the pool was full"))
             continue
         print(f"{target['name']} ({target['key']}):")
-        paths = [(input_path(u) if not args.allow_http else prefer_https(u), None) for u in target.get("urls", [])]
         queries = target.get("queries", [])
         if queries and stars == limits["max_targets"]:
             report.append((target["key"], 0, f"not read: {stars} archive targets already have slices"))
             continue
-        for query in queries:  # the first query that finds usable files
+        cut = used_files = 0
+        wanted_files = int(target.get("files", 2))
+
+        def read(sources):
+            """Slices from these (path, archive record) sources, until the target has its files:
+            at most three tries per file wanted (files ruled out by their headers alone don't
+            count) among the first MAX_CANDIDATES."""
+            nonlocal cut, used_files, full
+            tried = examined = 0
+            for path, archive in sources:
+                if full or (archive is not None and (used_files == wanted_files or tried == 3 * wanted_files or examined == MAX_CANDIDATES)):
+                    return
+                examined += archive is not None
+                if is_url(path) and path.startswith("http://") and not args.allow_http:
+                    raise SystemExit(f"{path} is plain HTTP: pass --allow-http to read it")
+                try:
+                    slices = pool_slices(path, target, pool, args, archive)
+                except Unsuitable as err:
+                    print(f"  passed over {name_of(path)}: {err}")
+                    continue
+                except (Exception, SystemExit) as err:  # noqa: BLE001 (a remote file we can't use: report it and go on)
+                    print(f"  skipped {name_of(path)}: {type(err).__name__}: {err}")
+                    tried += archive is not None
+                    continue
+                tried += archive is not None
+                used_files += archive is not None and bool(slices)
+                for payload, entry in slices:
+                    if entry["sha256"] in known_hashes or entry["id"] in known_ids:
+                        print(f"  skipped {entry['id']}: already in the manifest")
+                        continue
+                    if len(added) + 1 > budget_slices or (len(added) + 1) * len(payload) > budget_bytes:
+                        print(f"  stopped at {len(added)} slices: the pool's limits are {limits}")
+                        full = True
+                        return
+                    added.append((payload, entry))
+                    known_hashes.add(entry["sha256"])
+                    known_ids.add(entry["id"])
+                    cut += 1
+
+        read([(input_path(u) if not args.allow_http else prefer_https(u), None) for u in target.get("urls", [])])
+        for query in queries:  # in order, while the target still wants files
+            if full or used_files == wanted_files:
+                break
             try:
                 entries = query_files(pool["api"], query, args.allow_http)
             except Exception as err:  # noqa: BLE001 (the archive is remote: report it and go on)
@@ -913,46 +990,8 @@ def run_pool(args):
             if not candidates and entries:
                 kinds = Counter(f"{e.get('file_type')} {PurePosixPath(urlparse(str(e.get('url', ''))).path).suffix}" for e in entries)
                 print(f"    none usable: {dict(kinds.most_common(4))}, e.g. {[PurePosixPath(urlparse(str(e.get('url', ''))).path).name for e in entries[:3]]}")
-            if candidates:
-                # The archive's URLs are absolute; resolve any that aren't against the API's site.
-                paths += [(prefer_https(urljoin(pool["api"], e["url"])), e) for e in candidates]
-                break
-        cut = 0
-        wanted_files = int(target.get("files", 2))
-        used_files = tried = examined = 0
-        for path, archive in paths:
-            if full:
-                break
-            # Archive files: until `files` of them give slices, reading at most three times as many
-            # (files ruled out by their headers alone don't count) of the first MAX_CANDIDATES.
-            if archive is not None and (used_files == wanted_files or tried == 3 * wanted_files or examined == MAX_CANDIDATES):
-                break
-            examined += archive is not None
-            if is_url(path) and path.startswith("http://") and not args.allow_http:
-                raise SystemExit(f"{path} is plain HTTP: pass --allow-http to read it")
-            try:
-                slices = pool_slices(path, target, pool, args, archive)
-            except Unsuitable as err:
-                print(f"  passed over {name_of(path)}: {err}")
-                continue
-            except (Exception, SystemExit) as err:  # noqa: BLE001 (a remote file we can't use: report it and go on)
-                print(f"  skipped {name_of(path)}: {type(err).__name__}: {err}")
-                tried += archive is not None
-                continue
-            tried += archive is not None
-            used_files += archive is not None and bool(slices)
-            for payload, entry in slices:
-                if entry["sha256"] in known_hashes or entry["id"] in known_ids:
-                    print(f"  skipped {entry['id']}: already in the manifest")
-                    continue
-                if len(added) + 1 > budget_slices or (len(added) + 1) * len(payload) > budget_bytes:
-                    print(f"  stopped at {len(added)} slices: the pool's limits are {limits}")
-                    full = True
-                    break
-                added.append((payload, entry))
-                known_hashes.add(entry["sha256"])
-                known_ids.add(entry["id"])
-                cut += 1
+            # The archive's URLs are absolute; resolve any that aren't against the API's site.
+            read([(prefer_https(urljoin(pool["api"], e["url"])), e) for e in candidates])
         stars += bool(queries and cut)
         report.append((target["key"], cut, "" if cut else "no slices"))
 

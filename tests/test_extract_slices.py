@@ -395,6 +395,32 @@ class PoolTests(unittest.TestCase):
         self.assertIn("no DC spike in the middle", self.last_log)
         self.assertNotIn("off.0000.h5", self.last_log, "an off-source scan is never read as on-target")
 
+    def test_parkes_coarse_channels_are_tried_on_both_alignments(self):
+        # A Parkes-like filterbank file (telescope 4, 1 MHz coarse channels of 2048 fine ones
+        # here) whose DC spikes sit in the middle of the fch1-aligned blocks, not on whole MHz.
+        n = 2048
+        rng = np.random.default_rng(5)
+        data = (100 + rng.normal(size=(16, 4 * n))).astype(np.float32)
+        data[:, n // 2::n] *= 20
+        steps = np.arange(16)
+        data[steps, np.round(2 * n + 300 + 0.5 * steps).astype(int)] += 8
+        fil = self.folder / "pks.fil"
+        foff = 1 / n
+        write_fil(fil, data, telescope_id=4, source_name="PROXCEN", fch1=980.0, foff=foff, tsamp=16.78,
+                  tstart=58602.5, src_raj=142942.95, src_dej=-624046.2)
+        self.setup_archive({"pks.fil": fil.read_bytes()}, lambda q: [{**self.archive("pks.fil", 58602.5), "telescope": "Parkes", "file_type": "filterbank"}])
+        target = {"key": "proxcen", "name": "Proxima Centauri", "queries": [{"target": "PROXCEN"}], "files": 1, "hits": 1,
+                  "blind": 1, "freq_mhz": 980.0 + foff * (2 * n + 600)}
+        # The test file's channels are 0.5 kHz wide, and its band too narrow for the edge masks.
+        with mock.patch.object(x, "searchable", lambda snr, width: snr), mock.patch.object(x, "FINE_HZ", 1e4):
+            slices = self.run_pool([target])
+        self.assertIn("trying coarse channels offset by 0.0", self.last_log)
+        hit = next(e for e in slices if e["family"] == "stars")
+        self.assertEqual(hit["source"]["sky"]["telescope"], "Parkes")
+        self.assertEqual(hit["source"]["coarse_channel"], 2)
+        self.assertAlmostEqual(hit["source"]["fch1_mhz"], 980.0 + foff * 2 * n)
+        self.assertLess(abs(hit["source"]["first_channel"] + 128 - (300 + 0.5 * 8)), 3)
+
     def test_fine_resolution_products_by_name(self):
         def ok(name, kind="HDF5"):
             return x.fine_resolution({"url": f"http://h/{name}", "file_type": kind})

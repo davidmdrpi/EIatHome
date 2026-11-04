@@ -55,6 +55,8 @@ adds two families to Voyager's:
     names the telescope when a file's header doesn't) over the file's channel width: 2^20 at Green Bank's usual 2.79 Hz, 1,033,216 at the 2.84 Hz of its
     2016 files, 500,000 at Parkes's 2 Hz. The tool checks that the coarse channel it read has its
     DC spike in the middle, and skips the file if not: a misplaced spike would pass for a hit.
+    Parkes files differ in where their coarse channels start, so both alignments are tried. The
+    telescope a slice names is the archive's, since some Parkes files carry Green Bank's id.
   - **Proxima Centauri** is blc1's window: Parkes (Murriyang) scans from 2019-04-29, the day
     blc1 was recorded, in the coarse channel containing 982.002 MHz, where it drifted. blc1 was
     later shown to be interference.
