@@ -11,6 +11,7 @@ import { MAX_ISSUE_URL, extractCard, submissionText, validateCard } from '../web
 import { matchedSize, matchedTokenWidth, parameterCount, tokenParameterCount } from '../web/js/models.js';
 import { parseRecoveryWindows, recoveryCard, recoveryConfig, runRecoveryUnit, verifyRecoveryCard } from '../web/js/recovery.js';
 import { RESULT_CARD_VERSION } from '../web/js/workunits.js';
+import { describeSample, sampleTitle } from '../web/js/sample.js';
 import { describeDataset } from '../web/js/slices.js';
 import { sessions } from '../web/js/splits.js';
 import { lineSlice, makeCard, publishedSlices, writeSliceFolder } from './fixtures.mjs';
@@ -692,7 +693,7 @@ test('the observatory viewport slews to a signal on the sky, and clicking a beac
   await page.close();
 });
 
-test('one click on the random sky sample picks a real slice, slews to where it came from, and runs Track A and Track B', async () => {
+test('one click on the random sky sample picks a real slice, flies to where it came from, and scores it in Track A and Track B', async () => {
   const published = await publishedSlices();
   const { page, errors } = await openLab();
   await waitForPublished(page);
@@ -710,12 +711,30 @@ test('one click on the random sky sample picks a real slice, slews to where it c
   assert.equal(await page.isDisabled('#sample'), true, 'one sample at a time');
   assert.match(await page.textContent('#lab-status'), /^Building snippets/);
 
-  // The map slews to the slice's pointing; the job runs there, and the card describes the slice.
+  // Section 1 shows the slice's spectrogram, labelled with what it is.
+  const title = sampleTitle(describeSample(slice));
+  assert.equal(await page.isVisible('#sample-card'), true);
+  assert.equal(await page.textContent('#sample-title'), title);
+  assert.match(await page.textContent('#sample-detail'), new RegExp(`(drift [+−]\\d\\.\\d{3} Hz/s|no drift measured) · peak SNR \\d+\\.\\d · .+ · ${picked}$`));
+
+  // The map flies out to a wide view of the slice's part of the sky, constellations showing,
+  // then into the beam at its pointing; the job runs there, and the card describes the slice.
   const { ra_hours: ra, dec_deg: dec, telescope } = slice.source.sky;
-  await page.waitForFunction(([ra, dec]) => {
+  const at = ([ra, dec]) => {
     const [r, d] = document.querySelector('#lab-viewport canvas').dataset.center.split(',').map(Number);
     return Math.abs(r - ra) < 0.01 && Math.abs(d - dec) < 0.01;
-  }, [ra * 15, dec], { timeout: 15000 });
+  };
+  await page.waitForFunction(() => document.querySelector('#lab-viewport canvas').dataset.flight === 'wide', null, { timeout: 15000 });
+  const wide = await viewportState(page, 'lab-viewport');
+  assert.ok(Math.abs(wide.fov - 35) < 1e-6, `${wide.fov}° wide`);
+  assert.ok(await page.evaluate(at, [ra * 15, dec]), 'centred on the pointing');
+  await page.waitForFunction(() => document.querySelector('#lab-viewport canvas').dataset.flight === 'beam', null, { timeout: 15000 });
+  assert.ok(await page.evaluate(at, [ra * 15, dec]));
+  const beam = await viewportState(page, 'lab-viewport');
+  assert.ok(beam.fov <= 2, `into the beam: ${beam.fov}°`);
+  const freq = Number(slice.source.centre_freq_mhz);
+  const name = slice.source.sky.target ?? { voyager: 'Voyager 1', offsource: 'Off-source' }[slice.family];
+  assert.equal(await page.getAttribute('#lab-viewport canvas', 'data-reticle'), `${name} · ${(freq / 1000).toFixed(2)} GHz`, 'the reticle names the target and frequency');
   const target = await page.getAttribute('#sample-status', 'data-target');
   assert.equal(target, `${slice.family}@${ra.toFixed(4)},${dec.toFixed(3)}@${slice.source.sky.epoch.slice(0, 10)}`);
   await page.waitForFunction((t) => document.querySelector('#lab-viewport canvas').dataset.job === t, target, { timeout: 10000 });
@@ -728,19 +747,54 @@ test('one click on the random sky sample picks a real slice, slews to where it c
   assert.match(card, new RegExp(`MJD ${slice.source.tstart_mjd.toFixed(4).replace('.', '\\.')}`));
   assert.match(card, new RegExp(`${Number(slice.source.centre_freq_mhz).toFixed(6).replace('.', '\\.')} MHz`));
   assert.match(card, /drift [+−]\d\.\d{3} Hz\/s · SNR|no drift measured · peak SNR/);
+  assert.deepEqual(await page.$eval('#lab-viewport .hud-thumb', (c) => [c.width, c.height, getComputedStyle(c).display !== 'none']), [64, 16, true], 'its spectrogram, a pixel per channel and frame');
+  // The beam stays framed while Track A trains: no zooming back out with progress.
+  assert.ok((await viewportState(page, 'lab-viewport')).fov <= 2);
 
   // Track B tokenizes the family meanwhile; once Track A is done, the token model trains.
   await page.waitForFunction(() => /^(Done|Stopped)/.test(document.getElementById('lab-status').textContent), null, { timeout: 120000 });
-  assert.match(await page.textContent('#wf-actual-caption'), /^Actual: the sample \((held out|in the training data)\)$/);
-  assert.match(await page.textContent('#tb-status'), new RegExp(`^${slice.family === 'blind-window' ? 'Blind windows' : '[A-Z]'}`));
-  await page.waitForFunction(() => /^Done: GRU/.test(document.getElementById('tb-lm-status').textContent), null, { timeout: 180000 });
+  const caption = await page.textContent('#wf-actual-caption');
+  assert.ok([`Actual: ${title} (held out)`, `Actual: ${title} (in the training data)`].includes(caption), caption);
+  assert.ok((await viewportState(page, 'lab-viewport')).fov <= 2, 'still in the beam');
 
-  // The next click picks another slice.
+  // Track A scores the sample itself, under its family's row.
+  const scoreA = async () => ({
+    row: await page.$eval('#gains tbody tr.this-sample', (tr) => [...tr.cells].map((td) => td.textContent)),
+    display: await page.$eval('#gains tbody tr.this-sample', (tr) => getComputedStyle(tr).display),
+    current: await page.$eval('#gains tbody tr.current + tr', (tr) => tr.className),
+    callout: await page.textContent('#sample-score-a'),
+    slice: await page.getAttribute('#sample-score-a', 'data-slice'),
+  });
+  const a = await scoreA();
+  assert.match(a.row[0], new RegExp(`^This sample \\(${picked}\\) · (held out|in the training data)$`));
+  assert.ok(a.row.slice(1).every((v) => /^-?\d+\.\d\d$/.test(v)), a.row.join());
+  assert.equal(a.current, 'this-sample', 'right under its family');
+  assert.equal(a.display, 'table-row', 'laid out as a row of the table');
+  assert.equal(a.slice, picked);
+  assert.match(a.callout, /prediction gain -?\d+\.\d\d, against -?\d+\.\d\d averaged over the held-out snippets of .+; residual error \d+\.\d\d, against \d+\.\d\d on those snippets/);
+
+  // Track B tokenizes the family meanwhile and scores the sample's tokens; once Track A is done,
+  // the token model trains and scores them too.
+  assert.match(await page.textContent('#tb-status'), new RegExp(`^${slice.family === 'blind-window' ? 'Blind windows' : '[A-Z]'}`));
+  await page.waitForFunction((id) => document.getElementById('sample-score-b').dataset.slice === id, picked, { timeout: 60000 });
+  assert.match(await page.$eval('#tb-entropy-table tbody tr.this-sample', (tr) => tr.cells[0].textContent), new RegExp(`^This sample \\(${picked}\\) · `));
+  assert.match(await page.textContent('#sample-score-b'), /its 16 tokens \([0-9a-w ]+\) cost \d\.\d\d bits per token with 3 tokens of context under the n-gram model, against \d\.\d\d for the held-out test tokens of .+ \(/);
+  await page.waitForFunction(() => /^Done: GRU/.test(document.getElementById('tb-lm-status').textContent), null, { timeout: 180000 });
+  assert.match(await page.$eval('#tb-lm-table tbody tr.this-sample', (tr) => tr.cells[0].textContent), new RegExp(`^This sample \\(${picked}\\)`));
+  assert.match(await page.textContent('#sample-score-b'), /The token GRU: \d\.\d\d bits per token, against \d\.\d\d on the test split\.$/);
+
+  // The next click picks another slice, and its own scores replace the first one's.
   await page.click('#sample');
   const next = await page.getAttribute('#sample-status', 'data-slice');
   assert.ok(next && next !== picked, `${next} after ${picked}`);
-  await page.click('#stop');
   await page.waitForFunction(() => /^(Done|Stopped)/.test(document.getElementById('lab-status').textContent), null, { timeout: 120000 });
+  const b = await scoreA();
+  assert.equal(b.slice, next);
+  assert.notEqual(b.callout, a.callout);
+  assert.notDeepEqual(b.row, a.row, 'another sample, its own scores');
+  await page.waitForFunction((id) => document.getElementById('sample-score-b').dataset.slice === id, next, { timeout: 60000 });
+  await page.click('#stop').catch(() => {}); // the token model, if it has started
+  await page.waitForFunction(() => !document.getElementById('tb-lm').disabled || /^(Done|Stopped)/.test(document.getElementById('tb-lm-status').textContent), null, { timeout: 120000 });
   assert.deepEqual(errors, []);
   await page.close();
 });
@@ -754,10 +808,11 @@ test('with Shuffle frames on, the waterfall keeps showing the sample, in its own
   await page.click('#sample');
   const picked = await page.getAttribute('#sample-status', 'data-slice');
   assert.ok(picked);
-  assert.equal(await page.textContent('#wf-actual-caption'), 'Actual: the sample, frames shuffled');
+  const title = sampleTitle(describeSample((await publishedSlices()).find((s) => s.id === picked)));
+  assert.equal(await page.textContent('#wf-actual-caption'), `Actual: ${title}, frames shuffled`);
   const preview = await page.$eval('#wf-actual', (c) => c.toDataURL());
   // Training on the shuffled family still shows the sample, not another random example.
-  await page.waitForFunction(() => /^Actual: the sample, frames shuffled \((held out|in the training data)\)$/.test(document.getElementById('wf-actual-caption').textContent), null, { timeout: 120000 });
+  await page.waitForFunction((title) => [' (held out)', ' (in the training data)'].map((s) => `Actual: ${title}, frames shuffled${s}`).includes(document.getElementById('wf-actual-caption').textContent), title, { timeout: 120000 });
   await page.waitForFunction(() => /^(Done|Stopped)/.test(document.getElementById('lab-status').textContent), null, { timeout: 120000 });
   assert.equal(await page.getAttribute('#sample-status', 'data-slice'), picked);
   // The same frames in the same order: the worker's waterfall drops the first two frames of the

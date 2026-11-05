@@ -9,7 +9,7 @@ import { deriveSeed, makeRng } from './rng.js';
 import { forWorkers, loadPublishedSlices, loadSliceFiles } from './slices.js';
 import { SCAN_GAP_DAYS, groups, mjdDate, sessions } from './splits.js';
 import { C, FAMILIES, ROSETTA_TEXT, T, driftToHzPerS, familyById, makeSnippet, normalise, shuffleFrames } from './signals.js';
-import { describeSample, pickSample, pointingId, sampleLines, sampleOrder } from './sample.js';
+import { describeSample, pickSample, pointingId, sampleDetail, sampleLines, sampleOrder, sampleTitle } from './sample.js';
 import { GREEN_BANK, OUTCOMES, SkyMap, constellationAt, horizonToEquatorial, loadSky, siderealHours } from './skymap.js';
 import { centralWindow } from './trackb-splits.js';
 import { MAX_UNIT, SPEC, specSlices, workUnitConfig } from './workunits.js';
@@ -258,7 +258,8 @@ function selectFamily(id, { fromMap = false, sample = null } = {}) {
   state.family = id;
   setSample(sample);
   renderFamilies();
-  if (!fromMap) viewports.lab?.select(labTarget(id));
+  // A sample's pointing gets a flight: out to its part of the sky, then into the beam.
+  if (!fromMap) viewports.lab?.[sample ? 'fly' : 'select'](labTarget(id));
   if (!state.running) renderPreview();
   analyzeTokens();
 }
@@ -272,17 +273,34 @@ function setSample(slice) {
   if (!slice) state.pendingTokens = null;
   const status = $('sample-status');
   const target = slice ? pointingId(slice) : null;
-  const lines = slice ? sampleLines(describeSample(slice)) : null;
-  viewports.lab?.setSample(target, lines);
+  const d = slice ? describeSample(slice) : null;
+  const lines = d ? sampleLines(d) : null;
+  // The window the models see, as the sky map's card and Section 1 show it: as observed.
+  const frames = slice ? centralWindow(slice) : null;
+  viewports.lab?.setSample(target, d && { lines, frames: { values: frames, rows: T, cols: C }, freqMhz: d.freqMhz ?? undefined });
   status.dataset.slice = slice?.id ?? '';
   status.dataset.target = target ?? '';
+  renderSampleCard();
   if (!slice) {
     status.textContent = SAMPLE_HINT;
     return;
   }
   const family = familyById[slice.family];
   const count = state.slices.filter((s) => s.family === slice.family).length;
-  status.textContent = `Sample ${slice.id}: ${lines.join(' · ')}. Track A and Track B learn from all ${count.toLocaleString()} ${family.label} slices; the waterfall shows this one.`;
+  status.textContent = `Sample ${slice.id}: ${lines[0]}. Track A and Track B learn from all ${count.toLocaleString()} ${family.label} slices; the waterfalls and the rows marked “This sample” show this one.`;
+}
+
+// Section 1's card: the sample's spectrogram, as observed, with its target, frequency,
+// telescope, drift and peak SNR.
+function renderSampleCard() {
+  const slice = state.sample;
+  $('sample-card').hidden = !slice;
+  if (!slice) return;
+  const d = describeSample(slice);
+  const frames = centralWindow(slice);
+  $('sample-title').textContent = sampleTitle(d);
+  $('sample-detail').textContent = sampleDetail(d);
+  heatmap($('sample-wf'), frames, T, C, { range: [-1, Math.max(3, ...frames)], label: 'power (asinh)', firstRow: 0 });
 }
 
 // One click: a random real slice (never the one already shown), its pointing on the sky map with
@@ -327,7 +345,8 @@ function sampleFrames(seed) {
 // during training, as the run was configured.
 function sampleCaption(focus) {
   const shuffled = focus ? focus.shuffled : $('shuffle').checked;
-  return `Actual: the sample${shuffled ? ', frames shuffled' : ''}${focus ? ` (${focus.heldOut ? 'held out' : 'in the training data'})` : ''}`;
+  const slice = (focus && state.slices.find((s) => s.id === focus.id)) || state.sample;
+  return `Actual: ${sampleTitle(describeSample(slice))}${shuffled ? ', frames shuffled' : ''}${focus ? ` (${focus.heldOut ? 'held out' : 'in the training data'})` : ''}`;
 }
 
 // Before training: show a sample of the chosen family.
@@ -385,13 +404,39 @@ function renderLab() {
       let name = f.label;
       if (f.id === state.trainedFamily) name += e.reconstruction ? ' (trained on; not held out)' : ' (trained on)';
       const tr = makeRow([name, fmt(g.persistence), fmt(g.linear), fmt(g.gru), fmt(e.shuffledGains[f.id])]);
-      if (f.id === state.trainedFamily) tr.className = 'current';
-      return tr;
-    }),
+      if (f.id !== state.trainedFamily) return [tr];
+      tr.className = 'current';
+      // The sample, scored on its own, right under its family's held-out average.
+      const s = e.sample;
+      if (!s) return [tr];
+      const own = makeRow([`This sample (${s.id}) · ${s.heldOut ? 'held out' : 'in the training data'}`, fmt(s.persistence), fmt(s.linear), fmt(s.gru), fmt(s.shuffled)]);
+      own.className = 'this-sample';
+      return [tr, own];
+    }).flat(),
   );
+  renderSampleScoreA(e);
   $('gains-note').hidden = !e.reconstruction;
   $('gains-model').textContent = architectureLabel(e.arch);
   renderMap();
+}
+
+// Track A's callout: the sample's GRU gain and residual error against its family's averages over
+// held-out snippets.
+function renderSampleScoreA(e) {
+  const box = $('sample-score-a');
+  const s = e?.sample;
+  box.hidden = !s;
+  if (!s) return;
+  const family = familyById[state.trainedFamily]?.label ?? 'its family';
+  const g = e.gains[state.trainedFamily];
+  box.replaceChildren(
+    element('b', `This sample (${s.id})`),
+    document.createTextNode(
+      `, ${s.heldOut ? 'held out' : 'in the training data'}: ${architectureLabel(e.arch)} prediction gain ${fmt(s.gru)}, against ${fmt(g.gru)} averaged over the held-out snippets of ${family}; ` +
+        `residual error ${fmt(s.rms)}, against ${fmt(s.familyRms)} on those snippets (root mean square of actual − prediction over frames 2 to ${T - 1}, as in the residual panel).`,
+    ),
+  );
+  box.dataset.slice = s.id;
 }
 
 function renderMap() {
@@ -508,6 +553,7 @@ function analyzeTokens() {
     nFrames: Number($('nframes').value),
     seed: Number($('seed').value) || 0,
     text: state.text || undefined,
+    sample: state.sample?.family === state.family ? state.sample.id : null,
   });
 }
 
@@ -523,6 +569,7 @@ function onTrackB(msg) {
     for (const id of ['tb-tiles', 'tb-entropy-table', 'tb-plugin-table']) $(id).replaceChildren();
     $('tb-notes').textContent = '';
     renderTokenModel();
+    renderSampleScoreB();
     return;
   }
   state.trackb = msg;
@@ -571,7 +618,10 @@ function renderTrackB() {
   lineChart($('tb-entropy'), entropySeries, { xLabel: 'tokens of context', yLabel: 'bits per token (held out)', markers: true, yMin: 0 });
   const rows = STREAMS.map((s) => [s.name, ...r.crossEntropy[s.id].map((e) => fmt(e.bits)), r.sizes.test.targets.toLocaleString()]);
   if (r.control) rows.push([controlName(r), ...r.control.crossEntropy.map((e) => fmt(e.bits)), r.control.targets.toLocaleString()]);
+  if (r.sample) rows.push([sampleRowName(r.sample), ...r.sample.crossEntropy.map((e) => fmt(e.bits)), r.sample.crossEntropy[0].targets.toLocaleString()]);
   fillTable($('tb-entropy-table'), ['Context', ...r.crossEntropy.real.map((e) => e.context), 'Tokens scored'], rows);
+  if (r.sample) $('tb-entropy-table').tBodies[0].lastElementChild.className = 'this-sample';
+  renderSampleScoreB();
   $('tb-control-note').textContent = r.control?.profile ? controlNote(r) : '';
   $('tb-control-note').hidden = !r.control?.profile;
   fillTable(
@@ -595,6 +645,30 @@ function renderTrackB() {
 }
 
 const STREAM_NAMES = Object.fromEntries(STREAMS.map((s) => [s.id, s.name]));
+
+// Where the sample's window sits in Track B's split: a training window's tokens were counted.
+const SPLIT_NOTES = { train: 'in the training split', validation: 'in the validation split', test: 'held out (test split)' };
+const sampleRowName = (s) => `This sample (${s.id}) · ${SPLIT_NOTES[s.split] ?? 'not in the split'}`;
+
+// Track B's callout: the sample's tokens, scored by the n-gram model (and the token model, once
+// trained) against the family's held-out test tokens.
+function renderSampleScoreB() {
+  const box = $('sample-score-b');
+  const r = state.trackb;
+  const s = r?.sample;
+  box.hidden = !s;
+  if (!s) return;
+  const family = familyById[r.family].label;
+  const ngram = (bits) => `${fmt(bits[3].bits)} bits per token with 3 tokens of context`;
+  const parts = [
+    `, ${SPLIT_NOTES[s.split] ?? 'not in the split'}: its ${s.tokens.length} tokens (${s.tokens.map((t) => t.toString(36)).join(' ')}) cost ${ngram(s.crossEntropy)} under the n-gram model, ` +
+      `against ${fmt(r.crossEntropy.real[3].bits)} for the held-out test tokens of ${family} (${fmt(s.crossEntropy[0].bits)} against ${fmt(r.crossEntropy.real[0].bits)} with no context).`,
+  ];
+  const m = state.tokenLm;
+  if (m?.focus && m.analysis === r) parts.push(` The token ${tokenArchitectureLabel(m.arch)}: ${fmt(m.focus.bits)} bits per token, against ${fmt(m.results.real.bits)} on the test split.`);
+  box.replaceChildren(element('b', `This sample (${s.id})`), document.createTextNode(parts.join('')));
+  box.dataset.slice = s.id;
+}
 
 // The other real family's frames, tokenized and scored with this family's models.
 const controlName = (r) => `${familyById[r.control.family].label} (control)`;
@@ -649,6 +723,7 @@ function startTokenModel() {
     centroids: r.centroids,
     seed: Number($('seed').value) || 0,
     anchor: r.tokenizer === 'peak',
+    focus: r.sample?.tokens ?? null,
   });
 }
 
@@ -672,7 +747,11 @@ function renderTokenModel() {
   if (m.control && r.control) {
     tableRows.push([controlName(r), fmt(m.control.bits), fmt(r.control.crossEntropy[3].bits), fmt(r.control.crossEntropy[0].bits), m.control.targets.toLocaleString(), 'real model']);
   }
+  const sample = m.focus && r.sample;
+  if (sample) tableRows.push([sampleRowName(r.sample), fmt(m.focus.bits), fmt(r.sample.crossEntropy[3].bits), fmt(r.sample.crossEntropy[0].bits), m.focus.targets.toLocaleString(), 'real model']);
   fillTable($('tb-lm-table'), ['Stream (held out, bits per token)', `Token ${tokenArchitectureLabel(m.arch)}`, 'n-gram, 3 tokens of context', 'No context', 'Tokens scored', 'Best epoch'], tableRows);
+  if (sample) $('tb-lm-table').tBodies[0].lastElementChild.className = 'this-sample';
+  renderSampleScoreB();
   if (m.sample) {
     const { real, generated, rows } = m.sample;
     $('tb-lm-real-caption').textContent = `The real next ${rows} tokens`;
@@ -950,17 +1029,19 @@ function pointings() {
   }
   const list = [...seen.values()];
   for (const t of list) {
+    // What the reticle calls it: the target, else Voyager 1 or Off-source.
+    t.name ??= t.family === 'blind-window' ? 'On-target scans' : familyById[t.family].label;
     if (t.family === 'offsource') {
       const on = list.find((o) => o.family === 'voyager' && o.date === t.date);
       t.label = `Off-source · ${t.date}`;
       t.short = on ? `Off ${compass(on, t)}` : 'Off-source';
     } else if (t.family === 'blind-window') {
-      t.label = `Blind windows · ${t.name ?? 'on-target scans'} · ${t.date}`;
-      t.short = 'Blind windows';
+      // Named for the target whose scan they come from, like its hits.
+      t.label = `${t.name} · blind windows · ${t.date}`;
+      t.short = `${t.name} · blind`;
     } else {
-      const name = t.name ?? familyById[t.family].label;
-      t.label = `${name} · ${t.date}`;
-      t.short = `${name} ${t.date.slice(0, 4)}`;
+      t.label = `${t.name} · ${t.date}`;
+      t.short = `${t.name} ${t.date.slice(0, 4)}`;
     }
   }
   return list;
@@ -1605,6 +1686,7 @@ function applyTheme() {
 }
 
 function redraw() {
+  renderSampleCard();
   if (state.lastEpoch) renderLab();
   else renderPreview();
   renderTrackB();

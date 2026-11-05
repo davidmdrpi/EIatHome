@@ -6,8 +6,8 @@ import { test } from 'node:test';
 
 import { RECOVERY_DATA, runRecoveryUnit, parseRecoveryWindows, tally, windowOutcomes, SIGNALS, STRENGTHS } from '../web/js/recovery.js';
 import {
-  BEAM_FOV, OUTCOMES, WIDE_FOV, angleBetween, beamArcmin, bvToRgb, camera, computeFov, constellationAt, equatorialToGalactic,
-  formatDec, formatRA, galacticToEquatorial, horizonToEquatorial, radec, siderealHours, slerp, slew, targetBeam, vec,
+  BEAM_FOV, FLIGHT_FOV, OUTCOMES, WIDE_FOV, angleBetween, beamArcmin, beamFov, bvToRgb, camera, computeFov, constellationAt, equatorialToGalactic,
+  flight, formatDec, formatRA, galacticToEquatorial, horizonToEquatorial, radec, reticleLabel, siderealHours, slerp, slew, targetBeam, vec,
 } from '../web/js/skymap.js';
 
 const sky = JSON.parse(readFileSync(new URL('../web/data/sky/sky.json', import.meta.url)));
@@ -69,6 +69,41 @@ test('a slew starts and ends at its views, follows the great circle, and zooms o
   close(angleBetween(from, mid) + angleBetween(mid, to), angleBetween(from, to), 1e-6, 'on the great circle');
   assert.ok(plan.duration >= 0.7 && plan.duration <= 3.2);
   close(slew(to, 10, to, 10).at(0.5).fov, 10, 1e-9, 'no move, no zoom');
+});
+
+test('a flight slews to a wide view of the target with the constellations showing, pauses, then zooms into its beam', () => {
+  const from = vec(30, -20);
+  const to = vec(26.017, -15.937); // Tau Ceti
+  const close_ = beamFov({ kind: 'signal', telescope: 'Parkes' }, 3285.618);
+  const plan = flight(from, 60, to, FLIGHT_FOV, close_);
+  const steps = Array.from({ length: 401 }, (_, i) => plan.at(i / 400));
+  close(angleBetween(steps[0].center, from), 0, 1e-9);
+  close(steps[0].fov, 60, 1e-9);
+  assert.deepEqual([...new Set(steps.map((v) => v.stage))], ['slew', 'wide', 'zoom'], 'in that order');
+  const wide = steps.filter((v) => v.stage === 'wide');
+  assert.ok(wide.length / steps.length > 0.1, 'a pause to see where in the sky it is');
+  for (const v of wide) {
+    close(v.fov, FLIGHT_FOV, 1e-9);
+    close(angleBetween(v.center, to), 0, 1e-9, 'centred on the target');
+  }
+  assert.ok(FLIGHT_FOV > 18, 'wide enough for the constellation names (drawConstellations)');
+  const zoom = steps.filter((v) => v.stage === 'zoom').map((v) => v.fov);
+  assert.ok(zoom.every((f, i) => i === 0 || f <= zoom[i - 1] + 1e-12), 'zooms in steadily');
+  close(steps.at(-1).fov, close_, 1e-9);
+  close(angleBetween(steps.at(-1).center, to), 0, 1e-9);
+  assert.ok(plan.duration < 7, `brief: ${plan.duration} s`);
+  // Ten beams across: Parkes's 3.8′ beam at 3.29 GHz in a 0.64° view; the GBT's 1.5′ beam at
+  // 8.4 GHz is clamped to 0.5°, as far as the view zooms; and no flight ends wider than BEAM_FOV.
+  close(close_, (10 * beamArcmin(3.285618, 64)) / 60, 1e-9);
+  assert.equal(beamFov({ kind: 'signal', telescope: 'Green Bank Telescope' }, 8419.5), 0.5);
+  assert.equal(beamFov({ kind: 'signal', telescope: 'Parkes' }, 982), BEAM_FOV);
+  assert.equal(beamFov({ kind: 'reference' }), BEAM_FOV);
+});
+
+test('the reticle is labelled with the target and the frequency observed', () => {
+  assert.equal(reticleLabel({ name: 'Tau Ceti', freq_mhz: 3285.618 }), 'Tau Ceti · 3.29 GHz');
+  assert.equal(reticleLabel({ name: 'Tau Ceti', freq_mhz: 3285.618 }, 1420.4), 'Tau Ceti · 1.42 GHz', "the sample's frequency, when given");
+  assert.equal(reticleLabel({ label: 'Synthetic signals' }), 'Synthetic signals');
 });
 
 test('computations zoom from the wide view to the telescope beam with progress', () => {

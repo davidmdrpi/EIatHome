@@ -358,8 +358,14 @@ export function controlProfile(controlSegments, trainSegments, centroids, k, dim
 // validation and test segments. `control` holds another family's frame segments, encoded with
 // this family's codebook and scored with its n-gram model. `tokenizer` is a fixed tokenizer to
 // use instead of fitting k-means (see tokenize).
-export async function analyzeSplits(frameSplits, { k, dim, rng, control = [], tokenizer = null }) {
-  const { centroids, tokens, extra } = tokenize(frameSplits, k, dim, rng, control, tokenizer);
+// probe: one more segment of frames (the Live Lab's sample), tokenized with the same codebook
+// and scored by the same n-gram model as the control.
+export async function analyzeSplits(frameSplits, { k, dim, rng, control = [], tokenizer = null, probe = null }) {
+  const encoded = tokenize(frameSplits, k, dim, rng, probe ? [...control, probe] : control, tokenizer);
+  const { centroids, tokens } = encoded;
+  const extra = probe ? encoded.extra.slice(0, -1) : encoded.extra;
+  const probeTokens = probe ? encoded.extra.at(-1) : null;
+  const fitted = extra.length || probe ? fitNgram(tokens, k) : null;
   const chain = fitMarkov(tokens.train, k);
   const streams = {
     real: tokens,
@@ -388,8 +394,9 @@ export async function analyzeSplits(frameSplits, { k, dim, rng, control = [], to
     crossEntropy,
     compression,
     control: extra.length
-      ? { segments: extra, targets: targetCount(extra), crossEntropy: ngramBits(fitNgram(tokens, k), extra), profile: controlProfile(extra, tokens.train, centroids, k, dim) }
+      ? { segments: extra, targets: targetCount(extra), crossEntropy: ngramBits(fitted, extra), profile: controlProfile(extra, tokens.train, centroids, k, dim) }
       : null,
+    probe: probe ? { tokens: Array.from(probeTokens), crossEntropy: ngramBits(fitted, [probeTokens]) } : null,
     zipf: {
       unigram: { real: rankFrequency(all, 1, k), shuffled: rankFrequency(pooled(streams.shuffled), 1, k) },
       bigram: { real: rankFrequency(all, 2, k), shuffled: rankFrequency(pooled(streams.shuffled), 2, k) },

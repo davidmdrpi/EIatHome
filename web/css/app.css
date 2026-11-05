@@ -293,6 +293,35 @@ canvas {
   margin: 0;
 }
 
+/* The random sky sample's spectrogram in Section 1, with what it is. */
+.sample-card {
+  display: grid;
+  grid-template-columns: minmax(0, 240px) minmax(0, 1fr);
+  align-items: center;
+  gap: 4px 14px;
+  margin: -4px 0 14px;
+  padding: 8px 10px;
+  border-left: 3px solid var(--accent);
+  border-radius: 6px;
+  background: var(--page);
+}
+
+.sample-card[hidden] {
+  display: none;
+}
+
+.sample-card figcaption {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+@media (max-width: 560px) {
+  .sample-card {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
 .switcher {
   display: flex;
   flex-wrap: wrap;
@@ -436,6 +465,27 @@ th {
 
 tr.current td {
   font-weight: 600;
+}
+
+/* The random sky sample, scored on its own, next to its family's averages. */
+tr.this-sample td {
+  background: color-mix(in srgb, var(--accent) 12%, transparent);
+}
+
+tr.this-sample td:first-child {
+  box-shadow: inset 3px 0 0 var(--accent);
+}
+
+.sample-score {
+  margin: 8px 0;
+  padding: 8px 10px;
+  border-left: 3px solid var(--accent);
+  border-radius: 6px;
+  background: color-mix(in srgb, var(--accent) 8%, transparent);
+}
+
+.sample-score[hidden] {
+  display: none;
 }
 
 .key {
@@ -660,6 +710,30 @@ textarea {
 
 .viewport .hud-sample[hidden] {
   display: none;
+}
+
+/* The sample's spectrogram beside its lines: one pixel per channel and frame, scaled up. */
+.viewport .hud-sample:has(> .hud-thumb:not([hidden])) {
+  flex-direction: row;
+  align-items: center;
+  gap: 8px;
+}
+
+.viewport .hud-thumb {
+  width: 128px;
+  height: 40px;
+  flex: none;
+  image-rendering: pixelated;
+  border: 1px solid rgba(200, 215, 240, 0.3);
+}
+
+.viewport .hud-thumb[hidden] {
+  display: none;
+}
+
+.viewport .hud-sample-lines {
+  display: flex;
+  flex-direction: column;
 }
 
 .viewport .hud-view {

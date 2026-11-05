@@ -3,7 +3,8 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { test } from 'node:test';
 
-import { describeSample, located, pickSample, pointingId, sampleLines } from '../web/js/sample.js';
+import { CONTROL_FAMILIES, SIGNAL_FAMILIES, describeSample, located, pickSample, pointingId, sampleLines } from '../web/js/sample.js';
+import { makeRng } from '../web/js/rng.js';
 import { REAL_FAMILIES, familyById } from '../web/js/signals.js';
 import { publishedSlices } from './fixtures.mjs';
 
@@ -12,9 +13,10 @@ const pool = JSON.parse(readFileSync(new URL('../tools/slice_pool.json', import.
 test('a random sample is a located real slice, never the one already shown', async () => {
   const slices = await publishedSlices();
   const seen = new Set();
+  const rng = makeRng(11);
   for (let i = 0; i < 200; i++) {
     const current = slices[i % slices.length];
-    const sample = pickSample(slices, current.id, () => (i % 50) / 50);
+    const sample = pickSample(slices, current.id, () => rng.next());
     assert.notEqual(sample.id, current.id);
     assert.ok(located(sample), `${sample.id} says where the telescope pointed`);
     seen.add(sample.family);
@@ -23,6 +25,27 @@ test('a random sample is a located real slice, never the one already shown', asy
   // The extremes of the random draw stay in the pool.
   assert.ok(pickSample(slices, null, () => 0));
   assert.ok(pickSample(slices, null, () => 1 - 1e-12));
+});
+
+test('half the draws are signals and half controls, split evenly between blind windows and off-source', async () => {
+  const slices = await publishedSlices();
+  const counts = { voyager: 0, stars: 0, 'blind-window': 0, offsource: 0 };
+  const rng = makeRng(5);
+  const n = 8000;
+  let current = null;
+  for (let i = 0; i < n; i++) {
+    current = pickSample(slices, current?.id, () => rng.next());
+    counts[current.family] += 1;
+  }
+  const share = (...families) => families.reduce((sum, f) => sum + counts[f], 0) / n;
+  assert.ok(Math.abs(share('voyager', 'stars') - 0.5) < 0.02, `signals ${share('voyager', 'stars')}`);
+  assert.ok(Math.abs(share('blind-window') - 0.25) < 0.02, `blind windows ${share('blind-window')}, though they're half the slices`);
+  assert.ok(Math.abs(share('offsource') - 0.25) < 0.02, `off-source ${share('offsource')}`);
+  // Within the signals every slice is as likely: the SETI targets have more slices than Voyager.
+  const signals = slices.filter((s) => SIGNAL_FAMILIES.includes(s.family));
+  const starsShare = signals.filter((s) => s.family === 'stars').length / signals.length;
+  assert.ok(Math.abs(counts.stars / (counts.stars + counts.voyager) - starsShare) < 0.03);
+  assert.deepEqual([...SIGNAL_FAMILIES, ...CONTROL_FAMILIES].sort(), Object.keys(counts).sort());
 });
 
 test('a sample prefers slices with a pointing, and gives up only when there is nothing else', () => {

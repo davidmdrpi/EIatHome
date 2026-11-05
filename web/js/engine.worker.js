@@ -407,7 +407,9 @@ async function probeDrift(model, trainSet, evalSets) {
 
 // ---------- training ----------
 
-async function train(config, onEpoch, inputs) {
+// focus: the Live Lab's sample ({ id, x }: its window, T x C), scored each epoch like the
+// families, on its own.
+async function train(config, onEpoch, inputs, focus = null) {
   const { target, hidden, epochs, nTrain, batch, lr, seed, mixNoise, shuffle } = config;
   // Work units have no `arch`: they are GRU-only by spec. Other models get the GRU's parameter budget.
   const arch = config.arch ?? 'gru';
@@ -437,6 +439,11 @@ async function train(config, onEpoch, inputs) {
     const shuffled = shuffledCopy(evalSets[family], makeRng(deriveSeed(seed, `shuffle-${family}`)));
     shuffledSets[family] = { set: shuffled, floor: mse(shuffled, baselines.mean(shuffled, mean)) };
   }
+  // The sample's baselines, and its frames shuffled, as each family's are.
+  const focusSet = focus ? { x: focus.x, n: 1 } : null;
+  const focusFixed = focusSet ? fixedBaselines(focusSet, mean, W) : null;
+  const focusShuffled = focusSet ? shuffledCopy(focusSet, makeRng(deriveSeed(seed, `shuffle-sample-${focus.id}`))) : null;
+  const focusShuffledFloor = focusShuffled ? mse(focusShuffled, baselines.mean(focusShuffled, mean)) : null;
 
   const model = buildModel(arch, matchedSize(arch, hidden), seed % 100000);
   const optimizer = tf.train.adam(lr);
@@ -476,8 +483,24 @@ async function train(config, onEpoch, inputs) {
         familyGains[family] = { persistence, linear, gru: await gruGain(model, evalSets[family], floor) };
         shuffledGains[family] = await gruGain(model, shuffledSets[family].set, shuffledSets[family].floor);
       }
+      // The sample: its gains, and its residual error (RMS over frames 2..T-1, the residual
+      // panel's frames) next to the trained family's.
+      let sample = null;
+      if (focusSet) {
+        const { persistence, linear, floor } = focusFixed;
+        const gru = await gruGain(model, focusSet, floor);
+        const own = fixed[target];
+        sample = {
+          persistence,
+          linear,
+          gru,
+          shuffled: await gruGain(model, focusShuffled, focusShuffledFloor),
+          rms: Math.sqrt(Math.max(0, (1 - gru) * floor)),
+          familyRms: Math.sqrt(Math.max(0, (1 - familyGains[target].gru) * own.floor)),
+        };
+      }
       history.push({ epoch, loss: lossSum / seen, ms });
-      await onEpoch({ epoch, epochs, loss: lossSum / seen, ms, gains: familyGains, shuffledGains, reconstruction, model, evalSets, previousComponents, setComponents: (c) => (previousComponents = c) });
+      await onEpoch({ epoch, epochs, loss: lossSum / seen, ms, gains: familyGains, shuffledGains, sample, reconstruction, model, evalSets, previousComponents, setComponents: (c) => (previousComponents = c) });
       await pause();
     }
     const probe = stopRequested ? null : await probeDrift(model, trainSet, evalSets);
@@ -536,12 +559,13 @@ async function liveTrain(config) {
       ms: state.ms,
       gains: state.gains,
       shuffledGains: state.shuffledGains,
+      sample: state.sample && { id: focus.id, heldOut: focus.heldOut, ...state.sample },
       reconstruction: state.reconstruction,
       example: { actual, predicted, residual, rows: T - 2, focus: focus && { id: focus.id, heldOut: focus.heldOut, shuffled: focus.shuffled } },
       map: { points, families: mapAll.families },
       backend: tf.getBackend(),
     });
-  }, inputs);
+  }, inputs, focus);
   post({
     type: 'trained',
     probe: result.probe,
@@ -714,9 +738,11 @@ async function sampleTokens(model, prompt, n, k, rng) {
 
 // anchor: the tokens are the merge anchor's, so the transformer starts from its θ₀ (on every
 // stream, the surrogates included); the GRU has no anchor and starts at random as usual.
-async function runTokenModels({ id, k, splits, control, centroids, seed, arch = 'gru', anchor = false }) {
+// focus: the Live Lab's sample, as tokens ([...]), scored with the real model.
+async function runTokenModels({ id, k, splits, control, centroids, seed, arch = 'gru', anchor = false, focus = null }) {
   const results = {};
   let controlResult = null;
+  let focusResult = null;
   let sample = null;
   let parameters = null;
   const fromAnchor = anchor && arch === ANCHOR.arch;
@@ -730,6 +756,7 @@ async function runTokenModels({ id, k, splits, control, centroids, seed, arch = 
       if (name === 'real') {
         // Control: the real model on another family's frames, tokenized with this family's codebook.
         if (control?.length) controlResult = await heldOutBits(model, control, k);
+        if (focus?.length > 1) focusResult = await heldOutBits(model, [Uint16Array.from(focus)], k);
         // Continue the first test segment from its first half (at most 16 tokens), next to the
         // real continuation. The transformer stops when its input would outgrow the window its
         // positions were trained on: it never slides a token onto an untrained position.
@@ -752,7 +779,7 @@ async function runTokenModels({ id, k, splits, control, centroids, seed, arch = 
       optimizer.dispose();
     }
   }
-  post({ type: 'token-lm-result', id, stopped: stopRequested, results, control: controlResult, sample, epochs: TOKEN_EPOCHS, arch, parameters, fromAnchor });
+  post({ type: 'token-lm-result', id, stopped: stopRequested, results, control: controlResult, focus: focusResult, sample, epochs: TOKEN_EPOCHS, arch, parameters, fromAnchor });
 }
 
 // ---------- the merge work unit (merge.js) ----------

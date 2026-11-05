@@ -227,6 +227,46 @@ export const WIDE_FOV = 60;
 export const BEAM_FOV = 2;
 export const computeFov = (p) => WIDE_FOV * (BEAM_FOV / WIDE_FOV) ** Math.max(0, Math.min(1, p));
 
+// A flight to a target (SkyMap.fly) passes through a view this wide, centred on it, with the
+// constellation lines and names showing, before zooming into its beam.
+export const FLIGHT_FOV = 35;
+const MIN_FOV = 0.5; // as far as the view zooms in, by hand or in a flight
+
+// The view a flight ends in: about ten beam widths across (the telescope's beam at freqMhz, or
+// at the target's frequency), so the reticle is plain to see, and no wider than BEAM_FOV.
+export function beamFov(t, freqMhz) {
+  const beam = targetBeam(Number.isFinite(freqMhz) ? { ...t, freq_mhz: freqMhz } : t);
+  return beam ? Math.min(BEAM_FOV, Math.max(MIN_FOV, (10 * beam.arcmin) / 60)) : BEAM_FOV;
+}
+
+// A flight to a target: a slew to a wide view centred on it, a pause there to see where in the
+// sky it is, then a zoom into its beam. Returns { duration (s), at(t) -> { center, fov, stage } }
+// like slew; stage is 'slew', 'wide' or 'zoom'.
+export function flight(fromCenter, fromFov, toCenter, wideFov, closeFov) {
+  const first = slew(fromCenter, fromFov, toCenter, wideFov);
+  const hold = 0.7;
+  const zoom = 0.8 + Math.log(wideFov / closeFov) / 4;
+  const duration = first.duration + hold + zoom;
+  const a = first.duration / duration;
+  const b = (first.duration + hold) / duration;
+  return {
+    duration,
+    at(t) {
+      const x = Math.max(0, Math.min(1, t));
+      if (x < a) return { ...first.at(x / a), stage: 'slew' };
+      if (x < b) return { center: toCenter, fov: wideFov, stage: 'wide' };
+      const s = smooth((x - b) / (1 - b));
+      return { center: toCenter, fov: Math.exp(Math.log(wideFov) * (1 - s) + Math.log(closeFov) * s), stage: 'zoom' };
+    },
+  };
+}
+
+// The reticle's label: the target and the frequency observed, as "Tau Ceti · 3.29 GHz".
+export function reticleLabel(t, freqMhz = t.freq_mhz) {
+  const ghz = Number.isFinite(freqMhz) ? `${(freqMhz / 1000).toFixed(2)} GHz` : null;
+  return [t.name ?? t.label, ghz].filter(Boolean).join(' · ');
+}
+
 // Recovery grid outcomes, by window (see recovery.js windowOutcomes).
 export const OUTCOMES = ['empty', 'found', 'missed', 'false alarm', 'decoy flagged', 'decoy passed'];
 
@@ -247,6 +287,8 @@ const STYLE = {
   local: '#7ee081',
   horizon: 'rgba(126, 224, 129, 0.35)',
   beam: '#ffffff',
+  // The sample's spectrogram in the card: dark to bright.
+  thumb: ['#05070f', '#14306a', '#2a6fb0', '#6fc1d6', '#f4f1bf'],
   outcome: {
     found: '#3ddc97',
     missed: '#ffb347',
@@ -322,7 +364,8 @@ export class SkyMap {
     this.targets = [];
     this.selected = null;
     this.sample = null; // a slice shown in its target's card (setSample)
-    this.motion = null; // a slew in progress
+    this.motion = null; // a slew or flight in progress
+    this.flown = null; // the target the view last flew to (fly), until another is selected
     this.fovGoal = null; // where the zoom is easing to
     this.job = null; // the computation being shown
     this.sky = null;
@@ -352,7 +395,9 @@ export class SkyMap {
       title: el('b', 'hud-title', this.options.title ?? 'Observatory'),
       place: el('span', 'hud-line'),
       detail: el('span', 'hud-line dim'),
-      sample: el('span', 'hud-line hud-sample'),
+      sample: el('div', 'hud-line hud-sample'),
+      thumb: el('canvas', 'hud-thumb'),
+      sampleLines: el('div', 'hud-sample-lines'),
       view: el('div', 'hud-view dim'),
       status: el('div', 'hud hud-status dim', 'Loading the sky…'),
       telemetry: el('div', 'hud-telemetry'),
@@ -363,6 +408,8 @@ export class SkyMap {
       stats: el('div', 'hud-stats dim'),
     };
     this.hud.sample.hidden = true;
+    this.hud.thumb.setAttribute('role', 'img');
+    this.hud.sample.append(this.hud.thumb, this.hud.sampleLines);
     target.append(this.hud.title, this.hud.place, this.hud.detail, this.hud.sample);
     const progress = el('div', 'hud-progress');
     progress.append(this.hud.bar);
@@ -375,7 +422,10 @@ export class SkyMap {
     const controls = el('div', 'hud-controls');
     const wide = el('button', 'ghost', 'Wide view');
     wide.type = 'button';
-    wide.onclick = () => this.goTo(this.selected ?? { ra_hours: radec(this.center)[0] / 15, dec_deg: radec(this.center)[1] }, WIDE_FOV);
+    wide.onclick = () => {
+      this.flown = null; // the next job on this target zooms with its progress again
+      this.goTo(this.selected ?? { ra_hours: radec(this.center)[0] / 15, dec_deg: radec(this.center)[1] }, WIDE_FOV);
+    };
     const observatory = el('button', 'ghost obs-toggle', 'Observatory mode');
     observatory.type = 'button';
     observatory.setAttribute('aria-pressed', 'false');
@@ -459,6 +509,7 @@ export class SkyMap {
       const angle = angleBetween(to, from) * DEG;
       this.center = rotate(drag.center, axis, angle);
       this.motion = null;
+      this.flown = null;
       this.request();
     });
     const end = (e) => {
@@ -470,8 +521,9 @@ export class SkyMap {
     c.addEventListener('wheel', (e) => {
       e.preventDefault();
       this.motion = null;
+      this.flown = null;
       this.fovGoal = null;
-      this.fov = Math.max(0.5, Math.min(120, this.fov * Math.exp(e.deltaY * 0.0015)));
+      this.fov = Math.max(MIN_FOV, Math.min(120, this.fov * Math.exp(e.deltaY * 0.0015)));
       this.request();
     }, { passive: false });
     c.addEventListener('keydown', (e) => {
@@ -481,11 +533,12 @@ export class SkyMap {
       if (moves[e.key]) {
         const [dra, ddec] = moves[e.key];
         this.center = vec(ra + dra / Math.max(0.2, Math.cos(dec * DEG)), Math.max(-89.9, Math.min(89.9, dec + ddec)));
-      } else if (e.key === '+' || e.key === '=') this.fov = Math.max(0.5, this.fov / 1.25);
+      } else if (e.key === '+' || e.key === '=') this.fov = Math.max(MIN_FOV, this.fov / 1.25);
       else if (e.key === '-') this.fov = Math.min(120, this.fov * 1.25);
       else return;
       e.preventDefault();
       this.motion = null;
+      this.flown = null;
       this.fovGoal = null;
       this.request();
     });
@@ -568,8 +621,30 @@ export class SkyMap {
     const t = this.target(id);
     if (!t) return;
     this.selected = t;
+    this.flown = null;
     this.describe(t);
     this.goTo(t, fov);
+  }
+
+  // Selects a target and flies to it (see flight): out to a FLIGHT_FOV view of its part of the
+  // sky, then into its beam, at the sample's frequency when the sample is this target's. A job
+  // started on it while it stays selected keeps that framing (startJob).
+  fly(id) {
+    const t = this.target(id);
+    if (!t) return;
+    this.selected = t;
+    this.describe(t);
+    const close = beamFov(t, this.sample?.target === t.id ? this.sample.freqMhz : undefined);
+    this.fovGoal = null;
+    if (this.reduceMotion) {
+      [this.center, this.fov] = [t.v, close];
+      this.motion = null;
+      this.canvas.dataset.flight = 'beam';
+    } else {
+      this.motion = { plan: flight(this.center, this.fov, t.v, FLIGHT_FOV, close), start: performance.now(), flight: true };
+    }
+    this.flown = t.id;
+    this.request();
   }
 
   goTo(where, fov) {
@@ -581,6 +656,7 @@ export class SkyMap {
     } else {
       this.motion = { plan: slew(this.center, this.fov, to, fov), start: performance.now() };
     }
+    delete this.canvas.dataset.flight;
     this.request();
   }
 
@@ -590,17 +666,43 @@ export class SkyMap {
     this.hud.place.textContent = where;
     const date = t.epoch && t.epoch !== 'J2000' ? t.epoch.slice(0, 10) : t.epoch;
     this.hud.detail.textContent = [t.distance_label, t.telescope, date, t.note].filter(Boolean).join(' · ');
-    const lines = this.sample?.target === t.id ? this.sample.lines : [];
-    this.hud.sample.replaceChildren(...lines.map((line) => el('span', null, line)));
+    const sample = this.sample?.target === t.id ? this.sample : null;
+    const lines = sample?.lines ?? [];
+    this.hud.sampleLines.replaceChildren(...lines.map((line) => el('span', null, line)));
     this.hud.sample.hidden = !lines.length;
+    this.hud.thumb.hidden = !sample?.frames;
+    if (sample?.frames) this.drawThumb(sample.frames, `Spectrogram of the sample: ${lines.join('. ')}`);
     this.canvas.setAttribute('aria-label', `Sky map centred on ${t.label}: ${[where, ...lines].join('. ')}`);
   }
 
   // One slice of a target's data, shown in its card while it's selected (the Live Lab's random
-  // sky sample). lines: what to show; null clears it.
-  setSample(targetId, lines) {
-    this.sample = targetId && lines?.length ? { target: targetId, lines } : null;
+  // sky sample): lines of text, its spectrogram (frames: { values, rows, cols }, time running
+  // up, optional) and its frequency in MHz, for the reticle and the flight's last view. null
+  // clears it.
+  setSample(targetId, sample) {
+    this.sample = targetId && sample?.lines?.length ? { target: targetId, ...sample } : null;
     if (this.selected) this.describe(this.selected);
+    this.request();
+  }
+
+  // The sample's spectrogram, a pixel per channel and frame, scaled up by CSS.
+  drawThumb({ values, rows, cols }, label) {
+    const canvas = this.hud.thumb;
+    [canvas.width, canvas.height] = [cols, rows];
+    let hi = 3;
+    for (const v of values) if (v > hi) hi = v;
+    const ramp = STYLE.thumb.map((hex) => [1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16)));
+    const image = new ImageData(cols, rows);
+    for (let r = 0; r < rows; r++) {
+      for (let c = 0; c < cols; c++) {
+        const f = Math.max(0, Math.min(1, (values[r * cols + c] + 1) / (hi + 1))) * (ramp.length - 1);
+        const i = Math.min(ramp.length - 2, Math.floor(f));
+        const rgb = ramp[i].map((v, k) => Math.round(v + (ramp[i + 1][k] - v) * (f - i)));
+        image.data.set([...rgb, 255], ((rows - 1 - r) * cols + c) * 4);
+      }
+    }
+    canvas.getContext('2d').putImageData(image, 0, 0);
+    canvas.setAttribute('aria-label', label);
   }
 
   // ----- computations -----
@@ -612,12 +714,14 @@ export class SkyMap {
   // doesn't say all of it (data from several sessions, say).
   startJob(kind, targetId, title, source) {
     const t = this.target(targetId) ?? this.selected;
-    if (t && kind !== 'analysis') {
+    // Flown to (fly) and still selected: keep the flight's framing, without zooming with progress.
+    const framed = Boolean(t) && this.flown === t.id && this.selected?.id === t.id;
+    if (t && kind !== 'analysis' && !framed) {
       this.selected = t;
       this.describe(t);
       this.goTo(t, WIDE_FOV);
     }
-    this.job = { kind, title, target: t, progress: kind === 'analysis' ? null : 0, started: performance.now(), done: false, rings: [], grid: null };
+    this.job = { kind, title, target: t, progress: kind === 'analysis' ? null : 0, framed, started: performance.now(), done: false, rings: [], grid: null };
     this.hud.source.textContent = source ?? (t ? `Data from ${t.label}` : '');
     if (kind === 'recovery') this.job.grid = { states: new Uint8Array(1024), scanned: 0, outcomes: null, reveal: 0, pings: [] };
     this.hud.telemetry.hidden = false;
@@ -637,7 +741,7 @@ export class SkyMap {
 
   // Whether the view zooms with the job's progress: only while it's on the job's target.
   following() {
-    return Boolean(this.job) && this.job.progress !== null && Boolean(this.selected) && this.selected.id === this.job.target?.id;
+    return Boolean(this.job) && this.job.progress !== null && !this.job.framed && Boolean(this.selected) && this.selected.id === this.job.target?.id;
   }
 
   // Recovery: the background windows (cells, by position along the band) just scored. They come
@@ -699,6 +803,8 @@ export class SkyMap {
       const t = (now - this.motion.start) / 1000 / this.motion.plan.duration;
       const view = this.motion.plan.at(t);
       [this.center, this.fov] = [view.center, view.fov];
+      // Where a flight is, for tests and assistive tooling: slew, wide, zoom, then beam.
+      if (this.motion.flight) this.canvas.dataset.flight = t >= 1 ? 'beam' : view.stage;
       if (t >= 1) {
         this.motion = null;
         if (this.following()) this.fovGoal = computeFov(this.job.progress);
@@ -921,7 +1027,9 @@ export class SkyMap {
   drawReticle(ctx, cam, t) {
     const p = cam.project(t.v);
     if (!p) return;
-    const beam = targetBeam(t);
+    // The sample's frequency, while it's this target's; else the target's own.
+    const freq = this.sample?.target === t.id && Number.isFinite(this.sample.freqMhz) ? this.sample.freqMhz : t.freq_mhz;
+    const beam = targetBeam({ ...t, freq_mhz: freq });
     const true_ = beam ? (beam.arcmin / 120) * cam.pxPerDeg : 0;
     const r = Math.max(14, true_);
     ctx.strokeStyle = STYLE.beam;
@@ -934,11 +1042,14 @@ export class SkyMap {
       ctx.lineTo(p[0] + dx * (r + 14), p[1] + dy * (r + 14));
     }
     ctx.stroke();
-    if (beam && true_ >= 14) {
-      ctx.fillStyle = STYLE.beam;
-      ctx.textAlign = 'center';
-      ctx.fillText(beam.label, p[0], p[1] + r + 28);
-    }
+    ctx.fillStyle = STYLE.beam;
+    ctx.textAlign = 'center';
+    if (beam && true_ >= 14) ctx.fillText(beam.label, p[0], p[1] + r + 28);
+    // What's in the beam: the target and the frequency (the sample's, while it's this target's).
+    const label = reticleLabel(t, freq);
+    ctx.font = '600 12px system-ui, -apple-system, "Segoe UI", sans-serif';
+    ctx.fillText(label, p[0], p[1] - r - 20);
+    this.canvas.dataset.reticle = label;
     ctx.globalAlpha = 1;
   }
 

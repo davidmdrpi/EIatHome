@@ -48,6 +48,10 @@
           <button id="sample" class="primary" type="button" disabled>Random sky sample &amp; analyze</button>
           <p id="sample-status" class="muted small" role="status" aria-live="polite">One click picks a random real slice, shows where the telescope pointed on the sky map, and runs Track A and Track B on its family. Or pick a signal yourself:</p>
         </div>
+        <figure id="sample-card" class="sample-card" hidden>
+          <canvas id="sample-wf" data-height="84" aria-label="Spectrogram of the sample"></canvas>
+          <figcaption><b id="sample-title"></b><span id="sample-detail" class="muted small"></span></figcaption>
+        </figure>
         <div id="families" class="switcher" role="radiogroup" aria-label="Signal family"></div>
         <p id="family-about" class="muted"></p>
         <div class="controls">
@@ -93,6 +97,7 @@
               <tbody></tbody>
             </table>
           </div>
+          <p id="sample-score-a" class="sample-score" hidden></p>
           <p id="gains-note" class="muted small" hidden>No independent real data could be held out, so the row of the family the model trained on is scored on the same observing session it trained on. It measures reconstruction, not generalization. To get a held-out score, load slices from more than one session (scans that started more than 12 hours apart), each with a start time.</p>
           <div id="probe" class="probe" hidden></div>
         </div>
@@ -115,6 +120,7 @@
             <div class="buttons"><button id="analyze" type="button">Analyze tokens</button></div>
           </div>
           <p id="tb-status" class="status" role="status" aria-live="polite"></p>
+          <p id="sample-score-b" class="sample-score" hidden></p>
           <div id="tb-tiles" class="tiles"></div>
           <p class="muted small">Each snippet or slice is compressed on its own, so short segments pay DEFLATE’s fixed overhead. It’s the same for every stream: compare the streams with each other, not with an absolute size.</p>
           <div class="grid inner">
