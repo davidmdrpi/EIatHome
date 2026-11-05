@@ -693,6 +693,22 @@ test('the observatory viewport slews to a signal on the sky, and clicking a beac
   await page.close();
 });
 
+// Math.random returns these values next, then goes on as usual: it decides the random sky
+// sample's draw (pickSample: signal or control, which control family, which slice).
+const drawNext = (page, values) =>
+  page.evaluate((values) => {
+    const native = (window.__nativeRandom ??= Math.random);
+    const queue = [...values];
+    Math.random = () => (queue.length ? queue.shift() : native());
+  }, values);
+
+// Stops the token model that the random sky sample starts once Track A is done.
+async function stopTokenModel(page) {
+  await page.waitForFunction(() => !document.getElementById('tb-lm-stop').disabled, null, { timeout: 120000 });
+  await page.click('#tb-lm-stop');
+  await page.waitForFunction(() => document.getElementById('tb-lm-status').textContent === 'Stopped.', null, { timeout: 120000 });
+}
+
 test('one click on the random sky sample picks a real slice, flies to where it came from, and scores it in Track A and Track B', async () => {
   const published = await publishedSlices();
   const { page, errors } = await openLab();
@@ -771,7 +787,8 @@ test('one click on the random sky sample picks a real slice, flies to where it c
   assert.equal(a.current, 'this-sample', 'right under its family');
   assert.equal(a.display, 'table-row', 'laid out as a row of the table');
   assert.equal(a.slice, picked);
-  assert.match(a.callout, /prediction gain -?\d+\.\d\d, against -?\d+\.\d\d averaged over the held-out snippets of .+; residual error \d+\.\d\d, against \d+\.\d\d on those snippets/);
+  // Against the family's held-out snippets, or, for off-source (one session), what it trained on.
+  assert.match(a.callout, /prediction gain -?\d+\.\d\d, against -?\d+\.\d\d averaged over (the held-out snippets of .+|snippets of Off-source from the data it trained on \(nothing could be held out: .+\)); residual error \d+\.\d\d, against \d+\.\d\d on those snippets/);
 
   // Track B tokenizes the family meanwhile and scores the sample's tokens; once Track A is done,
   // the token model trains and scores them too.
@@ -793,8 +810,109 @@ test('one click on the random sky sample picks a real slice, flies to where it c
   assert.notEqual(b.callout, a.callout);
   assert.notDeepEqual(b.row, a.row, 'another sample, its own scores');
   await page.waitForFunction((id) => document.getElementById('sample-score-b').dataset.slice === id, next, { timeout: 60000 });
-  await page.click('#stop').catch(() => {}); // the token model, if it has started
-  await page.waitForFunction(() => !document.getElementById('tb-lm').disabled || /^(Done|Stopped)/.test(document.getElementById('tb-lm-status').textContent), null, { timeout: 120000 });
+  await stopTokenModel(page);
+  assert.deepEqual(errors, []);
+  await page.close();
+});
+
+test('an off-source sample is scored as reconstruction, and its caption outlives the files it came from', async () => {
+  const published = await publishedSlices();
+  const { page, errors } = await openLab();
+  await waitForPublished(page);
+  await page.fill('#epochs', '1');
+  await page.selectOption('#ntrain', '400');
+  await drawNext(page, [0.9, 0.9, 0.5]); // a control, off-source, a slice from the middle
+  await page.click('#sample');
+  const picked = await page.getAttribute('#sample-status', 'data-slice');
+  const slice = published.find((s) => s.id === picked);
+  assert.equal(slice?.family, 'offsource', picked);
+  const title = sampleTitle(describeSample(slice));
+  await page.waitForFunction(() => /^(Done|Stopped)/.test(document.getElementById('lab-status').textContent), null, { timeout: 120000 });
+
+  // The published off-source slices all come from one session, so nothing of the family is held
+  // out: its row says so, and the callout compares the sample with what the model trained on.
+  assert.match(await page.$eval('#gains tbody tr.current', (tr) => tr.cells[0].textContent), /\(trained on; not held out\)$/);
+  const callout = await page.textContent('#sample-score-a');
+  assert.match(callout, new RegExp(`^This sample \\(${picked}\\), in the training data: GRU prediction gain -?\\d+\\.\\d\\d, against -?\\d+\\.\\d\\d averaged over snippets of Off-source from the data it trained on \\(nothing could be held out: all loaded slices come from one observing session, so both scores measure reconstruction\\); `));
+  assert.doesNotMatch(callout, /held-out/);
+  await stopTokenModel(page);
+
+  // Files that don't include the sample replace the published ones. Back in the Live Lab, the
+  // last run's waterfall is drawn again, still named for the sample it showed.
+  await loadSlices(page, [{ meta: { id: 'replacement' }, bytes: lineSlice(2.4) }]);
+  assert.equal(await page.getAttribute('#sample-status', 'data-slice'), '', 'the sample went with its file');
+  assert.equal(await page.isVisible('#sample-card'), false);
+  assert.equal(await page.textContent('#wf-actual-caption'), `Actual: ${title} (in the training data)`);
+  assert.deepEqual(errors, []);
+  await page.close();
+});
+
+test('the token model waits for the Track B analysis of the latest sample, even when it arrives after Track A', async () => {
+  const { page, errors } = await openLab(() => {
+    // Track B's replies are held back while window.__holdTrackB is set; each token run's sample
+    // tokens are recorded as the page sends them to the engine.
+    const Native = window.Worker;
+    window.__tokenRuns = [];
+    window.Worker = class extends Native {
+      constructor(url, options) {
+        super(url, options);
+        if (String(url).includes('engine.worker')) {
+          const post = this.postMessage.bind(this);
+          this.postMessage = (msg, ...rest) => {
+            if (msg?.type === 'token-lm') window.__tokenRuns.push(msg.focus);
+            return post(msg, ...rest);
+          };
+        }
+        if (String(url).includes('trackb.worker')) {
+          const held = [];
+          // Registered before the page's onmessage, so it can keep a reply from reaching it.
+          this.addEventListener('message', (e) => {
+            if (!window.__holdTrackB) return;
+            e.stopImmediatePropagation();
+            held.push(e.data);
+          });
+          window.__releaseTrackB = () => {
+            window.__holdTrackB = false;
+            for (const data of held.splice(0)) this.onmessage({ data });
+          };
+        }
+      }
+    };
+  });
+  await waitForPublished(page);
+  await page.fill('#epochs', '1');
+  await page.selectOption('#ntrain', '400');
+  const tokensIn = async () => (await page.textContent('#sample-score-b')).match(/its 16 tokens \(([0-9a-w ]+)\)/)[1];
+  const tokenRun = (i) => page.evaluate((i) => window.__tokenRuns[i]?.map((t) => t.toString(36)).join(' '), i);
+
+  // A first blind window: its token run starts on its own analysis.
+  await drawNext(page, [0.9, 0.1, 0.2]);
+  await page.click('#sample');
+  const first = await page.getAttribute('#sample-status', 'data-slice');
+  assert.match(first, /-blind-\d$/);
+  await page.waitForFunction(() => window.__tokenRuns.length === 1, null, { timeout: 120000 });
+  assert.equal(await tokenRun(0), await tokensIn());
+  await stopTokenModel(page);
+
+  // Another blind window, with Track B's analysis of it held back until Track A is done.
+  await page.evaluate(() => (window.__holdTrackB = true));
+  await drawNext(page, [0.9, 0.1, 0.7]);
+  await page.click('#sample');
+  const second = await page.getAttribute('#sample-status', 'data-slice');
+  assert.match(second, /-blind-\d$/);
+  assert.notEqual(second, first);
+  await page.waitForFunction(() => /^(Done|Stopped)/.test(document.getElementById('lab-status').textContent), null, { timeout: 120000 });
+  await page.waitForTimeout(500);
+  assert.equal(await page.evaluate(() => window.__tokenRuns.length), 1, 'no token run on the first sample’s analysis');
+  assert.equal(await page.isDisabled('#tb-lm-stop'), true);
+  assert.equal(await page.getAttribute('#sample-score-b', 'data-slice'), first, 'Track B still shows the first sample');
+
+  // The analysis arrives, and the token run starts on this sample's tokens.
+  await page.evaluate(() => window.__releaseTrackB());
+  await page.waitForFunction(() => window.__tokenRuns.length === 2, null, { timeout: 30000 });
+  assert.equal(await page.getAttribute('#sample-score-b', 'data-slice'), second);
+  assert.equal(await tokenRun(1), await tokensIn());
+  await stopTokenModel(page);
   assert.deepEqual(errors, []);
   await page.close();
 });

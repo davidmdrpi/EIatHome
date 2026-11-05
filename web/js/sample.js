@@ -91,6 +91,22 @@ export function sampleDetail(d) {
   ].filter(Boolean).join(' · ');
 }
 
+const two = (v) => (Number.isFinite(v) ? v.toFixed(2) : '–');
+
+// Track A's callout for the sample, after its bold "This sample (id)": its prediction gain and
+// residual error against its family's, over the snippets the family is scored on. Those are held
+// out, unless nothing of the family could be held out (reconstruction: Track A's reason), when
+// they come from the data the model trained on, and the callout says so. sample: the engine's
+// { heldOut, gru, rms, familyRms }; gain: the family's GRU gain.
+export function trackAScoreText({ sample, gain, family, model, reconstruction = null }) {
+  const status = sample.heldOut ? 'held out' : 'in the training data';
+  const over = reconstruction
+    ? `averaged over snippets of ${family} from the data it trained on (nothing could be held out: ${reconstruction.charAt(0).toLowerCase()}${reconstruction.slice(1).replace(/\.$/, '')}, so both scores measure reconstruction)`
+    : `averaged over the held-out snippets of ${family}`;
+  return `, ${status}: ${model} prediction gain ${two(sample.gru)}, against ${two(gain)} ${over}; ` +
+    `residual error ${two(sample.rms)}, against ${two(sample.familyRms)} on those snippets (root mean square of actual − prediction over frames 2 to ${T - 1}, as in the residual panel).`;
+}
+
 // The card's two lines: what was observed, then the measurements.
 export function sampleLines(d) {
   const window = d.window ? d.window[0].toUpperCase() + d.window.slice(1) : 'Slice';

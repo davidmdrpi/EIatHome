@@ -72,7 +72,7 @@ out whole scans or sessions.
 `tests/sample.test.mjs` checks the random sky sample: it never repeats the slice shown, can
 reach every published family, draws signals and controls half the time each (blind windows and
 off-source a quarter each), prefers slices with a pointing, and writes the card from the
-manifest; and that the slice pool stays within its limits, with every slice located and credited.
+manifest and Track A's callout, which says "held out" only when the family has a holdout; and that the slice pool stays within its limits, with every slice located and credited.
 `tests/skymap.test.mjs` checks the viewport's math and data: coordinates, galactic conversion,
 the projection and its inverse, slews and flights, the reticle's label, sidereal time, constellations from the IAU boundaries,
 and that the manifest records where every slice pointed.
@@ -124,6 +124,11 @@ headless Chromium. It checks that:
   telescope, starts Track A at once and Track B's tokens alongside, trains the token model when
   Track A is done, scores the sample itself in both tracks next to its family's averages, and
   the next click picks another slice, with scores of its own;
+- an off-source sample (one session, so nothing held out) is compared with what the model
+  trained on, and says so, and the last run's waterfall keeps its sample's name after the
+  loaded files are replaced;
+- the token model a sample starts waits for Track B's analysis of that sample, even when it
+  arrives after Track A, rather than taking the previous sample's;
 - a recovery unit zooms the viewport to the telescope beam and colours each window by its outcome;
 - observatory mode fills the window, keeps running units, and stops when it's closed; auto-run
   ticked while the recovery windows load starts once they're ready, and clicking another beacon

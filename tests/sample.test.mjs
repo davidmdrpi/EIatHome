@@ -3,7 +3,8 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { test } from 'node:test';
 
-import { CONTROL_FAMILIES, SIGNAL_FAMILIES, describeSample, located, pickSample, pointingId, sampleLines } from '../web/js/sample.js';
+import { CONTROL_FAMILIES, SIGNAL_FAMILIES, describeSample, located, pickSample, pointingId, sampleLines, trackAScoreText } from '../web/js/sample.js';
+import { sessionPools } from '../web/js/splits.js';
 import { makeRng } from '../web/js/rng.js';
 import { REAL_FAMILIES, familyById } from '../web/js/signals.js';
 import { publishedSlices } from './fixtures.mjs';
@@ -46,6 +47,29 @@ test('half the draws are signals and half controls, split evenly between blind w
   const starsShare = signals.filter((s) => s.family === 'stars').length / signals.length;
   assert.ok(Math.abs(counts.stars / (counts.stars + counts.voyager) - starsShare) < 0.03);
   assert.deepEqual([...SIGNAL_FAMILIES, ...CONTROL_FAMILIES].sort(), Object.keys(counts).sort());
+});
+
+test('Track A’s sample callout says held out only when its family has held-out snippets', async () => {
+  const slices = await publishedSlices();
+  // As the engine splits a family (slicePools): off-source is one session, so nothing is held out.
+  const pools = (family) => sessionPools(slices.filter((s) => s.family === family));
+  assert.equal(pools('offsource').heldOut, false);
+  const sample = { heldOut: false, gru: 0.123, rms: 0.81, familyRms: 0.92 };
+  const off = trackAScoreText({ sample, gain: 0.2, family: 'Off-source', model: 'GRU', reconstruction: pools('offsource').reason });
+  assert.equal(
+    off,
+    ', in the training data: GRU prediction gain 0.12, against 0.20 averaged over snippets of Off-source from the data it trained on ' +
+      '(nothing could be held out: all loaded slices come from one observing session, so both scores measure reconstruction); ' +
+      'residual error 0.81, against 0.92 on those snippets (root mean square of actual − prediction over frames 2 to 15, as in the residual panel).',
+  );
+  assert.doesNotMatch(off, /held-out/);
+  // The other published real families have a holdout, and their callouts say so.
+  for (const family of ['voyager', 'stars', 'blind-window']) {
+    const p = pools(family);
+    assert.equal(p.heldOut, true, family);
+    const text = trackAScoreText({ sample: { ...sample, heldOut: true }, gain: -0.05, family: familyById[family].label, model: 'LSTM', reconstruction: p.reason ?? null });
+    assert.match(text, new RegExp(`^, held out: LSTM prediction gain 0\\.12, against -0\\.05 averaged over the held-out snippets of ${familyById[family].label}; `));
+  }
 });
 
 test('a sample prefers slices with a pointing, and gives up only when there is nothing else', () => {

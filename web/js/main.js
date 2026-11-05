@@ -9,7 +9,7 @@ import { deriveSeed, makeRng } from './rng.js';
 import { forWorkers, loadPublishedSlices, loadSliceFiles } from './slices.js';
 import { SCAN_GAP_DAYS, groups, mjdDate, sessions } from './splits.js';
 import { C, FAMILIES, ROSETTA_TEXT, T, driftToHzPerS, familyById, makeSnippet, normalise, shuffleFrames } from './signals.js';
-import { describeSample, pickSample, pointingId, sampleDetail, sampleLines, sampleOrder, sampleTitle } from './sample.js';
+import { describeSample, pickSample, pointingId, sampleDetail, sampleLines, sampleOrder, sampleTitle, trackAScoreText } from './sample.js';
 import { GREEN_BANK, OUTCOMES, SkyMap, constellationAt, horizonToEquatorial, loadSky, siderealHours } from './skymap.js';
 import { centralWindow } from './trackb-splits.js';
 import { MAX_UNIT, SPEC, specSlices, workUnitConfig } from './workunits.js';
@@ -72,6 +72,7 @@ const state = {
   family: 'tone',
   sample: null, // the random sky sample's slice, while its family is selected
   pendingTokens: null, // the family whose token model the sample trains once Track A is done
+  runFocus: null, // the sample Track A's last run showed, as { id, title } (see sampleCaption)
   slices: [],
   sliceSource: null, // 'site' | 'files' | null
   running: null, // 'lab' | 'unit' | 'tokens' | 'merge' | null
@@ -318,10 +319,12 @@ function randomSample() {
   startTraining();
 }
 
-// The sample's last step: the token model, once Track A is done and Track B's tokens are ready.
+// The sample's last step: the token model, once Track A is done and Track B's tokens are ready:
+// the analysis of the latest request (analyzeId), the one with this sample's tokens. An earlier
+// analysis of the same family (the previous sample's) won't do.
 function continueSample() {
   const family = state.pendingTokens;
-  if (!family || state.running || state.trackb?.family !== family) return;
+  if (!family || state.running || state.trackb?.family !== family || state.trackb.id !== analyzeId) return;
   state.pendingTokens = null;
   startTokenModel();
 }
@@ -341,12 +344,13 @@ function sampleFrames(seed) {
   return $('shuffle').checked ? shuffleFrames(x, sampleOrder(seed, state.sample.id)) : x;
 }
 
-// The waterfall's caption for the sample: before training (focus null), as the checkbox stands;
-// during training, as the run was configured.
+// The waterfall's caption for the sample: before training (focus null), as the checkbox stands
+// and named from the selected sample; during and after training, as the run was configured and
+// named as it was when the run started (state.runFocus).
 function sampleCaption(focus) {
   const shuffled = focus ? focus.shuffled : $('shuffle').checked;
-  const slice = (focus && state.slices.find((s) => s.id === focus.id)) || state.sample;
-  return `Actual: ${sampleTitle(describeSample(slice))}${shuffled ? ', frames shuffled' : ''}${focus ? ` (${focus.heldOut ? 'held out' : 'in the training data'})` : ''}`;
+  const title = focus ? (state.runFocus?.id === focus.id ? state.runFocus.title : focus.id) : sampleTitle(describeSample(state.sample));
+  return `Actual: ${title}${shuffled ? ', frames shuffled' : ''}${focus ? ` (${focus.heldOut ? 'held out' : 'in the training data'})` : ''}`;
 }
 
 // Before training: show a sample of the chosen family.
@@ -427,15 +431,14 @@ function renderSampleScoreA(e) {
   const s = e?.sample;
   box.hidden = !s;
   if (!s) return;
-  const family = familyById[state.trainedFamily]?.label ?? 'its family';
-  const g = e.gains[state.trainedFamily];
-  box.replaceChildren(
-    element('b', `This sample (${s.id})`),
-    document.createTextNode(
-      `, ${s.heldOut ? 'held out' : 'in the training data'}: ${architectureLabel(e.arch)} prediction gain ${fmt(s.gru)}, against ${fmt(g.gru)} averaged over the held-out snippets of ${family}; ` +
-        `residual error ${fmt(s.rms)}, against ${fmt(s.familyRms)} on those snippets (root mean square of actual − prediction over frames 2 to ${T - 1}, as in the residual panel).`,
-    ),
-  );
+  const text = trackAScoreText({
+    sample: s,
+    gain: e.gains[state.trainedFamily].gru,
+    family: familyById[state.trainedFamily]?.label ?? 'its family',
+    model: architectureLabel(e.arch),
+    reconstruction: e.reconstruction, // the family's split: nothing held out, so not "held-out" snippets
+  });
+  box.replaceChildren(element('b', `This sample (${s.id})`), document.createTextNode(text));
   box.dataset.slice = s.id;
 }
 
@@ -525,6 +528,9 @@ function startTraining() {
     // The waterfall shows the random sky sample, when it's of the family being trained on.
     focus: state.sample?.family === state.family ? state.sample.id : null,
   };
+  // What the waterfall's caption calls the sample, kept with the run: the loaded slices can be
+  // replaced while it runs or after, and its epochs are still drawn.
+  state.runFocus = config.focus ? { id: config.focus, title: sampleTitle(describeSample(state.sample)) } : null;
   state.losses = [];
   state.lastEpoch = null;
   state.lastProbe = null;
