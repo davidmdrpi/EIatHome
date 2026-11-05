@@ -77,13 +77,19 @@ adds two families to Voyager's:
     3 time steps, and it lists no Epsilon Eridani files.
   - Targets can also list files directly. bldata.berkeley.edu serves several Breakthrough Listen
     directories over HTTPS with range requests (`pipeline/`, `kepler-transits/`, `ATLAS/`,
-    `blpd30_datax2/`, ...), and five targets come from there: the interstellar comet **3I/ATLAS**
+    `blpd30_datax2/`, ...), and eleven targets come from there: the interstellar comet **3I/ATLAS**
     (Green Bank, 2025-12-18, one scan in each of the L, C and Ku bands; 49-step scans, of which
     a slice holds the first 16), **Boyajian's Star** (KIC 8462852) and the Kepler planet host
     **Kepler-723** (Green Bank's 2018 Kepler-transit session), the TESS target **TIC 265146266**
-    and the Hipparcos star **HIP 29847**. They need no `--allow-http`, so anyone can re-cut them:
-    `python tools/extract_slices.py --pool tools/slice_pool.json --only 3iatlas kic8462852
-    kepler723 tic265146266 hip29847`.
+    and the Hipparcos star **HIP 29847**, and from Green Bank's session directories under
+    `pipeline/` (one fine-resolution `.0000.h5` scan each, 16 or 32 steps of 18 s; a slice holds
+    the first 16): the first interstellar object, **'Oumuamua** (X band, 2017-12-02), the
+    red dwarfs **Luyten 726-8 A** (BL Ceti) and **Luyten's Star** (L band, 2016), **Gliese 876**
+    (2018) and **LHS 1140** (2017), and the **Andromeda Galaxy** (2019). Luyten's Star uses its
+    session's scan 0039: in scan 0003, the coarse channel the seeded draw picked wouldn't
+    normalize to noise-sigma units (a 1.1e5-sigma peak). They need no `--allow-http`, so anyone
+    can re-cut them: `python tools/extract_slices.py --pool tools/slice_pool.json --only 3iatlas
+    kic8462852 kepler723 tic265146266 hip29847 oumuamua gj65a gj273 gj876 lhs1140 m31`.
 - **Blind windows** (family `blind-window`, group `blind window`): windows at random frequencies
   in the same on-target scans, two per file, in the first coarse channel read. A seeded draw
   places them before anything is read, away from the band edges and the DC spike in the middle,
@@ -92,7 +98,7 @@ adds two families to Voyager's:
   the 2020 windows lands on Voyager's carrier (SNR 615).
 
 The pool's seed fixes every random choice, so re-running it cuts the same slices. Its limits
-keep it small: at most 100 slices and 1.5 MB. As published, it holds 79 slices (1.3 MB) from 12
+keep it small: at most 120 slices and 2 MB. As published, it holds 106 slices (1.7 MB) from 18
 targets and Voyager 1:
 
 | Target | Telescope | Scans | Hits | Blind windows | Other |
@@ -110,6 +116,12 @@ targets and Voyager 1:
 | Kepler-723 | Green Bank | 2018-03-25 | 3 | 2 | |
 | TIC 265146266 | Green Bank | 2021-06-12 | 1 | 2 | |
 | HIP 29847 | Green Bank | 2021-08-07 | 0 | 2 | |
+| 'Oumuamua (interstellar object) | Green Bank | 2017-12-02 (X band) | 3 | 2 | |
+| Luyten 726-8 A | Green Bank | 2016-07-04 (L band) | 0 | 2 | |
+| Luyten's Star | Green Bank | 2016-06-04 (L band) | 3 | 2 | |
+| Gliese 876 | Green Bank | 2018-08-10 | 3 | 2 | |
+| LHS 1140 | Green Bank | 2017-01-21 | 3 | 2 | |
+| Andromeda Galaxy (M31) | Green Bank | 2019-11-17 | 3 | 2 | |
 
 A "0" means the coarse channels searched had nothing above SNR 10 in their first 16 steps; those
 scans still give blind windows. Proxima's one hit near blc1's channel, a line one channel wide

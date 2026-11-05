@@ -37,7 +37,7 @@ export const FAMILIES = [
     real: true,
     window: 'on-target hit',
     control: 'blind-window',
-    about: 'Real Breakthrough Listen scans of SETI targets: nearby stars (Proxima Centauri and Tau Ceti with Parkes, five more with Green Bank), Boyajian’s Star and a Kepler planet host, TESS and Hipparcos targets, and the interstellar comet 3I/ATLAS. Each window surrounds one of the strongest narrowband hits a de-Doppler search found while the telescope pointed at the target. Hits like these are almost always human interference. blc1, at 982 MHz towards Proxima Centauri, turned out to be interference too.',
+    about: 'Real Breakthrough Listen scans of SETI targets: nearby stars (Proxima Centauri and Tau Ceti with Parkes, nine more with Green Bank), Boyajian’s Star and a Kepler planet host, TESS and Hipparcos targets, the Andromeda Galaxy, and the interstellar visitors ’Oumuamua and 3I/ATLAS. Each window surrounds one of the strongest narrowband hits a de-Doppler search found while the telescope pointed at the target. Hits like these are almost always human interference. blc1, at 982 MHz towards Proxima Centauri, turned out to be interference too.',
   },
   {
     id: 'blind-window',
