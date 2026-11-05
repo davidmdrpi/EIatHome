@@ -196,6 +196,13 @@ def write_fil(path, data, **header):
     Path(path).write_bytes(out + string("HEADER_END") + data.astype("<f4").tobytes())
 
 
+class Truncated:
+    """A file the server starts to send and then cuts off: full headers, half the body."""
+
+    def __init__(self, data):
+        self.data = data
+
+
 class FileServer:
     """Serves several files and JSON replies over HTTP, honouring Range requests."""
 
@@ -216,6 +223,9 @@ class FileServer:
                     self.send_header("Content-Length", "0")
                     self.end_headers()
                     return
+                truncated = isinstance(payload, Truncated)
+                if truncated:
+                    payload = payload.data
                 match = re.fullmatch(r"bytes=(\d+)-(\d+)", self.headers.get("Range", ""))
                 body, status = payload, 200
                 if match:
@@ -225,6 +235,10 @@ class FileServer:
                     self.send_header("Content-Range", f"bytes {match[1]}-{match[2]}/{len(payload)}")
                 self.send_header("Content-Length", str(len(body)))
                 self.end_headers()
+                if truncated and len(body) > 1:  # the headers promise the whole body; half arrives
+                    self.wfile.write(body[:len(body) // 2])
+                    self.close_connection = True
+                    return
                 self.wfile.write(body)
 
             def log_message(self, *args):
@@ -301,7 +315,9 @@ class PoolTests(unittest.TestCase):
                     query = dict(urllib.parse.parse_qsl(urllib.parse.urlsplit(path).query))
                     queries.append(query)
                     listing = listing_for(query)
-                    return listing if isinstance(listing, int) else json.dumps({"result": "success", "data": listing}).encode()
+                    if isinstance(listing, (int, Truncated)):
+                        return listing
+                    return json.dumps({"result": "success", "data": listing}).encode()
                 return dict.get(inner, path, default)
 
         self.server = FileServer(Files(files))
@@ -532,17 +548,78 @@ class PoolTests(unittest.TestCase):
         self.assertEqual(json.loads((out / "index.json").read_text())["slices"], second)
         self.assertEqual(sorted(p.name for p in out.glob("*.bin")), sorted(e["file"] for e in second))
 
+    def test_a_body_cut_off_after_the_headers_keeps_the_targets_earlier_slices(self):
+        # The failure comes while reading the body, after a 206 and its headers have arrived.
+        files, targets = self.two_targets()
+        out = self.folder / "slices"
+        first = self.run_pool(targets, out=out)
+        earlier_a = [e for e in first if e["source"]["pool"]["key"] == "a"]
+        bins = {e["file"]: (out / e["file"]).read_bytes() for e in earlier_a}
+
+        files["/dl/a.0000.h5"] = Truncated(files["/dl/a.0000.h5"])  # partial: b still refreshes
+        targets[1]["blind"] = 2
+        with self.assertRaisesRegex(SystemExit, "Couldn't retrieve everything for a"):
+            self.rerun(targets, out)
+        self.assertIn("IncompleteRead", self.last_log)
+        second = json.loads((out / "index.json").read_text())["slices"]
+        self.assertEqual([e for e in second if e["source"]["pool"]["key"] == "a"], earlier_a)
+        self.assertEqual({f: (out / f).read_bytes() for f in bins}, bins)
+        self.assertEqual(sum(e["family"] == "blind-window" and e["source"]["pool"]["key"] == "b" for e in second), 2)
+
+        files["/dl/b.0000.h5"] = Truncated(files["/dl/b.0000.h5"])  # total
+        with self.assertRaisesRegex(SystemExit, "Couldn't retrieve everything for a, b"):
+            self.rerun(targets, out)
+        self.assertEqual(json.loads((out / "index.json").read_text())["slices"], second)
+        self.assertEqual(sorted(p.name for p in out.glob("*.bin")), sorted(e["file"] for e in second))
+
+    def test_a_timeout_reading_a_body_is_retried_then_recorded(self):
+        class Response:
+            status = 206
+
+            def __init__(self, read):
+                self.read = read
+
+            def __enter__(self):
+                return self
+
+            def __exit__(self, *exc):
+                return False
+
+        def timeout():
+            raise TimeoutError("timed out")
+
+        remote = x.RangeFile.__new__(x.RangeFile)
+        remote.url, remote.fetched = "http://example.org/a.h5", 0
+        before = len(x.RETRIEVAL_FAILURES)
+        replies = iter([Response(timeout), Response(lambda: b"abcd")])
+        with mock.patch.object(x.RangeFile, "_request", lambda self, headers=None, method="GET": next(replies)), mock.patch.object(x.time, "sleep"):
+            self.assertEqual(remote._get(0, 4), b"abcd", "a timeout mid-body is retried")
+        self.assertEqual(len(x.RETRIEVAL_FAILURES), before, "and a retry that succeeds is no failure")
+        with mock.patch.object(x.RangeFile, "_request", lambda self, headers=None, method="GET": Response(timeout)), mock.patch.object(x.time, "sleep"):
+            with self.assertRaisesRegex(OSError, "TimeoutError"):
+                remote._get(0, 4)
+        self.assertEqual(len(x.RETRIEVAL_FAILURES), before + 1)
+        self.assertIn("TimeoutError", x.RETRIEVAL_FAILURES[-1])
+
     def test_an_archive_query_that_fails_keeps_the_targets_earlier_slices(self):
         scans = {"a.0000.h5": self.scan("a.0000.h5", 57800.25, line_at=900)}
-        state = {"up": True}
-        self.setup_archive(scans, lambda q: [self.archive("a.0000.h5", 57800.25)] if state["up"] else 503)
+        state = {"reply": "up"}
+
+        def listing(q):
+            entries = [self.archive("a.0000.h5", 57800.25)]
+            if state["reply"] == "cut":  # the reply's headers arrive, then half its body
+                return Truncated(json.dumps({"result": "success", "data": entries}).encode())
+            return entries if state["reply"] == "up" else 503
+
+        self.setup_archive(scans, listing)
         target = {"key": "trappist1", "name": "TRAPPIST-1", "queries": [{"target": "TRAPPIST"}], "files": 1, "hits": 1, "blind": 1}
         out = self.folder / "slices"
         first = self.run_pool([target], out=out)
-        state["up"] = False
-        with self.assertRaisesRegex(SystemExit, "Couldn't retrieve everything for trappist1"):
-            self.rerun([target], out)
-        self.assertEqual(json.loads((out / "index.json").read_text())["slices"], first)
+        for reply in ("down", "cut"):
+            state["reply"] = reply
+            with self.assertRaisesRegex(SystemExit, "Couldn't retrieve everything for trappist1"):
+                self.rerun([target], out)
+            self.assertEqual(json.loads((out / "index.json").read_text())["slices"], first, reply)
 
     def test_a_file_the_server_says_is_gone_is_skipped_not_a_failure(self):
         files, targets = self.two_targets()

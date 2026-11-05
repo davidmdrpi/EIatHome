@@ -44,6 +44,7 @@ from collections import Counter, OrderedDict
 from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timedelta, timezone
 import hashlib
+import http.client
 import io
 import json
 import math
@@ -148,16 +149,25 @@ class RangeFile(io.RawIOBase):
             time.sleep(2 ** attempt)
 
     def _get(self, offset, length):
-        with self._request({"Range": f"bytes={offset}-{offset + length - 1}"}) as response:
-            # A server that ignores Range would send the whole file: stop instead.
-            if response.status != 206:
-                raise OSError(f"{self.url} doesn't support range requests (HTTP {response.status})")
-            data = response.read()
-        if len(data) != length:
-            RETRIEVAL_FAILURES.append(f"{self.url}: short read at byte {offset}")
-            raise OSError(f"{self.url}: short read at byte {offset}")
-        self.fetched += length
-        return data
+        """Bytes offset to offset + length, retried like the request itself: a body cut short or
+        timing out after the headers arrived is a failure to retrieve as much as a refused request."""
+        for attempt in range(4):
+            with self._request({"Range": f"bytes={offset}-{offset + length - 1}"}) as response:
+                # A server that ignores Range would send the whole file: stop instead.
+                if response.status != 206:
+                    raise OSError(f"{self.url} doesn't support range requests (HTTP {response.status})")
+                try:
+                    data = response.read()
+                    problem = None if len(data) == length else f"short read at byte {offset}"
+                except (OSError, http.client.HTTPException) as err:  # a timeout, a reset, an incomplete read
+                    problem = f"{type(err).__name__} reading from byte {offset}: {err}"
+            if problem is None:
+                self.fetched += length
+                return data
+            if attempt == 3:
+                RETRIEVAL_FAILURES.append(f"{self.url}: {problem}")
+                raise OSError(f"{self.url}: {problem}")
+            time.sleep(2 ** attempt)
 
     def prefetch(self, ranges, workers=8):
         """Fetch these (offset, length) ranges in parallel, for the reads h5py is about to make."""
@@ -714,7 +724,7 @@ def fetch_json(url, allow_http):
         try:
             with urllib.request.urlopen(url, timeout=120) as response:
                 return json.loads(response.read())
-        except (OSError, ValueError) as err:  # ValueError: a reply that isn't JSON (an error page)
+        except (OSError, ValueError, http.client.HTTPException) as err:  # ValueError: not JSON (an error page); HTTPException: cut short
             if attempt == 3:
                 RETRIEVAL_FAILURES.append(f"{url}: {err}")
                 raise
