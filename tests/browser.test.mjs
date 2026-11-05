@@ -837,12 +837,18 @@ test('an off-source sample is scored as reconstruction, and its caption outlives
   assert.doesNotMatch(callout, /held-out/);
   await stopTokenModel(page);
 
-  // Files that don't include the sample replace the published ones. Back in the Live Lab, the
-  // last run's waterfall is drawn again, still named for the sample it showed.
+  // Files that don't include the sample replace the published ones (the status already said
+  // "loaded" before, so wait for the sample to go with its file and the family with it). Back in
+  // the Live Lab, the last run's waterfall is drawn again, still named for the sample it showed.
   await loadSlices(page, [{ meta: { id: 'replacement' }, bytes: lineSlice(2.4) }]);
-  assert.equal(await page.getAttribute('#sample-status', 'data-slice'), '', 'the sample went with its file');
+  await page.waitForFunction(() => document.getElementById('sample-status').dataset.slice === '' && document.querySelector('#families button[data-family="tone"]').getAttribute('aria-checked') === 'true', null, { timeout: 10000 });
   assert.equal(await page.isVisible('#sample-card'), false);
-  assert.equal(await page.textContent('#wf-actual-caption'), `Actual: ${title} (in the training data)`);
+  // A tab button sets the location hash, and the Live Lab redraws on the hashchange that follows.
+  await page.click('.tabs button[data-tab="data"]');
+  await page.click('.tabs button[data-tab="lab"]');
+  const caption = `Actual: ${title} (in the training data)`;
+  await page.waitForFunction((caption) => document.getElementById('wf-actual-caption').textContent === caption, caption, { timeout: 10000 })
+    .catch(async () => assert.equal(await page.textContent('#wf-actual-caption'), caption));
   assert.deepEqual(errors, []);
   await page.close();
 });
@@ -1201,7 +1207,10 @@ test('clicking another beacon while a recovery unit runs moves the view, not the
   await page.waitForFunction(() => /(^|;)barnard /.test(document.querySelector('#rc-viewport canvas').dataset.beacons), null, { timeout: 10000 });
   const { beacons } = await viewportState(page, 'rc-viewport');
   await page.mouse.click(box.x + beacons.barnard[0], box.y + beacons.barnard[1]);
-  await page.waitForFunction(() => document.querySelector('#rc-viewport .hud-title').textContent === "Barnard's Star", null, { timeout: 10000 });
+  // Barnard's Star has two targets 2.8′ apart, the reference and its blind-window pointing, under a
+  // pixel apart this far out: the click takes whichever is nearer, so either will do.
+  await page.waitForFunction(() => /^Barnard's Star($| · )/.test(document.querySelector('#rc-viewport .hud-title').textContent), null, { timeout: 10000 });
+  const taken = await page.textContent('#rc-viewport .hud-title');
   assert.match(await page.textContent('#rc-status'), /^Unit 7: /, 'still running');
   assert.equal(await page.$eval('#rc-viewport canvas', (c) => c.dataset.job), 'recovery', 'the unit stays drawn on its own windows');
   assert.match(await page.textContent('#rc-viewport .hud-telemetry'), /Data from Recovery windows · 2020-07-16/);
@@ -1210,7 +1219,7 @@ test('clicking another beacon while a recovery unit runs moves the view, not the
   await page.waitForFunction(() => document.getElementById('rc-status').textContent.startsWith('Unit 7 finished'), null, { timeout: 30000 });
   assert.equal(await page.$eval('#rc-viewport canvas', (c) => c.dataset.job), 'recovery');
   assert.match(await page.textContent('#rc-viewport .hud-telemetry'), /Data from Recovery windows · 2020-07-16[\s\S]*Recovery unit 7 · de-Doppler found/);
-  assert.equal(await page.textContent('#rc-viewport .hud-title'), "Barnard's Star", 'the view stays where it was taken');
+  assert.equal(await page.textContent('#rc-viewport .hud-title'), taken, 'the view stays where it was taken');
   assert.deepEqual(errors, []);
   await page.close();
 });
