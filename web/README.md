@@ -33,12 +33,12 @@ browsers don't run module workers from `file://` URLs.
 | `js/trackb-splits.js` | Track B's training, validation and test frames for each kind of family, split before anything is fitted |
 | `js/trackb.worker.js`, `js/trackb.js` | Track B: splits each family into training, validation and test segments, fits the k-means tokenizer and the shuffled and Markov-1 surrogates on the training split only, and measures held-out cross-entropy, conditional entropy, mutual information, Zipf and compression without crossing a segment boundary |
 | `js/signals.js` | Signal families (four real-data ones: Voyager 1, off-source, SETI targets and blind windows; a reconstruction of the 1977 Wow! signal from its printout readings, 6EQUJ5; and the synthetic controls) and the Rosetta text; snippet normalization. A real family says how its windows were cut (on-target hit, off-source or random blind window) and which real family is its control |
-| `js/sample.js` | The random sky sample: picks a real slice that isn't the one already shown, names its sky-map target, and writes its card (source, telescope, MJD, centre frequency, drift and SNR, and how the window was cut). `main.js` then selects its family, slews the map to it, and runs Track A (with the sample in the waterfall), Track B's tokens and, once Track A is done, the token model |
+| `js/sample.js` | The random sky sample: picks a real slice that isn't the one already shown, half the time a signal (Voyager 1 or a SETI target's hit) and half the time a control (blind window or off-source, a quarter each), names its sky-map target, and writes its card (source, telescope, MJD, centre frequency, drift and SNR, and how the window was cut) and captions ("Tau Ceti · 3285.618 MHz · Parkes"). `main.js` then selects its family, flies the map to it, shows the slice's spectrogram in the map's card and in Section 1, and runs Track A (with the sample in the waterfall), Track B's tokens and, once Track A is done, the token model. Both tracks score the sample itself, in a highlighted "This sample" row under its family's averages and a callout: Track A its prediction gains and residual error, Track B the cross-entropy of its tokens under the n-gram model and the token model |
 | `js/slices.js` | Loads real-data micro-slices (`data/slices/`) or user-dropped files, verifies their SHA-256 and computes the dataset identity |
 | `js/splits.js` | Groups a real family's slices into observing sessions and keeps training and evaluation on different sessions |
 | `js/workunits.js` | Versioned work-unit specs (`track-a/v0`; the recovery and merge specs live in `js/recovery.js` and `js/merge.js`). A `track-a/v0` unit reads only the slices of its spec's families (`specSlices`), so slices of later families leave its inputs and dataset id alone |
 | `js/contributions.js` | What became of the result cards computed in this browser (computed here, saved to a file, opened on GitHub, accepted into the community results), and the rule for keeping them: a card is dropped to make room only if it's accepted or saved |
-| `js/skymap.js` | The Observatory viewport: a sky map on a canvas (stereographic projection, so stars stay round at any zoom). Slews along great circles to each signal's pointing, zooms from 60° to the 2° around the telescope beam with a computation's progress, and draws its live effects: wavefronts for Track A and B, and the 1,024-window grid for recovery units. Observatory mode fills the window and can keep running work units. A running job stays on the target whose data it uses, and the HUD names that data. The coordinate math has no DOM dependencies, so tests run it in Node |
+| `js/skymap.js` | The Observatory viewport: a sky map on a canvas (stereographic projection, so stars stay round at any zoom). Slews along great circles to each signal's pointing, zooms from 60° to the 2° around the telescope beam with a computation's progress (a random sample instead gets a flight: out to a 35° view of its part of the sky with the constellations showing, then into the beam, which stays framed while the tracks run; the reticle names the target and frequency, "Tau Ceti · 3.29 GHz"), and draws its live effects: wavefronts for Track A and B, and the 1,024-window grid for recovery units. Observatory mode fills the window and can keep running work units. A running job stays on the target whose data it uses, and the HUD names that data. The coordinate math has no DOM dependencies, so tests run it in Node |
 | `data/sky/` | The sky it draws (`tools/build_sky.py`): the 1,500 brightest Hipparcos stars with B−V colours, every Hipparcos star near the observed targets, constellation lines, names and IAU boundaries, and reference targets (among them the Wow! signal's two possible fields), from d3-celestial (BSD-3-Clause, notice in `LICENSE.d3-celestial.txt`) |
 | `js/recovery.js`, `js/recovery.worker.js` | The `recovery/v0` work unit (`tracks/recovery`, issue #13): injects synthetic signals into the real off-source windows in `data/recovery/`, deals them blind to the de-Doppler and energy detectors, and counts what each finds at thresholds pinned in the spec. Also checks recovery cards and adds units up |
 | `js/rng.js` | Seeded random numbers, so everything is reproducible |
@@ -70,10 +70,11 @@ For Track B it checks that the tokenizer, surrogates and n-gram model never see 
 model, that no statistic or compressed block crosses a segment boundary, and that real data holds
 out whole scans or sessions.
 `tests/sample.test.mjs` checks the random sky sample: it never repeats the slice shown, can
-reach every published family, prefers slices with a pointing, and writes the card from the
-manifest; and that the slice pool stays within its limits, with every slice located and credited.
+reach every published family, draws signals and controls half the time each (blind windows and
+off-source a quarter each), prefers slices with a pointing, and writes the card from the
+manifest and Track A's callout, which says "held out" only when the family has a holdout; and that the slice pool stays within its limits, with every slice located and credited.
 `tests/skymap.test.mjs` checks the viewport's math and data: coordinates, galactic conversion,
-the projection and its inverse, slews, sidereal time, constellations from the IAU boundaries,
+the projection and its inverse, slews and flights, the reticle's label, sidereal time, constellations from the IAU boundaries,
 and that the manifest records where every slice pointed.
 `tests/recovery.test.mjs` checks the recovery unit: the spec pins the published windows and
 thresholds, every class is injected at its strength inside the window, the dealer's key
@@ -117,9 +118,17 @@ headless Chromium. It checks that:
   units;
 - the viewport slews to a signal's pointing, and clicking a beacon selects its signal;
 - one click on **Random sky sample & analyze** picks a published slice, selects its family,
-  slews the map to the slice's pointing with the slice in the target's card, starts Track A at
-  once and Track B's tokens alongside, trains the token model when Track A is done, and the next
-  click picks another slice;
+  flies the map through a 35° view of its part of the sky into the beam at its pointing (the
+  reticle naming the target and frequency), shows the slice's spectrogram and labels in the
+  target's card and in Section 1, captions the waterfall with its target, frequency and
+  telescope, starts Track A at once and Track B's tokens alongside, trains the token model when
+  Track A is done, scores the sample itself in both tracks next to its family's averages, and
+  the next click picks another slice, with scores of its own;
+- an off-source sample (one session, so nothing held out) is compared with what the model
+  trained on, and says so, and the last run's waterfall keeps its sample's name after the
+  loaded files are replaced;
+- the token model a sample starts waits for Track B's analysis of that sample, even when it
+  arrives after Track A, rather than taking the previous sample's;
 - a recovery unit zooms the viewport to the telescope beam and colours each window by its outcome;
 - observatory mode fills the window, keeps running units, and stops when it's closed; auto-run
   ticked while the recovery windows load starts once they're ready, and clicking another beacon

@@ -244,6 +244,32 @@ test('Track B fits its tokenizer and surrogates on the training split only', asy
   assert.notDeepEqual(b.streams.real.test, a.streams.real.test);
 });
 
+test('Track B scores the sample on its own with the same codebook and n-gram model, and nothing else changes', async () => {
+  const frames = (seed, count) => {
+    const rng = makeRng(seed);
+    return Array.from({ length: count }, () => Float32Array.from({ length: 16 * 8 }, () => rng.gauss()));
+  };
+  const splits = { train: frames(1, 20), validation: frames(2, 5), test: frames(3, 5) };
+  const control = frames(4, 3);
+  const run = (probe) => analyzeSplits(splits, { k: 6, dim: 8, rng: makeRng(9), control, probe });
+  const plain = await run(null);
+  const [probeA, probeB] = [frames(5, 1)[0], frames(6, 1)[0].map((v) => v * 2 + 1)];
+  const a = await run(probeA);
+  const b = await run(probeB);
+  assert.equal(plain.probe, null);
+  for (const r of [a, b]) {
+    const { probe, ...rest } = r;
+    const { probe: _, ...base } = plain;
+    assert.deepEqual(rest, base, 'the codebook, streams, scores and control are those of a run without a sample');
+    assert.equal(probe.tokens.length, 16, 'one token per frame');
+    const model = fitNgram(r.streams.real, 6);
+    const segment = Uint16Array.from(probe.tokens);
+    assert.deepEqual(probe.crossEntropy.map((e) => e.bits), model.betas.map((beta, L) => heldOutCrossEntropy({ ...r.streams.real, test: [segment] }, 6)[L].bits), 'scored like a test segment');
+    assert.equal(probe.crossEntropy[0].targets, 15);
+  }
+  assert.notDeepEqual(a.probe.crossEntropy, b.probe.crossEntropy, 'another sample, other scores');
+});
+
 test('changing only the Rosetta test text leaves training and validation untouched', async () => {
   const text = 'abcdefghijklmnopqrstuvwxyz '.repeat(120);
   const before = rosettaSplits(128, 1, text).frameSplits;

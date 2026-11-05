@@ -8,6 +8,7 @@ import { test } from 'node:test';
 import { MAX_CARD_BYTES, MAX_ISSUE_URL, extractCard, issueLink, submissionText, summarize, validateCard } from '../web/js/community.js';
 import { parseRecoveryWindows, recoveryCard, runRecoveryUnit } from '../web/js/recovery.js';
 import { describeDataset } from '../web/js/slices.js';
+import { specSlices } from '../web/js/workunits.js';
 import { makeCard, publishedSlices } from './fixtures.mjs';
 
 test('a card produced by the spec validates', async () => {
@@ -61,7 +62,8 @@ async function publishedCard(unit, extraSlices = 0) {
   const slices = await publishedSlices();
   const published = await describeDataset(slices);
   const card = await makeCard(unit, { dataset: published });
-  const ids = slices.map((s) => s.id);
+  // A unit lists the slices it read: its spec's families only (specSlices), as the engine does.
+  const ids = specSlices(slices).map((s) => s.id);
   const listed = [...ids, ...Array.from({ length: extraSlices }, (_, i) => `${ids[i % ids.length]}-more-${i}`)];
   card.inputs.slices.slices = listed;
   card.metrics.drift_probe.voyager = ['carrier', 'sideband', 'sideband'].map((group) => ({

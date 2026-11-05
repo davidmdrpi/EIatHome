@@ -8,8 +8,8 @@ import { ANCHOR, peakTokenizer } from './anchor.js';
 import { deriveSeed, makeRng } from './rng.js';
 import { C, T, familyById } from './signals.js';
 import { canonicalOrder } from './slices.js';
-import { analyzeSplits } from './trackb.js';
-import { realSplits, rosettaSplits, syntheticSplits } from './trackb-splits.js';
+import { SPLITS, analyzeSplits } from './trackb.js';
+import { centralWindow, realSplits, rosettaSplits, syntheticSplits } from './trackb-splits.js';
 import { mjdDate } from './splits.js';
 
 let slices = [];
@@ -27,8 +27,9 @@ self.onmessage = async ({ data: msg }) => {
   }
 };
 
-// k is a number of k-means tokens, or 'peak' for the merge anchor's pinned tokenizer.
-async function analyze({ family, k: requested, nFrames, seed, text }) {
+// k is a number of k-means tokens, or 'peak' for the merge anchor's pinned tokenizer. sample:
+// the id of the Live Lab's sample, a slice of this family, scored on its own as well.
+async function analyze({ family, k: requested, nFrames, seed, text, sample = null }) {
   const tokenizer = requested === 'peak' ? peakTokenizer() : null;
   const k = tokenizer?.k ?? requested;
   const nSnippets = Math.ceil(nFrames / T);
@@ -37,6 +38,7 @@ async function analyze({ family, k: requested, nFrames, seed, text }) {
   let control = [];
   let controlFamily = null;
   let evaluation;
+  let focus = null;
   if (family === 'rosetta') {
     const r = rosettaSplits(nSnippets, seed, text);
     frameSplits = r.frameSplits;
@@ -45,6 +47,9 @@ async function analyze({ family, k: requested, nFrames, seed, text }) {
   } else if (familyById[family].real) {
     const r = realSplits(slices, family);
     ({ frameSplits, control, controlFamily } = r);
+    const slice = sample ? slices.find((s) => s.id === sample && s.family === family) : null;
+    // Which split holds the sample's window: train means its tokens were counted in the fit.
+    if (slice) focus = { id: slice.id, frames: centralWindow(slice), split: SPLITS.find((name) => r.split[name].some((s) => s.id === slice.id)) ?? null };
     const { unit, independent } = r.split;
     evaluation = { unit, independent, sessions: r.split.sessions.length, description: describeHoldout(r.split) };
     notes.push(`Real data: one fixed window per slice, holding out whole ${unit}s.`);
@@ -57,7 +62,7 @@ async function analyze({ family, k: requested, nFrames, seed, text }) {
   }
 
   const rng = makeRng(deriveSeed(seed, `trackb-${family}`));
-  const result = await analyzeSplits(frameSplits, { k, dim: C, rng, control, tokenizer });
+  const { probe, ...result } = await analyzeSplits(frameSplits, { k, dim: C, rng, control, tokenizer, probe: focus?.frames ?? null });
   if (tokenizer) notes.push(`Pinned tokens (${ANCHOR.id}): token 0 is a frame with no channel at 6 noise sigma, and the others are the 2-channel bin of the brightest channel. Nothing is fitted, so every run gets the same tokens, and the token transformer starts from the anchor’s θ₀.`);
   if (result.sizes.test.targets < 200) notes.push(`Only ${result.sizes.test.targets} test tokens are scored, so treat small differences as noise.`);
   if (result.control) {
@@ -69,6 +74,7 @@ async function analyze({ family, k: requested, nFrames, seed, text }) {
     k,
     tokenizer: tokenizer ? 'peak' : 'kmeans',
     ...result,
+    sample: probe && { id: focus.id, split: focus.split, ...probe },
     evaluation,
     preview: Array.from(result.streams.real.train.flatMap((s) => [...s]).slice(0, 48)),
     notes,

@@ -11,6 +11,7 @@ import { MAX_ISSUE_URL, extractCard, submissionText, validateCard } from '../web
 import { matchedSize, matchedTokenWidth, parameterCount, tokenParameterCount } from '../web/js/models.js';
 import { parseRecoveryWindows, recoveryCard, recoveryConfig, runRecoveryUnit, verifyRecoveryCard } from '../web/js/recovery.js';
 import { RESULT_CARD_VERSION } from '../web/js/workunits.js';
+import { describeSample, sampleTitle } from '../web/js/sample.js';
 import { describeDataset } from '../web/js/slices.js';
 import { sessions } from '../web/js/splits.js';
 import { lineSlice, makeCard, publishedSlices, writeSliceFolder } from './fixtures.mjs';
@@ -692,7 +693,23 @@ test('the observatory viewport slews to a signal on the sky, and clicking a beac
   await page.close();
 });
 
-test('one click on the random sky sample picks a real slice, slews to where it came from, and runs Track A and Track B', async () => {
+// Math.random returns these values next, then goes on as usual: it decides the random sky
+// sample's draw (pickSample: signal or control, which control family, which slice).
+const drawNext = (page, values) =>
+  page.evaluate((values) => {
+    const native = (window.__nativeRandom ??= Math.random);
+    const queue = [...values];
+    Math.random = () => (queue.length ? queue.shift() : native());
+  }, values);
+
+// Stops the token model that the random sky sample starts once Track A is done.
+async function stopTokenModel(page) {
+  await page.waitForFunction(() => !document.getElementById('tb-lm-stop').disabled, null, { timeout: 120000 });
+  await page.click('#tb-lm-stop');
+  await page.waitForFunction(() => document.getElementById('tb-lm-status').textContent === 'Stopped.', null, { timeout: 120000 });
+}
+
+test('one click on the random sky sample picks a real slice, flies to where it came from, and scores it in Track A and Track B', async () => {
   const published = await publishedSlices();
   const { page, errors } = await openLab();
   await waitForPublished(page);
@@ -710,12 +727,30 @@ test('one click on the random sky sample picks a real slice, slews to where it c
   assert.equal(await page.isDisabled('#sample'), true, 'one sample at a time');
   assert.match(await page.textContent('#lab-status'), /^Building snippets/);
 
-  // The map slews to the slice's pointing; the job runs there, and the card describes the slice.
+  // Section 1 shows the slice's spectrogram, labelled with what it is.
+  const title = sampleTitle(describeSample(slice));
+  assert.equal(await page.isVisible('#sample-card'), true);
+  assert.equal(await page.textContent('#sample-title'), title);
+  assert.match(await page.textContent('#sample-detail'), new RegExp(`(drift [+−]\\d\\.\\d{3} Hz/s|no drift measured) · peak SNR \\d+\\.\\d · .+ · ${picked}$`));
+
+  // The map flies out to a wide view of the slice's part of the sky, constellations showing,
+  // then into the beam at its pointing; the job runs there, and the card describes the slice.
   const { ra_hours: ra, dec_deg: dec, telescope } = slice.source.sky;
-  await page.waitForFunction(([ra, dec]) => {
+  const at = ([ra, dec]) => {
     const [r, d] = document.querySelector('#lab-viewport canvas').dataset.center.split(',').map(Number);
     return Math.abs(r - ra) < 0.01 && Math.abs(d - dec) < 0.01;
-  }, [ra * 15, dec], { timeout: 15000 });
+  };
+  await page.waitForFunction(() => document.querySelector('#lab-viewport canvas').dataset.flight === 'wide', null, { timeout: 15000 });
+  const wide = await viewportState(page, 'lab-viewport');
+  assert.ok(Math.abs(wide.fov - 35) < 1e-6, `${wide.fov}° wide`);
+  assert.ok(await page.evaluate(at, [ra * 15, dec]), 'centred on the pointing');
+  await page.waitForFunction(() => document.querySelector('#lab-viewport canvas').dataset.flight === 'beam', null, { timeout: 15000 });
+  assert.ok(await page.evaluate(at, [ra * 15, dec]));
+  const beam = await viewportState(page, 'lab-viewport');
+  assert.ok(beam.fov <= 2, `into the beam: ${beam.fov}°`);
+  const freq = Number(slice.source.centre_freq_mhz);
+  const name = slice.source.sky.target ?? { voyager: 'Voyager 1', offsource: 'Off-source' }[slice.family];
+  assert.equal(await page.getAttribute('#lab-viewport canvas', 'data-reticle'), `${name} · ${(freq / 1000).toFixed(2)} GHz`, 'the reticle names the target and frequency');
   const target = await page.getAttribute('#sample-status', 'data-target');
   assert.equal(target, `${slice.family}@${ra.toFixed(4)},${dec.toFixed(3)}@${slice.source.sky.epoch.slice(0, 10)}`);
   await page.waitForFunction((t) => document.querySelector('#lab-viewport canvas').dataset.job === t, target, { timeout: 10000 });
@@ -728,19 +763,162 @@ test('one click on the random sky sample picks a real slice, slews to where it c
   assert.match(card, new RegExp(`MJD ${slice.source.tstart_mjd.toFixed(4).replace('.', '\\.')}`));
   assert.match(card, new RegExp(`${Number(slice.source.centre_freq_mhz).toFixed(6).replace('.', '\\.')} MHz`));
   assert.match(card, /drift [+−]\d\.\d{3} Hz\/s · SNR|no drift measured · peak SNR/);
+  assert.deepEqual(await page.$eval('#lab-viewport .hud-thumb', (c) => [c.width, c.height, getComputedStyle(c).display !== 'none']), [64, 16, true], 'its spectrogram, a pixel per channel and frame');
+  // The beam stays framed while Track A trains: no zooming back out with progress.
+  assert.ok((await viewportState(page, 'lab-viewport')).fov <= 2);
 
   // Track B tokenizes the family meanwhile; once Track A is done, the token model trains.
   await page.waitForFunction(() => /^(Done|Stopped)/.test(document.getElementById('lab-status').textContent), null, { timeout: 120000 });
-  assert.match(await page.textContent('#wf-actual-caption'), /^Actual: the sample \((held out|in the training data)\)$/);
-  assert.match(await page.textContent('#tb-status'), new RegExp(`^${slice.family === 'blind-window' ? 'Blind windows' : '[A-Z]'}`));
-  await page.waitForFunction(() => /^Done: GRU/.test(document.getElementById('tb-lm-status').textContent), null, { timeout: 180000 });
+  const caption = await page.textContent('#wf-actual-caption');
+  assert.ok([`Actual: ${title} (held out)`, `Actual: ${title} (in the training data)`].includes(caption), caption);
+  assert.ok((await viewportState(page, 'lab-viewport')).fov <= 2, 'still in the beam');
 
-  // The next click picks another slice.
+  // Track A scores the sample itself, under its family's row.
+  const scoreA = async () => ({
+    row: await page.$eval('#gains tbody tr.this-sample', (tr) => [...tr.cells].map((td) => td.textContent)),
+    display: await page.$eval('#gains tbody tr.this-sample', (tr) => getComputedStyle(tr).display),
+    current: await page.$eval('#gains tbody tr.current + tr', (tr) => tr.className),
+    callout: await page.textContent('#sample-score-a'),
+    slice: await page.getAttribute('#sample-score-a', 'data-slice'),
+  });
+  const a = await scoreA();
+  assert.match(a.row[0], new RegExp(`^This sample \\(${picked}\\) · (held out|in the training data)$`));
+  assert.ok(a.row.slice(1).every((v) => /^-?\d+\.\d\d$/.test(v)), a.row.join());
+  assert.equal(a.current, 'this-sample', 'right under its family');
+  assert.equal(a.display, 'table-row', 'laid out as a row of the table');
+  assert.equal(a.slice, picked);
+  // Against the family's held-out snippets, or, for off-source (one session), what it trained on.
+  assert.match(a.callout, /prediction gain -?\d+\.\d\d, against -?\d+\.\d\d averaged over (the held-out snippets of .+|snippets of Off-source from the data it trained on \(nothing could be held out: .+\)); residual error \d+\.\d\d, against \d+\.\d\d on those snippets/);
+
+  // Track B tokenizes the family meanwhile and scores the sample's tokens; once Track A is done,
+  // the token model trains and scores them too.
+  assert.match(await page.textContent('#tb-status'), new RegExp(`^${slice.family === 'blind-window' ? 'Blind windows' : '[A-Z]'}`));
+  await page.waitForFunction((id) => document.getElementById('sample-score-b').dataset.slice === id, picked, { timeout: 60000 });
+  assert.match(await page.$eval('#tb-entropy-table tbody tr.this-sample', (tr) => tr.cells[0].textContent), new RegExp(`^This sample \\(${picked}\\) · `));
+  assert.match(await page.textContent('#sample-score-b'), /its 16 tokens \([0-9a-w ]+\) cost \d\.\d\d bits per token with 3 tokens of context under the n-gram model, against \d\.\d\d for the held-out test tokens of .+ \(/);
+  await page.waitForFunction(() => /^Done: GRU/.test(document.getElementById('tb-lm-status').textContent), null, { timeout: 180000 });
+  assert.match(await page.$eval('#tb-lm-table tbody tr.this-sample', (tr) => tr.cells[0].textContent), new RegExp(`^This sample \\(${picked}\\)`));
+  assert.match(await page.textContent('#sample-score-b'), /The token GRU: \d\.\d\d bits per token, against \d\.\d\d on the test split\.$/);
+
+  // The next click picks another slice, and its own scores replace the first one's.
   await page.click('#sample');
   const next = await page.getAttribute('#sample-status', 'data-slice');
   assert.ok(next && next !== picked, `${next} after ${picked}`);
-  await page.click('#stop');
   await page.waitForFunction(() => /^(Done|Stopped)/.test(document.getElementById('lab-status').textContent), null, { timeout: 120000 });
+  const b = await scoreA();
+  assert.equal(b.slice, next);
+  assert.notEqual(b.callout, a.callout);
+  assert.notDeepEqual(b.row, a.row, 'another sample, its own scores');
+  await page.waitForFunction((id) => document.getElementById('sample-score-b').dataset.slice === id, next, { timeout: 60000 });
+  await stopTokenModel(page);
+  assert.deepEqual(errors, []);
+  await page.close();
+});
+
+test('an off-source sample is scored as reconstruction, and its caption outlives the files it came from', async () => {
+  const published = await publishedSlices();
+  const { page, errors } = await openLab();
+  await waitForPublished(page);
+  await page.fill('#epochs', '1');
+  await page.selectOption('#ntrain', '400');
+  await drawNext(page, [0.9, 0.9, 0.5]); // a control, off-source, a slice from the middle
+  await page.click('#sample');
+  const picked = await page.getAttribute('#sample-status', 'data-slice');
+  const slice = published.find((s) => s.id === picked);
+  assert.equal(slice?.family, 'offsource', picked);
+  const title = sampleTitle(describeSample(slice));
+  await page.waitForFunction(() => /^(Done|Stopped)/.test(document.getElementById('lab-status').textContent), null, { timeout: 120000 });
+
+  // The published off-source slices all come from one session, so nothing of the family is held
+  // out: its row says so, and the callout compares the sample with what the model trained on.
+  assert.match(await page.$eval('#gains tbody tr.current', (tr) => tr.cells[0].textContent), /\(trained on; not held out\)$/);
+  const callout = await page.textContent('#sample-score-a');
+  assert.match(callout, new RegExp(`^This sample \\(${picked}\\), in the training data: GRU prediction gain -?\\d+\\.\\d\\d, against -?\\d+\\.\\d\\d averaged over snippets of Off-source from the data it trained on \\(nothing could be held out: all loaded slices come from one observing session, so both scores measure reconstruction\\); `));
+  assert.doesNotMatch(callout, /held-out/);
+  await stopTokenModel(page);
+
+  // Files that don't include the sample replace the published ones (the status already said
+  // "loaded" before, so wait for the sample to go with its file and the family with it). Back in
+  // the Live Lab, the last run's waterfall is drawn again, still named for the sample it showed.
+  await loadSlices(page, [{ meta: { id: 'replacement' }, bytes: lineSlice(2.4) }]);
+  await page.waitForFunction(() => document.getElementById('sample-status').dataset.slice === '' && document.querySelector('#families button[data-family="tone"]').getAttribute('aria-checked') === 'true', null, { timeout: 10000 });
+  assert.equal(await page.isVisible('#sample-card'), false);
+  // A tab button sets the location hash, and the Live Lab redraws on the hashchange that follows.
+  await page.click('.tabs button[data-tab="data"]');
+  await page.click('.tabs button[data-tab="lab"]');
+  const caption = `Actual: ${title} (in the training data)`;
+  await page.waitForFunction((caption) => document.getElementById('wf-actual-caption').textContent === caption, caption, { timeout: 10000 })
+    .catch(async () => assert.equal(await page.textContent('#wf-actual-caption'), caption));
+  assert.deepEqual(errors, []);
+  await page.close();
+});
+
+test('the token model waits for the Track B analysis of the latest sample, even when it arrives after Track A', async () => {
+  const { page, errors } = await openLab(() => {
+    // Track B's replies are held back while window.__holdTrackB is set; each token run's sample
+    // tokens are recorded as the page sends them to the engine.
+    const Native = window.Worker;
+    window.__tokenRuns = [];
+    window.Worker = class extends Native {
+      constructor(url, options) {
+        super(url, options);
+        if (String(url).includes('engine.worker')) {
+          const post = this.postMessage.bind(this);
+          this.postMessage = (msg, ...rest) => {
+            if (msg?.type === 'token-lm') window.__tokenRuns.push(msg.focus);
+            return post(msg, ...rest);
+          };
+        }
+        if (String(url).includes('trackb.worker')) {
+          const held = [];
+          // Registered before the page's onmessage, so it can keep a reply from reaching it.
+          this.addEventListener('message', (e) => {
+            if (!window.__holdTrackB) return;
+            e.stopImmediatePropagation();
+            held.push(e.data);
+          });
+          window.__releaseTrackB = () => {
+            window.__holdTrackB = false;
+            for (const data of held.splice(0)) this.onmessage({ data });
+          };
+        }
+      }
+    };
+  });
+  await waitForPublished(page);
+  await page.fill('#epochs', '1');
+  await page.selectOption('#ntrain', '400');
+  const tokensIn = async () => (await page.textContent('#sample-score-b')).match(/its 16 tokens \(([0-9a-w ]+)\)/)[1];
+  const tokenRun = (i) => page.evaluate((i) => window.__tokenRuns[i]?.map((t) => t.toString(36)).join(' '), i);
+
+  // A first blind window: its token run starts on its own analysis.
+  await drawNext(page, [0.9, 0.1, 0.2]);
+  await page.click('#sample');
+  const first = await page.getAttribute('#sample-status', 'data-slice');
+  assert.match(first, /-blind-\d$/);
+  await page.waitForFunction(() => window.__tokenRuns.length === 1, null, { timeout: 120000 });
+  assert.equal(await tokenRun(0), await tokensIn());
+  await stopTokenModel(page);
+
+  // Another blind window, with Track B's analysis of it held back until Track A is done.
+  await page.evaluate(() => (window.__holdTrackB = true));
+  await drawNext(page, [0.9, 0.1, 0.7]);
+  await page.click('#sample');
+  const second = await page.getAttribute('#sample-status', 'data-slice');
+  assert.match(second, /-blind-\d$/);
+  assert.notEqual(second, first);
+  await page.waitForFunction(() => /^(Done|Stopped)/.test(document.getElementById('lab-status').textContent), null, { timeout: 120000 });
+  await page.waitForTimeout(500);
+  assert.equal(await page.evaluate(() => window.__tokenRuns.length), 1, 'no token run on the first sample’s analysis');
+  assert.equal(await page.isDisabled('#tb-lm-stop'), true);
+  assert.equal(await page.getAttribute('#sample-score-b', 'data-slice'), first, 'Track B still shows the first sample');
+
+  // The analysis arrives, and the token run starts on this sample's tokens.
+  await page.evaluate(() => window.__releaseTrackB());
+  await page.waitForFunction(() => window.__tokenRuns.length === 2, null, { timeout: 30000 });
+  assert.equal(await page.getAttribute('#sample-score-b', 'data-slice'), second);
+  assert.equal(await tokenRun(1), await tokensIn());
+  await stopTokenModel(page);
   assert.deepEqual(errors, []);
   await page.close();
 });
@@ -754,10 +932,11 @@ test('with Shuffle frames on, the waterfall keeps showing the sample, in its own
   await page.click('#sample');
   const picked = await page.getAttribute('#sample-status', 'data-slice');
   assert.ok(picked);
-  assert.equal(await page.textContent('#wf-actual-caption'), 'Actual: the sample, frames shuffled');
+  const title = sampleTitle(describeSample((await publishedSlices()).find((s) => s.id === picked)));
+  assert.equal(await page.textContent('#wf-actual-caption'), `Actual: ${title}, frames shuffled`);
   const preview = await page.$eval('#wf-actual', (c) => c.toDataURL());
   // Training on the shuffled family still shows the sample, not another random example.
-  await page.waitForFunction(() => /^Actual: the sample, frames shuffled \((held out|in the training data)\)$/.test(document.getElementById('wf-actual-caption').textContent), null, { timeout: 120000 });
+  await page.waitForFunction((title) => [' (held out)', ' (in the training data)'].map((s) => `Actual: ${title}, frames shuffled${s}`).includes(document.getElementById('wf-actual-caption').textContent), title, { timeout: 120000 });
   await page.waitForFunction(() => /^(Done|Stopped)/.test(document.getElementById('lab-status').textContent), null, { timeout: 120000 });
   assert.equal(await page.getAttribute('#sample-status', 'data-slice'), picked);
   // The same frames in the same order: the worker's waterfall drops the first two frames of the
@@ -1028,7 +1207,10 @@ test('clicking another beacon while a recovery unit runs moves the view, not the
   await page.waitForFunction(() => /(^|;)barnard /.test(document.querySelector('#rc-viewport canvas').dataset.beacons), null, { timeout: 10000 });
   const { beacons } = await viewportState(page, 'rc-viewport');
   await page.mouse.click(box.x + beacons.barnard[0], box.y + beacons.barnard[1]);
-  await page.waitForFunction(() => document.querySelector('#rc-viewport .hud-title').textContent === "Barnard's Star", null, { timeout: 10000 });
+  // Barnard's Star has two targets 2.8′ apart, the reference and its blind-window pointing, under a
+  // pixel apart this far out: the click takes whichever is nearer, so either will do.
+  await page.waitForFunction(() => /^Barnard's Star($| · )/.test(document.querySelector('#rc-viewport .hud-title').textContent), null, { timeout: 10000 });
+  const taken = await page.textContent('#rc-viewport .hud-title');
   assert.match(await page.textContent('#rc-status'), /^Unit 7: /, 'still running');
   assert.equal(await page.$eval('#rc-viewport canvas', (c) => c.dataset.job), 'recovery', 'the unit stays drawn on its own windows');
   assert.match(await page.textContent('#rc-viewport .hud-telemetry'), /Data from Recovery windows · 2020-07-16/);
@@ -1037,7 +1219,7 @@ test('clicking another beacon while a recovery unit runs moves the view, not the
   await page.waitForFunction(() => document.getElementById('rc-status').textContent.startsWith('Unit 7 finished'), null, { timeout: 30000 });
   assert.equal(await page.$eval('#rc-viewport canvas', (c) => c.dataset.job), 'recovery');
   assert.match(await page.textContent('#rc-viewport .hud-telemetry'), /Data from Recovery windows · 2020-07-16[\s\S]*Recovery unit 7 · de-Doppler found/);
-  assert.equal(await page.textContent('#rc-viewport .hud-title'), "Barnard's Star", 'the view stays where it was taken');
+  assert.equal(await page.textContent('#rc-viewport .hud-title'), taken, 'the view stays where it was taken');
   assert.deepEqual(errors, []);
   await page.close();
 });

@@ -5,8 +5,8 @@
   "api": "http://seti.berkeley.edu/opendata/api",
   "threshold": 10,
   "limits": {
-    "max_slices": 100,
-    "max_bytes": 1500000,
+    "max_slices": 120,
+    "max_bytes": 2000000,
     "max_targets": 8
   },
   "targets": [
@@ -241,6 +241,72 @@
       "about": "A Hipparcos star, observed with Green Bank in 2021. HTTPS, bldata.berkeley.edu/blpd30_datax2.",
       "urls": [
         "https://bldata.berkeley.edu/blpd30_datax2/blc26_guppi_59433_43455_HIP29847_0044.rawspec.0000.h5"
+      ],
+      "hits": 3,
+      "blind": 2
+    },
+    {
+      "key": "oumuamua",
+      "name": "'Oumuamua",
+      "distance_label": "Interstellar object, the first seen passing through the Solar System",
+      "about": "The first interstellar object found passing through the Solar System, observed with Green Bank at X band in December 2017, weeks after its discovery. HTTPS, bldata.berkeley.edu/pipeline/AGBT17B_999_68.",
+      "urls": [
+        "https://bldata.berkeley.edu/pipeline/AGBT17B_999_68/holding/blc00_guppi_58089_00858_OUMUAMUA_0018.gpuspec.0000.h5"
+      ],
+      "hits": 3,
+      "blind": 2
+    },
+    {
+      "key": "gj65a",
+      "name": "Luyten 726-8 A",
+      "distance_label": "8.7 light-years",
+      "about": "BL Ceti, the brighter of the Luyten 726-8 pair of red-dwarf flare stars (its companion is UV Ceti), observed with Green Bank at L band in 2016. HTTPS, bldata.berkeley.edu/pipeline/AGBT16A_999_232.",
+      "urls": [
+        "https://bldata.berkeley.edu/pipeline/AGBT16A_999_232/holding/spliced_blc0001020304050607_guppi_57573_46471_GJ65A_0009.gpuspec.0000.h5"
+      ],
+      "hits": 3,
+      "blind": 2
+    },
+    {
+      "key": "gj273",
+      "name": "Luyten's Star",
+      "distance_label": "12.4 light-years",
+      "about": "A red dwarf with a planet in its habitable zone (GJ 273 b), observed with Green Bank at L band in 2016. HTTPS, bldata.berkeley.edu/pipeline/AGBT16A_999_214.",
+      "urls": [
+        "https://bldata.berkeley.edu/pipeline/AGBT16A_999_214/holding/spliced_blc0001020304050607_guppi_57543_75083_GJ273_0039.gpuspec.0000.h5"
+      ],
+      "hits": 3,
+      "blind": 2
+    },
+    {
+      "key": "gj876",
+      "name": "Gliese 876",
+      "distance_label": "15.2 light-years",
+      "about": "A red dwarf with four known planets, observed with Green Bank in 2018. HTTPS, bldata.berkeley.edu/pipeline/AGBT18B_999_03.",
+      "urls": [
+        "https://bldata.berkeley.edu/pipeline/AGBT18B_999_03/blc40/blc00_guppi_58340_39978_GJ876_0034.gpuspec.0000.h5"
+      ],
+      "hits": 3,
+      "blind": 2
+    },
+    {
+      "key": "lhs1140",
+      "name": "LHS 1140",
+      "distance_label": "49 light-years",
+      "about": "A red dwarf whose rocky planet LHS 1140 b orbits in its habitable zone, observed with Green Bank in January 2017. HTTPS, bldata.berkeley.edu/pipeline/AGBT16B_999_123.",
+      "urls": [
+        "https://bldata.berkeley.edu/pipeline/AGBT16B_999_123/blc00/blc00_guppi_57774_83685_LHS1140_0003.gpuspec.0000.h5"
+      ],
+      "hits": 3,
+      "blind": 2
+    },
+    {
+      "key": "m31",
+      "name": "Andromeda Galaxy",
+      "distance_label": "2.5 million light-years",
+      "about": "M31, the nearest large galaxy, observed with Green Bank in 2019: one beam takes in a patch of a galaxy of hundreds of billions of stars. HTTPS, bldata.berkeley.edu/pipeline/AGBT19B_999_109.",
+      "urls": [
+        "https://bldata.berkeley.edu/pipeline/AGBT19B_999_109/blc00_blp00/blc00_guppi_58804_85403_MESSIER031_0127.gpuspec.0000.h5"
       ],
       "hits": 3,
       "blind": 2

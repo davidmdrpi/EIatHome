@@ -270,8 +270,8 @@
         "tsamp_s": 6.084537002666661,
         "first_channel": 218364,
         "centre_freq_mhz": 12320.190321707858,
-        "drift_channels_per_step": -0.0028093034302563613,
-        "drift_hz_per_s": 0.0012900082795432642,
+        "drift_channels_per_step": -0.002809303428603375,
+        "drift_hz_per_s": 0.0012900082787842269,
         "snr": 626.4451904296875,
         "pool": {
           "id": "sky-pool/v1",
@@ -313,8 +313,8 @@
         "tsamp_s": 6.084537002666661,
         "first_channel": 723285,
         "centre_freq_mhz": 12318.779588207422,
-        "drift_channels_per_step": -0.0012887916718631646,
-        "drift_hz_per_s": 0.0005918021917476437,
+        "drift_channels_per_step": -0.0012887916520273265,
+        "drift_hz_per_s": 0.0005918021826391952,
         "snr": 443.9644775390625,
         "pool": {
           "id": "sky-pool/v1",
@@ -356,8 +356,8 @@
         "tsamp_s": 6.084537002666661,
         "first_channel": 453643,
         "centre_freq_mhz": 12319.53295979157,
-        "drift_channels_per_step": 0.0009848134689387992,
-        "drift_hz_per_s": -0.000452217982242254,
+        "drift_channels_per_step": 0.0009848134623268532,
+        "drift_hz_per_s": -0.00045221797920610453,
         "snr": 417.91558837890625,
         "pool": {
           "id": "sky-pool/v1",
@@ -505,8 +505,8 @@
         "tsamp_s": 18.253611008,
         "first_channel": 552122,
         "centre_freq_mhz": 1142.5000003267353,
-        "drift_channels_per_step": -0.009191763185829408,
-        "drift_hz_per_s": 0.0014069265338892034,
+        "drift_channels_per_step": -0.009191763199053299,
+        "drift_hz_per_s": 0.001406926535913303,
         "snr": 35.30238723754883,
         "pool": {
           "id": "sky-pool/v1",
@@ -560,8 +560,8 @@
         "tsamp_s": 18.253611008,
         "first_channel": 105768,
         "centre_freq_mhz": 1143.747100051395,
-        "drift_channels_per_step": 0.23409141005146092,
-        "drift_hz_per_s": -0.035830929224186674,
+        "drift_channels_per_step": 0.23409141005063444,
+        "drift_hz_per_s": -0.03583092922406018,
         "snr": 33.69172286987305,
         "pool": {
           "id": "sky-pool/v1",
@@ -776,8 +776,8 @@
         "tsamp_s": 18.253611008,
         "first_channel": 146673,
         "centre_freq_mhz": 2069.9999994943964,
-        "drift_channels_per_step": 0.003446432243644199,
-        "drift_hz_per_s": -0.0005275241401246774,
+        "drift_channels_per_step": 0.003446432240338226,
+        "drift_hz_per_s": -0.0005275241396186526,
         "snr": 553.7855834960938,
         "pool": {
           "id": "sky-pool/v1",
@@ -808,6 +808,212 @@
           "distance_label": "11.4 light-years"
         },
         "url": "https://bldata.berkeley.edu/pipeline/AGBT17A_999_01/holding/spliced_blc0001020304050607_guppi_57790_66056_GJ820B_0035.gpuspec.0000.h5"
+      }
+    },
+    {
+      "id": "gj273-57543-75083-blind-1",
+      "family": "blind-window",
+      "group": "blind window",
+      "file": "gj273-57543-75083-blind-1.bin",
+      "dtype": "float32-le",
+      "shape": [
+        16,
+        256
+      ],
+      "units": "noise sigma, bandpass-flattened",
+      "sha256": "14ecfaaa54bce2a92f547a32cb705265fe62fd0081e1ee7a7451817693500b13",
+      "source": {
+        "file": "spliced_blc0001020304050607_guppi_57543_75083_GJ273_0039.gpuspec.0000.h5",
+        "source_name": "GJ273",
+        "tstart_mjd": 57543.8690162037,
+        "fch1_mhz": 1770.99609375,
+        "foff_hz": -2.835503418452676,
+        "tsamp_s": 17.986224128,
+        "first_channel": 941934,
+        "centre_freq_mhz": 1768.3248737286056,
+        "snr": 4.056715965270996,
+        "pool": {
+          "id": "sky-pool/v1",
+          "key": "gj273"
+        },
+        "coarse_channel": 53,
+        "sky": {
+          "ra_hours": 7.456972,
+          "dec_deg": 5.20916,
+          "frame": "J2000, the telescope's pointing from the file header",
+          "epoch": "2016-06-04T20:51:23Z",
+          "constellation": "Canis Minor",
+          "telescope": "Green Bank Telescope",
+          "target": "Luyten's Star",
+          "distance_label": "12.4 light-years"
+        },
+        "url": "https://bldata.berkeley.edu/pipeline/AGBT16A_999_214/holding/spliced_blc0001020304050607_guppi_57543_75083_GJ273_0039.gpuspec.0000.h5"
+      }
+    },
+    {
+      "id": "gj273-57543-75083-blind-2",
+      "family": "blind-window",
+      "group": "blind window",
+      "file": "gj273-57543-75083-blind-2.bin",
+      "dtype": "float32-le",
+      "shape": [
+        16,
+        256
+      ],
+      "units": "noise sigma, bandpass-flattened",
+      "sha256": "61374292f2d5bcd329bb7c19d8acfd7da7d16d2b58c73c4d3afbac0e57c0e4e0",
+      "source": {
+        "file": "spliced_blc0001020304050607_guppi_57543_75083_GJ273_0039.gpuspec.0000.h5",
+        "source_name": "GJ273",
+        "tstart_mjd": 57543.8690162037,
+        "fch1_mhz": 1770.99609375,
+        "foff_hz": -2.835503418452676,
+        "tsamp_s": 17.986224128,
+        "first_channel": 886423,
+        "centre_freq_mhz": 1768.4822753588674,
+        "snr": 4.462520599365234,
+        "pool": {
+          "id": "sky-pool/v1",
+          "key": "gj273"
+        },
+        "coarse_channel": 53,
+        "sky": {
+          "ra_hours": 7.456972,
+          "dec_deg": 5.20916,
+          "frame": "J2000, the telescope's pointing from the file header",
+          "epoch": "2016-06-04T20:51:23Z",
+          "constellation": "Canis Minor",
+          "telescope": "Green Bank Telescope",
+          "target": "Luyten's Star",
+          "distance_label": "12.4 light-years"
+        },
+        "url": "https://bldata.berkeley.edu/pipeline/AGBT16A_999_214/holding/spliced_blc0001020304050607_guppi_57543_75083_GJ273_0039.gpuspec.0000.h5"
+      }
+    },
+    {
+      "id": "gj273-57543-75083-hit-1",
+      "family": "stars",
+      "group": "hit",
+      "file": "gj273-57543-75083-hit-1.bin",
+      "dtype": "float32-le",
+      "shape": [
+        16,
+        256
+      ],
+      "units": "noise sigma, bandpass-flattened",
+      "sha256": "9a277cec5aa6005733d688954d70bff3ab67ede866e4d422ae42e79270b1a2cc",
+      "source": {
+        "file": "spliced_blc0001020304050607_guppi_57543_75083_GJ273_0039.gpuspec.0000.h5",
+        "source_name": "GJ273",
+        "tstart_mjd": 57543.8690162037,
+        "fch1_mhz": 1454.58984375,
+        "foff_hz": -2.835503418452676,
+        "tsamp_s": 17.986224128,
+        "first_channel": 175442,
+        "centre_freq_mhz": 1454.0920139373234,
+        "drift_channels_per_step": -0.09003748782432787,
+        "drift_hz_per_s": 0.014194285732119446,
+        "snr": 73.92444610595703,
+        "pool": {
+          "id": "sky-pool/v1",
+          "key": "gj273"
+        },
+        "coarse_channel": 161,
+        "sky": {
+          "ra_hours": 7.456972,
+          "dec_deg": 5.20916,
+          "frame": "J2000, the telescope's pointing from the file header",
+          "epoch": "2016-06-04T20:51:23Z",
+          "constellation": "Canis Minor",
+          "telescope": "Green Bank Telescope",
+          "target": "Luyten's Star",
+          "distance_label": "12.4 light-years"
+        },
+        "url": "https://bldata.berkeley.edu/pipeline/AGBT16A_999_214/holding/spliced_blc0001020304050607_guppi_57543_75083_GJ273_0039.gpuspec.0000.h5"
+      }
+    },
+    {
+      "id": "gj273-57543-75083-hit-2",
+      "family": "stars",
+      "group": "hit",
+      "file": "gj273-57543-75083-hit-2.bin",
+      "dtype": "float32-le",
+      "shape": [
+        16,
+        256
+      ],
+      "units": "noise sigma, bandpass-flattened",
+      "sha256": "7fd8297f54de7db1afe41cce4b8b52ef486c7f6f9bc1616a5c8c57668a7f82ba",
+      "source": {
+        "file": "spliced_blc0001020304050607_guppi_57543_75083_GJ273_0039.gpuspec.0000.h5",
+        "source_name": "GJ273",
+        "tstart_mjd": 57543.8690162037,
+        "fch1_mhz": 1454.58984375,
+        "foff_hz": -2.835503418452676,
+        "tsamp_s": 17.986224128,
+        "first_channel": 179851,
+        "centre_freq_mhz": 1454.0795135443743,
+        "drift_channels_per_step": -0.08749728033274894,
+        "drift_hz_per_s": 0.013793825525758606,
+        "snr": 57.75598907470703,
+        "pool": {
+          "id": "sky-pool/v1",
+          "key": "gj273"
+        },
+        "coarse_channel": 161,
+        "sky": {
+          "ra_hours": 7.456972,
+          "dec_deg": 5.20916,
+          "frame": "J2000, the telescope's pointing from the file header",
+          "epoch": "2016-06-04T20:51:23Z",
+          "constellation": "Canis Minor",
+          "telescope": "Green Bank Telescope",
+          "target": "Luyten's Star",
+          "distance_label": "12.4 light-years"
+        },
+        "url": "https://bldata.berkeley.edu/pipeline/AGBT16A_999_214/holding/spliced_blc0001020304050607_guppi_57543_75083_GJ273_0039.gpuspec.0000.h5"
+      }
+    },
+    {
+      "id": "gj273-57543-75083-hit-3",
+      "family": "stars",
+      "group": "hit",
+      "file": "gj273-57543-75083-hit-3.bin",
+      "dtype": "float32-le",
+      "shape": [
+        16,
+        256
+      ],
+      "units": "noise sigma, bandpass-flattened",
+      "sha256": "5899ba8b7d250814006758995338fa48bdec2701d7f768dc9196e7966a6e8b8a",
+      "source": {
+        "file": "spliced_blc0001020304050607_guppi_57543_75083_GJ273_0039.gpuspec.0000.h5",
+        "source_name": "GJ273",
+        "tstart_mjd": 57543.8690162037,
+        "fch1_mhz": 1454.58984375,
+        "foff_hz": -2.835503418452676,
+        "tsamp_s": 17.986224128,
+        "first_channel": 713929,
+        "centre_freq_mhz": 1452.5651339389292,
+        "drift_channels_per_step": -0.11671521275815147,
+        "drift_hz_per_s": 0.018399992261075526,
+        "snr": 18.911346435546875,
+        "pool": {
+          "id": "sky-pool/v1",
+          "key": "gj273"
+        },
+        "coarse_channel": 161,
+        "sky": {
+          "ra_hours": 7.456972,
+          "dec_deg": 5.20916,
+          "frame": "J2000, the telescope's pointing from the file header",
+          "epoch": "2016-06-04T20:51:23Z",
+          "constellation": "Canis Minor",
+          "telescope": "Green Bank Telescope",
+          "target": "Luyten's Star",
+          "distance_label": "12.4 light-years"
+        },
+        "url": "https://bldata.berkeley.edu/pipeline/AGBT16A_999_214/holding/spliced_blc0001020304050607_guppi_57543_75083_GJ273_0039.gpuspec.0000.h5"
       }
     },
     {
@@ -937,8 +1143,8 @@
         "tsamp_s": 17.986224128,
         "first_channel": 517717,
         "centre_freq_mhz": 1499.996491728465,
-        "drift_channels_per_step": 3.537125373885712,
-        "drift_hz_per_s": -0.5576229350736931,
+        "drift_channels_per_step": 3.537125373877164,
+        "drift_hz_per_s": -0.5576229350723455,
         "snr": 1170.2762451171875,
         "pool": {
           "id": "sky-pool/v1",
@@ -1691,8 +1897,8 @@
         "tsamp_s": 17.986224128,
         "first_channel": 854060,
         "centre_freq_mhz": 1584.0037283488941,
-        "drift_channels_per_step": -0.07720214978362389,
-        "drift_hz_per_s": 0.012170812398727887,
+        "drift_channels_per_step": -0.07720214976378804,
+        "drift_hz_per_s": 0.012170812395600793,
         "snr": 13.362897872924805,
         "pool": {
           "id": "sky-pool/v1",
@@ -1884,6 +2090,86 @@
           "distance_label": "11.0 light-years"
         },
         "url": "https://bldata.berkeley.edu/pipeline/AGBT16B_999_60/holding/spliced_blc0001020304050607_guppi_57695_42605_GJ447_0003.gpuspec.0000.h5"
+      }
+    },
+    {
+      "id": "gj65a-57573-46471-blind-1",
+      "family": "blind-window",
+      "group": "blind window",
+      "file": "gj65a-57573-46471-blind-1.bin",
+      "dtype": "float32-le",
+      "shape": [
+        16,
+        256
+      ],
+      "units": "noise sigma, bandpass-flattened",
+      "sha256": "f1bc0969abc9fa59c2ca74974603bae8b06d64d547346deacfffb1ed7051ab85",
+      "source": {
+        "file": "spliced_blc0001020304050607_guppi_57573_46471_GJ65A_0009.gpuspec.0000.h5",
+        "source_name": "GJ65A",
+        "tstart_mjd": 57573.5378587963,
+        "fch1_mhz": 1639.16015625,
+        "foff_hz": -2.7939677238464355,
+        "tsamp_s": 18.253611008,
+        "first_channel": 933686,
+        "centre_freq_mhz": 1636.551110073924,
+        "snr": 3.9363510608673096,
+        "pool": {
+          "id": "sky-pool/v1",
+          "key": "gj65a"
+        },
+        "coarse_channel": 98,
+        "sky": {
+          "ra_hours": 1.651389,
+          "dec_deg": -16.73,
+          "frame": "J2000, the telescope's pointing from the file header",
+          "epoch": "2016-07-04T12:54:31Z",
+          "constellation": "Cetus",
+          "telescope": "Green Bank Telescope",
+          "target": "Luyten 726-8 A",
+          "distance_label": "8.7 light-years"
+        },
+        "url": "https://bldata.berkeley.edu/pipeline/AGBT16A_999_232/holding/spliced_blc0001020304050607_guppi_57573_46471_GJ65A_0009.gpuspec.0000.h5"
+      }
+    },
+    {
+      "id": "gj65a-57573-46471-blind-2",
+      "family": "blind-window",
+      "group": "blind window",
+      "file": "gj65a-57573-46471-blind-2.bin",
+      "dtype": "float32-le",
+      "shape": [
+        16,
+        256
+      ],
+      "units": "noise sigma, bandpass-flattened",
+      "sha256": "63c6eb5a3126a6be06d6980f5f86ffa8c3632f5a759e766166d815043ba94061",
+      "source": {
+        "file": "spliced_blc0001020304050607_guppi_57573_46471_GJ65A_0009.gpuspec.0000.h5",
+        "source_name": "GJ65A",
+        "tstart_mjd": 57573.5378587963,
+        "fch1_mhz": 1639.16015625,
+        "foff_hz": -2.7939677238464355,
+        "tsamp_s": 18.253611008,
+        "first_channel": 219231,
+        "centre_freq_mhz": 1638.5472742840648,
+        "snr": 3.89848256111145,
+        "pool": {
+          "id": "sky-pool/v1",
+          "key": "gj65a"
+        },
+        "coarse_channel": 98,
+        "sky": {
+          "ra_hours": 1.651389,
+          "dec_deg": -16.73,
+          "frame": "J2000, the telescope's pointing from the file header",
+          "epoch": "2016-07-04T12:54:31Z",
+          "constellation": "Cetus",
+          "telescope": "Green Bank Telescope",
+          "target": "Luyten 726-8 A",
+          "distance_label": "8.7 light-years"
+        },
+        "url": "https://bldata.berkeley.edu/pipeline/AGBT16A_999_232/holding/spliced_blc0001020304050607_guppi_57573_46471_GJ65A_0009.gpuspec.0000.h5"
       }
     },
     {
@@ -2096,6 +2382,212 @@
           "distance_label": "5.96 light-years"
         },
         "url": "https://bldata.berkeley.edu/pipeline/AGBT16B_999_55/holding/spliced_blc1011121314151617_guppi_57689_79487_GJ699_0043.gpuspec.0000.h5"
+      }
+    },
+    {
+      "id": "gj876-58340-39978-blind-1",
+      "family": "blind-window",
+      "group": "blind window",
+      "file": "gj876-58340-39978-blind-1.bin",
+      "dtype": "float32-le",
+      "shape": [
+        16,
+        256
+      ],
+      "units": "noise sigma, bandpass-flattened",
+      "sha256": "7848c9c76d3249a78a142284c33a9b09fafbaae63f6ea3e1a5a0a39ec123aebb",
+      "source": {
+        "file": "blc00_guppi_58340_39978_GJ876_0034.gpuspec.0000.h5",
+        "source_name": "GJ876",
+        "tstart_mjd": 58340.46270833333,
+        "fch1_mhz": 11093.261717353016,
+        "foff_hz": -2.7939677238464355,
+        "tsamp_s": 18.253611008,
+        "first_channel": 259833,
+        "centre_freq_mhz": 11092.535394709557,
+        "snr": 3.9686477184295654,
+        "pool": {
+          "id": "sky-pool/v1",
+          "key": "gj876"
+        },
+        "coarse_channel": 54,
+        "sky": {
+          "ra_hours": 22.88824,
+          "dec_deg": -14.2664,
+          "frame": "J2000, the telescope's pointing from the file header",
+          "epoch": "2018-08-10T11:06:18Z",
+          "constellation": "Aquarius",
+          "telescope": "Green Bank Telescope",
+          "target": "Gliese 876",
+          "distance_label": "15.2 light-years"
+        },
+        "url": "https://bldata.berkeley.edu/pipeline/AGBT18B_999_03/blc40/blc00_guppi_58340_39978_GJ876_0034.gpuspec.0000.h5"
+      }
+    },
+    {
+      "id": "gj876-58340-39978-blind-2",
+      "family": "blind-window",
+      "group": "blind window",
+      "file": "gj876-58340-39978-blind-2.bin",
+      "dtype": "float32-le",
+      "shape": [
+        16,
+        256
+      ],
+      "units": "noise sigma, bandpass-flattened",
+      "sha256": "ec423d3cb5dabaea0016fc6872ccc7472ad371a3aeb995505af342152402a22a",
+      "source": {
+        "file": "blc00_guppi_58340_39978_GJ876_0034.gpuspec.0000.h5",
+        "source_name": "GJ876",
+        "tstart_mjd": 58340.46270833333,
+        "fch1_mhz": 11093.261717353016,
+        "foff_hz": -2.7939677238464355,
+        "tsamp_s": 18.253611008,
+        "first_channel": 88442,
+        "centre_freq_mhz": 11093.014255631715,
+        "snr": 39.08810806274414,
+        "pool": {
+          "id": "sky-pool/v1",
+          "key": "gj876"
+        },
+        "coarse_channel": 54,
+        "sky": {
+          "ra_hours": 22.88824,
+          "dec_deg": -14.2664,
+          "frame": "J2000, the telescope's pointing from the file header",
+          "epoch": "2018-08-10T11:06:18Z",
+          "constellation": "Aquarius",
+          "telescope": "Green Bank Telescope",
+          "target": "Gliese 876",
+          "distance_label": "15.2 light-years"
+        },
+        "url": "https://bldata.berkeley.edu/pipeline/AGBT18B_999_03/blc40/blc00_guppi_58340_39978_GJ876_0034.gpuspec.0000.h5"
+      }
+    },
+    {
+      "id": "gj876-58340-39978-hit-1",
+      "family": "stars",
+      "group": "hit",
+      "file": "gj876-58340-39978-hit-1.bin",
+      "dtype": "float32-le",
+      "shape": [
+        16,
+        256
+      ],
+      "units": "noise sigma, bandpass-flattened",
+      "sha256": "7a4e568240e328c13b6185ce9c8c18b93cfa865174a4cbb2fe6fe539467168f0",
+      "source": {
+        "file": "blc00_guppi_58340_39978_GJ876_0034.gpuspec.0000.h5",
+        "source_name": "GJ876",
+        "tstart_mjd": 58340.46270833333,
+        "fch1_mhz": 11093.261717353016,
+        "foff_hz": -2.7939677238464355,
+        "tsamp_s": 18.253611008,
+        "first_channel": 571230,
+        "centre_freq_mhz": 11091.665362438898,
+        "drift_channels_per_step": 0.07460840694302318,
+        "drift_hz_per_s": -0.01141984897317294,
+        "snr": 62.18980407714844,
+        "pool": {
+          "id": "sky-pool/v1",
+          "key": "gj876"
+        },
+        "coarse_channel": 54,
+        "sky": {
+          "ra_hours": 22.88824,
+          "dec_deg": -14.2664,
+          "frame": "J2000, the telescope's pointing from the file header",
+          "epoch": "2018-08-10T11:06:18Z",
+          "constellation": "Aquarius",
+          "telescope": "Green Bank Telescope",
+          "target": "Gliese 876",
+          "distance_label": "15.2 light-years"
+        },
+        "url": "https://bldata.berkeley.edu/pipeline/AGBT18B_999_03/blc40/blc00_guppi_58340_39978_GJ876_0034.gpuspec.0000.h5"
+      }
+    },
+    {
+      "id": "gj876-58340-39978-hit-2",
+      "family": "stars",
+      "group": "hit",
+      "file": "gj876-58340-39978-hit-2.bin",
+      "dtype": "float32-le",
+      "shape": [
+        16,
+        256
+      ],
+      "units": "noise sigma, bandpass-flattened",
+      "sha256": "7e780a6038db36b1425469c2c0c1bdfe30a6cf886417219d2618597252340775",
+      "source": {
+        "file": "blc00_guppi_58340_39978_GJ876_0034.gpuspec.0000.h5",
+        "source_name": "GJ876",
+        "tstart_mjd": 58340.46270833333,
+        "fch1_mhz": 11093.261717353016,
+        "foff_hz": -2.7939677238464355,
+        "tsamp_s": 18.253611008,
+        "first_channel": 989129,
+        "centre_freq_mhz": 11090.497765914628,
+        "drift_channels_per_step": -0.016630337682639634,
+        "drift_hz_per_s": 0.0025455032816026502,
+        "snr": 53.16578674316406,
+        "pool": {
+          "id": "sky-pool/v1",
+          "key": "gj876"
+        },
+        "coarse_channel": 54,
+        "sky": {
+          "ra_hours": 22.88824,
+          "dec_deg": -14.2664,
+          "frame": "J2000, the telescope's pointing from the file header",
+          "epoch": "2018-08-10T11:06:18Z",
+          "constellation": "Aquarius",
+          "telescope": "Green Bank Telescope",
+          "target": "Gliese 876",
+          "distance_label": "15.2 light-years"
+        },
+        "url": "https://bldata.berkeley.edu/pipeline/AGBT18B_999_03/blc40/blc00_guppi_58340_39978_GJ876_0034.gpuspec.0000.h5"
+      }
+    },
+    {
+      "id": "gj876-58340-39978-hit-3",
+      "family": "stars",
+      "group": "hit",
+      "file": "gj876-58340-39978-hit-3.bin",
+      "dtype": "float32-le",
+      "shape": [
+        16,
+        256
+      ],
+      "units": "noise sigma, bandpass-flattened",
+      "sha256": "597a606a564aaca8330f9659b6f5ee50f52cc36d50dd18c6ef8c509792c123df",
+      "source": {
+        "file": "blc00_guppi_58340_39978_GJ876_0034.gpuspec.0000.h5",
+        "source_name": "GJ876",
+        "tstart_mjd": 58340.46270833333,
+        "fch1_mhz": 11093.261717353016,
+        "foff_hz": -2.7939677238464355,
+        "tsamp_s": 18.253611008,
+        "first_channel": 368044,
+        "centre_freq_mhz": 11092.233056875888,
+        "drift_channels_per_step": 0.0053581208801517085,
+        "drift_hz_per_s": -0.0008201345362871189,
+        "snr": 49.27732849121094,
+        "pool": {
+          "id": "sky-pool/v1",
+          "key": "gj876"
+        },
+        "coarse_channel": 54,
+        "sky": {
+          "ra_hours": 22.88824,
+          "dec_deg": -14.2664,
+          "frame": "J2000, the telescope's pointing from the file header",
+          "epoch": "2018-08-10T11:06:18Z",
+          "constellation": "Aquarius",
+          "telescope": "Green Bank Telescope",
+          "target": "Gliese 876",
+          "distance_label": "15.2 light-years"
+        },
+        "url": "https://bldata.berkeley.edu/pipeline/AGBT18B_999_03/blc40/blc00_guppi_58340_39978_GJ876_0034.gpuspec.0000.h5"
       }
     },
     {
@@ -2357,8 +2849,8 @@
         "tsamp_s": 18.253611008,
         "first_channel": 234271,
         "centre_freq_mhz": 1325.0286892493878,
-        "drift_channels_per_step": -0.32775449314805155,
-        "drift_hz_per_s": 0.05016736002536511,
+        "drift_channels_per_step": -0.3277544931463986,
+        "drift_hz_per_s": 0.0501673600251121,
         "snr": 17.522891998291016,
         "pool": {
           "id": "sky-pool/v1",
@@ -2520,8 +3012,8 @@
         "tsamp_s": 18.253611008,
         "first_channel": 905434,
         "centre_freq_mhz": 1601.473796271186,
-        "drift_channels_per_step": 4.171319003685228,
-        "drift_hz_per_s": -0.6384780883659662,
+        "drift_channels_per_step": 4.171319003678615,
+        "drift_hz_per_s": -0.638478088364954,
         "snr": 12.694131851196289,
         "pool": {
           "id": "sky-pool/v1",
@@ -2581,6 +3073,629 @@
           "distance_label": "about 1,470 light-years"
         },
         "url": "https://bldata.berkeley.edu/kepler-transits/spliced_blc1011121314151617_guppi_58202_42383_KIC8462852_0009.gpuspec.0000.h5"
+      }
+    },
+    {
+      "id": "lhs1140-57774-83685-blind-1",
+      "family": "blind-window",
+      "group": "blind window",
+      "file": "lhs1140-57774-83685-blind-1.bin",
+      "dtype": "float32-le",
+      "shape": [
+        16,
+        256
+      ],
+      "units": "noise sigma, bandpass-flattened",
+      "sha256": "6213bb006b9944701a4bc470b0df66554c7f562902079fdf4aeda399d2c08bbd",
+      "source": {
+        "file": "blc00_guppi_57774_83685_LHS1140_0003.gpuspec.0000.h5",
+        "source_name": "LHS1140",
+        "tstart_mjd": 57774.96857638889,
+        "fch1_mhz": 12038.37890625,
+        "foff_hz": -2.7939677238464355,
+        "tsamp_s": 18.253611008,
+        "first_channel": 913622,
+        "centre_freq_mhz": 12035.825918242335,
+        "snr": 27.62334632873535,
+        "pool": {
+          "id": "sky-pool/v1",
+          "key": "lhs1140"
+        },
+        "coarse_channel": 13,
+        "sky": {
+          "ra_hours": 0.749802,
+          "dec_deg": -15.406469,
+          "frame": "J2000, the telescope's pointing from the file header",
+          "epoch": "2017-01-21T23:14:45Z",
+          "constellation": "Cetus",
+          "telescope": "Green Bank Telescope",
+          "target": "LHS 1140",
+          "distance_label": "49 light-years"
+        },
+        "url": "https://bldata.berkeley.edu/pipeline/AGBT16B_999_123/blc00/blc00_guppi_57774_83685_LHS1140_0003.gpuspec.0000.h5"
+      }
+    },
+    {
+      "id": "lhs1140-57774-83685-blind-2",
+      "family": "blind-window",
+      "group": "blind window",
+      "file": "lhs1140-57774-83685-blind-2.bin",
+      "dtype": "float32-le",
+      "shape": [
+        16,
+        256
+      ],
+      "units": "noise sigma, bandpass-flattened",
+      "sha256": "1dd3f442580649378ba74f1e8289c7d85146c704cba43842c192ec52bd9b72e0",
+      "source": {
+        "file": "blc00_guppi_57774_83685_LHS1140_0003.gpuspec.0000.h5",
+        "source_name": "LHS1140",
+        "tstart_mjd": 57774.96857638889,
+        "fch1_mhz": 12038.37890625,
+        "foff_hz": -2.7939677238464355,
+        "tsamp_s": 18.253611008,
+        "first_channel": 191550,
+        "centre_freq_mhz": 12037.843364104629,
+        "snr": 3.9289445877075195,
+        "pool": {
+          "id": "sky-pool/v1",
+          "key": "lhs1140"
+        },
+        "coarse_channel": 13,
+        "sky": {
+          "ra_hours": 0.749802,
+          "dec_deg": -15.406469,
+          "frame": "J2000, the telescope's pointing from the file header",
+          "epoch": "2017-01-21T23:14:45Z",
+          "constellation": "Cetus",
+          "telescope": "Green Bank Telescope",
+          "target": "LHS 1140",
+          "distance_label": "49 light-years"
+        },
+        "url": "https://bldata.berkeley.edu/pipeline/AGBT16B_999_123/blc00/blc00_guppi_57774_83685_LHS1140_0003.gpuspec.0000.h5"
+      }
+    },
+    {
+      "id": "lhs1140-57774-83685-hit-1",
+      "family": "stars",
+      "group": "hit",
+      "file": "lhs1140-57774-83685-hit-1.bin",
+      "dtype": "float32-le",
+      "shape": [
+        16,
+        256
+      ],
+      "units": "noise sigma, bandpass-flattened",
+      "sha256": "218a2979d27d0fac3677a20194c973c1eaa22a7642de293ad7f6ecf605d0d3f4",
+      "source": {
+        "file": "blc00_guppi_57774_83685_LHS1140_0003.gpuspec.0000.h5",
+        "source_name": "LHS1140",
+        "tstart_mjd": 57774.96857638889,
+        "fch1_mhz": 12038.37890625,
+        "foff_hz": -2.7939677238464355,
+        "tsamp_s": 18.253611008,
+        "first_channel": 744607,
+        "centre_freq_mhz": 12036.298140198322,
+        "drift_channels_per_step": 0.011744927851018565,
+        "drift_hz_per_s": -0.0017977237117778589,
+        "snr": 2615.170654296875,
+        "pool": {
+          "id": "sky-pool/v1",
+          "key": "lhs1140"
+        },
+        "coarse_channel": 13,
+        "sky": {
+          "ra_hours": 0.749802,
+          "dec_deg": -15.406469,
+          "frame": "J2000, the telescope's pointing from the file header",
+          "epoch": "2017-01-21T23:14:45Z",
+          "constellation": "Cetus",
+          "telescope": "Green Bank Telescope",
+          "target": "LHS 1140",
+          "distance_label": "49 light-years"
+        },
+        "url": "https://bldata.berkeley.edu/pipeline/AGBT16B_999_123/blc00/blc00_guppi_57774_83685_LHS1140_0003.gpuspec.0000.h5"
+      }
+    },
+    {
+      "id": "lhs1140-57774-83685-hit-2",
+      "family": "stars",
+      "group": "hit",
+      "file": "lhs1140-57774-83685-hit-2.bin",
+      "dtype": "float32-le",
+      "shape": [
+        16,
+        256
+      ],
+      "units": "noise sigma, bandpass-flattened",
+      "sha256": "f39100aa4a35739c398b17a2ca5767c21b24e12c25fb9c366df9d766ee5368e7",
+      "source": {
+        "file": "blc00_guppi_57774_83685_LHS1140_0003.gpuspec.0000.h5",
+        "source_name": "LHS1140",
+        "tstart_mjd": 57774.96857638889,
+        "fch1_mhz": 12038.37890625,
+        "foff_hz": -2.7939677238464355,
+        "tsamp_s": 18.253611008,
+        "first_channel": 748779,
+        "centre_freq_mhz": 12036.286484266258,
+        "drift_channels_per_step": 0.0001728162376088212,
+        "drift_hz_per_s": -2.6451916271471305e-05,
+        "snr": 1603.9617919921875,
+        "pool": {
+          "id": "sky-pool/v1",
+          "key": "lhs1140"
+        },
+        "coarse_channel": 13,
+        "sky": {
+          "ra_hours": 0.749802,
+          "dec_deg": -15.406469,
+          "frame": "J2000, the telescope's pointing from the file header",
+          "epoch": "2017-01-21T23:14:45Z",
+          "constellation": "Cetus",
+          "telescope": "Green Bank Telescope",
+          "target": "LHS 1140",
+          "distance_label": "49 light-years"
+        },
+        "url": "https://bldata.berkeley.edu/pipeline/AGBT16B_999_123/blc00/blc00_guppi_57774_83685_LHS1140_0003.gpuspec.0000.h5"
+      }
+    },
+    {
+      "id": "lhs1140-57774-83685-hit-3",
+      "family": "stars",
+      "group": "hit",
+      "file": "lhs1140-57774-83685-hit-3.bin",
+      "dtype": "float32-le",
+      "shape": [
+        16,
+        256
+      ],
+      "units": "noise sigma, bandpass-flattened",
+      "sha256": "9f591fd195a290be6cfc8c7ec0e0bde0afe4bfcdd487bb8771467225048ea6cb",
+      "source": {
+        "file": "blc00_guppi_57774_83685_LHS1140_0003.gpuspec.0000.h5",
+        "source_name": "LHS1140",
+        "tstart_mjd": 57774.96857638889,
+        "fch1_mhz": 12038.37890625,
+        "foff_hz": -2.7939677238464355,
+        "tsamp_s": 18.253611008,
+        "first_channel": 749672,
+        "centre_freq_mhz": 12036.283989192705,
+        "drift_channels_per_step": 0.00010725065475840447,
+        "drift_hz_per_s": -1.6416196643231283e-05,
+        "snr": 1156.75341796875,
+        "pool": {
+          "id": "sky-pool/v1",
+          "key": "lhs1140"
+        },
+        "coarse_channel": 13,
+        "sky": {
+          "ra_hours": 0.749802,
+          "dec_deg": -15.406469,
+          "frame": "J2000, the telescope's pointing from the file header",
+          "epoch": "2017-01-21T23:14:45Z",
+          "constellation": "Cetus",
+          "telescope": "Green Bank Telescope",
+          "target": "LHS 1140",
+          "distance_label": "49 light-years"
+        },
+        "url": "https://bldata.berkeley.edu/pipeline/AGBT16B_999_123/blc00/blc00_guppi_57774_83685_LHS1140_0003.gpuspec.0000.h5"
+      }
+    },
+    {
+      "id": "m31-58804-85403-blind-1",
+      "family": "blind-window",
+      "group": "blind window",
+      "file": "m31-58804-85403-blind-1.bin",
+      "dtype": "float32-le",
+      "shape": [
+        16,
+        256
+      ],
+      "units": "noise sigma, bandpass-flattened",
+      "sha256": "f4f23ed3f0017dcc64d5591d56074bbf2b1303de4e8cc382fba5ec03372a770f",
+      "source": {
+        "file": "blc00_guppi_58804_85403_MESSIER031_0127.gpuspec.0000.h5",
+        "source_name": "MESSIER031",
+        "tstart_mjd": 58804.98846064815,
+        "fch1_mhz": 11148.925779853016,
+        "foff_hz": -2.7939677238464355,
+        "tsamp_s": 18.253611008,
+        "first_channel": 776991,
+        "centre_freq_mhz": 11146.754534449428,
+        "snr": 4.638461112976074,
+        "pool": {
+          "id": "sky-pool/v1",
+          "key": "m31"
+        },
+        "coarse_channel": 35,
+        "sky": {
+          "ra_hours": 0.712313,
+          "dec_deg": 41.2691,
+          "frame": "J2000, the telescope's pointing from the file header",
+          "epoch": "2019-11-17T23:43:23Z",
+          "constellation": "Andromeda",
+          "telescope": "Green Bank Telescope",
+          "target": "Andromeda Galaxy",
+          "distance_label": "2.5 million light-years"
+        },
+        "url": "https://bldata.berkeley.edu/pipeline/AGBT19B_999_109/blc00_blp00/blc00_guppi_58804_85403_MESSIER031_0127.gpuspec.0000.h5"
+      }
+    },
+    {
+      "id": "m31-58804-85403-blind-2",
+      "family": "blind-window",
+      "group": "blind window",
+      "file": "m31-58804-85403-blind-2.bin",
+      "dtype": "float32-le",
+      "shape": [
+        16,
+        256
+      ],
+      "units": "noise sigma, bandpass-flattened",
+      "sha256": "c931588520e9d01c1a287ee1529b75cc41d18e9ef809732653d639a1fc08059e",
+      "source": {
+        "file": "blc00_guppi_58804_85403_MESSIER031_0127.gpuspec.0000.h5",
+        "source_name": "MESSIER031",
+        "tstart_mjd": 58804.98846064815,
+        "fch1_mhz": 11148.925779853016,
+        "foff_hz": -2.7939677238464355,
+        "tsamp_s": 18.253611008,
+        "first_channel": 78259,
+        "centre_freq_mhz": 11148.706769105047,
+        "snr": 3.622593879699707,
+        "pool": {
+          "id": "sky-pool/v1",
+          "key": "m31"
+        },
+        "coarse_channel": 35,
+        "sky": {
+          "ra_hours": 0.712313,
+          "dec_deg": 41.2691,
+          "frame": "J2000, the telescope's pointing from the file header",
+          "epoch": "2019-11-17T23:43:23Z",
+          "constellation": "Andromeda",
+          "telescope": "Green Bank Telescope",
+          "target": "Andromeda Galaxy",
+          "distance_label": "2.5 million light-years"
+        },
+        "url": "https://bldata.berkeley.edu/pipeline/AGBT19B_999_109/blc00_blp00/blc00_guppi_58804_85403_MESSIER031_0127.gpuspec.0000.h5"
+      }
+    },
+    {
+      "id": "m31-58804-85403-hit-1",
+      "family": "stars",
+      "group": "hit",
+      "file": "m31-58804-85403-hit-1.bin",
+      "dtype": "float32-le",
+      "shape": [
+        16,
+        256
+      ],
+      "units": "noise sigma, bandpass-flattened",
+      "sha256": "53a6aa983c9ecab1e18e297a5b9889d3b03df7bc28cd47808bc90100dad2846e",
+      "source": {
+        "file": "blc00_guppi_58804_85403_MESSIER031_0127.gpuspec.0000.h5",
+        "source_name": "MESSIER031",
+        "tstart_mjd": 58804.98846064815,
+        "fch1_mhz": 11148.925779853016,
+        "foff_hz": -2.7939677238464355,
+        "tsamp_s": 18.253611008,
+        "first_channel": 357006,
+        "centre_freq_mhz": 11147.927959698058,
+        "drift_channels_per_step": 0.04778218682110924,
+        "drift_hz_per_s": -0.007313724812831278,
+        "snr": 12.835272789001465,
+        "pool": {
+          "id": "sky-pool/v1",
+          "key": "m31"
+        },
+        "coarse_channel": 35,
+        "sky": {
+          "ra_hours": 0.712313,
+          "dec_deg": 41.2691,
+          "frame": "J2000, the telescope's pointing from the file header",
+          "epoch": "2019-11-17T23:43:23Z",
+          "constellation": "Andromeda",
+          "telescope": "Green Bank Telescope",
+          "target": "Andromeda Galaxy",
+          "distance_label": "2.5 million light-years"
+        },
+        "url": "https://bldata.berkeley.edu/pipeline/AGBT19B_999_109/blc00_blp00/blc00_guppi_58804_85403_MESSIER031_0127.gpuspec.0000.h5"
+      }
+    },
+    {
+      "id": "m31-58804-85403-hit-2",
+      "family": "stars",
+      "group": "hit",
+      "file": "m31-58804-85403-hit-2.bin",
+      "dtype": "float32-le",
+      "shape": [
+        16,
+        256
+      ],
+      "units": "noise sigma, bandpass-flattened",
+      "sha256": "c8393bf4539e8bb5ccf43610652ffecd1c0d81bcfab97a36647b1c1ad1988881",
+      "source": {
+        "file": "blc00_guppi_58804_85403_MESSIER031_0127.gpuspec.0000.h5",
+        "source_name": "MESSIER031",
+        "tstart_mjd": 58804.98846064815,
+        "fch1_mhz": 11148.925779853016,
+        "foff_hz": -2.7939677238464355,
+        "tsamp_s": 18.253611008,
+        "first_channel": 762460,
+        "centre_freq_mhz": 11146.795133339912,
+        "drift_channels_per_step": 0.09991701526154308,
+        "drift_hz_per_s": -0.015293681649152796,
+        "snr": 12.54289722442627,
+        "pool": {
+          "id": "sky-pool/v1",
+          "key": "m31"
+        },
+        "coarse_channel": 35,
+        "sky": {
+          "ra_hours": 0.712313,
+          "dec_deg": 41.2691,
+          "frame": "J2000, the telescope's pointing from the file header",
+          "epoch": "2019-11-17T23:43:23Z",
+          "constellation": "Andromeda",
+          "telescope": "Green Bank Telescope",
+          "target": "Andromeda Galaxy",
+          "distance_label": "2.5 million light-years"
+        },
+        "url": "https://bldata.berkeley.edu/pipeline/AGBT19B_999_109/blc00_blp00/blc00_guppi_58804_85403_MESSIER031_0127.gpuspec.0000.h5"
+      }
+    },
+    {
+      "id": "m31-58804-85403-hit-3",
+      "family": "stars",
+      "group": "hit",
+      "file": "m31-58804-85403-hit-3.bin",
+      "dtype": "float32-le",
+      "shape": [
+        16,
+        256
+      ],
+      "units": "noise sigma, bandpass-flattened",
+      "sha256": "fe3d43230a547ee05edce2e5991a04b3e2fde6ad18b4c2456a26fd74c9450317",
+      "source": {
+        "file": "blc00_guppi_58804_85403_MESSIER031_0127.gpuspec.0000.h5",
+        "source_name": "MESSIER031",
+        "tstart_mjd": 58804.98846064815,
+        "fch1_mhz": 11148.925779853016,
+        "foff_hz": -2.7939677238464355,
+        "tsamp_s": 18.253611008,
+        "first_channel": 307243,
+        "centre_freq_mhz": 11148.066994500832,
+        "drift_channels_per_step": -0.03669617968292769,
+        "drift_hz_per_s": 0.005616858033056277,
+        "snr": 10.0302095413208,
+        "pool": {
+          "id": "sky-pool/v1",
+          "key": "m31"
+        },
+        "coarse_channel": 35,
+        "sky": {
+          "ra_hours": 0.712313,
+          "dec_deg": 41.2691,
+          "frame": "J2000, the telescope's pointing from the file header",
+          "epoch": "2019-11-17T23:43:23Z",
+          "constellation": "Andromeda",
+          "telescope": "Green Bank Telescope",
+          "target": "Andromeda Galaxy",
+          "distance_label": "2.5 million light-years"
+        },
+        "url": "https://bldata.berkeley.edu/pipeline/AGBT19B_999_109/blc00_blp00/blc00_guppi_58804_85403_MESSIER031_0127.gpuspec.0000.h5"
+      }
+    },
+    {
+      "id": "oumuamua-58089-00858-blind-1",
+      "family": "blind-window",
+      "group": "blind window",
+      "file": "oumuamua-58089-00858-blind-1.bin",
+      "dtype": "float32-le",
+      "shape": [
+        16,
+        256
+      ],
+      "units": "noise sigma, bandpass-flattened",
+      "sha256": "c4c8f34915cb5b8d3860f38c64bfa5afa2662896e53af47cecbfa6bed7a6c34b",
+      "source": {
+        "file": "blc00_guppi_58089_00858_OUMUAMUA_0018.gpuspec.0000.h5",
+        "source_name": "OUMUAMUA",
+        "tstart_mjd": 58089.009930555556,
+        "fch1_mhz": 10009.277342353016,
+        "foff_hz": -2.7939677238464355,
+        "tsamp_s": 18.253611008,
+        "first_channel": 133837,
+        "centre_freq_mhz": 10008.903048466891,
+        "snr": 3.8182151317596436,
+        "pool": {
+          "id": "sky-pool/v1",
+          "key": "oumuamua"
+        },
+        "coarse_channel": 40,
+        "time_steps": "the first 16 of 32",
+        "sky": {
+          "ra_hours": 23.295033,
+          "dec_deg": 7.1419,
+          "frame": "J2000, the telescope's pointing from the file header",
+          "epoch": "2017-12-02T00:14:18Z",
+          "constellation": "Pisces",
+          "telescope": "Green Bank Telescope",
+          "target": "'Oumuamua",
+          "distance_label": "Interstellar object, the first seen passing through the Solar System"
+        },
+        "url": "https://bldata.berkeley.edu/pipeline/AGBT17B_999_68/holding/blc00_guppi_58089_00858_OUMUAMUA_0018.gpuspec.0000.h5"
+      }
+    },
+    {
+      "id": "oumuamua-58089-00858-blind-2",
+      "family": "blind-window",
+      "group": "blind window",
+      "file": "oumuamua-58089-00858-blind-2.bin",
+      "dtype": "float32-le",
+      "shape": [
+        16,
+        256
+      ],
+      "units": "noise sigma, bandpass-flattened",
+      "sha256": "40e1e6efb888547a65e5e557ed39ebf9f42eb206c4ec97e7c051b0df10fef86a",
+      "source": {
+        "file": "blc00_guppi_58089_00858_OUMUAMUA_0018.gpuspec.0000.h5",
+        "source_name": "OUMUAMUA",
+        "tstart_mjd": 58089.009930555556,
+        "fch1_mhz": 10009.277342353016,
+        "foff_hz": -2.7939677238464355,
+        "tsamp_s": 18.253611008,
+        "first_channel": 967421,
+        "centre_freq_mhz": 10006.574041675776,
+        "snr": 3.8065643310546875,
+        "pool": {
+          "id": "sky-pool/v1",
+          "key": "oumuamua"
+        },
+        "coarse_channel": 40,
+        "time_steps": "the first 16 of 32",
+        "sky": {
+          "ra_hours": 23.295033,
+          "dec_deg": 7.1419,
+          "frame": "J2000, the telescope's pointing from the file header",
+          "epoch": "2017-12-02T00:14:18Z",
+          "constellation": "Pisces",
+          "telescope": "Green Bank Telescope",
+          "target": "'Oumuamua",
+          "distance_label": "Interstellar object, the first seen passing through the Solar System"
+        },
+        "url": "https://bldata.berkeley.edu/pipeline/AGBT17B_999_68/holding/blc00_guppi_58089_00858_OUMUAMUA_0018.gpuspec.0000.h5"
+      }
+    },
+    {
+      "id": "oumuamua-58089-00858-hit-1",
+      "family": "stars",
+      "group": "hit",
+      "file": "oumuamua-58089-00858-hit-1.bin",
+      "dtype": "float32-le",
+      "shape": [
+        16,
+        256
+      ],
+      "units": "noise sigma, bandpass-flattened",
+      "sha256": "5b13b322dcd23e8f72c84906bca2789c3532e3451f658052c5e1af8b9b206565",
+      "source": {
+        "file": "blc00_guppi_58089_00858_OUMUAMUA_0018.gpuspec.0000.h5",
+        "source_name": "OUMUAMUA",
+        "tstart_mjd": 58089.009930555556,
+        "fch1_mhz": 10105.957029853016,
+        "foff_hz": -2.7939677238464355,
+        "tsamp_s": 18.253611008,
+        "first_channel": 439904,
+        "centre_freq_mhz": 10104.727594675242,
+        "drift_channels_per_step": -0.005442382056255394,
+        "drift_hz_per_s": 0.0008330318751371612,
+        "snr": 1764.470947265625,
+        "pool": {
+          "id": "sky-pool/v1",
+          "key": "oumuamua"
+        },
+        "coarse_channel": 7,
+        "time_steps": "the first 16 of 32",
+        "sky": {
+          "ra_hours": 23.295033,
+          "dec_deg": 7.1419,
+          "frame": "J2000, the telescope's pointing from the file header",
+          "epoch": "2017-12-02T00:14:18Z",
+          "constellation": "Pisces",
+          "telescope": "Green Bank Telescope",
+          "target": "'Oumuamua",
+          "distance_label": "Interstellar object, the first seen passing through the Solar System"
+        },
+        "url": "https://bldata.berkeley.edu/pipeline/AGBT17B_999_68/holding/blc00_guppi_58089_00858_OUMUAMUA_0018.gpuspec.0000.h5"
+      }
+    },
+    {
+      "id": "oumuamua-58089-00858-hit-2",
+      "family": "stars",
+      "group": "hit",
+      "file": "oumuamua-58089-00858-hit-2.bin",
+      "dtype": "float32-le",
+      "shape": [
+        16,
+        256
+      ],
+      "units": "noise sigma, bandpass-flattened",
+      "sha256": "1481eb89995562a6b587df6b0dd723e05c62b0611b42cfd106e4a7d5fad2295e",
+      "source": {
+        "file": "blc00_guppi_58089_00858_OUMUAMUA_0018.gpuspec.0000.h5",
+        "source_name": "OUMUAMUA",
+        "tstart_mjd": 58089.009930555556,
+        "fch1_mhz": 10105.957029853016,
+        "foff_hz": -2.7939677238464355,
+        "tsamp_s": 18.253611008,
+        "first_channel": 342407,
+        "centre_freq_mhz": 10104.999998178764,
+        "drift_channels_per_step": -0.01592287108589318,
+        "drift_hz_per_s": 0.002437215730380989,
+        "snr": 100.6552963256836,
+        "pool": {
+          "id": "sky-pool/v1",
+          "key": "oumuamua"
+        },
+        "coarse_channel": 7,
+        "time_steps": "the first 16 of 32",
+        "sky": {
+          "ra_hours": 23.295033,
+          "dec_deg": 7.1419,
+          "frame": "J2000, the telescope's pointing from the file header",
+          "epoch": "2017-12-02T00:14:18Z",
+          "constellation": "Pisces",
+          "telescope": "Green Bank Telescope",
+          "target": "'Oumuamua",
+          "distance_label": "Interstellar object, the first seen passing through the Solar System"
+        },
+        "url": "https://bldata.berkeley.edu/pipeline/AGBT17B_999_68/holding/blc00_guppi_58089_00858_OUMUAMUA_0018.gpuspec.0000.h5"
+      }
+    },
+    {
+      "id": "oumuamua-58089-00858-hit-3",
+      "family": "stars",
+      "group": "hit",
+      "file": "oumuamua-58089-00858-hit-3.bin",
+      "dtype": "float32-le",
+      "shape": [
+        16,
+        256
+      ],
+      "units": "noise sigma, bandpass-flattened",
+      "sha256": "af984412bef80132d00ef5248725b9b0381769568896307c92b093516b3f910d",
+      "source": {
+        "file": "blc00_guppi_58089_00858_OUMUAMUA_0018.gpuspec.0000.h5",
+        "source_name": "OUMUAMUA",
+        "tstart_mjd": 58089.009930555556,
+        "fch1_mhz": 10105.957029853016,
+        "foff_hz": -2.7939677238464355,
+        "tsamp_s": 18.253611008,
+        "first_channel": 442113,
+        "centre_freq_mhz": 10104.721422631068,
+        "drift_channels_per_step": -0.01299196639986015,
+        "drift_hz_per_s": 0.0019886002158475843,
+        "snr": 43.27802658081055,
+        "pool": {
+          "id": "sky-pool/v1",
+          "key": "oumuamua"
+        },
+        "coarse_channel": 7,
+        "time_steps": "the first 16 of 32",
+        "sky": {
+          "ra_hours": 23.295033,
+          "dec_deg": 7.1419,
+          "frame": "J2000, the telescope's pointing from the file header",
+          "epoch": "2017-12-02T00:14:18Z",
+          "constellation": "Pisces",
+          "telescope": "Green Bank Telescope",
+          "target": "'Oumuamua",
+          "distance_label": "Interstellar object, the first seen passing through the Solar System"
+        },
+        "url": "https://bldata.berkeley.edu/pipeline/AGBT17B_999_68/holding/blc00_guppi_58089_00858_OUMUAMUA_0018.gpuspec.0000.h5"
       }
     },
     {
@@ -3148,8 +4263,8 @@
         "tsamp_s": 18.253611008,
         "first_channel": 495542,
         "centre_freq_mhz": 3375.224729574903,
-        "drift_channels_per_step": 0.4570457916475918,
-        "drift_hz_per_s": 0.06995718215007193,
+        "drift_channels_per_step": 0.45704579164097986,
+        "drift_hz_per_s": 0.0699571821490599,
         "snr": 35.576072692871094,
         "pool": {
           "id": "sky-pool/v1",
@@ -3364,8 +4479,8 @@
         "tsamp_s": 18.253611008,
         "first_channel": 474210,
         "centre_freq_mhz": 3354.6573155140063,
-        "drift_channels_per_step": -2.6725328060064957,
-        "drift_hz_per_s": -0.40906812343214455,
+        "drift_channels_per_step": -2.6725328060098015,
+        "drift_hz_per_s": -0.40906812343265053,
         "snr": 47.33203887939453,
         "pool": {
           "id": "sky-pool/v1",
@@ -3497,8 +4612,8 @@
         "tsamp_s": 18.253611007999982,
         "first_channel": 644143,
         "centre_freq_mhz": 3041.2663341817483,
-        "drift_channels_per_step": 0.06637922414725794,
-        "drift_hz_per_s": -0.010160258686356618,
+        "drift_channels_per_step": 0.06637922416048184,
+        "drift_hz_per_s": -0.01016025868838072,
         "snr": 24.260009765625,
         "pool": {
           "id": "sky-pool/v1",
