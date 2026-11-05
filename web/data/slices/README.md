@@ -5,9 +5,18 @@ the browser downloads kilobytes instead of a multi-gigabyte HDF5 file.
 
 ## What's published
 
-Twenty-one slices from two Breakthrough Listen observing sessions of Voyager 1 with the Green
-Bank Telescope, four years apart (manifest version 2). Every entry's `source.url` points to the
-file it was cut from, and `source.sky` records where the telescope pointed.
+Two sets of slices, in one manifest (version 2). Every entry's `source.url` points to the file it
+was cut from, and `source.sky` records where the telescope pointed.
+
+- **Voyager 1 and its off-source scans** (families `voyager` and `offsource`, 21 slices): the
+  known technosignature control, from two Green Bank observing sessions four years apart.
+  These are the only slices `track-a/v0` work units read, so adding the others changed nothing
+  in their inputs or their dataset id.
+- **The slice pool** (families `stars`, labelled "SETI targets", and `blind-window`, below):
+  the random sky sample's draws, cut by `tools/extract_slices.py --pool` from
+  `tools/slice_pool.json`.
+
+### Voyager 1 and off-source
 
 - **2020-07-16 (MJD 59046):** an on/off cadence of six scans, from
   [bldata.berkeley.edu](https://bldata.berkeley.edu/voyager_2020/single_coarse_channel/).
@@ -24,6 +33,126 @@ file it was cut from, and `source.sky` records where the telescope pointed.
   (`http://blpd0.ssl.berkeley.edu/Voyager_data/`), so the manifest links to its copy in this
   repository's [v0.1 release](https://github.com/davidmdrpi/EIatHome/releases/tag/v0.1).
   - **Voyager 1** (3 slices): the carrier near 8419.30 MHz and its two sidebands.
+
+### The slice pool
+
+The Live Lab's **Random sky sample & analyze** button draws from every published slice. The pool
+adds two families to Voyager's:
+
+- **SETI targets** (family `stars`, group `hit`): on-target hits. For each target in
+  `tools/slice_pool.json`, the [Breakthrough Listen Open Data Archive](http://seti.berkeley.edu/opendata)'s
+  `api/query-files` lists its observations, and the tool picks a few on-target
+  fine-resolution files in a seeded random order, from different sessions where it can, trying
+  the next file when one can't be used. Fine resolution means HDF5 or filterbank files not named
+  as a lower-resolution product (`0001`, `0002`) whose channels are at most 10 Hz wide; it never
+  picks a scan whose target is marked `OFF`, nor a 2-bit recording, whose quantized samples
+  don't normalize to noise-sigma units. In one coarse channel of each (the one containing the target's
+  `freq_mhz`, else up to `tries` drawn at random away from the band edges), it runs the
+  de-Doppler search and cuts a window around each of the strongest hits above SNR 10, like
+  Voyager's. Only the first 16 time steps of a longer scan are read. Almost every hit like this
+  is human interference.
+  - A coarse channel's width in fine channels is the telescope's coarse bandwidth (2.9296875 MHz
+    at Green Bank, 1 MHz at Parkes, whose coarse channels are centred on whole MHz; the archive
+    names the telescope when a file's header doesn't) over the file's channel width: 2^20 at Green Bank's usual 2.79 Hz, 1,033,216 at the 2.84 Hz of its
+    2016 files, 500,000 at Parkes's 2 Hz. The tool checks that the coarse channel it read has its
+    DC spike in the middle, and skips the file if not: a misplaced spike would pass for a hit.
+    Parkes files differ in where their coarse channels start, so both alignments are tried. Some
+    pipelines suppress the spike, leaving a small bump (blc1's 2019 files): when no alignment
+    shows a clear spike, one with that bump in the middle is taken, and any hit that looks like
+    a spike (one channel wide, not drifting) is left out. The telescope a slice names is the
+    archive's, since some Parkes files carry Green Bank's id.
+  - **Proxima Centauri** is blc1's window: Parkes (Murriyang) scans from 2019-04-29, the day
+    blc1 was recorded, in the coarse channel containing 982.002 MHz. Besides the hits and blind
+    windows, each scan gives one window centred on blc1's published frequency, 982.002571 MHz
+    (group `blc1 window`; Smith et al. 2021, arXiv:2111.08007). It drifted +0.038 Hz/s, about
+    90 channels over the 2.5 hours it was seen, so the window holds it whenever it was there; its
+    card says "window at blc1's frequency" (`source.window_type`), not "on-target hit", because no
+    detection chose it, and in the first 16 steps of a scan blc1 needn't stand out. blc1 was later
+    shown to be interference (Sheikh et al. 2021).
+  - The other targets are nearby stars: Tau Ceti (Parkes), and Barnard's Star (GJ 699), Lalande
+    21185, Wolf 359, Ross 128 and 61 Cygni (Green Bank), at most 8 targets from the archive in
+    all. Each target lists the archive queries to try in order (its name, its HIP number, then a
+    cone of 0.1° around its position), going on to the next while it still wants files.
+    TRAPPIST-1 and Epsilon Eridani were tried and left out: the archive's TRAPPIST-1 scans have
+    3 time steps, and it lists no Epsilon Eridani files.
+  - Targets can also list files directly. bldata.berkeley.edu serves several Breakthrough Listen
+    directories over HTTPS with range requests (`pipeline/`, `kepler-transits/`, `ATLAS/`,
+    `blpd30_datax2/`, ...), and five targets come from there: the interstellar comet **3I/ATLAS**
+    (Green Bank, 2025-12-18, one scan in each of the L, C and Ku bands; 49-step scans, of which
+    a slice holds the first 16), **Boyajian's Star** (KIC 8462852) and the Kepler planet host
+    **Kepler-723** (Green Bank's 2018 Kepler-transit session), the TESS target **TIC 265146266**
+    and the Hipparcos star **HIP 29847**. They need no `--allow-http`, so anyone can re-cut them:
+    `python tools/extract_slices.py --pool tools/slice_pool.json --only 3iatlas kic8462852
+    kepler723 tic265146266 hip29847`.
+- **Blind windows** (family `blind-window`, group `blind window`): windows at random frequencies
+  in the same on-target scans, two per file, in the first coarse channel read. A seeded draw
+  places them before anything is read, away from the band edges and the DC spike in the middle,
+  so no detection chooses them. The Voyager target adds two from each of the four scans its
+  slices come from. Blind means nobody chose where they fall, not that nothing is there: one of
+  the 2020 windows lands on Voyager's carrier (SNR 615).
+
+The pool's seed fixes every random choice, so re-running it cuts the same slices. Its limits
+keep it small: at most 100 slices and 1.5 MB. As published, it holds 79 slices (1.3 MB) from 12
+targets and Voyager 1:
+
+| Target | Telescope | Scans | Hits | Blind windows | Other |
+|---|---|---|---|---|---|
+| Voyager 1 | Green Bank | 2016-09-19; 2020-07-16 (3 scans) | (its own family) | 8 | |
+| Proxima Centauri | Parkes | 2019-04-29 (2 scans) | 0 | 4 | 2 windows at blc1's frequency |
+| Tau Ceti | Parkes | 2017-09-14; 2017-09-29 | 5 | 4 | |
+| Barnard's Star | Green Bank | 2016-10-28 (2 scans) | 0 | 4 | |
+| Lalande 21185 | Green Bank | 2016-06-03; 2016-09-29 | 1 | 4 | |
+| Wolf 359 | Green Bank | 2016-05-24; 2016-10-10 | 3 | 4 | |
+| Ross 128 | Green Bank | 2016-05-24; 2016-11-03 | 4 | 4 | |
+| 61 Cygni | Green Bank | 2016-07-18; 2017-02-06 | 4 | 4 | |
+| 3I/ATLAS (interstellar comet) | Green Bank | 2025-12-18 (L, C and Ku band) | 3 | 6 | |
+| Boyajian's Star (KIC 8462852) | Green Bank | 2018-03-25 | 3 | 2 | |
+| Kepler-723 | Green Bank | 2018-03-25 | 3 | 2 | |
+| TIC 265146266 | Green Bank | 2021-06-12 | 1 | 2 | |
+| HIP 29847 | Green Bank | 2021-08-07 | 0 | 2 | |
+
+A "0" means the coarse channels searched had nothing above SNR 10 in their first 16 steps; those
+scans still give blind windows. Proxima's one hit near blc1's channel, a line one channel wide
+that doesn't drift, was left out as spike-like, and its blc1 windows peak at SNR 6 to 7.
+
+Every pool slice records, as well as the usual `source` fields:
+
+- `source.sky.target` (the target's name, as on the sky map) along with the pointing,
+  `telescope`, `epoch` and `constellation`; the scan's start is `source.tstart_mjd` and the
+  window's centre frequency is `source.centre_freq_mhz`;
+- `source.pool`: the pool's id and the target's key;
+- `source.archive` (targets found through the archive's API): what the API said about the file: `target`, `telescope`, `utc`,
+  `mjd`, `ra` and `decl` (degrees), `center_freq`, `file_type`, `size`, `md5sum` and `url`. The
+  archive serves most files over plain HTTP, so the slices were read without TLS; with the URL
+  and the MD5, anyone can download the file and check a slice against it;
+- `source.time_steps`, for a scan longer than 16 steps: which steps the slice holds;
+- for a window at a named frequency, `source.window_type` (what the card calls it) and
+  `source.window_of` (what the frequency is).
+
+#### Cutting the pool
+
+The archive's API (`http://seti.berkeley.edu/opendata/api`) and most of its files are served
+over plain HTTP only. The **Cut the slice pool** workflow (`.github/workflows/slice-pool.yml`)
+runs the extraction in GitHub Actions whenever `tools/slice_pool.json` or the extractor changes
+on a branch, checks every slice with the tests, and commits the slices to that branch. Run by
+hand on `main`, it pushes a new branch for a pull request instead. To run it yourself:
+
+```bash
+pip install -r requirements.txt
+python tools/extract_slices.py --pool tools/slice_pool.json --allow-http
+```
+
+`--only voyager1` cuts one target (over HTTPS, so without `--allow-http`); the other targets'
+slices stay. A full run replaces every slice the pool cut before, so a target dropped from the
+pool loses its slices. Commit the `.bin` files and `index.json` together.
+
+A run never loses slices to a network failure. Each target's refresh is staged: if its archive
+query or one of its files can't be retrieved (after retries), the target keeps its earlier slices
+as they were, the rest of the pool is refreshed, and the run exits with an error naming the
+targets, so the workflow commits nothing; run it again. A file the server says is gone (404) is
+no such failure: it's skipped like any other unusable file.
+
+### Held-out scores
 
 With two Voyager sessions, the Live Lab trains on one and evaluates on the other, so the Voyager
 score is held out. Off-source data comes from one session only, so its score is still labelled
@@ -65,15 +194,18 @@ would reuse an existing id. Commit the new `.bin` files and `index.json` togethe
 Listen data is public: keep the `source` metadata so every slice credits the observation it came
 from.
 
-Publishing new slices changes the dataset id, so result cards made with the old slices no
-longer validate for submission. Cards already collected stay in the community results.
+Publishing new Voyager or off-source slices changes the dataset id that `track-a/v0` work units
+record, so result cards made with the old slices no longer validate for submission. Cards
+already collected stay in the community results. Slices of the other families never enter a
+work unit, so they don't change it.
 
 ## Format
 
 - `index.json`: `{"format": "eiathome-slices", "version": 2, "slices": [...]}`. Version 2
   adds `source.sky`; the Live Lab reads version 1 manifests too.
-- Each slice entry has an `id`, a `family` (`voyager` or `offsource`), a `group` (`carrier`
-  or `sideband`; `carrier window` or `sideband window` for off-source), its `file`, `dtype`
+- Each slice entry has an `id`, a `family` (`voyager`, `offsource`, `stars` or
+  `blind-window`), a `group` (`carrier` or `sideband`; `carrier window` or `sideband window`
+  for off-source; `hit` or `blind window` for the pool), its `file`, `dtype`
   (`float32-le`), `shape` (`[time steps, channels]`, currently `[16, 256]`), a `sha256` of the
   file, and `source` metadata: the original file and its `url`, channel width (`foff_hz`), time
   step (`tsamp_s`), first channel, centre frequency and SNR. Voyager slices also have the

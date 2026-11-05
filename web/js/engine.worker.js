@@ -8,11 +8,13 @@ import { deriveSeed, makeRng } from './rng.js';
 import { C, DEFAULT_FOFF_HZ, DEFAULT_TSAMP_S, FAMILIES, REAL_FAMILIES, T, driftToHzPerS, makeSnippet, normalise, shuffleFrames } from './signals.js';
 import { canonicalOrder, datasetId, sha256Hex } from './slices.js';
 import { sessionPools } from './splits.js';
+import { centralWindow } from './trackb-splits.js';
+import { sampleOrder } from './sample.js';
 import { ANCHOR, anchorTheta0, flatten, layoutProblems, unflatten } from './anchor.js';
 import { attentionStates, buildTokenModel } from './layers.js';
 import { ARMS, addDelta, armConfig, mergeCardV1, mergeConfigV1, mergeDeltas, mergeTokens, shardTrain, unigramBits } from './merge.js';
 import { TOKEN_WINDOW, matchedSize } from './models.js';
-import { APP_VERSION, RESULT_CARD_VERSION, ROSETTA_CORPUS, SPEC, SPEC_FAMILIES, workUnitConfig } from './workunits.js';
+import { APP_VERSION, RESULT_CARD_VERSION, ROSETTA_CORPUS, SPEC, SPEC_FAMILIES, specSlices, workUnitConfig } from './workunits.js';
 
 const tf = globalThis.tf;
 tf.wasm.setWasmPaths(new URL('../vendor/tfjs/', import.meta.url).href);
@@ -499,10 +501,22 @@ async function liveTrain(config) {
     });
   }
   const mapAll = concatSets(Object.values(mapSets));
+  // The Live Lab's random sky sample: its slice's central window is the example the waterfall
+  // shows, whether or not the split held its scan out (it says which). With shuffled frames, in
+  // the sample's own fixed order (sampleOrder), as the preview showed it.
+  const focusSlice = config.focus ? inputs.slices.find((s) => s.id === config.focus && s.family === config.target) : null;
+  const focus = focusSlice
+    ? {
+        id: focusSlice.id,
+        x: config.shuffle ? shuffleFrames(centralWindow(focusSlice), sampleOrder(config.seed, focusSlice.id)) : centralWindow(focusSlice),
+        heldOut: pools.eval.includes(focusSlice) && !pools.train.includes(focusSlice),
+        shuffled: Boolean(config.shuffle),
+      }
+    : null;
 
   const result = await train(config, async (state) => {
     const { model, evalSets } = state;
-    const example = evalSets[config.target];
+    const example = focus ?? evalSets[config.target];
     const pred = await gruPredict(model.predictor, example.x.slice(0, STEP), 1);
     const actual = example.x.slice(2 * C, STEP);
     const predicted = pred.slice(C, (T - 1) * C);
@@ -523,7 +537,7 @@ async function liveTrain(config) {
       gains: state.gains,
       shuffledGains: state.shuffledGains,
       reconstruction: state.reconstruction,
-      example: { actual, predicted, residual, rows: T - 2 },
+      example: { actual, predicted, residual, rows: T - 2, focus: focus && { id: focus.id, heldOut: focus.heldOut, shuffled: focus.shuffled } },
       map: { points, families: mapAll.families },
       backend: tf.getBackend(),
     });
@@ -836,8 +850,10 @@ async function runWorkUnit(unit) {
   const config = workUnitConfig(unit);
   const started = new Date();
   const t0 = performance.now();
-  // Work units always use the spec's frozen corpus, never the Live Lab's custom text.
-  const inputs = snapshotInputs({ text: ROSETTA_CORPUS.text });
+  // Work units always use the spec's frozen corpus, never the Live Lab's custom text, and only
+  // the slices of the spec's own families.
+  const snapshot = snapshotInputs({ text: ROSETTA_CORPUS.text });
+  const inputs = { ...snapshot, slices: specSlices(snapshot.slices) };
   const corpusSha256 = await sha256Hex(new TextEncoder().encode(inputs.text));
   if (corpusSha256 !== ROSETTA_CORPUS.sha256) {
     throw new Error(`The built-in Rosetta text no longer matches spec ${config.spec}. Define a new spec instead of editing the text.`);

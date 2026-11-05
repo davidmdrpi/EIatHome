@@ -34,9 +34,10 @@ It's meant to be a fun, hackable open-source project:
 
 ## Quick start
 
-**In your browser (no install):** open the **[EI@Home Live Lab](https://davidmdrpi.github.io/EIatHome/)**.
-Pick a signal, press Train, and watch a small GRU learn to predict it, live, on your own CPU or
-GPU. The same page runs **work units**: small, reproducible experiments that produce a result
+**In your browser (no install):** open the **[EI@Home Live Lab](https://davidmdrpi.github.io/EIatHome/)**
+and press **Random sky sample & analyze**: it picks a random slice of real telescope data, shows
+on the sky map where it came from, and trains on it, live, on your own CPU or GPU. Or pick a
+signal yourself and press Train. The same page runs **work units**: small, reproducible experiments that produce a result
 card you can download or submit. Nothing leaves your browser unless you choose to send it.
 
 **In Python:** the [**Hello, Voyager**](tracks/rnn/hello_voyager.ipynb) notebook runs the same
@@ -345,7 +346,9 @@ EIatHome/
 - [x] Publish real Voyager micro-slices (one 2020 session: 3 on-source scans, 9 slices)
 - [x] Publish off-source control slices from the same cadence (3 off-source scans, 9 slices), as a real-data family in the Live Lab
 - [ ] Add a second Voyager session, so Voyager scores are held out ([how](web/data/slices/README.md#adding-slices))
-- [ ] Add slices of a public SETI signal of interest as a second real-data preset
+- [ ] Add slices of a public SETI signal of interest as a second real-data preset (the slice pool has two windows at blc1's frequency from Parkes's 2019-04-29 scans of Proxima Centauri, but blc1 doesn't stand out in their first 16 steps)
+- [x] One-click random sky sample: a random real slice, its pointing on the sky map with the slice in its card, then Track A and Track B on its family
+- [x] A slice pool from the Breakthrough Listen Open Data Archive (cut in CI) and bldata.berkeley.edu's HTTPS directories: 79 slices from 12 SETI targets (nearby stars, Boyajian's Star, the interstellar comet 3I/ATLAS, ...) and Voyager 1, on-target hits and blind windows at seeded random frequencies (`tools/slice_pool.json`), with `track-a/v0` units still reading only their own families' slices
 - [x] Collect submitted result cards automatically, retry any a run missed, and show replication status per slice dataset
 - [x] Train and save causal signal-token transformers in Python, with train-only tokenization and surrogate controls
 - [x] 49-frame slices from the 6-second product, rotary positions and offset training windows, scored on windows that start mid-scan ([issue #7](https://github.com/davidmdrpi/EIatHome/issues/7))

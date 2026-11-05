@@ -1,0 +1,249 @@
+{
+  "id": "sky-pool/v1",
+  "about": "The Live Lab's pool of real sky samples (tools/extract_slices.py --pool). For each target, a few observations from the Breakthrough Listen Open Data Archive (its queries in order, while it still wants files), or files listed directly. From each file: up to `hits` on-target hits (family stars), the strongest narrowband signals the de-Doppler search finds above `threshold` in one coarse channel (the one containing `freq_mhz`, else up to `tries` drawn at random), and `blind` blind windows (family blind-window) at seeded random frequencies in the first coarse channel read, plus a window centred on each of the target's named `windows` (family stars). The seed fixes every random choice, so re-running the pool cuts the same slices. TRAPPIST-1 and Epsilon Eridani were tried and left out: the archive's TRAPPIST-1 scans have only 3 time steps (a slice needs 16), and it lists no Epsilon Eridani files.",
+  "seed": 20261104,
+  "api": "http://seti.berkeley.edu/opendata/api",
+  "threshold": 10,
+  "limits": {
+    "max_slices": 100,
+    "max_bytes": 1500000,
+    "max_targets": 8
+  },
+  "targets": [
+    {
+      "key": "voyager1",
+      "name": "Voyager 1",
+      "about": "Blind windows in the coarse channel of the Voyager scans the voyager slices come from: the 2016 scan and the three 2020 on-source scans. Voyager's own signals stay in the voyager family, as known technosignature controls.",
+      "urls": [
+        "https://github.com/davidmdrpi/EIatHome/releases/download/v0.1/Voyager1.single_coarse.fine_res.h5",
+        "https://bldata.berkeley.edu/voyager_2020/single_coarse_channel/single_coarse_guppi_59046_80036_DIAG_VOYAGER-1_0011.rawspec.0000.h5",
+        "https://bldata.berkeley.edu/voyager_2020/single_coarse_channel/single_coarse_guppi_59046_80672_DIAG_VOYAGER-1_0013.rawspec.0000.h5",
+        "https://bldata.berkeley.edu/voyager_2020/single_coarse_channel/single_coarse_guppi_59046_81310_DIAG_VOYAGER-1_0015.rawspec.0000.h5"
+      ],
+      "hits": 0,
+      "blind": 2
+    },
+    {
+      "key": "proxcen",
+      "name": "Proxima Centauri",
+      "distance_label": "4.24 light-years",
+      "about": "blc1's window: Parkes (Murriyang) scans of Proxima Centauri from the day blc1 was recorded (2019-04-29), in the coarse channel containing 982.002 MHz, with a window centred on blc1's published frequency in each. Then any Parkes scan of the star.",
+      "queries": [
+        {
+          "target": "PROXCEN",
+          "telescopes": "Parkes",
+          "time-start": 58602,
+          "time-end": 58603
+        },
+        {
+          "target": "",
+          "pos-ra": 217.42896,
+          "pos-dec": -62.67949,
+          "pos-rad": 0.1,
+          "telescopes": "Parkes",
+          "time-start": 58602,
+          "time-end": 58603
+        },
+        {
+          "target": "PROX",
+          "telescopes": "Parkes"
+        }
+      ],
+      "freq_mhz": 982.002,
+      "files": 2,
+      "hits": 3,
+      "blind": 2,
+      "windows": [
+        {
+          "name": "blc1",
+          "freq_mhz": 982.002571,
+          "label": "window at blc1's frequency",
+          "about": "blc1: detected at 982.002571 MHz, drifting +0.038 Hz/s, over about 2.5 hours on 2019-04-29 (Smith et al. 2021, arXiv:2111.08007); shown to be interference (Sheikh et al. 2021)"
+        }
+      ]
+    },
+    {
+      "key": "tauceti",
+      "name": "Tau Ceti",
+      "distance_label": "11.9 light-years",
+      "queries": [
+        {
+          "target": "TAUCETI"
+        },
+        {
+          "target": "HIP8102"
+        },
+        {
+          "target": "",
+          "pos-ra": 26.01701,
+          "pos-dec": -15.93748,
+          "pos-rad": 0.1
+        }
+      ],
+      "files": 2,
+      "hits": 3,
+      "blind": 2
+    },
+    {
+      "key": "gj699",
+      "name": "Barnard's Star",
+      "distance_label": "5.96 light-years",
+      "queries": [
+        {
+          "target": "GJ699"
+        },
+        {
+          "target": "HIP87937"
+        },
+        {
+          "target": "",
+          "pos-ra": 269.45208,
+          "pos-dec": 4.69336,
+          "pos-rad": 0.1
+        }
+      ],
+      "files": 2,
+      "hits": 3,
+      "blind": 2
+    },
+    {
+      "key": "gj411",
+      "name": "Lalande 21185",
+      "distance_label": "8.31 light-years",
+      "queries": [
+        {
+          "target": "GJ411"
+        },
+        {
+          "target": "HIP54035"
+        },
+        {
+          "target": "",
+          "pos-ra": 165.83414,
+          "pos-dec": 35.96988,
+          "pos-rad": 0.1
+        }
+      ],
+      "files": 2,
+      "hits": 3,
+      "blind": 2
+    },
+    {
+      "key": "gj406",
+      "name": "Wolf 359",
+      "distance_label": "7.86 light-years",
+      "queries": [
+        {
+          "target": "GJ406"
+        },
+        {
+          "target": "",
+          "pos-ra": 164.12025,
+          "pos-dec": 7.01469,
+          "pos-rad": 0.1
+        }
+      ],
+      "files": 2,
+      "hits": 3,
+      "blind": 2
+    },
+    {
+      "key": "gj447",
+      "name": "Ross 128",
+      "distance_label": "11.0 light-years",
+      "queries": [
+        {
+          "target": "GJ447"
+        },
+        {
+          "target": "HIP57548"
+        },
+        {
+          "target": "",
+          "pos-ra": 176.93496,
+          "pos-dec": 0.80451,
+          "pos-rad": 0.1
+        }
+      ],
+      "files": 2,
+      "hits": 3,
+      "blind": 2
+    },
+    {
+      "key": "61cyg",
+      "name": "61 Cygni",
+      "distance_label": "11.4 light-years",
+      "queries": [
+        {
+          "target": "HIP104214"
+        },
+        {
+          "target": "61CYG"
+        },
+        {
+          "target": "",
+          "pos-ra": 316.72475,
+          "pos-dec": 38.74942,
+          "pos-rad": 0.1
+        }
+      ],
+      "files": 2,
+      "hits": 3,
+      "blind": 2
+    },
+    {
+      "key": "3iatlas",
+      "name": "3I/ATLAS",
+      "distance_label": "Interstellar comet, the third object seen passing through the Solar System",
+      "about": "The interstellar comet 3I/ATLAS, observed with Green Bank on 2025-12-18 near its closest approach to Earth: one on-target scan in each of three bands (L, C and Ku). Served over HTTPS by bldata.berkeley.edu.",
+      "urls": [
+        "https://bldata.berkeley.edu/ATLAS/GB_ATLAS/blc22_guppi_61027_17226_DIAG_3I_ATLAS_0013.rawspec.0000.h5",
+        "https://bldata.berkeley.edu/ATLAS/GB_ATLAS/blc33_guppi_61027_26882_DIAG_3I_ATLAS_0045.rawspec.0000.h5",
+        "https://bldata.berkeley.edu/ATLAS/GB_ATLAS/blc20_guppi_61027_31308_DIAG_3I_ATLAS_0061.rawspec.0000.h5"
+      ],
+      "hits": 3,
+      "blind": 2
+    },
+    {
+      "key": "kic8462852",
+      "name": "Boyajian's Star (KIC 8462852)",
+      "distance_label": "about 1,470 light-years",
+      "about": "The star with the unexplained dips in brightness, from Green Bank's 2018 Kepler-transit session. HTTPS, bldata.berkeley.edu/kepler-transits.",
+      "urls": [
+        "https://bldata.berkeley.edu/kepler-transits/spliced_blc1011121314151617_guppi_58202_42383_KIC8462852_0009.gpuspec.0000.h5"
+      ],
+      "hits": 3,
+      "blind": 2
+    },
+    {
+      "key": "kepler723",
+      "name": "Kepler-723",
+      "about": "A Kepler planet host, from the same 2018 Kepler-transit session. HTTPS, bldata.berkeley.edu/kepler-transits.",
+      "urls": [
+        "https://bldata.berkeley.edu/kepler-transits/spliced_blc1011121314151617_guppi_58202_51984_kepler723b_0033.gpuspec.0000.h5"
+      ],
+      "hits": 3,
+      "blind": 2
+    },
+    {
+      "key": "tic265146266",
+      "name": "TIC 265146266",
+      "about": "A TESS target, observed with Green Bank in 2021. HTTPS, bldata.berkeley.edu/blpd30_datax2.",
+      "urls": [
+        "https://bldata.berkeley.edu/blpd30_datax2/blc00_guppi_59377_05820_TIC265146266_0044.rawspec.0000.h5"
+      ],
+      "hits": 3,
+      "blind": 2
+    },
+    {
+      "key": "hip29847",
+      "name": "HIP 29847",
+      "about": "A Hipparcos star, observed with Green Bank in 2021. HTTPS, bldata.berkeley.edu/blpd30_datax2.",
+      "urls": [
+        "https://bldata.berkeley.edu/blpd30_datax2/blc26_guppi_59433_43455_HIP29847_0044.rawspec.0000.h5"
+      ],
+      "hits": 3,
+      "blind": 2
+    }
+  ]
+}

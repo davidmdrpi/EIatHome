@@ -1,0 +1,76 @@
+name: Cut the slice pool
+
+# Cuts the Live Lab's pool of real sky samples (tools/slice_pool.json) with
+# tools/extract_slices.py --pool and commits the slices to the branch it ran on. The pool reads
+# observation lists from the Breakthrough Listen Open Data Archive's query-files API and cuts
+# 16 x 256 windows from the files with HTTP range requests, so only a few MB of each multi-GB file
+# are downloaded.
+#
+# The archive serves its API and most files over plain HTTP only (no TLS), hence --allow-http.
+# Nothing fetched is executed: the job parses the API's JSON and the files' HDF5 or filterbank
+# headers, and writes float32 arrays. Each slice records the file's URL and the archive's MD5 of
+# it, so anyone can download the file and check the slice; the manifest pins each slice's
+# SHA-256, and the tests below check every slice before anything is committed.
+#
+# It runs when the pool or the extractor changes on a branch other than main, or by hand. Run by
+# hand on main, it pushes a new branch (slice-pool/<run id>) for a pull request instead. If a
+# target's query or files can't be retrieved, the extraction keeps that target's earlier slices
+# and fails, so this job stops before committing anything; run it again.
+
+on:
+  push:
+    branches-ignore: [main]
+    paths:
+      - tools/slice_pool.json
+      - tools/extract_slices.py
+      - .github/workflows/slice-pool.yml
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: slice-pool-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  cut:
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # to put the slices on top of anything pushed meanwhile
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: python -m pip install 'numpy>=1.24' 'h5py>=3.8' 'hdf5plugin>=4.1'
+      - name: Cut the pool
+        run: python tools/extract_slices.py --pool tools/slice_pool.json --allow-http
+      - name: Check every slice
+        run: |
+          python -m unittest discover -s tests -p 'test_extract_slices.py'
+          node --test --test-reporter=dot tests/unit.test.mjs tests/sample.test.mjs
+      - name: Commit the slices
+        env:
+          REF_NAME: ${{ github.ref_name }}
+          RUN_ID: ${{ github.run_id }}
+        run: |
+          git add -A web/data/slices
+          if git diff --cached --quiet; then
+            echo "The pool's slices are unchanged."
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git commit -m "Slice pool: cut by tools/extract_slices.py --pool (run $RUN_ID)"
+          if [ "$REF_NAME" = main ]; then
+            git push origin "HEAD:refs/heads/slice-pool/$RUN_ID"
+          else
+            # Commits pushed to the branch while this ran come first; the slices go on top.
+            git pull --rebase origin "$REF_NAME"
+            git push origin "HEAD:$REF_NAME"
+          fi

@@ -4,11 +4,11 @@ import { test } from 'node:test';
 import { matchedSize, matchedTokenWidth, parameterCount, tokenParameterCount } from '../web/js/models.js';
 import { deriveSeed, makeRng } from '../web/js/rng.js';
 import { C, FAMILIES, T, WOW_PRINTOUT, makeSnippet, normalise, rosettaSymbols, wowIntensities } from '../web/js/signals.js';
-import { canonicalOrder, datasetId, parseSlice } from '../web/js/slices.js';
+import { canonicalOrder, datasetId, describeDataset, parseSlice } from '../web/js/slices.js';
 import { holdoutSplits, mjdDate, sessionPools } from '../web/js/splits.js';
 import { analyzeSplits, compressedBitsPerToken, conditionalEntropies, controlProfile, fitMarkov, fitNgram, heldOutCrossEntropy, mutualInformation, sampleMarkov, shuffleWithin, targetCount } from '../web/js/trackb.js';
 import { rosettaSplits } from '../web/js/trackb-splits.js';
-import { ROSETTA_CORPUS, SPEC_FAMILIES, workUnitConfig } from '../web/js/workunits.js';
+import { ROSETTA_CORPUS, SPEC_FAMILIES, specSlices, workUnitConfig } from '../web/js/workunits.js';
 import { entry, lineSlice, publishedSlices, sha256, sliceBytes } from './fixtures.mjs';
 
 test('the Wow! signal is its six printout readings, in consecutive steps of one channel', () => {
@@ -29,7 +29,21 @@ test('the Wow! signal is its six printout readings, in consecutive steps of one 
 
 test('track-a/v0 keeps the families it was defined with, whatever the Live Lab adds', () => {
   assert.deepEqual(SPEC_FAMILIES, ['voyager', 'offsource', 'tone', 'pulsed', 'sweep', 'rosetta', 'randfsk', 'noise']);
-  assert.deepEqual(FAMILIES.map((f) => f.id).filter((id) => !SPEC_FAMILIES.includes(id)), ['wow']);
+  assert.deepEqual(FAMILIES.map((f) => f.id).filter((id) => !SPEC_FAMILIES.includes(id)), ['stars', 'blind-window', 'wow']);
+});
+
+// The dataset id of the 21 Voyager and off-source slices published when the random sky sample
+// arrived. Slices of later families never enter a track-a/v0 unit, so its cards stay comparable.
+const TRACK_A_V0_DATASET = '191562168ed20de0a627c183cbc5011e865541b8db286d194f843d7bfa98d4c1';
+
+test('track-a/v0 units read only their own families’ slices, so new families leave the dataset id alone', async () => {
+  const slices = await publishedSlices();
+  const described = await describeDataset(slices);
+  assert.equal(described.datasetId, TRACK_A_V0_DATASET, 'the Voyager and off-source slices a work unit reads are unchanged');
+  assert.deepEqual(described.families, ['voyager', 'offsource']);
+  assert.equal(await datasetId(specSlices(slices)), TRACK_A_V0_DATASET);
+  const extra = { ...slices[0], id: 'later-family', family: 'blind-window' };
+  assert.equal((await describeDataset([...slices, extra])).datasetId, TRACK_A_V0_DATASET, 'a blind window changes nothing a unit reads');
 });
 
 test('slice loading verifies the SHA-256 of the bytes', async () => {
@@ -50,7 +64,8 @@ test('the published slices verify and credit their observations', async () => {
   const ids = new Set(slices.filter((s) => s.family === 'voyager').map((s) => s.id));
   assert.ok(ids.size > 0);
   for (const s of slices) {
-    assert.match(s.source.url, /^https:\/\//, `${s.id} links to its observation`);
+    // The archive serves most files over plain HTTP; its record (with the file's MD5) comes along.
+    assert.match(s.source.url, s.source.archive ? /^https?:\/\// : /^https:\/\//, `${s.id} links to its observation`);
     assert.ok(Number.isFinite(s.startMjd), `${s.id} records when its scan started`);
     if (s.family === 'offsource') {
       assert.match(s.source.source_name, /OFF/, `${s.id} comes from an off-source scan`);

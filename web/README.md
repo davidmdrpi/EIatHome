@@ -1,7 +1,8 @@
 # EI@Home Live Lab
 
-A static, zero-install web app: pick a signal, train a small GRU on it in the browser, look at
-its predictions and hidden states, measure how language-like its radio tokens are, and run
+A static, zero-install web app: pick a signal (or press **Random sky sample & analyze** for a
+random slice of real data, shown on the sky map where the telescope pointed), train a small GRU
+on it in the browser, look at its predictions and hidden states, measure how language-like its radio tokens are, and run
 reproducible work units. The Recovery tab measures which weak signals two standard detectors
 find in real data, at a fixed false-alarm rate. Above both, the Observatory viewport shows each
 signal's place on the sky and zooms in on it while the computation runs. Everything computes
@@ -31,10 +32,11 @@ browsers don't run module workers from `file://` URLs.
 | `js/merge.js` | The merge work units: `trackb-merge/v1` (seeds on all the text, shards from θ₀ and shards from a warm start, each merged five ways) and the earlier `trackb-merge/v0` (the seeds alone). Task vectors, DARE (with the int8 payload's size), TIES (its own mean, or the mean over all workers), sign agreement and the other delta summaries, and each spec's card and its checks |
 | `js/trackb-splits.js` | Track B's training, validation and test frames for each kind of family, split before anything is fitted |
 | `js/trackb.worker.js`, `js/trackb.js` | Track B: splits each family into training, validation and test segments, fits the k-means tokenizer and the shuffled and Markov-1 surrogates on the training split only, and measures held-out cross-entropy, conditional entropy, mutual information, Zipf and compression without crossing a segment boundary |
-| `js/signals.js` | Signal families (two real-data ones, Voyager 1 and off-source; a reconstruction of the 1977 Wow! signal from its printout readings, 6EQUJ5; and the synthetic controls) and the Rosetta text; snippet normalization |
+| `js/signals.js` | Signal families (four real-data ones: Voyager 1, off-source, SETI targets and blind windows; a reconstruction of the 1977 Wow! signal from its printout readings, 6EQUJ5; and the synthetic controls) and the Rosetta text; snippet normalization. A real family says how its windows were cut (on-target hit, off-source or random blind window) and which real family is its control |
+| `js/sample.js` | The random sky sample: picks a real slice that isn't the one already shown, names its sky-map target, and writes its card (source, telescope, MJD, centre frequency, drift and SNR, and how the window was cut). `main.js` then selects its family, slews the map to it, and runs Track A (with the sample in the waterfall), Track B's tokens and, once Track A is done, the token model |
 | `js/slices.js` | Loads real-data micro-slices (`data/slices/`) or user-dropped files, verifies their SHA-256 and computes the dataset identity |
 | `js/splits.js` | Groups a real family's slices into observing sessions and keeps training and evaluation on different sessions |
-| `js/workunits.js` | Versioned work-unit specs (`track-a/v0`; the recovery and merge specs live in `js/recovery.js` and `js/merge.js`) |
+| `js/workunits.js` | Versioned work-unit specs (`track-a/v0`; the recovery and merge specs live in `js/recovery.js` and `js/merge.js`). A `track-a/v0` unit reads only the slices of its spec's families (`specSlices`), so slices of later families leave its inputs and dataset id alone |
 | `js/contributions.js` | What became of the result cards computed in this browser (computed here, saved to a file, opened on GitHub, accepted into the community results), and the rule for keeping them: a card is dropped to make room only if it's accepted or saved |
 | `js/skymap.js` | The Observatory viewport: a sky map on a canvas (stereographic projection, so stars stay round at any zoom). Slews along great circles to each signal's pointing, zooms from 60° to the 2° around the telescope beam with a computation's progress, and draws its live effects: wavefronts for Track A and B, and the 1,024-window grid for recovery units. Observatory mode fills the window and can keep running work units. A running job stays on the target whose data it uses, and the HUD names that data. The coordinate math has no DOM dependencies, so tests run it in Node |
 | `data/sky/` | The sky it draws (`tools/build_sky.py`): the 1,500 brightest Hipparcos stars with B−V colours, every Hipparcos star near the observed targets, constellation lines, names and IAU boundaries, and reference targets (among them the Wow! signal's two possible fields), from d3-celestial (BSD-3-Clause, notice in `LICENSE.d3-celestial.txt`) |
@@ -67,6 +69,9 @@ For Track B it checks that the tokenizer, surrogates and n-gram model never see 
 (including a Rosetta test text change end to end), that the n-gram fits the same data as the token
 model, that no statistic or compressed block crosses a segment boundary, and that real data holds
 out whole scans or sessions.
+`tests/sample.test.mjs` checks the random sky sample: it never repeats the slice shown, can
+reach every published family, prefers slices with a pointing, and writes the card from the
+manifest; and that the slice pool stays within its limits, with every slice located and credited.
 `tests/skymap.test.mjs` checks the viewport's math and data: coordinates, galactic conversion,
 the projection and its inverse, slews, sidereal time, constellations from the IAU boundaries,
 and that the manifest records where every slice pointed.
@@ -111,6 +116,10 @@ headless Chromium. It checks that:
   included, and community recovery units are combined once per unit, apart from the replicated
   units;
 - the viewport slews to a signal's pointing, and clicking a beacon selects its signal;
+- one click on **Random sky sample & analyze** picks a published slice, selects its family,
+  slews the map to the slice's pointing with the slice in the target's card, starts Track A at
+  once and Track B's tokens alongside, trains the token model when Track A is done, and the next
+  click picks another slice;
 - a recovery unit zooms the viewport to the telescope beam and colours each window by its outcome;
 - observatory mode fills the window, keeps running units, and stops when it's closed; auto-run
   ticked while the recovery windows load starts once they're ready, and clicking another beacon
@@ -148,8 +157,10 @@ manifest, a file or browser storage into `innerHTML`.
   `python -m tracks.recovery.browser --write`, then pin them in a new spec in `js/recovery.js`.
 - **Add a work-unit spec:** add a new versioned config in `js/workunits.js`. Never change an
   existing spec, because published result cards refer to it. Make a `v1` instead.
-- **Publish real data:** see `data/slices/README.md`. A new real family also needs an entry
-  with `real: true` in `FAMILIES` and a generator that calls `sliceWindow()`.
+- **Publish real data:** see `data/slices/README.md`. More SETI targets or blind windows go
+  in `tools/slice_pool.json`; CI cuts them. A new real family also needs an entry with
+  `real: true`, its `window` and its `control` in `FAMILIES`, a generator that calls
+  `sliceWindow()`, and its name in `FAMILIES` in `tracks/llm/data.py`.
 
 ## Your results in this browser
 

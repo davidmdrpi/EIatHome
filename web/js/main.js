@@ -9,8 +9,10 @@ import { deriveSeed, makeRng } from './rng.js';
 import { forWorkers, loadPublishedSlices, loadSliceFiles } from './slices.js';
 import { SCAN_GAP_DAYS, groups, mjdDate, sessions } from './splits.js';
 import { C, FAMILIES, ROSETTA_TEXT, T, driftToHzPerS, familyById, makeSnippet, normalise, shuffleFrames } from './signals.js';
+import { describeSample, pickSample, pointingId, sampleLines, sampleOrder } from './sample.js';
 import { GREEN_BANK, OUTCOMES, SkyMap, constellationAt, horizonToEquatorial, loadSky, siderealHours } from './skymap.js';
-import { MAX_UNIT, SPEC, workUnitConfig } from './workunits.js';
+import { centralWindow } from './trackb-splits.js';
+import { MAX_UNIT, SPEC, specSlices, workUnitConfig } from './workunits.js';
 
 const REPO = 'https://github.com/davidmdrpi/EIatHome';
 const BACKEND_NAMES = { webgpu: 'WebGPU', webgl: 'WebGL', wasm: 'WebAssembly', cpu: 'plain JS' };
@@ -68,6 +70,8 @@ const store = {
 
 const state = {
   family: 'tone',
+  sample: null, // the random sky sample's slice, while its family is selected
+  pendingTokens: null, // the family whose token model the sample trains once Track A is done
   slices: [],
   sliceSource: null, // 'site' | 'files' | null
   running: null, // 'lab' | 'unit' | 'tokens' | 'merge' | null
@@ -143,6 +147,7 @@ function onEngineMessage(msg) {
     case 'trained':
       state.lastProbe = msg.probe;
       state.lastUntrainedProbe = msg.untrainedProbe;
+      if (msg.stopped) state.pendingTokens = null;
       setRunning(null);
       if (msg.stopped) labStatus('Stopped.');
       else if (msg.reconstruction)
@@ -152,6 +157,7 @@ function onEngineMessage(msg) {
       else labStatus(`Done: ${architectureLabel(msg.arch)}, ${msg.parameters.toLocaleString()} parameters. Compare it with the baselines, then try another signal or model.`);
       viewports.lab?.finishJob(msg.stopped ? 'Track A · stopped' : `Track A · done: ${architectureLabel(msg.arch)}, ${msg.parameters.toLocaleString()} parameters. See its prediction gains below.`);
       renderProbe();
+      continueSample();
       break;
     case 'wu-progress':
       $('wu-progress').value = msg.epoch / msg.epochs;
@@ -191,6 +197,7 @@ function onEngineMessage(msg) {
       viewports.lab?.finishJob(`Merge unit ${msg.unit} · stopped`);
       break;
     case 'error':
+      state.pendingTokens = null;
       viewports.lab?.finishJob(`Stopped: ${msg.message}`);
       if (state.running === 'unit') unitStatus(msg.message, true);
       else if (state.running === 'merge') mergeStatus(msg.message, true);
@@ -215,6 +222,7 @@ function setRunning(mode) {
   $('mg-stop').disabled = mode !== 'merge';
   $('tb-lm-stop').disabled = mode !== 'tokens';
   $('backend').disabled = busy;
+  $('sample').disabled = busy || !state.slices.length;
 }
 
 // ---------- Live Lab ----------
@@ -244,25 +252,98 @@ function renderFamilies() {
 }
 
 // fromMap: the viewport already selected the clicked pointing, so don't slew elsewhere.
-function selectFamily(id, { fromMap = false } = {}) {
+// sample: the random sky sample's slice, of this family (see randomSample); any other selection
+// clears it.
+function selectFamily(id, { fromMap = false, sample = null } = {}) {
   state.family = id;
+  setSample(sample);
   renderFamilies();
-  if (!fromMap) viewports.lab?.select(targetForFamily(id));
+  if (!fromMap) viewports.lab?.select(labTarget(id));
   if (!state.running) renderPreview();
   analyzeTokens();
+}
+
+// ---------- random sky sample ----------
+
+const SAMPLE_HINT = 'One click picks a random real slice, shows where the telescope pointed on the sky map, and runs Track A and Track B on its family. Or pick a signal yourself:';
+
+function setSample(slice) {
+  state.sample = slice;
+  if (!slice) state.pendingTokens = null;
+  const status = $('sample-status');
+  const target = slice ? pointingId(slice) : null;
+  const lines = slice ? sampleLines(describeSample(slice)) : null;
+  viewports.lab?.setSample(target, lines);
+  status.dataset.slice = slice?.id ?? '';
+  status.dataset.target = target ?? '';
+  if (!slice) {
+    status.textContent = SAMPLE_HINT;
+    return;
+  }
+  const family = familyById[slice.family];
+  const count = state.slices.filter((s) => s.family === slice.family).length;
+  status.textContent = `Sample ${slice.id}: ${lines.join(' · ')}. Track A and Track B learn from all ${count.toLocaleString()} ${family.label} slices; the waterfall shows this one.`;
+}
+
+// One click: a random real slice (never the one already shown), its pointing on the sky map with
+// the slice in its card, then Track A on its family, Track B's tokens, and once Track A is done,
+// the token model.
+function randomSample() {
+  if (state.running) return;
+  const slice = pickSample(state.slices, state.sample?.id);
+  if (!slice) {
+    $('sample-status').textContent = 'No real-data slices are loaded yet. See the Data tab.';
+    return;
+  }
+  selectFamily(slice.family, { sample: slice });
+  state.pendingTokens = slice.family;
+  startTraining();
+}
+
+// The sample's last step: the token model, once Track A is done and Track B's tokens are ready.
+function continueSample() {
+  const family = state.pendingTokens;
+  if (!family || state.running || state.trackb?.family !== family) return;
+  state.pendingTokens = null;
+  startTokenModel();
+}
+
+// Where a family's computations point on the map: the sample's own pointing while the sample
+// is selected, else the family's (targetForFamily).
+function labTarget(id) {
+  const own = state.sample?.family === id ? pointingId(state.sample) : null;
+  return own && viewports.lab?.target(own) ? own : targetForFamily(id);
+}
+
+// The sample's slice, as the waterfall shows it: its central window, normalized, in the order
+// Shuffle frames gives it (the training worker uses the same one).
+function sampleFrames(seed) {
+  if (state.sample?.family !== state.family) return null;
+  const x = centralWindow(state.sample);
+  return $('shuffle').checked ? shuffleFrames(x, sampleOrder(seed, state.sample.id)) : x;
+}
+
+// The waterfall's caption for the sample: before training (focus null), as the checkbox stands;
+// during training, as the run was configured.
+function sampleCaption(focus) {
+  const shuffled = focus ? focus.shuffled : $('shuffle').checked;
+  return `Actual: the sample${shuffled ? ', frames shuffled' : ''}${focus ? ` (${focus.heldOut ? 'held out' : 'in the training data'})` : ''}`;
 }
 
 // Before training: show a sample of the chosen family.
 function renderPreview() {
   const seed = Number($('seed').value) || 0;
   const rng = makeRng(deriveSeed(seed, `preview-${state.family}`));
-  let x;
-  try {
-    x = normalise(makeSnippet(state.family, rng, { slices: forWorkers(state.slices), region: 'eval', text: state.text || undefined }).raw);
-  } catch {
-    return;
+  let x = sampleFrames(seed);
+  $('wf-actual-caption').textContent = x ? sampleCaption(null) : 'Actual';
+  if (!x) {
+    try {
+      x = normalise(makeSnippet(state.family, rng, { slices: forWorkers(state.slices), region: 'eval', text: state.text || undefined }).raw);
+    } catch {
+      return;
+    }
+    if ($('shuffle').checked) x = shuffleFrames(x, rng.permutation(T));
   }
-  if ($('shuffle').checked) x = shuffleFrames(x, rng.permutation(T));
   const frames = x.slice(2 * C);
   heatmap($('wf-actual'), frames, T - 2, C, { range: [-1, Math.max(3, ...frames)], label: 'power (asinh)' });
   for (const id of ['wf-pred', 'wf-resid']) {
@@ -282,7 +363,8 @@ function renderPreview() {
 function renderLab() {
   const e = state.lastEpoch;
   if (!e) return;
-  const { actual, predicted, residual, rows } = e.example;
+  const { actual, predicted, residual, rows, focus } = e.example;
+  $('wf-actual-caption').textContent = focus ? sampleCaption(focus) : 'Actual';
   const top = Math.max(3, ...actual);
   heatmap($('wf-actual'), actual, rows, C, { range: [-1, top], label: 'power (asinh)' });
   heatmap($('wf-pred'), predicted, rows, C, { range: [-1, top], label: 'predicted' });
@@ -395,6 +477,8 @@ function startTraining() {
     seed: Number($('seed').value) || 0,
     mixNoise: $('mix-noise').checked,
     shuffle: $('shuffle').checked,
+    // The waterfall shows the random sky sample, when it's of the family being trained on.
+    focus: state.sample?.family === state.family ? state.sample.id : null,
   };
   state.losses = [];
   state.lastEpoch = null;
@@ -404,7 +488,7 @@ function startTraining() {
   renderProbe();
   setRunning('lab');
   labStatus('Building snippets and baselines…');
-  viewports.lab?.startJob('train', targetForFamily(config.target), `Track A · ${architectureLabel(config.arch)} learning ${familyById[config.target].label}: building snippets…`, dataSource(config.target));
+  viewports.lab?.startJob('train', labTarget(config.target), `Track A · ${architectureLabel(config.arch)} learning ${familyById[config.target].label}: building snippets…`, dataSource(config.target));
   engine.postMessage({ type: 'train', config });
 }
 
@@ -414,7 +498,7 @@ function analyzeTokens() {
   if (!familyAvailable(state.family)) return;
   const id = ++analyzeId;
   $('tb-status').textContent = 'Tokenizing…';
-  if (!state.running) viewports.lab?.startJob('analysis', targetForFamily(state.family), `Track B · tokenizing ${familyById[state.family].label} into radio tokens…`, dataSource(state.family));
+  if (!state.running) viewports.lab?.startJob('analysis', labTarget(state.family), `Track B · tokenizing ${familyById[state.family].label} into radio tokens…`, dataSource(state.family));
   $('tb-status').classList.remove('error');
   tokens.postMessage({
     type: 'analyze',
@@ -435,6 +519,7 @@ function onTrackB(msg) {
     // Never leave another family's analysis behind for the token model to train on.
     state.trackb = null;
     state.tokenLm = null;
+    state.pendingTokens = null;
     for (const id of ['tb-tiles', 'tb-entropy-table', 'tb-plugin-table']) $(id).replaceChildren();
     $('tb-notes').textContent = '';
     renderTokenModel();
@@ -451,6 +536,7 @@ function onTrackB(msg) {
     `Held out: ${msg.evaluation.description}; ${msg.sizes.test.targets.toLocaleString()} test tokens scored. ` +
     `First training tokens: ${msg.preview.map((t) => t.toString(36)).join(' ')}`;
   renderTrackB();
+  continueSample();
 }
 
 const STREAMS = [
@@ -553,7 +639,7 @@ function startTokenModel() {
   $('tb-lm-status').classList.remove('error');
   $('tb-lm-status').textContent = 'Starting…';
   setRunning('tokens');
-  viewports.lab?.startJob('tokens', targetForFamily(r.family), `Track B · training a token ${tokenArchitectureLabel($('tb-lm-arch').value)}…`, dataSource(r.family));
+  viewports.lab?.startJob('tokens', labTarget(r.family), `Track B · training a token ${tokenArchitectureLabel($('tb-lm-arch').value)}…`, dataSource(r.family));
   engine.postMessage({
     type: 'token-lm',
     arch: $('tb-lm-arch').value,
@@ -847,21 +933,35 @@ function compass(a, b) {
 const skyFields = ({ ra_hours, dec_deg, constellation, distance_label, epoch, telescope }) => ({ ra_hours, dec_deg, constellation, distance_label, epoch, telescope });
 
 // Where the telescope pointed for the loaded slices (manifest version 2): one target per
-// family, position and date.
+// family, position and date (pointingId in sample.js). Off-source scans and blind windows are
+// drawn dashed: nothing detected chose them.
+const POINTING_KINDS = { offsource: 'off', 'blind-window': 'off' };
+
 function pointings() {
   const seen = new Map();
   for (const s of state.slices) {
-    const sky = s.source?.sky;
-    if (!sky || !Number.isFinite(sky.ra_hours) || !Number.isFinite(sky.dec_deg) || !familyById[s.family]) continue;
-    const date = String(sky.epoch ?? '').slice(0, 10);
-    const id = `${s.family}@${sky.ra_hours.toFixed(4)},${sky.dec_deg.toFixed(3)}@${date}`;
-    if (!seen.has(id)) seen.set(id, { id, family: s.family, kind: s.family === 'offsource' ? 'off' : 'signal', date, ...skyFields(sky) });
+    const id = pointingId(s);
+    if (!id || !familyById[s.family]) continue;
+    const sky = s.source.sky;
+    const freq = Number(s.source.centre_freq_mhz);
+    if (!seen.has(id)) {
+      seen.set(id, { id, family: s.family, kind: POINTING_KINDS[s.family] ?? 'signal', date: String(sky.epoch ?? '').slice(0, 10), name: sky.target ?? null, ...skyFields(sky), freq_mhz: Number.isFinite(freq) ? freq : undefined });
+    }
   }
   const list = [...seen.values()];
   for (const t of list) {
-    const on = list.find((o) => o.kind === 'signal' && o.date === t.date);
-    t.label = t.kind === 'off' ? `Off-source · ${t.date}` : `${familyById[t.family].label} · ${t.date}`;
-    t.short = t.kind === 'off' ? (on ? `Off ${compass(on, t)}` : 'Off-source') : `${familyById[t.family].label} ${t.date.slice(0, 4)}`;
+    if (t.family === 'offsource') {
+      const on = list.find((o) => o.family === 'voyager' && o.date === t.date);
+      t.label = `Off-source · ${t.date}`;
+      t.short = on ? `Off ${compass(on, t)}` : 'Off-source';
+    } else if (t.family === 'blind-window') {
+      t.label = `Blind windows · ${t.name ?? 'on-target scans'} · ${t.date}`;
+      t.short = 'Blind windows';
+    } else {
+      const name = t.name ?? familyById[t.family].label;
+      t.label = `${name} · ${t.date}`;
+      t.short = `${name} ${t.date.slice(0, 4)}`;
+    }
   }
   return list;
 }
@@ -904,9 +1004,10 @@ function dataSource(id) {
   return `Data from ${familyById[id].label} · ${byDate.slice(0, -1).join(', ')} and ${byDate.at(-1)}: ${scans} scans in ${byDate.length} observing sessions`;
 }
 
-// A work unit trains on synthetic tones and tests on every family, the loaded real ones too.
+// A work unit trains on synthetic tones and tests on every family of its spec, the loaded real
+// ones too.
 function unitDataSource() {
-  const dates = [...new Set(state.slices.filter((s) => Number.isFinite(s.startMjd)).map((s) => mjdDate(s.startMjd)))].sort();
+  const dates = [...new Set(specSlices(state.slices).filter((s) => Number.isFinite(s.startMjd)).map((s) => mjdDate(s.startMjd)))].sort();
   const real = dates.length ? `, with real data from ${dates.slice(0, -1).join(', ')}${dates.length > 1 ? ' and ' : ''}${dates.at(-1)}` : '';
   return `Trains on synthetic tones; tests on every family${real}`;
 }
@@ -1450,6 +1551,8 @@ function setSlices(slices, source) {
   state.sliceSource = source;
   broadcast({ type: 'slices', slices: forWorkers(slices) });
   refreshTargets();
+  $('sample').disabled = Boolean(state.running) || !slices.length;
+  if (state.sample && !slices.includes(state.sample)) setSample(null);
   if (familyAvailable(state.family)) renderFamilies();
   else selectFamily('tone');
   const status = $('slice-status');
@@ -1460,8 +1563,9 @@ function setSlices(slices, source) {
     const counts = real.map((f) => `${slices.filter((s) => s.family === f.id).length} ${f.label}`).join(', ');
     const files = new Set(slices.map((s) => s.source?.file ?? 'unknown file'));
     const origin = files.size === 1 ? `source: ${[...files][0]}` : `from ${files.size} scans`;
-    const buttons = real.map((f) => f.label).join(' and ');
-    status.textContent = `${slices.length} slices loaded ${source === 'site' ? 'from this site' : 'from your files'} (${counts}; ${origin}). The ${buttons} ${real.length > 1 ? 'buttons are' : 'button is'} now enabled.`;
+    const labels = real.map((f) => f.label);
+    const buttons = labels.length > 1 ? `${labels.slice(0, -1).join(', ')} and ${labels.at(-1)}` : labels[0];
+    status.textContent = `${slices.length} slices loaded ${source === 'site' ? 'from this site' : 'from your files'} (${counts}; ${origin}). The ${buttons} ${real.length > 1 ? 'buttons are' : 'button is'} now enabled, and so is the random sky sample.`;
   }
   if (slices.length) {
     fillTable(
@@ -1562,6 +1666,7 @@ function init() {
   };
   matchMedia('(prefers-color-scheme: dark)').addEventListener('change', redraw);
 
+  $('sample').onclick = randomSample;
   $('train').onclick = startTraining;
   $('stop').onclick = () => engine.postMessage({ type: 'stop' });
   $('shuffle').onchange = () => !state.running && renderPreview();
