@@ -1,0 +1,65 @@
+name: Checkpoint pilot round
+
+# Maintainers' actions on the checkpoint pilot (tracks/llm/PILOT.md): merge the open round's
+# contributions, roll back to an earlier round, or exclude a contribution from later merges.
+# Each is recorded in tracks/llm/pilot/v0/ledger.json, the whole ledger is replayed, and the
+# change is committed to main. Only people with write access can run a workflow; their inputs
+# reach the commands as environment variables, never interpolated into the script.
+
+on:
+  workflow_dispatch:
+    inputs:
+      action:
+        description: What to do
+        type: choice
+        options: [merge, rollback, exclude]
+        required: true
+      target:
+        description: "rollback: the round to return to; exclude: the contribution's artifact id"
+        required: false
+      reason:
+        description: "Why (rollback and exclude)"
+        required: false
+
+permissions:
+  contents: write
+
+concurrency:
+  group: ingest-results
+  cancel-in-progress: false
+  queue: max
+
+jobs:
+  round:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: pip
+          cache-dependency-path: tracks/llm/requirements.txt
+      - run: python -m pip install 'torch>=2.6,<3' --index-url https://download.pytorch.org/whl/cpu
+      - run: python -m pip install -r tracks/llm/requirements.txt
+      - name: Record the action
+        env:
+          ACTION: ${{ inputs.action }}
+          TARGET: ${{ inputs.target }}
+          REASON: ${{ inputs.reason }}
+          ACTOR: ${{ github.actor }}
+        run: |
+          case "$ACTION" in
+            merge) python -m tracks.llm.pilot merge --by "$ACTOR" ;;
+            rollback) python -m tracks.llm.pilot rollback --to-round "$TARGET" --reason "$REASON" --by "$ACTOR" ;;
+            exclude) python -m tracks.llm.pilot exclude "$TARGET" --reason "$REASON" --by "$ACTOR" ;;
+            *) echo "unknown action" >&2; exit 2 ;;
+          esac
+          python -m tracks.llm.pilot verify
+          python -m tracks.llm.pilot status
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add tracks/llm/pilot
+          git commit --quiet -m "Checkpoint pilot: $ACTION, by $ACTOR"
+          git push --quiet origin HEAD:main

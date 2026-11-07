@@ -191,3 +191,56 @@ test('a card saved before a later step failed is still published and announced b
     rmSync(t.dir, { recursive: true, force: true });
   }
 });
+
+// A stand-in for `python -m tracks.llm.pilot ingest <event> <comment>`: a body saying VALID is
+// stored under tracks/llm/pilot, anything else rejected.
+const FAKE_PILOT = `#!/usr/bin/env node
+const fs = require('node:fs');
+const path = require('node:path');
+const [moduleName, command, event, comment] = process.argv.slice(3);
+if (moduleName !== 'tracks.llm.pilot' || command !== 'ingest') process.exit(2);
+const { issue } = JSON.parse(fs.readFileSync(event, 'utf8'));
+let status = 'rejected';
+if (issue.body.includes('VALID')) {
+  fs.mkdirSync('tracks/llm/pilot/v0/submissions', { recursive: true });
+  fs.writeFileSync(path.join('tracks/llm/pilot/v0/submissions', issue.number + '.json'), issue.body);
+  status = 'accepted';
+}
+fs.writeFileSync(comment, status === 'accepted' ? 'Receipt for #' + issue.number : 'Not accepted.');
+console.log(JSON.stringify({ status }));
+`;
+
+test('checkpoint contributions go to the pilot\'s validator, are stored under tracks/llm/pilot, and need no Live Lab deploy', async () => {
+  const t = await setup();
+  try {
+    const bin = join(t.dir, 'bin');
+    writeFileSync(join(bin, 'fake-python'), FAKE_PILOT);
+    chmodSync(join(bin, 'fake-python'), 0o755);
+    const state = t.load();
+    const add = (number, login, title, body, labels = []) => {
+      state.issues[number] = { number, title, state: 'open', labels, user: { login }, created_at: '2026-11-07T01:00:00Z', body };
+    };
+    add(20, 'alice', 'Checkpoint contribution: round 2, shard 3', 'VALID artifact');
+    add(21, 'bob', 'Checkpoint contribution: round 2, shard 4', 'a broken artifact');
+    add(22, 'carol', 'Work unit result: unit 4', JSON.stringify(await makeCard(4)));
+    writeFileSync(join(t.dir, 'state.json'), JSON.stringify(state));
+    const env = { ...process.env, PATH: `${bin}:${process.env.PATH}`, GITHUB_ACTIONS: 'true', GITHUB_REPOSITORY: REPO,
+                  FAKE_GH_STATE: join(t.dir, 'state.json'), EIATHOME_PYTHON: join(bin, 'fake-python') };
+    const run = spawnSync(process.execPath, [join(ROOT, 'tools', 'ingest_issues.mjs'), '--kind', 'checkpoint', '--pending'], { cwd: t.work, env, encoding: 'utf8' });
+    assert.equal(run.status, 0, run.stderr);
+    const s = t.load();
+    assert.equal(git(t.origin, 'show', 'main:tracks/llm/pilot/v0/submissions/20.json'), 'VALID artifact');
+    assert.match(git(t.origin, 'log', '-1', '--format=%s', 'main'), /Add checkpoint contribution from #20/);
+    assert.deepEqual([s.issues[20].state, s.issues[20].labels], ['closed', ['checkpoint']]);
+    assert.deepEqual([s.issues[21].state, s.issues[21].labels], ['open', ['checkpoint-rejected']]);
+    assert.deepEqual(s.issues[22].labels, [], 'result cards are left to the result kind');
+    assert.deepEqual(s.comments, [[20, 'Receipt for #20'], [21, 'Not accepted.']]);
+    assert.equal(s.deploys, 0, 'no Live Lab deploy for checkpoints');
+
+    const unknown = spawnSync(process.execPath, [join(ROOT, 'tools', 'ingest_issues.mjs'), '--kind', 'other', '--pending'], { cwd: t.work, env, encoding: 'utf8' });
+    assert.equal(unknown.status, 1);
+    assert.match(unknown.stderr, /Unknown --kind other/);
+  } finally {
+    rmSync(t.dir, { recursive: true, force: true });
+  }
+});

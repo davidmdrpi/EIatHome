@@ -363,7 +363,8 @@ EIatHome/
 - [x] A pinned anchor for the Live Lab's token transformer, and a merge work unit whose cards carry a DARE-TIES summary instead of weights (issue #20, milestone 4)
 - [x] Merging volunteer runs: DARE-TIES with a validation gate and DiLoCo, a mixture of experts upcycled from family specialists, and a sequence router over the specialists, with the full benchmark ([MERGE_RESULTS.md](tracks/llm/MERGE_RESULTS.md); issue #20, milestones 2 to 5)
 - [x] A frozen benchmark across observing sessions: 57 Green Bank sessions (2016–2024), volunteers' workers on disjoint sessions merged and tested on later ones, with the split, the full report and reusable worker checkpoints published ([BENCHMARK.md](tracks/llm/BENCHMARK.md))
-- [ ] Public volunteer pilot
+- [x] A volunteer checkpoint pilot, open for contributions: volunteers' training runs on the session benchmark's shards, sent as versioned delta artifacts, independently evaluated and replicated, merged with each shard's influence capped, with a replayable ledger and rollback ([PILOT.md](tracks/llm/PILOT.md))
+- [ ] The pilot's first merge from different volunteers' checkpoints
 - [ ] Heavier work units on BOINC, if needed (for example via [BOINC Central](https://boinc.berkeley.edu/central/scientist.php))
 
 **Stretch goals**
