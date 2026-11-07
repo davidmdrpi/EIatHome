@@ -6,11 +6,13 @@ editor's loop with a scripted client (no API calls).
 """
 
 import contextlib
+import copy
 import io
 import json
 import math
 import os
 from pathlib import Path
+import shutil
 import tempfile
 from types import SimpleNamespace
 import unittest
@@ -18,7 +20,7 @@ from unittest import mock
 
 import torch
 
-from tracks.llm import session_bench as sessions, wsp_bench as wsp
+from tracks.llm import model as model_module, route_bench, session_bench as sessions, wsp_bench as wsp
 from tracks.llm.anchor import load_anchor, weights_digest
 from tracks.llm.merge import model_from
 from tracks.llm.model import evaluate
@@ -164,7 +166,8 @@ class OracleTests(unittest.TestCase):
         name = f"w{[w for w in report['workers'] if w['weights_sha256'] == best['weights_sha256']][0]['shard']} alone"
         scores = wsp.score_state(self.ctx, wsp.apply(self.cohort, self.refs[name]["program"]), test=True)
         for key in ("validation", "test", "test_worst_session", "control", "test_order_gain_bits"):
-            self.assertAlmostEqual(scores[key], best[key], places=12)
+            # recorded in the session benchmark's environment: equal up to another CPU's rounding
+            self.assertAlmostEqual(scores[key], best[key], delta=wsp.SCORE_TOLERANCE)
         self.assertEqual(len(scores["validation_sessions"]), 7)
 
     def test_the_search_controls_spend_the_budget_and_replay(self):
@@ -305,35 +308,132 @@ class EditorTests(unittest.TestCase):
         self.assertIn("w5 alone", hidden)  # the scores and statistics are the same
 
     def test_the_protocol_is_pinned(self):
-        """Changing the edit language, the budget, the selection rule, the controls or the editor
-        changes this hash. It was pinned before the fresh cohort was cut; see WSP_RESULTS.md."""
+        """Changing the edit language, the budget, the selection rule, the controls, the scoring
+        code or the editor changes this hash; see WSP_RESULTS.md."""
         self.assertEqual(wsp.protocol_sha256(), wsp.PROTOCOL_SHA256)
+
+    def test_the_fingerprint_covers_the_scoring_code_it_calls(self):
+        """Replacing the evaluator, the windowing under it, or the bank's scoring and mixing helpers
+        changes the fingerprint, wherever the replaced object is bound."""
+        pinned = wsp.protocol_sha256()
+        fake = lambda *args, **kwargs: None
+        for target, name in ((wsp, "evaluate"), (model_module, "evaluate"), (model_module, "windows"), (wsp, "target_bits"),
+                             (wsp, "mixture"), (wsp, "order_gain"), (wsp, "shuffled_gain"), (wsp, "score_state"),
+                             (route_bench, "LOG2"), (sessions, "Context"), (wsp, "ORDER_SHUFFLES")):
+            with self.subTest(name=f"{target.__name__}.{name}"), mock.patch.object(target, name, fake):
+                self.assertNotEqual(wsp.protocol_sha256(), pinned)
+        self.assertEqual(wsp.protocol_sha256(), pinned)
 
 
 class RunTests(unittest.TestCase):
-    def test_a_run_publishes_picks_that_verify_and_a_changed_program_is_refused(self):
+    """One small run (random search and the bank, seed 43), then copies of it tampered with."""
+
+    @classmethod
+    def setUpClass(cls):
+        cls.tmp = tempfile.TemporaryDirectory()
+        cls.output = Path(cls.tmp.name) / "run"
+        args = SimpleNamespace(benchmark="v0", output=cls.output, methods=["random", "specialist"], seeds=[43], publish=False)
+        with contextlib.redirect_stdout(io.StringIO()):
+            cls.report = wsp.run(args)
+
+    @classmethod
+    def tearDownClass(cls):
+        cls.tmp.cleanup()
+
+    def tampered(self, change, pattern):
+        """verify refuses a copy of the run after `change(report, artifact)` edits it."""
         with tempfile.TemporaryDirectory() as tmp:
-            output = Path(tmp) / "run"
-            args = SimpleNamespace(benchmark="v0", output=output, methods=["random", "specialist"], seeds=[43], publish=False)
-            with contextlib.redirect_stdout(io.StringIO()):
-                report = wsp.run(args)
-                self.assertEqual(wsp.verify("v0", output), 2)
-            seed = report["seeds"]["43"]
-            self.assertEqual(seed["methods"]["random"]["queries"], wsp.BUDGET)
-            self.assertIn("best worker (by validation)", report["summary"])
-            artifact_path = output / "edits" / "seed43" / "random.json"
-            artifact = json.loads(artifact_path.read_text())
-            self.assertEqual(artifact["inputs"], seed["inputs"])
-            self.assertEqual(len(artifact["queries"]), wsp.BUDGET)
-            query = artifact["queries"][0]
-            query["program"]["ops"][0]["weights"]["w2"] += 0.01
-            artifact_path.write_text(json.dumps(artifact))
-            with contextlib.redirect_stdout(io.StringIO()), self.assertRaisesRegex(ValueError, "doesn't replay"):
-                wsp.verify("v0", output)
+            folder = Path(tmp) / "run"
+            shutil.copytree(self.output, folder)
+            report = json.loads((folder / "report.json").read_text())
+            path = folder / "edits" / "seed43" / "random.json"
+            artifact = json.loads(path.read_text())
+            change(report, artifact)
+            (folder / "report.json").write_text(json.dumps(report))
+            path.write_text(json.dumps(artifact))
+            with contextlib.redirect_stdout(io.StringIO()), self.assertRaisesRegex(ValueError, pattern):
+                wsp.verify("v0", folder)
+
+    def test_the_run_verifies(self):
+        with contextlib.redirect_stdout(io.StringIO()):
+            self.assertEqual(wsp.verify("v0", self.output), 2)
+        seed = self.report["seeds"]["43"]
+        self.assertEqual(seed["methods"]["random"]["queries"], wsp.BUDGET)
+        self.assertIn("best worker (by validation)", self.report["summary"])
+        artifact = json.loads((self.output / "edits" / "seed43" / "random.json").read_text())
+        self.assertEqual((artifact["inputs"], len(artifact["queries"]), artifact["budget"]), (seed["inputs"], wsp.BUDGET, wsp.BUDGET))
+        self.assertEqual(set(artifact["references"]), set(seed["references"]))
+
+    def test_a_changed_program_is_refused(self):
+        def change(report, artifact):
+            artifact["queries"][0]["program"]["ops"][0]["weights"]["w2"] += 0.01
+        self.tampered(change, "query 1 doesn't replay")
+
+    def test_a_changed_score_is_refused(self):
+        def change(report, artifact):
+            artifact["queries"][0]["validation"] = -123.0
+        self.tampered(change, "query 1: validation rescores")
+
+        def reference(report, artifact):
+            report["seeds"]["43"]["references"]["w4 alone"]["validation"] += 0.01
+        self.tampered(reference, "w4 alone: validation rescores")
+
+    def test_a_history_over_the_budget_or_out_of_order_is_refused(self):
+        def extra(report, artifact):
+            artifact["queries"].append({**copy.deepcopy(artifact["queries"][-1]), "query": wsp.BUDGET + 1})
+        self.tampered(extra, "over the budget")
+
+        def renumbered(report, artifact):
+            artifact["queries"][0]["query"], artifact["queries"][1]["query"] = 2, 1
+        self.tampered(renumbered, "numbered")
+
+    def test_counts_the_report_gives_must_be_the_artifacts(self):
+        def change(report, artifact):
+            report["seeds"]["43"]["methods"]["random"]["queries"] = 31
+        self.tampered(change, "report's queries")
+
+    def test_a_valid_program_cant_be_recorded_as_refused(self):
+        def change(report, artifact):
+            artifact["refused"].append({"program": {"start": "average", "ops": []}, "reason": "made up"})
+        self.tampered(change, "recorded as refused is valid")
+
+    def test_a_pick_the_rule_doesnt_make_is_refused(self):
+        def change(report, artifact):
+            program = report["seeds"]["43"]["references"]["w2 alone"]["program"]
+            artifact["pick"], artifact["program"] = "w2 alone", program
+            result = report["seeds"]["43"]["methods"]["random"]
+            result["pick"], result["program"] = "w2 alone", program
+        self.tampered(change, "the rule picks w5 alone")
+
+    def test_a_control_must_ask_for_what_its_procedure_asks_for(self):
+        artifact = json.loads((self.output / "edits" / "seed43" / "random.json").read_text())
+        cohort = wsp.load_cohort("v0", 43)
+        refs = artifact["references"]
+        queries = copy.deepcopy(artifact["queries"])
+        queries[5]["program"]["ops"][2]["weights"]["w3"] = 0.5
+        with self.assertRaisesRegex(ValueError, "query 6: the method's procedure asks for a program other"):
+            wsp.random_search(wsp.Replay(cohort, refs, queries))
+        replay = wsp.Replay(cohort, refs, artifact["queries"])
+        wsp.random_search(replay)
+        self.assertEqual(len(replay.queries), wsp.BUDGET)
+        replay = wsp.Replay(cohort, refs, artifact["queries"][:10])
+        with self.assertRaisesRegex(ValueError, "query 11"):
+            wsp.random_search(replay)
+
+    def test_a_run_made_with_another_protocol_is_refused(self):
+        with mock.patch.object(wsp, "evaluate", lambda *args, **kwargs: None), contextlib.redirect_stdout(io.StringIO()), \
+                self.assertRaisesRegex(ValueError, "made with protocol"):
+            wsp.verify("v0", self.output)
+
+        def change(report, artifact):
+            artifact["protocol_sha256"] = "0" * 64
+        self.tampered(change, "protocol_sha256")
 
     def test_a_fresh_cohort_needs_the_pinned_protocol(self):
         args = SimpleNamespace(benchmark="v1", output=Path("unused"), methods=["random"], seeds=[42], publish=False)
         with mock.patch.object(wsp, "PROTOCOL_SHA256", "0" * 64), self.assertRaisesRegex(SystemExit, "scored once"):
+            wsp.run(args)
+        with mock.patch.object(wsp, "evaluate", lambda *args, **kwargs: None), self.assertRaisesRegex(SystemExit, "scored once"):
             wsp.run(args)
 
 

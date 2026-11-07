@@ -22,8 +22,9 @@ independent validator checks against fixed bounds and applies (`apply`):
 At most 32 operations; the result must be finite and within 10 of the base everywhere. The groups
 are the model's parts: the token embedding, each block's attention and feed-forward halves, the
 final norm and the output head. Programs are applied in float64 and stored as float32; each pick is
-recorded as an edit artifact (its program, the digests of its inputs and of its output weights),
-which `verify` replays.
+recorded as an edit artifact (its program, the digests of its inputs and of its output weights, the
+reference points and every query and refusal the method spent). `verify` replays the whole
+selection: every score, the budget, the pick rule and each control's procedure.
 
 **The budget.** Each method may score up to 32 programs on validation (mean bits per token over
 the validation sessions, and each session's). Its pick is the best on validation among everything
@@ -52,7 +53,8 @@ worker, the merges, the chains, one model on all the data) and its train-fitted 
 reported beside them.
 
 **The protocol is pinned** (PROTOCOL_SHA256): the edit language, the budget and the selection
-rule, the controls and the editor (its model, settings, prompt, tools and what it reads). v0's
+rule, the controls, the scoring code they call and the editor (its model, settings, prompt, tools
+and what it reads). v0's
 test scores have been seen, so it is for development. A fresh cohort (session_bench.py's v1) is
 cut only after the protocol is final, and scored once; a run on it refuses any other protocol.
 
@@ -88,6 +90,7 @@ GROUPS = ("embed", "block0.attention", "block0.feed-forward", "block1.attention"
 LIMITS = {"weight": (-1.0, 2.0), "weight_l1": 4.0, "keep": (0.05, 1.0), "rank": (1, 4), "scale": (-2.0, 2.0), "ops": 32,
           "max_abs_delta": 10.0}
 BUDGET = 32
+SCORE_TOLERANCE = 1e-6  # bits: replayed scores on another CPU or PyTorch build (session_bench.py's tolerance)
 METHODS = ("random", "coordinate", "llm", "llm-anonymized", "specialist")
 SEARCH_SEED = 20261107
 
@@ -286,11 +289,40 @@ class Oracle:
         return entry
 
     def pick(self):
-        """The best on validation among the references and the queries (the earliest on a tie)."""
-        candidates = [(r["validation"], 0, name, r["program"]) for name, r in self.references.items()]
-        candidates += [(q["validation"], q["query"], f"query {q['query']}", q["program"]) for q in self.queries]
-        validation, _, name, program = min(candidates, key=lambda c: (c[0], c[1]))
-        return name, program
+        return pick(self.references, self.queries)
+
+
+def pick(refs, queries):
+    """The selection rule: the lowest validation mean among the references and the queries, the
+    earliest on a tie (the references, in order, before any query)."""
+    candidates = [(r["validation"], 0, name, r["program"]) for name, r in refs.items()]
+    candidates += [(q["validation"], q["query"], f"query {q['query']}", q["program"]) for q in queries]
+    _, _, name, program = min(candidates, key=lambda c: (c[0], c[1]))
+    return name, program
+
+
+class Replay:
+    """A method's recorded queries served back in order, in place of the oracle: a control run
+    against it must ask for exactly the recorded programs, and stop where the record stops. The
+    recorded scores (checked separately) drive its decisions, so the replay doesn't depend on
+    rounding in this environment."""
+
+    def __init__(self, cohort, refs, recorded, budget=BUDGET):
+        self.cohort, self.references, self.recorded, self.budget = cohort, refs, recorded, budget
+        self.queries = []
+
+    @property
+    def left(self):
+        return self.budget - len(self.queries)
+
+    def evaluate(self, program):
+        if self.left <= 0:
+            raise BudgetSpent(f"All {self.budget} validation queries are spent")
+        n = len(self.queries)
+        if n >= len(self.recorded) or self.recorded[n]["program"] != program:
+            raise ValueError(f"query {n + 1}: the method's procedure asks for a program other than the one recorded")
+        self.queries.append(self.recorded[n])
+        return self.recorded[n]
 
 
 # ---------- the search controls ----------
@@ -430,9 +462,10 @@ def layer_stats(cohort):
 
 
 DOMAIN = {
-    False: ("The model predicts tokens from radio telescope data. Each sequence is one 16-frame window (2.79 s per "
-            "frame, 64 fine channels) around a narrowband hit found in a Breakthrough Listen observation of a nearby "
-            "star at the Green Bank Telescope; nearly all hits are human-made interference. A fixed tokenizer turns "
+    False: ("The model predicts tokens from radio telescope data. Each sequence is one window of {frames} frames "
+            "({frame_s} s each) by {channels} fine channels ({channel_hz} Hz each) around a narrowband hit found in a "
+            "Breakthrough Listen observation of a nearby star at the Green Bank Telescope; nearly all hits are human-made "
+            "interference. A fixed tokenizer turns "
             "each frame into one of 33 symbols by the position and power of its strongest channel. The hits are the "
             "'stars' family; a 'blind-window' family (windows away from any hit) is a control, scored but not used "
             "for selection. Every validation session was observed after every training session."),
@@ -505,6 +538,15 @@ def lines(items, shape=lambda x: x):
     return "\n".join(json.dumps(shape(x), ensure_ascii=False) for x in items)
 
 
+def resolution(ctx):
+    """The windows' shape and their time and frequency steps, from the training and validation
+    slices' metadata (each value that occurs, rounded)."""
+    records = ctx.partitions["train"] + ctx.partitions["validation"]
+    values = lambda key, f=lambda x: x: " or ".join(f"{v:g}" for v in sorted({round(f(r["entry"]["source"][key]), 2) for r in records}))
+    frames, channels = records[0]["entry"]["shape"]
+    return {"frames": frames, "channels": channels, "frame_s": values("tsamp_s"), "channel_hz": values("foff_hz", abs)}
+
+
 def editor_context(ctx, cohort, bench, oracle, anonymized):
     """The editor's first message: the model, the contributors' provenance, per-tensor statistics
     of their deltas, and the free reference points' validation scores."""
@@ -513,7 +555,7 @@ def editor_context(ctx, cohort, bench, oracle, anonymized):
     references = {name: {"validation": round(r["validation"], 4), "validation_sessions": [round(b, 4) for b in r["validation_sessions"]]}
                   for name, r in oracle.references.items()}
     sections = [
-        ("The model", f"{DOMAIN[anonymized]}\n\nA 2-layer transformer with {count:,} parameters (context 15, width 32, "
+        ("The model", f"{DOMAIN[anonymized].format(**resolution(ctx))}\n\nA 2-layer transformer with {count:,} parameters (context 15, width 32, "
                       f"4 heads, rotary positions), in {len(GROUPS)} edit groups. Tensors and groups:\n"
                       + json.dumps([{"tensor": k, "shape": list(v.shape), "group": group_of(k)} for k, v in cohort.base.items()])),
         ("The model's code (tracks/llm/model.py)", "```python\n" + model_code() + "```"),
@@ -661,22 +703,50 @@ def anthropic_send():
 
 # ---------- the frozen protocol ----------
 
-PROTOCOL_PARTS = (group_of, finite, check_program, apply, references, score_state, Oracle, random_search, coordinate_search,
-                  bank_bits, specialist_bank, describe_session, provenance, layer_stats, model_code, lines, editor_context,
-                  read_tensor, feedback, run_editor)
+PROTOCOL_PARTS = ("group_of", "load_cohort", "finite", "check_program", "apply", "references", "score_state", "Oracle", "pick",
+                  "random_search", "coordinate_search", "bank_bits", "shuffled_gain", "specialist_bank", "describe_session",
+                  "provenance", "layer_stats", "model_code", "lines", "resolution", "editor_context", "read_tensor", "feedback",
+                  "run_editor", "anthropic_send")
+# What the protocol's scores and picks also depend on: these modules whole, and the objects this
+# module and session_bench.py actually call, as bound when the hash is taken.
+DEPENDENCY_FILES = ("model.py", "merge.py", "route_bench.py", "data.py", "runtime.py", "anchor.py")
+BOUND = {"wsp_bench": ("evaluate", "order_gain", "model_from", "target_bits", "mixture", "training_runtime", "session_groups",
+                       "shard_records", "load_anchor", "weights_digest", "ORDER_SHUFFLES"),
+         "model": ("windows", "batches", "evaluate", "rotary", "RotaryBlock", "SignalLM"),
+         "merge": ("evaluate", "held_out", "controls", "shard_records", "ORDER_SHUFFLES"),
+         "route_bench": ("LOG2",),
+         "session_bench": ("Context", "load_published", "ANCHOR", "FAMILY", "EVALUATION", "SHARDS", "UNIT", "BASE_SHARD",
+                           "WORKER_SHARDS")}
 # The protocol as pinned: the edit language, the budget and selection rule, the controls, and the
 # editor (its model, settings, prompt, tools and what it reads). A run on any benchmark but v0
 # refuses another, so a fresh cohort is scored with the protocol pinned before it was cut. While
 # the editor is developed on v0, the pin moves with it, each move a visible change (WSP_RESULTS.md).
-PROTOCOL_SHA256 = "a23c68012486b87c840089c326c4a3bd63ebcbfa6daff7e3f770eea745026690"
+PROTOCOL_SHA256 = "868d40e61949d46970adb31030fcd36b26cab63ad12f191fef55e5463761547f"
+
+
+def source_of(value):
+    """A function's or class's source; any other value's repr."""
+    import inspect
+
+    try:
+        return inspect.getsource(value)
+    except (TypeError, OSError):
+        return repr(value)
 
 
 def protocol_sha256():
-    import inspect
+    """The fingerprint of everything that decides what a method proposes, how it's scored and what
+    is picked: the settings, this module's protocol code, the scoring code it calls (whole modules,
+    and each object as bound now) and the editor."""
+    import importlib
 
+    here = Path(__file__).resolve().parent
+    modules = {name: importlib.import_module(f"{__package__}.{name}") for name in BOUND}
     parts = {"limits": LIMITS, "budget": BUDGET, "groups": GROUPS, "search_seed": SEARCH_SEED, "editor": EDITOR,
              "system": SYSTEM, "domain": {str(k): v for k, v in DOMAIN.items()}, "tools": TOOLS, "model_code": model_code(),
-             "code": {f.__name__: inspect.getsource(f) for f in PROTOCOL_PARTS}}
+             "code": {name: source_of(globals()[name]) for name in PROTOCOL_PARTS},
+             "files": {name: digest((here / name).read_bytes()) for name in DEPENDENCY_FILES},
+             "bound": {f"{module}.{name}": source_of(getattr(modules[module], name)) for module, names in BOUND.items() for name in names}}
     return digest(json.dumps(parts, sort_keys=True, ensure_ascii=False).encode())
 
 
@@ -690,7 +760,9 @@ def edit_artifact(bench, split_sha256, seed, method, cohort, oracle, name, progr
     every query the method spent."""
     return {"format": "eiathome-wsp-edit", "version": 1, "benchmark": BENCHMARK, "sessions_benchmark": bench.id,
             "split_sha256": split_sha256, "protocol_sha256": protocol_sha256(), "seed": seed, "method": method,
-            "inputs": cohort.digests, "pick": name, "program": program, "output_sha256": weights_digest(state),
+            "inputs": cohort.digests, "budget": oracle.budget,
+            "references": {n: {k: r[k] for k in ("program", "validation", "validation_sessions")} for n, r in oracle.references.items()},
+            "pick": name, "program": program, "output_sha256": weights_digest(state),
             "queries": [{k: q[k] for k in ("query", "program", "validation", "validation_sessions", "weights_sha256")}
                         for q in oracle.queries],
             "refused": oracle.refused}
@@ -797,8 +869,10 @@ LABELS = {"random": "random search", "coordinate": "coordinate search", "llm": "
 
 
 def table(report):
-    rows = ["| Arm | Validation | Test | Worst test session | Test − best worker | Test sessions better / worse |",
-            "|---|---:|---:|---:|---:|---:|"]
+    first = next(iter(report["seeds"].values()))
+    sessions_, seeds = len(first["references"]["base"]["test_sessions"]), len(report["seeds"])
+    rows = ["| Arm | Validation | Test | Worst test session | Test − best worker | "
+            f"Session scores better / worse ({sessions_} test sessions × {seeds} seeds) |", "|---|---:|---:|---:|---:|---:|"]
     for name, s in report["summary"].items():
         vs = s["test_sessions_vs_best_worker"]
         rows.append(f"| {LABELS.get(name, name)} | {s['validation']['mean']:.3f} | {s['test']['mean']:.3f} | {s['test_worst_session']['mean']:.2f} "
@@ -871,15 +945,81 @@ def publish(output, folder):
         target.write_bytes(path.read_bytes())
 
 
-def verify(bench=None, folder=None, tolerance=1e-9):
-    """Replays every published pick: its inputs are the published cohort's, its program makes the
-    weights its artifact records, and they score as the report says. The specialist bank is
-    rescored too."""
+CONTROLS = {"random": random_search, "coordinate": coordinate_search}
+
+
+def check_scores(again, recorded, keys, where, tolerance=SCORE_TOLERANCE):
+    """Recomputed scores against recorded ones, number by number (lists element by element)."""
+    for key in keys:
+        a, r = again[key], recorded.get(key)
+        same = (len(a) == len(r) and all(abs(x - y) <= tolerance for x, y in zip(a, r))) if isinstance(a, list) and isinstance(r, list) \
+            else isinstance(r, (int, float)) and abs(a - r) <= tolerance
+        if not same:
+            raise ValueError(f"{where}: {key} rescores as {a!r}; the record says {r!r}")
+
+
+def check_selection(artifact, result, refs, rescored, cohort, ctx, method, where, tolerance=SCORE_TOLERANCE):
+    """A method's whole selection, replayed: its queries (numbered, within the budget, each one's
+    weights and scores), its refusals (each one a program the validator refuses), the report's
+    counts, the pick the rule makes from those scores, and, for a control, the procedure that
+    asked for them."""
+    queries, refused = artifact["queries"], artifact["refused"]
+    if [q["query"] for q in queries] != list(range(1, len(queries) + 1)):
+        raise ValueError(f"{where}: the queries aren't numbered 1 to {len(queries)} in order")
+    if len(queries) > BUDGET:
+        raise ValueError(f"{where}: {len(queries)} queries, over the budget of {BUDGET}")
+    if len(refused) > BUDGET + 1:
+        raise ValueError(f"{where}: {len(refused)} refused programs; a session ends after {BUDGET + 1}")
+    for entry in refused:
+        try:
+            apply(cohort, entry["program"])
+        except (ValueError, KeyError, TypeError):
+            continue
+        raise ValueError(f"{where}: a program recorded as refused is valid")
+    if artifact["references"] != {n: {k: r[k] for k in ("program", "validation", "validation_sessions")} for n, r in refs.items()}:
+        raise ValueError(f"{where}: the artifact's reference points aren't the report's")
+    again_validation = {}
+    for q in queries:
+        state = apply(cohort, q["program"])
+        if weights_digest(state) != q["weights_sha256"]:
+            raise ValueError(f"{where}: query {q['query']} doesn't replay: its program makes other weights")
+        again = score_state(ctx, state)
+        check_scores(again, q, ("validation", "validation_sessions"), f"{where}, query {q['query']}", tolerance)
+        again_validation[f"query {q['query']}"] = again["validation"]
+    counts = {"queries": len(queries), "refused": len(refused),
+              "best_validation_by_query": [min(q["validation"] for q in queries[:i + 1]) for i in range(len(queries))]}
+    for key, value in counts.items():
+        if result.get(key) != value:
+            raise ValueError(f"{where}: the report's {key} is {result.get(key)!r}; the artifact makes it {value!r}")
+    name, program = pick(refs, queries)
+    if (artifact["pick"], artifact["program"]) != (name, program) or (result["pick"], result["program"]) != (name, program):
+        raise ValueError(f"{where}: the published pick is {artifact['pick']}; the rule picks {name} from the recorded scores")
+    # Rescored here, the pick must still be the best, up to rounding.
+    again_validation.update({n: rescored[n]["validation"] for n in refs})
+    if again_validation[name] > min(again_validation.values()) + 2 * tolerance:
+        raise ValueError(f"{where}: rescored, {name} is no longer the best on validation")
+    if method in CONTROLS:
+        replay = Replay(cohort, refs, queries)
+        CONTROLS[method](replay)
+        if len(replay.queries) != len(queries):
+            raise ValueError(f"{where}: the procedure stops after {len(replay.queries)} queries; {len(queries)} are recorded")
+
+
+def verify(bench=None, folder=None, tolerance=SCORE_TOLERANCE):
+    """Replays the published run: made with this code's protocol; on the published cohort; every
+    reference point and every query rescored; each method's pick re-made by the selection rule
+    (and each control's queries by its procedure); each pick's weights rebuilt and its scores,
+    and the specialist bank's, recomputed."""
     bench = sessions.benchmark(bench)
     folder = folder_of(bench) if folder is None else folder
     report = json.loads((folder / "report.json").read_text())
     if report["sessions_benchmark"] != bench.id:
         raise ValueError(f"{folder}: a report on {report['sessions_benchmark']}, not {bench.id}")
+    protocol = protocol_sha256()
+    if report["protocol_sha256"] != protocol:
+        raise ValueError(f"{folder}: made with protocol {report['protocol_sha256']}; this code's is {protocol}")
+    if bench.name != "v0" and protocol != PROTOCOL_SHA256:
+        raise ValueError(f"{bench.id} is scored with the pinned protocol {PROTOCOL_SHA256}; this code's is {protocol}")
     anchor = load_anchor(sessions.ANCHOR)
     split = sessions.check_split(bench=bench)
     if digest(sessions.split_text(split).encode()) != report["split_sha256"]:
@@ -887,26 +1027,48 @@ def verify(bench=None, folder=None, tolerance=1e-9):
     ctx = sessions.Context(anchor, bench.manifest)
     checked = 0
     for seed, seed_report in report["seeds"].items():
+        where = f"seed {seed}"
         cohort = load_cohort(bench, int(seed))
         if seed_report["inputs"] != cohort.digests:
-            raise ValueError(f"seed {seed}: the report's inputs aren't the published cohort")
+            raise ValueError(f"{where}: the report's inputs aren't the published cohort")
+        programs = references(cohort)
+        recorded = seed_report["references"]
+        if list(recorded) != list(programs) or any(recorded[n]["program"] != p for n, p in programs.items()):
+            raise ValueError(f"{where}: the report's reference points aren't the cohort's")
+        rescored = {}
+        for name, program in programs.items():
+            rescored[name] = score_state(ctx, apply(cohort, program), test=True)
+            check_scores(rescored[name], recorded[name], ("validation_sessions", "test_sessions", *REPORTED), f"{where}, {name}", tolerance)
+        refs = {n: {"program": programs[n], **{k: recorded[n][k] for k in ("validation", "validation_sessions")}} for n in programs}
+        best = min((n for n in refs if n.endswith(" alone")), key=lambda n: refs[n]["validation"])
+        if seed_report["best_worker"] != best.removesuffix(" alone"):
+            raise ValueError(f"{where}: the best worker on validation is {best}, not {seed_report['best_worker']}")
+        edits = folder / "edits" / f"seed{seed}"
+        found = sorted(p.name for p in edits.iterdir()) if edits.is_dir() else []
+        if found != sorted(f"{m}.json" for m in seed_report["methods"] if m != "specialist"):
+            raise ValueError(f"{edits}: holds {', '.join(found) or 'nothing'}, not one artifact per method that edits")
         for method, result in seed_report["methods"].items():
+            where_ = f"{where} {method}"
             if method == "specialist":
                 again = specialist_bank(ctx, cohort)
             else:
-                artifact = json.loads((folder / "edits" / f"seed{seed}" / f"{method}.json").read_text())
-                if artifact["inputs"] != cohort.digests or artifact["program"] != result["program"]:
-                    raise ValueError(f"seed {seed} {method}: the edit artifact doesn't match the report or the cohort")
+                artifact = json.loads((edits / f"{method}.json").read_text())
+                expected = {"format": "eiathome-wsp-edit", "version": 1, "benchmark": BENCHMARK, "sessions_benchmark": bench.id,
+                            "split_sha256": report["split_sha256"], "protocol_sha256": protocol, "seed": int(seed),
+                            "method": method, "inputs": cohort.digests, "budget": BUDGET}
+                for key, value in expected.items():
+                    if artifact.get(key) != value:
+                        raise ValueError(f"{where_}: the artifact's {key} is {artifact.get(key)!r}, not {value!r}")
+                if method.startswith("llm"):
+                    transcript = json.loads((folder / "transcripts" / f"seed{seed}" / f"{method}.json").read_text())
+                    if transcript.get("protocol_sha256") != protocol:
+                        raise ValueError(f"{where_}: the transcript was made with another protocol")
+                check_selection(artifact, result, refs, rescored, cohort, ctx, method, where_, tolerance)
                 state = apply(cohort, artifact["program"])
                 if weights_digest(state) != artifact["output_sha256"] or artifact["output_sha256"] != result["weights_sha256"]:
-                    raise ValueError(f"seed {seed} {method}: the program doesn't make the weights its artifact records")
-                for query in artifact["queries"]:
-                    if weights_digest(apply(cohort, query["program"])) != query["weights_sha256"]:
-                        raise ValueError(f"seed {seed} {method}: query {query['query']} doesn't replay")
+                    raise ValueError(f"{where_}: the program doesn't make the weights its artifact records")
                 again = score_state(ctx, state, test=True)
-            for key in REPORTED:
-                if abs(again[key] - result[key]) > tolerance:
-                    raise ValueError(f"seed {seed} {method}: {key} rescored {again[key]!r}, the report says {result[key]!r}")
+            check_scores(again, result, ("validation_sessions", "test_sessions", *REPORTED), where_, tolerance)
             checked += 1
     print(f"{folder}: {checked} picks replayed on {len(report['seeds'])} seeds")
     return checked

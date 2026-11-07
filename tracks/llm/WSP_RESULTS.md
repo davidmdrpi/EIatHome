@@ -19,10 +19,11 @@ for it. The fresh cohort that gives the real comparison is cut only after the ed
 ## Summary (v0, development)
 
 Bits per token on the 7 test sessions (lower is better), mean over seeds 42, 43 and 44. The last
-two columns compare each arm with the best worker: the mean difference on test, and on how many of
-the 21 test sessions (7 per seed) it does better or worse.
+two columns compare each arm with the best worker: the mean difference on test, and in how many of
+its 21 session scores (7 test sessions × 3 seeds) it does better or worse. Those 21 are 7
+independent sessions scored three times, not 21 independent observations.
 
-| Arm | Validation | Test | Worst test session | Test − best worker | Sessions better / worse |
+| Arm | Validation | Test | Worst test session | Test − best worker | Session scores better / worse (7 × 3) |
 |---|---:|---:|---:|---:|---:|
 | best worker, chosen on validation (a free reference) | 1.558 | **1.344** | **2.42** | — | — |
 | plain average (a free reference) | 1.648 | 1.500 | 3.06 | +0.156 | 8 / 13 |
@@ -43,7 +44,7 @@ the 21 test sessions (7 per seed) it does better or worse.
 
 - **Validation gains didn't hold on test.** Coordinate search and the specialist bank both beat
   the best worker on validation, by 0.005 and 0.024 bits. Both lost on test, by 0.020 and 0.013,
-  and both did worse on 15 of the 21 test sessions. With 7 validation sessions, a gain of a few
+  and both did worse on 5 of the 7 test sessions, on every seed. With 7 validation sessions, a gain of a few
   hundredths of a bit there says little about new sessions. That's the bar an editor has to clear.
 - **Random mixes never come close.** None of the 32 random programs per seed beats the best
   worker on validation: the best scores 1.62 against 1.56. So the random arm's pick is worker 5
@@ -141,14 +142,19 @@ and $0.20 for cache reads) are published with its picks.
 
 Sessions and contributors are just numbered. The statistics and scores are the same.
 
-**Pinned.** `PROTOCOL_SHA256` covers all of this:
+**Pinned.** `PROTOCOL_SHA256` covers everything that decides what a method proposes, how it's scored
+and what is picked:
 
 - the edit language, its bounds and the budget;
 - the selection rule and the controls;
+- the scoring code: model.py, merge.py, route_bench.py, data.py, runtime.py and anchor.py whole,
+  and every scoring function and constant this module and session_bench.py call, as bound when the
+  hash is taken (so replacing `evaluate`, say, changes it);
 - the editor's model, settings, prompt, tools and context, and the model code it reads.
 
-A test fails whenever the code no longer matches the pin. A run on any benchmark but v0 refuses any
-other protocol.
+A test fails whenever the code no longer matches the pin, and another checks that replacing the
+evaluator, the windowing under it or the bank's helpers changes the hash. A run on any benchmark but
+v0 refuses any other protocol, and `verify` refuses a publication made with any other.
 
 ## Costs (v0, per seed, one CPU thread)
 
@@ -199,8 +205,7 @@ Until step 2, `session_bench` refuses v1: it has no split.
 ## Replay
 
 ```bash
-python -m tracks.llm.wsp_bench verify          # every published pick and every query replayed from the
-                                               # published cohort; the picks and the bank rescored
+python -m tracks.llm.wsp_bench verify          # the whole selection replayed from the published cohort
 python -m tracks.llm.wsp_bench context --seed 42 [--anonymized]   # exactly what the editor reads first
 python -m tracks.llm.wsp_bench run --output runs/wsp               # the controls again (about 20 s)
 python -m tracks.llm.wsp_bench run --output runs/wsp-llm --methods llm llm-anonymized   # needs ANTHROPIC_API_KEY
@@ -212,5 +217,22 @@ python -m tracks.llm.wsp_bench run --output runs/wsp-llm --methods llm llm-anony
 - `report.json`: every arm on every seed, with the per-session scores, each method's validation
   curve over its queries, the costs, the environment and the protocol hash;
 - `edits/seed*/<method>.json`: each pick's edit artifact. It records the input weights' digests,
-  the program, the output weights' digest and every query the method spent, each with its own
-  digest.
+  the budget, the reference points and their validation scores, the program, the output weights'
+  digest, every query the method spent (each with its program, scores and digest) and every
+  program it had refused.
+
+**What `verify` checks.** It refuses a publication unless all of these hold:
+
+- the report was made with this code's protocol;
+- every reference point and every query rebuilds its recorded weights and rescores as recorded;
+- the queries are numbered in order and within the budget, and the report's counts and validation
+  curves are the artifact's;
+- every program recorded as refused is one the validator refuses;
+- the selection rule, run on the recorded scores, makes the published pick (and rescored, the
+  pick is still the best);
+- each control, run against its recorded queries, asks for exactly those programs and stops where
+  they stop;
+- each pick, and the bank, rescore as reported.
+
+Scores must agree to 1e-6 bits, the session benchmark's tolerance: they were recorded on one CPU
+and PyTorch build, and another rounds differently in the eighth decimal.
