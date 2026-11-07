@@ -60,7 +60,7 @@ import numpy as np
 import torch
 
 from .anchor import ANCHORS, ROOT, codebook_digest, difference, flatten, load_anchor, weights_digest
-from .data import SESSION_GAP_DAYS, control_family, dataset_digest, groups, load_slices, split_records
+from .data import control_family, dataset_digest, load_slices, session_groups, split_records
 from .model import SignalLM, evaluate
 from .runtime import atomic_output, require_new_output, training_runtime
 
@@ -128,9 +128,10 @@ def shard_records(records, index, count, unit="slice"):
     split together, and don't depend on the manifest's order. By slice: every count-th slice in a
     fixed order (by content). By session: every count-th observing session, in a fixed order (by
     its slices' content), so no two shards share a session, and each worker trains on
-    observations no other worker saw."""
+    observations no other worker saw. Sessions are the manifest's (session_groups), so a session
+    another family's scan holds together stays in one shard."""
     if unit == "session":
-        sessions = sorted(groups(records, SESSION_GAP_DAYS), key=lambda g: min(r["sha256"] for r in g))
+        sessions = sorted(session_groups(records), key=lambda g: min(r["sha256"] for r in g))
         if len(sessions) < count:
             raise ValueError(f"{count} session shards need at least {count} training sessions; this split has {len(sessions)}")
         return [r for g in sessions[index - 1::count] for r in sorted(g, key=lambda r: r["sha256"])]

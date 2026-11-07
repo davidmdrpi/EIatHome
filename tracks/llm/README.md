@@ -132,7 +132,8 @@ python -m tracks.llm.merge round --merge ties --dare-p 0.9 --soup greedy \
 - **Workers:** `--shard i/n` trains on every n-th training slice in a fixed order by content,
   so shards are disjoint and don't depend on the manifest's order. With `--shard-unit session`
   it takes every n-th observing session instead, whole, so no two workers share a session (the
-  session benchmark's volunteers). Validation and test aren't sharded. `--start` continues from a merged round (round 1 starts from θ₀). `--variants real`
+  session benchmark's volunteers). Sessions are found among all the manifest's slices, every
+  family, as the split finds them, so a control scan that links two scans keeps them together. Validation and test aren't sharded. `--start` continues from a merged round (round 1 starts from θ₀). `--variants real`
   skips the surrogate controls. Each worker records its round, its start's digest, its shard,
   its seed and its number of training targets.
 - **Refused before the gate:**

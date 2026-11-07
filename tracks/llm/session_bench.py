@@ -68,12 +68,12 @@ import numpy as np
 import torch
 
 from .anchor import ROOT, canonical_layout, difference, load_anchor, weights_digest
-from .data import SESSION_GAP_DAYS, dataset_digest, digest, groups, load_slices, split_records
+from .data import dataset_digest, digest, load_slices, session_groups, split_records
 from .merge import RULE, controls, held_out, lineage, load_checkpoint, merge_round, merged_checkpoint, model_from, order_gain, \
     shard_records
 from .model import evaluate
 from .runtime import atomic_output, require_new_output, training_runtime
-from .train import parser as train_parser, run as train_run
+from .train import baseline_scores, parser as train_parser, run as train_run
 
 BENCHMARK = "signal-lm-sessions-bench/v0"
 ANCHOR = "v4"
@@ -111,7 +111,7 @@ def sessions_of(records):
     return [{"start_mjd": round(min(r["start"] for r in g), 6),
              "targets": sorted({r["entry"].get("source", {}).get("sky", {}).get("target") or r["entry"]["family"] for r in g}),
              "slices": [{"id": r["entry"]["id"], "sha256": r["sha256"]} for r in sorted(g, key=lambda r: r["sha256"])]}
-            for g in groups(records, SESSION_GAP_DAYS)]
+            for g in session_groups(records)]
 
 
 def build_split(manifest=MANIFEST):
@@ -212,9 +212,10 @@ class Context:
         self.dataset_sha256 = dataset_digest(records)
         records, partitions = held_out(anchor, FAMILY, EVALUATION, manifest, self.dataset_sha256)
         encode = lambda rs: [anchor.tokenizer.encode(r["frames"]) for r in rs]
+        self.train = encode(partitions["train"])
         self.validation = encode(partitions["validation"])
         self.test = encode(partitions["test"])
-        self.test_sessions = [encode(g) for g in groups(partitions["test"], SESSION_GAP_DAYS)]
+        self.test_sessions = [encode(g) for g in session_groups(partitions["test"])]
         control = controls(records, FAMILY, EVALUATION)
         self.control = encode(control["reporting"])
 
@@ -232,6 +233,19 @@ def assess(ctx, path):
                "control": evaluate(model, ctx.control)["bits_per_token"],
                "test_order_gain_bits": order["order_gain_bits"], "test_order_p": order["order_p"]}
     out.update(weights_sha256=weights_digest(checkpoint["model"]), eval_seconds=time.perf_counter() - started)
+    return out
+
+
+def baselines(ctx):
+    """Token statistics fitted on every training session (train.py's baselines, add-one smoothed):
+    the unigram and the first-order Markov chain, scored on the same held-out sets as every arm."""
+    k = ctx.anchor.spec["model"]["vocab_size"]
+    out = {}
+    for name, key in (("unigram", "unigram_bits"), ("Markov-1", "markov1_bits")):
+        score = lambda tokens: baseline_scores(ctx.train, tokens, k)[key]
+        sessions = [score(s) for s in ctx.test_sessions]
+        out[name] = {"validation": score(ctx.validation), "test": score(ctx.test), "test_worst_session": max(sessions),
+                     "test_sessions": sessions, "control": score(ctx.control)}
     return out
 
 
@@ -329,6 +343,9 @@ def table(report):
     t0 = report["theta0"]
     lines.append(f"| θ₀, untrained | 1 | {t0['validation']:.3f} | {t0['test']:.3f} | {t0['test_worst_session']:.3f} | "
                  f"{t0['control']:.3f} | {t0['test_order_gain_bits']:.3f} |")
+    for name, b in report["baselines"].items():
+        lines.append(f"| {name}, fitted on the training sessions | 1 | {b['validation']:.3f} | {b['test']:.3f} | "
+                     f"{b['test_worst_session']:.3f} | {b['control']:.3f} | – |")
     for name, row in report["summary"].items():
         lines.append(f"| {name} | {row['runs']} | {fmt(row['validation'])} | {fmt(row['test'])} | {fmt(row['test_worst_session'])} | "
                      f"{fmt(row['control'])} | {fmt(row['test_order_gain_bits'])} |")
@@ -368,7 +385,7 @@ def run(args):
               "commands": {"split": "python -m tracks.llm.session_bench split --check",
                            "run": f"python -m tracks.llm.session_bench run --output {args.output}",
                            "verify": "python -m tracks.llm.session_bench verify"},
-              "theta0": theta0_scores(ctx), "seeds": {}}
+              "theta0": theta0_scores(ctx), "baselines": baselines(ctx), "seeds": {}}
     for seed in args.seeds:
         report["seeds"][str(seed)] = one_seed(args.output / f"seed{seed}", seed, args.epochs, args.rounds, manifest, ctx)
         print(f"seed {seed} done", flush=True)
@@ -441,16 +458,36 @@ def load_published(anchor, path, manifest=MANIFEST):
     return {**common, "splits": {"train": [r["entry"] for r in train], **held}, "best_epoch": header["best_epoch"]}
 
 
-def published_files(folder=FOLDER):
-    return {int(p.name[4:]): {q.stem: q for q in sorted(p.glob("*.bin"))} for p in sorted((folder / "checkpoints").glob("seed*"))}
+PUBLISHED = ("base", *(f"worker{k}" for k in WORKER_SHARDS))
 
 
-def materialize(output, manifest=MANIFEST, folder=FOLDER):
+def published_files(folder=FOLDER, seeds=SEEDS):
+    """Each seed's published base and workers 2 to 5: all of them, and nothing else. Refuses a
+    missing or extra seed, and a seed missing a checkpoint or its header."""
+    root = folder / "checkpoints"
+    found = sorted(p.name for p in root.iterdir()) if root.is_dir() else []
+    expected = sorted(f"seed{s}" for s in seeds)
+    if found != expected:
+        raise ValueError(f"{root} holds {', '.join(found) or 'nothing'}; the benchmark publishes {', '.join(expected)}")
+    files = {}
+    for seed in sorted(seeds):
+        folder_ = root / f"seed{seed}"
+        names = sorted(p.name for p in folder_.iterdir())
+        wanted = sorted(f"{name}.{suffix}" for name in PUBLISHED for suffix in ("bin", "json"))
+        if names != wanted:
+            missing, extra = sorted(set(wanted) - set(names)), sorted(set(names) - set(wanted))
+            raise ValueError(f"{folder_}: " + "; ".join(([f"missing {', '.join(missing)}"] if missing else [])
+                                                       + ([f"unexpected {', '.join(extra)}"] if extra else [])))
+        files[seed] = {name: folder_ / f"{name}.bin" for name in PUBLISHED}
+    return files
+
+
+def materialize(output, manifest=MANIFEST, folder=FOLDER, seeds=SEEDS):
     """Every published base and worker as a .pt checkpoint, under output/seed*/."""
     anchor = load_anchor(ANCHOR)
     require_new_output(output)
     paths = {}
-    for seed, files in published_files(folder).items():
+    for seed, files in published_files(folder, seeds).items():
         (output / f"seed{seed}").mkdir(parents=True)
         for name, path in files.items():
             target = output / f"seed{seed}" / f"{name}.pt"
@@ -459,33 +496,41 @@ def materialize(output, manifest=MANIFEST, folder=FOLDER):
     return paths
 
 
-def verify(manifest=MANIFEST, folder=FOLDER):
-    """The frozen benchmark, checked: the split's pin; each seed's base and workers (hashes, starts,
-    disjoint session shards, none trained on a held-out session); and their one-shot merges and
-    scores, recomputed and compared with report.json."""
+def verify(manifest=MANIFEST, folder=FOLDER, seeds=SEEDS):
+    """The frozen benchmark, checked: the split's pin; every seed's base and workers 2 to 5, all
+    present (hashes, starts, disjoint session shards, none trained on a held-out session); their
+    one-shot merges and scores, and the baselines, recomputed and compared with report.json."""
     split = check_split(manifest, folder)
     report = json.loads((folder / "report.json").read_text())
     if report["split_sha256"] != SPLIT_SHA256:
         raise ValueError("report.json was made on another split")
+    if sorted(report["seeds"]) != sorted(map(str, seeds)) or report["settings"]["seeds"] != list(seeds):
+        raise ValueError(f"report.json covers seeds {', '.join(sorted(report['seeds']))}; the benchmark's are {', '.join(map(str, seeds))}")
     anchor = load_anchor(ANCHOR)
     ctx = Context(anchor, manifest)
+    for name, again in baselines(ctx).items():
+        for key in ("validation", "test", "test_worst_session", "control"):
+            if abs(again[key] - report["baselines"][name][key]) > 1e-9:
+                raise ValueError(f"The {name} baseline scores {again[key]} {key}, not {report['baselines'][name][key]}")
     held_out_ids = {s["sha256"] for name in ("validation", "test") for sess in split["splits"][name]["sessions"] for s in sess["slices"]}
     checked = []
     with tempfile.TemporaryDirectory() as tmp:
-        paths = materialize(Path(tmp) / "checkpoints", manifest, folder)
-        for seed, files in published_files(folder).items():
-            seeds = report["seeds"][str(seed)]
+        paths = materialize(Path(tmp) / "checkpoints", manifest, folder, seeds)
+        for seed in seeds:
+            recorded_seed = report["seeds"][str(seed)]
+            if sorted(w["shard"] for w in recorded_seed["workers"]) != list(WORKER_SHARDS):
+                raise ValueError(f"seed {seed}: report.json doesn't score workers {', '.join(map(str, WORKER_SHARDS))}")
             base = paths[(seed, "base")]
             base_cp = load_checkpoint(base, anchor)
             if base_cp["merge"].get("round") != 1 or base_cp["merge"].get("start_sha256") != anchor.spec["theta0_sha256"]:
                 raise ValueError(f"seed {seed}: the base isn't round 1 from θ₀")
-            if weights_digest(base_cp["model"]) != seeds["base"]["weights_sha256"]:
+            if weights_digest(base_cp["model"]) != recorded_seed["base"]["weights_sha256"]:
                 raise ValueError(f"seed {seed}: the published base isn't the one report.json scored")
             workers, seen = [], set()
-            for w in seeds["workers"]:
+            for w in recorded_seed["workers"]:
                 path = paths[(seed, f"worker{w['shard']}")]
                 cp = load_checkpoint(path, anchor)
-                if cp["merge"].get("start_sha256") != seeds["base"]["weights_sha256"] or cp["merge"].get("round") != 2:
+                if cp["merge"].get("start_sha256") != recorded_seed["base"]["weights_sha256"] or cp["merge"].get("round") != 2:
                     raise ValueError(f"seed {seed}: worker {w['shard']} didn't start from the base")
                 if weights_digest(cp["model"]) != w["weights_sha256"]:
                     raise ValueError(f"seed {seed}: worker {w['shard']} isn't the one report.json scored")
@@ -497,7 +542,7 @@ def verify(manifest=MANIFEST, folder=FOLDER):
             for i, (name, rule) in enumerate(ONE_SHOT.items()):
                 with training_runtime(1, "cpu"):
                     record, merged = merge_round(anchor, [str(w) for w in workers], str(base), rule, manifest)
-                recorded = seeds["one_shot"][name]
+                recorded = recorded_seed["one_shot"][name]
                 if record["merged"].get("weights_sha256") != recorded["round"]["weights_sha256"]:
                     raise ValueError(f"seed {seed}: replaying {name} gave different weights")
                 if merged is not None:
@@ -507,7 +552,7 @@ def verify(manifest=MANIFEST, folder=FOLDER):
                     for key in ("validation", "test", "test_worst_session", "control"):
                         if abs(again[key] - recorded[key]) > 1e-6:
                             raise ValueError(f"seed {seed}: {name} scores {again[key]} {key}, not {recorded[key]}")
-            scored = [("base", base, seeds["base"])] + [(f"worker {w['shard']}", path, w) for w, path in zip(seeds["workers"], workers)]
+            scored = [("base", base, recorded_seed["base"])] + [(f"worker {w['shard']}", path, w) for w, path in zip(recorded_seed["workers"], workers)]
             for name, path, recorded in scored:
                 again = assess(ctx, path)
                 for key in ("validation", "test", "control"):

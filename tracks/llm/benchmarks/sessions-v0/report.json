@@ -11,7 +11,7 @@
     "codebook_record_sha256": "0b9c7fa86afa1050a701ff603fcff3c0e97333c99ecaca9bb280ce506b913983",
     "theta0_sha256": "83124fecefc322b17e9f1326ecafad80f15346cfcb5e0d10d5dd6f840039fa15"
   },
-  "code_sha256": "b32417a4ec1d5efc461d0b072233e3b7bf3b15ac363982d70fb8fb560d52cdb9",
+  "code_sha256": "d3ef63bc0ede7a32a828ec17d3b332f683ef820a3fde654333ee9520a1f32c3a",
   "environment": {
     "python": "3.13.17",
     "numpy": "2.5.3",
@@ -57,7 +57,7 @@
   },
   "commands": {
     "split": "python -m tracks.llm.session_bench split --check",
-    "run": "python -m tracks.llm.session_bench run --output runs/sessions-bench-v0",
+    "run": "python -m tracks.llm.session_bench run --output runs/sessions-bench-v1",
     "verify": "python -m tracks.llm.session_bench verify"
   },
   "theta0": {
@@ -77,7 +77,39 @@
     "test_order_gain_bits": -0.09754071313752011,
     "test_order_p": 1.0,
     "weights_sha256": "83124fecefc322b17e9f1326ecafad80f15346cfcb5e0d10d5dd6f840039fa15",
-    "eval_seconds": 0.9460873180000817
+    "eval_seconds": 1.0000060250000047
+  },
+  "baselines": {
+    "unigram": {
+      "validation": 2.4224689876201078,
+      "test": 2.089539847254579,
+      "test_worst_session": 3.91681183746169,
+      "test_sessions": [
+        1.4395420457257617,
+        1.0436085516609117,
+        1.3593069223035417,
+        1.778913612067061,
+        3.91681183746169,
+        1.562092889126786,
+        1.4892571663691143
+      ],
+      "control": 1.8920374675141605
+    },
+    "Markov-1": {
+      "validation": 1.6115965699053185,
+      "test": 1.4882073035614958,
+      "test_worst_session": 3.0600321039821785,
+      "test_sessions": [
+        1.5520326053359905,
+        0.2634683643393636,
+        0.524753160365887,
+        1.3673131248638664,
+        3.0600321039821785,
+        0.932763332213078,
+        1.1671881821112455
+      ],
+      "control": 0.3923174227787606
+    }
   },
   "seeds": {
     "42": {
@@ -98,11 +130,11 @@
         "test_order_gain_bits": 0.255242606971104,
         "test_order_p": 0.05,
         "weights_sha256": "ffbaa49dd11479e9f6b8baac10aa349bff86334b54dcb1f6c1e88564931e11da",
-        "eval_seconds": 0.06874868300019443,
+        "eval_seconds": 0.07547474700001544,
         "shard": 1,
         "training": {
           "command": "python -m tracks.llm.train --anchor v4 --manifest tracks/llm/data/sessions/index.json --family stars --variants real --epochs 1000 --patience 50 --seed 42 --output base-worker --shard 1/5 --shard-unit session",
-          "seconds": 3.482789661999959,
+          "seconds": 3.327464599000024,
           "best_epoch": 190,
           "epochs_run": 240,
           "training_targets": 360
@@ -127,7 +159,7 @@
             }
           ]
         },
-        "merge_seconds": 0.23347073900004034
+        "merge_seconds": 0.2307971900000041
       },
       "workers": [
         {
@@ -147,11 +179,11 @@
           "test_order_gain_bits": 0.36612215772802004,
           "test_order_p": 0.05,
           "weights_sha256": "7c0211ad39099a64e38e5c17070a26963cce38ee10d8e8ac3c256150c1164edc",
-          "eval_seconds": 0.06864600200015047,
+          "eval_seconds": 0.06715312200000767,
           "shard": 2,
           "training": {
             "command": "python -m tracks.llm.train --anchor v4 --manifest tracks/llm/data/sessions/index.json --family stars --variants real --epochs 1000 --patience 50 --seed 42 --output worker2 --shard 2/5 --shard-unit session --start base/merged.pt",
-            "seconds": 0.8942240279998259,
+            "seconds": 0.9106639350000023,
             "best_epoch": 20,
             "epochs_run": 70,
             "training_targets": 225
@@ -174,11 +206,11 @@
           "test_order_gain_bits": 0.2599413516132534,
           "test_order_p": 0.05,
           "weights_sha256": "5fcf74d83c64cc39938fa5293aa5c9355a561623225ed927d1f41f89ce07eda9",
-          "eval_seconds": 0.0724791859997822,
+          "eval_seconds": 0.06728033499999242,
           "shard": 3,
           "training": {
             "command": "python -m tracks.llm.train --anchor v4 --manifest tracks/llm/data/sessions/index.json --family stars --variants real --epochs 1000 --patience 50 --seed 42 --output worker3 --shard 3/5 --shard-unit session --start base/merged.pt",
-            "seconds": 0.6817665749999833,
+            "seconds": 0.6804159549999724,
             "best_epoch": 1,
             "epochs_run": 51,
             "training_targets": 225
@@ -201,11 +233,11 @@
           "test_order_gain_bits": 0.35450305972075435,
           "test_order_p": 0.05,
           "weights_sha256": "5102ea4e1aaf925e094560854c36e685e33fe55b4a359822e8748c1c3aa78582",
-          "eval_seconds": 0.07628537899972798,
+          "eval_seconds": 0.06716510200001835,
           "shard": 4,
           "training": {
             "command": "python -m tracks.llm.train --anchor v4 --manifest tracks/llm/data/sessions/index.json --family stars --variants real --epochs 1000 --patience 50 --seed 42 --output worker4 --shard 4/5 --shard-unit session --start base/merged.pt",
-            "seconds": 1.192282496000189,
+            "seconds": 1.3023325080000063,
             "best_epoch": 44,
             "epochs_run": 94,
             "training_targets": 225
@@ -228,11 +260,11 @@
           "test_order_gain_bits": 0.3445005970224051,
           "test_order_p": 0.05,
           "weights_sha256": "1eb8c9085aa300a236c0c357c68217f5dcd2e862e51cf835a6304db38d07cf43",
-          "eval_seconds": 0.07467322999991666,
+          "eval_seconds": 0.06715119400001868,
           "shard": 5,
           "training": {
             "command": "python -m tracks.llm.train --anchor v4 --manifest tracks/llm/data/sessions/index.json --family stars --variants real --epochs 1000 --patience 50 --seed 42 --output worker5 --shard 5/5 --shard-unit session --start base/merged.pt",
-            "seconds": 2.2190066829998614,
+            "seconds": 2.142160068999999,
             "best_epoch": 115,
             "epochs_run": 165,
             "training_targets": 225
@@ -256,11 +288,11 @@
         "test_order_gain_bits": 0.3445005970224051,
         "test_order_p": 0.05,
         "weights_sha256": "1eb8c9085aa300a236c0c357c68217f5dcd2e862e51cf835a6304db38d07cf43",
-        "eval_seconds": 0.07467322999991666,
+        "eval_seconds": 0.06715119400001868,
         "shard": 5,
         "training": {
           "command": "python -m tracks.llm.train --anchor v4 --manifest tracks/llm/data/sessions/index.json --family stars --variants real --epochs 1000 --patience 50 --seed 42 --output worker5 --shard 5/5 --shard-unit session --start base/merged.pt",
-          "seconds": 2.2190066829998614,
+          "seconds": 2.142160068999999,
           "best_epoch": 115,
           "epochs_run": 165,
           "training_targets": 225
@@ -334,8 +366,8 @@
               }
             ]
           },
-          "merge_seconds": 0.4816314740000962,
-          "training_seconds": 4.9872797819998596,
+          "merge_seconds": 0.4398651120000068,
+          "training_seconds": 5.03557246699998,
           "contributions": 4,
           "bytes_sent": 441344,
           "validation": 1.646842490759745,
@@ -354,7 +386,7 @@
           "test_order_gain_bits": 0.3297673345295773,
           "test_order_p": 0.05,
           "weights_sha256": "be4d6f462a2a63ead394035262f15f512de104d0c8f1d219d9c03c802d65f042",
-          "eval_seconds": 0.09029569100039225
+          "eval_seconds": 0.06736923500000103
         },
         "average, greedy soup": {
           "rule": {
@@ -423,8 +455,8 @@
               }
             ]
           },
-          "merge_seconds": 0.4753709260003234,
-          "training_seconds": 4.9872797819998596,
+          "merge_seconds": 0.5541654179999966,
+          "training_seconds": 5.03557246699998,
           "contributions": 4,
           "bytes_sent": 441344,
           "validation": 1.5546294366637352,
@@ -443,7 +475,7 @@
           "test_order_gain_bits": 0.3445005970224051,
           "test_order_p": 0.05,
           "weights_sha256": "1eb8c9085aa300a236c0c357c68217f5dcd2e862e51cf835a6304db38d07cf43",
-          "eval_seconds": 0.07948218100000304
+          "eval_seconds": 0.09939828299999931
         },
         "TIES, keep 20%": {
           "rule": {
@@ -512,8 +544,8 @@
               }
             ]
           },
-          "merge_seconds": 0.4669029860001501,
-          "training_seconds": 4.9872797819998596,
+          "merge_seconds": 0.5000308459999872,
+          "training_seconds": 5.03557246699998,
           "contributions": 4,
           "bytes_sent": 441344,
           "validation": 1.6074788289370534,
@@ -532,7 +564,7 @@
           "test_order_gain_bits": 0.2836801036359933,
           "test_order_p": 0.05,
           "weights_sha256": "f9a9f9921dce11e6b732e79618df60fcc5b058d386d07bfc6141608c5a1753d7",
-          "eval_seconds": 0.06809685799998988
+          "eval_seconds": 0.06749134599999707
         }
       },
       "chains": {
@@ -1082,7 +1114,7 @@
               ]
             }
           ],
-          "training_seconds": 35.96598088900055,
+          "training_seconds": 36.584447068999935,
           "contributions": 40,
           "bytes_sent": 4413440,
           "validation": 1.5621666175516582,
@@ -1101,7 +1133,7 @@
           "test_order_gain_bits": 0.3334692283020635,
           "test_order_p": 0.05,
           "weights_sha256": "8afb67d97f40d3cd67648b74f7e663f2c69e12504551a354cc3a16346c609d06",
-          "eval_seconds": 0.06684799900040161
+          "eval_seconds": 0.06878273000000945
         },
         "average + DiLoCo": {
           "rule": {
@@ -1649,7 +1681,7 @@
               ]
             }
           ],
-          "training_seconds": 36.83000479500197,
+          "training_seconds": 36.00328202200001,
           "contributions": 40,
           "bytes_sent": 4413440,
           "validation": 1.5562229368023068,
@@ -1668,7 +1700,7 @@
           "test_order_gain_bits": 0.3085308025482356,
           "test_order_p": 0.05,
           "weights_sha256": "79b8274333f5cd8c411b706642ac59a4730687fca1fd61a21bc1ab69a0fcce0b",
-          "eval_seconds": 0.06877509700007067
+          "eval_seconds": 0.06891651699999102
         }
       },
       "full_data": {
@@ -1689,10 +1721,10 @@
           "test_order_gain_bits": 0.28532207410144905,
           "test_order_p": 0.05,
           "weights_sha256": "0fafa22ada8253513bd26fc105050384650c1f932478f470d5230226c71c67d1",
-          "eval_seconds": 0.06633000800002264,
+          "eval_seconds": 0.06557468100004371,
           "training": {
             "command": "python -m tracks.llm.train --anchor v4 --manifest tracks/llm/data/sessions/index.json --family stars --variants real --epochs 1000 --patience 50 --seed 42 --output full-theta0",
-            "seconds": 9.435337769999933,
+            "seconds": 9.365069437999978,
             "best_epoch": 207,
             "epochs_run": 257,
             "training_targets": 1260
@@ -1715,10 +1747,10 @@
           "test_order_gain_bits": 0.27717362219546904,
           "test_order_p": 0.05,
           "weights_sha256": "4a880bf81c49471f2d62e927d50919bf9baad67b1580db20995c1a587e08edbd",
-          "eval_seconds": 0.06495631899997534,
+          "eval_seconds": 0.06887452799998073,
           "training": {
             "command": "python -m tracks.llm.train --anchor v4 --manifest tracks/llm/data/sessions/index.json --family stars --variants real --epochs 1000 --patience 50 --seed 42 --output full-base --start base/merged.pt",
-            "seconds": 6.920550840000033,
+            "seconds": 7.093119877999982,
             "best_epoch": 144,
             "epochs_run": 194,
             "training_targets": 1260
@@ -1744,11 +1776,11 @@
         "test_order_gain_bits": 0.25253710705707344,
         "test_order_p": 0.05,
         "weights_sha256": "9a0e52b6db3a65de062ad3981e8557d4e834af4dd448d74728923a845e29e6ac",
-        "eval_seconds": 0.06855672800020329,
+        "eval_seconds": 0.07079672600002596,
         "shard": 1,
         "training": {
           "command": "python -m tracks.llm.train --anchor v4 --manifest tracks/llm/data/sessions/index.json --family stars --variants real --epochs 1000 --patience 50 --seed 43 --output base-worker --shard 1/5 --shard-unit session",
-          "seconds": 3.448988065999856,
+          "seconds": 3.6593646430000035,
           "best_epoch": 190,
           "epochs_run": 240,
           "training_targets": 360
@@ -1773,7 +1805,7 @@
             }
           ]
         },
-        "merge_seconds": 0.22928239600014422
+        "merge_seconds": 0.2521735390000117
       },
       "workers": [
         {
@@ -1793,11 +1825,11 @@
           "test_order_gain_bits": 0.3579749674304449,
           "test_order_p": 0.05,
           "weights_sha256": "3ed48dedabf5290985817bcdd007ef9aa70b7b2fb482555623a442ee6c00f940",
-          "eval_seconds": 0.06655755299971133,
+          "eval_seconds": 0.0687963749999767,
           "shard": 2,
           "training": {
             "command": "python -m tracks.llm.train --anchor v4 --manifest tracks/llm/data/sessions/index.json --family stars --variants real --epochs 1000 --patience 50 --seed 43 --output worker2 --shard 2/5 --shard-unit session --start base/merged.pt",
-            "seconds": 0.9324305250001999,
+            "seconds": 1.0380771659999937,
             "best_epoch": 20,
             "epochs_run": 70,
             "training_targets": 225
@@ -1820,11 +1852,11 @@
           "test_order_gain_bits": 0.2580044866199238,
           "test_order_p": 0.05,
           "weights_sha256": "e56f8976d860df4e4efd59929505243538ba6b3a605872f8a50d6ab516ac06d5",
-          "eval_seconds": 0.0654495210001187,
+          "eval_seconds": 0.06803216899999143,
           "shard": 3,
           "training": {
             "command": "python -m tracks.llm.train --anchor v4 --manifest tracks/llm/data/sessions/index.json --family stars --variants real --epochs 1000 --patience 50 --seed 43 --output worker3 --shard 3/5 --shard-unit session --start base/merged.pt",
-            "seconds": 0.7608810339997945,
+            "seconds": 0.7078320180000333,
             "best_epoch": 1,
             "epochs_run": 51,
             "training_targets": 225
@@ -1847,11 +1879,11 @@
           "test_order_gain_bits": 0.3470155940672923,
           "test_order_p": 0.05,
           "weights_sha256": "78e93fda7eaac6f43715b530efc6abc70b58f02e5f282583e92d915f4f28600c",
-          "eval_seconds": 0.06609211300019524,
+          "eval_seconds": 0.06605287399997906,
           "shard": 4,
           "training": {
             "command": "python -m tracks.llm.train --anchor v4 --manifest tracks/llm/data/sessions/index.json --family stars --variants real --epochs 1000 --patience 50 --seed 43 --output worker4 --shard 4/5 --shard-unit session --start base/merged.pt",
-            "seconds": 1.1537443360002726,
+            "seconds": 1.2100957860000108,
             "best_epoch": 42,
             "epochs_run": 92,
             "training_targets": 225
@@ -1874,11 +1906,11 @@
           "test_order_gain_bits": 0.34564617607474313,
           "test_order_p": 0.05,
           "weights_sha256": "6aa78761de1b92f200d75d7f1b7f4d46a215b52a5457168906bc6c9b668f51e1",
-          "eval_seconds": 0.06574719699983689,
+          "eval_seconds": 0.06753046899996207,
           "shard": 5,
           "training": {
             "command": "python -m tracks.llm.train --anchor v4 --manifest tracks/llm/data/sessions/index.json --family stars --variants real --epochs 1000 --patience 50 --seed 43 --output worker5 --shard 5/5 --shard-unit session --start base/merged.pt",
-            "seconds": 2.0416315669999676,
+            "seconds": 1.9402286190000382,
             "best_epoch": 107,
             "epochs_run": 157,
             "training_targets": 225
@@ -1902,11 +1934,11 @@
         "test_order_gain_bits": 0.34564617607474313,
         "test_order_p": 0.05,
         "weights_sha256": "6aa78761de1b92f200d75d7f1b7f4d46a215b52a5457168906bc6c9b668f51e1",
-        "eval_seconds": 0.06574719699983689,
+        "eval_seconds": 0.06753046899996207,
         "shard": 5,
         "training": {
           "command": "python -m tracks.llm.train --anchor v4 --manifest tracks/llm/data/sessions/index.json --family stars --variants real --epochs 1000 --patience 50 --seed 43 --output worker5 --shard 5/5 --shard-unit session --start base/merged.pt",
-          "seconds": 2.0416315669999676,
+          "seconds": 1.9402286190000382,
           "best_epoch": 107,
           "epochs_run": 157,
           "training_targets": 225
@@ -1980,8 +2012,8 @@
               }
             ]
           },
-          "merge_seconds": 0.4353548059998502,
-          "training_seconds": 4.8886874620002345,
+          "merge_seconds": 0.6121247700000367,
+          "training_seconds": 4.896233589000076,
           "contributions": 4,
           "bytes_sent": 441344,
           "validation": 1.6498831589011747,
@@ -2000,7 +2032,7 @@
           "test_order_gain_bits": 0.32545831102255307,
           "test_order_p": 0.05,
           "weights_sha256": "a230c4d9491a91f392753da10d67224570be48c2ab1af358451e307dec1808f2",
-          "eval_seconds": 0.06992516699983753
+          "eval_seconds": 0.06778055500001301
         },
         "average, greedy soup": {
           "rule": {
@@ -2069,8 +2101,8 @@
               }
             ]
           },
-          "merge_seconds": 0.47583611999971254,
-          "training_seconds": 4.8886874620002345,
+          "merge_seconds": 0.45823879499999975,
+          "training_seconds": 4.896233589000076,
           "contributions": 4,
           "bytes_sent": 441344,
           "validation": 1.5565948308470179,
@@ -2089,7 +2121,7 @@
           "test_order_gain_bits": 0.34564617607474313,
           "test_order_p": 0.05,
           "weights_sha256": "6aa78761de1b92f200d75d7f1b7f4d46a215b52a5457168906bc6c9b668f51e1",
-          "eval_seconds": 0.10177963600017392
+          "eval_seconds": 0.06904720500000394
         },
         "TIES, keep 20%": {
           "rule": {
@@ -2158,8 +2190,8 @@
               }
             ]
           },
-          "merge_seconds": 0.5171579519997067,
-          "training_seconds": 4.8886874620002345,
+          "merge_seconds": 0.49566275699999096,
+          "training_seconds": 4.896233589000076,
           "contributions": 4,
           "bytes_sent": 441344,
           "validation": 1.608984789596457,
@@ -2178,7 +2210,7 @@
           "test_order_gain_bits": 0.28437772158969676,
           "test_order_p": 0.05,
           "weights_sha256": "a2c1e23269736b7aadd099f0478f06eb2f43af1ef5082c04e68631e243883bfb",
-          "eval_seconds": 0.07041412799981117
+          "eval_seconds": 0.07401440300003514
         }
       },
       "chains": {
@@ -2728,7 +2760,7 @@
               ]
             }
           ],
-          "training_seconds": 36.2341768809988,
+          "training_seconds": 35.98211127900021,
           "contributions": 40,
           "bytes_sent": 4413440,
           "validation": 1.552875305349015,
@@ -2747,7 +2779,7 @@
           "test_order_gain_bits": 0.3356576683101793,
           "test_order_p": 0.05,
           "weights_sha256": "bdc972783052f9f682c82c06b9d962edc40cce279d0c33642ecb0dc1b2f6ac1d",
-          "eval_seconds": 0.06504210299999613
+          "eval_seconds": 0.06682806399999208
         },
         "average + DiLoCo": {
           "rule": {
@@ -3295,7 +3327,7 @@
               ]
             }
           ],
-          "training_seconds": 36.33677685599832,
+          "training_seconds": 36.69425903099989,
           "contributions": 40,
           "bytes_sent": 4413440,
           "validation": 1.5476324461549629,
@@ -3314,7 +3346,7 @@
           "test_order_gain_bits": 0.3131877403200283,
           "test_order_p": 0.05,
           "weights_sha256": "ad957e0bf79a858a0e9162613d5de0717864ecd8aabdfe01f15a7bdbfc627c51",
-          "eval_seconds": 0.06945185600034165
+          "eval_seconds": 0.07352347300002293
         }
       },
       "full_data": {
@@ -3335,10 +3367,10 @@
           "test_order_gain_bits": 0.2808102985375538,
           "test_order_p": 0.05,
           "weights_sha256": "2d50b6bbdcb5be3cb3b102917e7ddb0d8fb2b0534aa2a396c1f1d7863f3cb826",
-          "eval_seconds": 0.06744953499992334,
+          "eval_seconds": 0.06758014500002218,
           "training": {
             "command": "python -m tracks.llm.train --anchor v4 --manifest tracks/llm/data/sessions/index.json --family stars --variants real --epochs 1000 --patience 50 --seed 43 --output full-theta0",
-            "seconds": 8.84425735900004,
+            "seconds": 8.725194664000014,
             "best_epoch": 197,
             "epochs_run": 247,
             "training_targets": 1260
@@ -3361,10 +3393,10 @@
           "test_order_gain_bits": 0.28673750218011196,
           "test_order_p": 0.05,
           "weights_sha256": "b148648fd2a012686050a6aec94c074d950383895bd6594f253c9f9b56e2e97a",
-          "eval_seconds": 0.06508162599993739,
+          "eval_seconds": 0.06940228100000922,
           "training": {
             "command": "python -m tracks.llm.train --anchor v4 --manifest tracks/llm/data/sessions/index.json --family stars --variants real --epochs 1000 --patience 50 --seed 43 --output full-base --start base/merged.pt",
-            "seconds": 6.627523054999983,
+            "seconds": 6.651826356000015,
             "best_epoch": 136,
             "epochs_run": 186,
             "training_targets": 1260
@@ -3390,11 +3422,11 @@
         "test_order_gain_bits": 0.25699997598494484,
         "test_order_p": 0.05,
         "weights_sha256": "857ee22dc2f77407d7197071c0215c268c6332ecab409096ce8d855bb2f7da32",
-        "eval_seconds": 0.06701469600011478,
+        "eval_seconds": 0.06529571599998008,
         "shard": 1,
         "training": {
           "command": "python -m tracks.llm.train --anchor v4 --manifest tracks/llm/data/sessions/index.json --family stars --variants real --epochs 1000 --patience 50 --seed 44 --output base-worker --shard 1/5 --shard-unit session",
-          "seconds": 3.1695648059999257,
+          "seconds": 3.361371385000041,
           "best_epoch": 181,
           "epochs_run": 231,
           "training_targets": 360
@@ -3419,7 +3451,7 @@
             }
           ]
         },
-        "merge_seconds": 0.224920461000238
+        "merge_seconds": 0.2910067329999606
       },
       "workers": [
         {
@@ -3439,11 +3471,11 @@
           "test_order_gain_bits": 0.3652163293300603,
           "test_order_p": 0.05,
           "weights_sha256": "22958589f43d5cfef350281fab0f336fe0a35ef8be462520fa8f291ed5443ecf",
-          "eval_seconds": 0.07210641399979068,
+          "eval_seconds": 0.08576352899996209,
           "shard": 2,
           "training": {
             "command": "python -m tracks.llm.train --anchor v4 --manifest tracks/llm/data/sessions/index.json --family stars --variants real --epochs 1000 --patience 50 --seed 44 --output worker2 --shard 2/5 --shard-unit session --start base/merged.pt",
-            "seconds": 0.8793880400003218,
+            "seconds": 0.900499104000005,
             "best_epoch": 20,
             "epochs_run": 70,
             "training_targets": 225
@@ -3466,11 +3498,11 @@
           "test_order_gain_bits": 0.26105495919137045,
           "test_order_p": 0.05,
           "weights_sha256": "14afadf34c7a2972e20c4904ab5898e117e788da3f13fd231241e1e334d4dd69",
-          "eval_seconds": 0.0685126289999971,
+          "eval_seconds": 0.08283718000001272,
           "shard": 3,
           "training": {
             "command": "python -m tracks.llm.train --anchor v4 --manifest tracks/llm/data/sessions/index.json --family stars --variants real --epochs 1000 --patience 50 --seed 44 --output worker3 --shard 3/5 --shard-unit session --start base/merged.pt",
-            "seconds": 0.6598107740001069,
+            "seconds": 0.7021539430000416,
             "best_epoch": 1,
             "epochs_run": 51,
             "training_targets": 225
@@ -3493,11 +3525,11 @@
           "test_order_gain_bits": 0.35549579105276896,
           "test_order_p": 0.05,
           "weights_sha256": "86c93b16c464f71a507cac1e1417dcd2989ece84124519508da1e33bdb589438",
-          "eval_seconds": 0.10370992200023466,
+          "eval_seconds": 0.06738959799997701,
           "shard": 4,
           "training": {
             "command": "python -m tracks.llm.train --anchor v4 --manifest tracks/llm/data/sessions/index.json --family stars --variants real --epochs 1000 --patience 50 --seed 44 --output worker4 --shard 4/5 --shard-unit session --start base/merged.pt",
-            "seconds": 1.1823373289998926,
+            "seconds": 1.2519240540000283,
             "best_epoch": 43,
             "epochs_run": 93,
             "training_targets": 225
@@ -3520,11 +3552,11 @@
           "test_order_gain_bits": 0.3459010274093157,
           "test_order_p": 0.05,
           "weights_sha256": "b0adf6499eb074e388c3980c46aef0a21332b661538438bd38af3a78d9a8c047",
-          "eval_seconds": 0.09480308599995624,
+          "eval_seconds": 0.08868759700004603,
           "shard": 5,
           "training": {
             "command": "python -m tracks.llm.train --anchor v4 --manifest tracks/llm/data/sessions/index.json --family stars --variants real --epochs 1000 --patience 50 --seed 44 --output worker5 --shard 5/5 --shard-unit session --start base/merged.pt",
-            "seconds": 2.0918492790001437,
+            "seconds": 2.032015350999984,
             "best_epoch": 119,
             "epochs_run": 169,
             "training_targets": 225
@@ -3548,11 +3580,11 @@
         "test_order_gain_bits": 0.3459010274093157,
         "test_order_p": 0.05,
         "weights_sha256": "b0adf6499eb074e388c3980c46aef0a21332b661538438bd38af3a78d9a8c047",
-        "eval_seconds": 0.09480308599995624,
+        "eval_seconds": 0.08868759700004603,
         "shard": 5,
         "training": {
           "command": "python -m tracks.llm.train --anchor v4 --manifest tracks/llm/data/sessions/index.json --family stars --variants real --epochs 1000 --patience 50 --seed 44 --output worker5 --shard 5/5 --shard-unit session --start base/merged.pt",
-          "seconds": 2.0918492790001437,
+          "seconds": 2.032015350999984,
           "best_epoch": 119,
           "epochs_run": 169,
           "training_targets": 225
@@ -3626,8 +3658,8 @@
               }
             ]
           },
-          "merge_seconds": 0.4321671789998618,
-          "training_seconds": 4.813385422000465,
+          "merge_seconds": 0.46270599800004675,
+          "training_seconds": 4.886592452000059,
           "contributions": 4,
           "bytes_sent": 441344,
           "validation": 1.6465748646832545,
@@ -3646,7 +3678,7 @@
           "test_order_gain_bits": 0.3287376689678305,
           "test_order_p": 0.05,
           "weights_sha256": "bb90b7b15a2321c022abf1b5f3307e112e992b0cd443edf33e3139ef64e34525",
-          "eval_seconds": 0.06833024199977444
+          "eval_seconds": 0.0729974699999616
         },
         "average, greedy soup": {
           "rule": {
@@ -3715,8 +3747,8 @@
               }
             ]
           },
-          "merge_seconds": 0.4540341389997593,
-          "training_seconds": 4.813385422000465,
+          "merge_seconds": 0.46628003899996884,
+          "training_seconds": 4.886592452000059,
           "contributions": 4,
           "bytes_sent": 441344,
           "validation": 1.562643781092387,
@@ -3735,7 +3767,7 @@
           "test_order_gain_bits": 0.3459010274093157,
           "test_order_p": 0.05,
           "weights_sha256": "b0adf6499eb074e388c3980c46aef0a21332b661538438bd38af3a78d9a8c047",
-          "eval_seconds": 0.06685765200018068
+          "eval_seconds": 0.06782672100001719
         },
         "TIES, keep 20%": {
           "rule": {
@@ -3804,8 +3836,8 @@
               }
             ]
           },
-          "merge_seconds": 0.4505427829999462,
-          "training_seconds": 4.813385422000465,
+          "merge_seconds": 0.44549527299994907,
+          "training_seconds": 4.886592452000059,
           "contributions": 4,
           "bytes_sent": 441344,
           "validation": 1.6039997692716081,
@@ -3824,7 +3856,7 @@
           "test_order_gain_bits": 0.28059867660118254,
           "test_order_p": 0.05,
           "weights_sha256": "90c8a0c61e0f977f5ca80bb4eb5d37159459eb10c81394ebe10a233d351c5c73",
-          "eval_seconds": 0.06546718800018425
+          "eval_seconds": 0.06603058299998565
         }
       },
       "chains": {
@@ -4374,7 +4406,7 @@
               ]
             }
           ],
-          "training_seconds": 36.01901212700159,
+          "training_seconds": 36.431066424999926,
           "contributions": 40,
           "bytes_sent": 4413440,
           "validation": 1.558681509054961,
@@ -4393,7 +4425,7 @@
           "test_order_gain_bits": 0.33110848219501166,
           "test_order_p": 0.05,
           "weights_sha256": "63a2c9b33c184cd5967175191df4eb578015cb83457e526666a63b17a8cb7ae3",
-          "eval_seconds": 0.07016474100009873
+          "eval_seconds": 0.06797523099999125
         },
         "average + DiLoCo": {
           "rule": {
@@ -4941,7 +4973,7 @@
               ]
             }
           ],
-          "training_seconds": 35.76362116100154,
+          "training_seconds": 35.86992200499981,
           "contributions": 40,
           "bytes_sent": 4413440,
           "validation": 1.5459133484809202,
@@ -4960,7 +4992,7 @@
           "test_order_gain_bits": 0.31183760047632014,
           "test_order_p": 0.05,
           "weights_sha256": "bff39e03851c2ab172384612194686b3d427f3683a8691a9407324fd130551bf",
-          "eval_seconds": 0.06481307400008518
+          "eval_seconds": 0.06532828699999982
         }
       },
       "full_data": {
@@ -4981,10 +5013,10 @@
           "test_order_gain_bits": 0.27795807227867453,
           "test_order_p": 0.05,
           "weights_sha256": "462d087093f8c0c9d58ada16da4d4f43ff28de596f17e5131e1830a1ea77ea70",
-          "eval_seconds": 0.06979588500007594,
+          "eval_seconds": 0.06455938700003117,
           "training": {
             "command": "python -m tracks.llm.train --anchor v4 --manifest tracks/llm/data/sessions/index.json --family stars --variants real --epochs 1000 --patience 50 --seed 44 --output full-theta0",
-            "seconds": 8.155310981000184,
+            "seconds": 8.193065047000005,
             "best_epoch": 182,
             "epochs_run": 232,
             "training_targets": 1260
@@ -5007,10 +5039,10 @@
           "test_order_gain_bits": 0.30001545432041543,
           "test_order_p": 0.05,
           "weights_sha256": "e48b69c1f806f5ffaee2ecb4b7feedea7171aefd7f5bd85b28b40edddaf798fb",
-          "eval_seconds": 0.07094500200037146,
+          "eval_seconds": 0.0657984950000241,
           "training": {
             "command": "python -m tracks.llm.train --anchor v4 --manifest tracks/llm/data/sessions/index.json --family stars --variants real --epochs 1000 --patience 50 --seed 44 --output full-base --start base/merged.pt",
-            "seconds": 7.173239560000184,
+            "seconds": 6.662289509999994,
             "best_epoch": 142,
             "epochs_run": 192,
             "training_targets": 1260

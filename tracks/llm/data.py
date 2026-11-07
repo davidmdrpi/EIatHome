@@ -76,6 +76,8 @@ def load_slices(manifest_path, slice_id=None):
         previous = families_by_hash.setdefault(record["frame_hash"], record["entry"].get("family"))
         if previous != record["entry"].get("family"):
             raise ValueError("Identical signal windows cannot be both signal and off-source controls")
+    if slice_id is None:
+        mark_sessions(records)
     return sorted(records, key=lambda r: (r["start"], r["sha256"], r["entry"]["id"]))
 
 
@@ -103,6 +105,28 @@ def groups(records, gap_days):
     for i, record in enumerate(records):
         out.setdefault(root(i), []).append(record)
     return sorted(out.values(), key=lambda g: (min(r["start"] for r in g), min(r["sha256"] for r in g)))
+
+
+def mark_sessions(records):
+    """Records each slice's observing session, found among all the manifest's slices, every family:
+    a control scan between two others joins them into one session, as split_records counts them,
+    even after a split keeps one family. A session is named by its slices' smallest content hash."""
+    for group in groups(records, SESSION_GAP_DAYS):
+        key = min(r["sha256"] for r in group)
+        for r in group:
+            r["session"] = key
+
+
+def session_groups(records):
+    """`records` by observing session, in time order: by the sessions load_slices marked, which
+    a subset of the manifest (one family's training split, say) keeps, or else found among
+    `records` alone."""
+    if not records or any("session" not in r for r in records):
+        return groups(records, SESSION_GAP_DAYS)
+    by = {}
+    for r in records:
+        by.setdefault(r["session"], []).append(r)
+    return sorted(by.values(), key=lambda g: (min(r["start"] for r in g), min(r["sha256"] for r in g)))
 
 
 def dataset_digest(records):

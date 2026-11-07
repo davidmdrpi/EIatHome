@@ -70,6 +70,33 @@ class SessionShardTests(unittest.TestCase):
             with self.assertRaises(ValueError):
                 merge.shard_records(train, 1, 2, "scan")
 
+    def test_a_session_another_familys_scan_holds_together_stays_in_one_shard(self):
+        """Two hit scans 0.8 days apart are one session only through a blind window between them,
+        as split_records counts sessions; sharding the hits alone mustn't split that session."""
+        with tempfile.TemporaryDirectory() as tmp:
+            folder = Path(tmp)
+            rng = np.random.default_rng(1)
+            entries = []
+            for name, family, mjd in (("a", "stars", 58000.0), ("bridge", "blind-window", 58000.4), ("b", "stars", 58000.8),
+                                      ("c", "stars", 58002.0), ("d", "stars", 58004.0), ("e", "stars", 58006.0), ("f", "stars", 58008.0)):
+                payload = rng.standard_normal((16, 64)).astype("<f4").tobytes()
+                (folder / f"{name}.bin").write_bytes(payload)
+                entries.append({"id": name, "family": family, "group": family, "file": f"{name}.bin", "dtype": "float32-le",
+                                "shape": [16, 64], "sha256": digest(payload),
+                                "source": {"tstart_mjd": mjd, "product": "fine_resolution"}})
+            (folder / "index.json").write_text(json.dumps({"format": "eiathome-slices", "version": 1, "slices": entries}))
+            records = load_slices(folder / "index.json")
+            train = split_records(records, "stars")[0]["train"]
+            self.assertEqual(sorted(r["entry"]["id"] for r in train), ["a", "b", "c", "d"])
+            self.assertEqual(len(groups(train, SESSION_GAP_DAYS)), 4, "the hits alone look like four sessions")
+            shards = [{r["entry"]["id"] for r in merge.shard_records(train, i, 2, "session")} for i in (1, 2)]
+            self.assertEqual(shards[0] | shards[1], {"a", "b", "c", "d"})
+            self.assertFalse(shards[0] & shards[1])
+            self.assertTrue(any({"a", "b"} <= shard for shard in shards), f"a and b stay together: {shards}")
+            listed = bench.sessions_of(train)
+            self.assertEqual(len(listed), 3, "split.json lists them as one session too")
+            self.assertEqual({e["id"] for e in listed[0]["slices"]}, {"a", "b"})
+
     def test_a_shard_unit_needs_a_shard(self):
         with tempfile.TemporaryDirectory() as tmp:
             manifest = write_corpus(Path(tmp))
@@ -179,16 +206,50 @@ class BenchmarkTests(unittest.TestCase):
                 self.assertEqual(weights_digest(rebuilt["model"]), weights_digest(original["model"]))
                 self.assertEqual(rebuilt["splits"], original["splits"])
                 self.assertEqual(rebuilt["merge"], original["merge"])
-                self.assertEqual(bench.verify(self.manifest, folder), [1])
+                self.assertEqual(bench.verify(self.manifest, folder, seeds=(1,)), [1])
 
                 worker = folder / "checkpoints" / "seed1" / "worker4.bin"
                 data = bytearray(worker.read_bytes())
                 data[100] ^= 1
                 worker.write_bytes(bytes(data))
                 with self.assertRaisesRegex(ValueError, "SHA-256"):
-                    bench.verify(self.manifest, folder)
+                    bench.verify(self.manifest, folder, seeds=(1,))
             with mock.patch.object(bench, "SPLIT_SHA256", "0" * 64), self.assertRaisesRegex(ValueError, "pinned"):
                 bench.check_split(self.manifest, folder)
+
+    def test_verify_needs_every_seed_and_every_checkpoint(self):
+        """An incomplete publication fails: no checkpoints at all, a missing seed or file, or an extra one."""
+        with tempfile.TemporaryDirectory() as tmp:
+            folder = Path(tmp)
+            split = bench.build_split(self.manifest)
+            (folder / "split.json").write_text(bench.split_text(split))
+            pin = digest(bench.split_text(split).encode())
+            with mock.patch.object(bench, "SPLIT_SHA256", pin):
+                (folder / "report.json").write_text(json.dumps(self.report))
+                with self.assertRaisesRegex(ValueError, "holds nothing; the benchmark publishes seed1"):
+                    bench.verify(self.manifest, folder, seeds=(1,))
+                bench.publish(self.report, {1: bench.cohort_paths(self.output, 1)}, ANCHOR, folder)
+                self.assertEqual(bench.verify(self.manifest, folder, seeds=(1,)), [1])
+                with self.assertRaisesRegex(ValueError, "covers seeds 1; the benchmark's are 1, 2"):
+                    bench.verify(self.manifest, folder, seeds=(1, 2))
+                with self.assertRaisesRegex(ValueError, "holds seed1; the benchmark publishes seed1, seed2"):
+                    bench.materialize(folder / "out", self.manifest, folder, seeds=(1, 2))
+                seed = folder / "checkpoints" / "seed1"
+                for name in ("worker5.bin", "base.json"):
+                    moved = seed / name
+                    moved.rename(folder / name)
+                    with self.assertRaisesRegex(ValueError, f"missing {name}"):
+                        bench.verify(self.manifest, folder, seeds=(1,))
+                    (folder / name).rename(moved)
+                (seed / "worker6.bin").write_bytes(b"")
+                with self.assertRaisesRegex(ValueError, "unexpected worker6.bin"):
+                    bench.verify(self.manifest, folder, seeds=(1,))
+                (seed / "worker6.bin").unlink()
+                for path in seed.iterdir():
+                    path.unlink()
+                seed.rmdir()
+                with self.assertRaisesRegex(ValueError, "holds nothing"):
+                    bench.verify(self.manifest, folder, seeds=(1,))
 
     def test_publishing_is_only_for_the_frozen_settings(self):
         args = bench.argparse.Namespace(output=Path(self.tmp.name) / "again", manifest=self.manifest, seeds=[1], epochs=2, rounds=2,

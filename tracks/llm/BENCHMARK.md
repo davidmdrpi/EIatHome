@@ -16,6 +16,8 @@ Bits per token on the 7 test sessions (lower is better): the mean over seeds 42,
 | Arm | Test | Worst test session | Validation |
 |---|---:|---:|---:|
 | θ₀, untrained | 5.33 | 5.70 | 5.39 |
+| token frequencies (unigram), fitted on the training sessions | 2.090 | 3.92 | 2.422 |
+| first-order Markov chain, fitted on the training sessions | 1.488 | 3.06 | 1.612 |
 | base (shard 1, 5 sessions) | 1.665 | 3.46 | 1.745 |
 | one worker (a volunteer's 4–5 new sessions, from the base): mean of 4 | 1.558 | 3.17 | 1.687 |
 | best worker, chosen on validation | **1.344** | **2.42** | 1.558 |
@@ -33,8 +35,9 @@ Bits per token on the 7 test sessions (lower is better): the mean over seeds 42,
   three reach 1.57 to 1.66. Worker 3's best epoch was its first: its sessions didn't help on
   validation at all.
 - **No one-shot merge beats the best worker.** The plain average and TIES dilute shard 5's
-  contribution with the other three (each is weighted by its training targets). The greedy soup
-  tries the workers best first and keeps only shard 5.
+  contribution with the other three (each is weighted by its training targets). They end up
+  about level with a first-order Markov chain fitted on the training sessions (1.50 and 1.49
+  against 1.488). The greedy soup tries the workers best first and keeps only shard 5.
 - **Ten rounds of plain averaging nearly match the best worker and the full-data model.** At
   1.358, they're within 0.03 bits of one model trained on every training session.
 - **DiLoCo's outer momentum doesn't help here.** It's level on validation (1.550 against 1.558)
@@ -49,6 +52,13 @@ So the gap is not "merging can't work". The plain merges here can't tell a volun
 sessions from unhelpful ones, and the shard that helps on average isn't the one that helps on
 every new session. That leaves room for selective, layer-wise or routed combination, which the
 next benchmark tests against these baselines.
+
+**What v0 is for now.** Its test scores have been seen, and its training budget was revised after
+the first run (below). So v0 is a public development and replay benchmark: methods can be
+built and compared on it, and its checkpoints reused. A method's claim to generalize needs
+sessions nobody has looked at yet. For the next milestone, its editor and selection procedure
+should be frozen first, then scored once on a fresh cohort of sessions (a new draw from the
+pipeline index, a new split and a new benchmark version).
 
 ## The data and the split
 
@@ -78,7 +88,8 @@ version.
 Fixed before the run reported above (the module's docstring has it in full):
 
 - **The cohort.** The 23 training sessions go into 5 session shards (`--shard-unit session`: 5,
-  5, 5, 4 and 4 sessions). Shard 1 trains the base from θ₀, recorded as round 1 of a merge
+  5, 5, 4 and 4 sessions). Sessions are the manifest's, found among every family's slices, as
+  `split_records` finds them: a blind window that links two hit scans keeps them in one shard. Shard 1 trains the base from θ₀, recorded as round 1 of a merge
   chain. Shards 2 to 5 are four volunteers, each training from the base on its own sessions. No
   two contributors share a session, and none trains on a held-out one.
 - **Training.** Up to 1,000 epochs, stopping once validation hasn't improved for 50 and keeping
@@ -87,6 +98,8 @@ Fixed before the run reported above (the module's docstring has it in full):
 - **Merging.** `merge.py`'s rules and gate: every worker and merge must be within 0.02 bits of
   the incumbent on validation. The one-shot merges start from the base; the chains continue its
   chain for 10 rounds. DiLoCo uses lr 0.7 and Nesterov momentum 0.9; TIES keeps 20%.
+- **Baselines.** A unigram and a first-order Markov chain over the tokens, fitted on every
+  training session with add-one smoothing (`train.py`'s), scored on the same sets.
 - **Selection and reporting.** Everything is chosen on validation. Test is scored once
   everything is chosen: the mean over test targets, the worst test session, the blind-window
   control, and the order gain (how many fewer bits the model needs for the test tokens in their
@@ -149,8 +162,9 @@ a larger corpus can (the draw takes `--sessions`).
   - its SHA-256.
 
 ```bash
-python -m tracks.llm.session_bench verify                 # the split's pin; each checkpoint's hash, start and shard;
-                                                          # the one-shot merges replayed and rescored against report.json
+python -m tracks.llm.session_bench verify                 # the split's pin; every seed's base and workers 2-5, all present,
+                                                          # each one's hash, start and shard; the one-shot merges and the
+                                                          # baselines recomputed against report.json
 python -m tracks.llm.session_bench materialize --output runs/sessions-v0-checkpoints   # as .pt files merge.py and sample.py load
 python -m tracks.llm.merge round --start runs/sessions-v0-checkpoints/seed42/base.pt \
   --anchor v4 --output runs/my-merge runs/sessions-v0-checkpoints/seed42/worker*.pt   # any rule, from the published cohort
