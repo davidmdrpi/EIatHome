@@ -307,6 +307,22 @@ python -m tracks.llm.session_bench materialize --output runs/sessions-v0-checkpo
 python -m tracks.llm.session_bench run --output runs/sessions-bench   # about 5 minutes on a CPU
 ```
 
+### Weight-space programming: editing the workers' weights
+
+[wsp_bench.py](wsp_bench.py) (results in [WSP_RESULTS.md](WSP_RESULTS.md)) starts from the session
+benchmark's published cohort. Merge methods write programs in one bounded edit language
+(combine, trim, low-rank and reset, per group of tensors). One validator applies them, and each
+method gets the same 32 validation queries. The methods are random search, coordinate search
+and an LLM editor (with an anonymized ablation); a specialist bank is scored beside them. Every
+pick is published as an edit artifact that replays bit for bit
+([benchmarks/wsp-v0](benchmarks/wsp-v0)).
+
+```bash
+python -m tracks.llm.wsp_bench verify                 # replay every published pick and query
+python -m tracks.llm.wsp_bench context --seed 42      # what the editor reads first
+python -m tracks.llm.wsp_bench run --output runs/wsp  # the controls (about 20 s); --methods llm needs ANTHROPIC_API_KEY
+```
+
 ## What the pipeline learns
 
 1. Verify each slice's SHA-256, shape, finite samples and start time. Take one fixed central

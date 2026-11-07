@@ -15,6 +15,12 @@ first such file by name. `draw` writes the pool file `tools/extract_slices.py --
     python tools/extract_slices.py --pool tracks/llm/data/sessions/pool.json \\
         --out tracks/llm/data/sessions --width 64 --product fine_resolution
 
+A later draw for a fresh benchmark version excludes every session an earlier pool drew (whether or
+not it was cut), so no session is in two versions:
+
+    python -m tracks.llm.sessions_corpus draw --output tracks/llm/data/sessions-v1/pool.json \
+        --seed 20261108 --id llm-sessions/v2 --exclude tracks/llm/data/sessions/pool.json
+
 The listings are parsed as text, nothing fetched is executed, and the pool records each file's
 URL, so the draw and the cut can both be repeated and checked.
 """
@@ -30,6 +36,7 @@ import urllib.request
 BASE = "https://bldata.berkeley.edu/pipeline/"
 SEED = 20261107
 SESSIONS = 60
+POOL_ID = "llm-sessions/v1"
 STAR = re.compile(r"^(HIP\d+|GJ\d+[A-Z]?)$")
 # blc00_guppi_57774_83685_LHS1140_0003.gpuspec.0000.h5, and spliced_blc..._guppi_... files.
 SCAN = re.compile(r"_guppi_(\d+)_(\d+)_(.+)_(\d{4})\.(?:gpuspec|rawspec)\.0000\.h5$")
@@ -65,10 +72,16 @@ def star_scans(session, listing, fetch_text, max_subdirs=4):
     return found
 
 
-def draw(sessions=SESSIONS, seed=SEED, fetch_text=fetch, log=print):
-    """The pool: one scan per drawn session, in draw order."""
+def excluded_sessions(pools):
+    """Every session the given pool files drew."""
+    return sorted({t["session"] for path in pools for t in json.loads(Path(path).read_text())["targets"]})
+
+
+def draw(sessions=SESSIONS, seed=SEED, fetch_text=fetch, log=print, exclude=(), pool_id=POOL_ID):
+    """The pool: one scan per drawn session, in draw order, never one of `exclude`."""
     table = index(fetch_text(BASE))
-    candidates = sorted(s for s, targets in table.items() if any(STAR.match(t) for t in targets))
+    skip = set(exclude)
+    candidates = sorted(s for s, targets in table.items() if any(STAR.match(t) for t in targets) and s not in skip)
     order = random.Random(seed).sample(candidates, len(candidates))
     targets = []
     for session in order:
@@ -89,13 +102,15 @@ def draw(sessions=SESSIONS, seed=SEED, fetch_text=fetch, log=print):
                         "session": session, "urls": [url], "hits": 6, "blind": 2})
         log(f"{session}: {url.rsplit('/', 1)[-1]}")
     return {
-        "id": "llm-sessions/v1",
+        "id": pool_id,
         "about": (f"The sessions corpus (tracks/llm/sessions_corpus.py): {len(targets)} Green Bank observing sessions drawn at random "
-                  f"(seed {seed}) from the {len(candidates)} in bldata.berkeley.edu's pipeline index with a Hipparcos or Gliese target, "
+                  f"(seed {seed}) from the {len(candidates)} in bldata.berkeley.edu's pipeline index with a Hipparcos or Gliese target"
+                  + (f" and not drawn before ({len(skip)} excluded)" if skip else "") + ", "
                   "one on-target fine-resolution scan each. From each scan: up to `hits` on-target hits (family stars) and `blind` "
                   "blind windows (family blind-window), 64 channels by 16 time steps, as the Live Lab's pool cuts them."),
         "seed": seed,
-        "draw": {"index": BASE, "candidates": len(candidates), "sessions": sessions, "star_targets": STAR.pattern},
+        "draw": {"index": BASE, "candidates": len(candidates), "sessions": sessions, "star_targets": STAR.pattern,
+                 **({"excluded_sessions": len(skip)} if skip else {})},
         "threshold": 10,
         "limits": {"max_slices": 8 * sessions, "max_bytes": 8 * sessions * 16 * 64 * 4, "max_targets": 0},
         "targets": targets,
@@ -109,8 +124,10 @@ def main(argv=None):
     d.add_argument("--output", type=Path, required=True)
     d.add_argument("--sessions", type=int, default=SESSIONS)
     d.add_argument("--seed", type=int, default=SEED)
+    d.add_argument("--id", default=POOL_ID, help="the pool's id (a new one for a new draw)")
+    d.add_argument("--exclude", type=Path, nargs="*", default=[], help="pool files whose sessions this draw skips")
     args = p.parse_args(argv)
-    pool = draw(args.sessions, args.seed)
+    pool = draw(args.sessions, args.seed, exclude=excluded_sessions(args.exclude), pool_id=args.id)
     args.output.parent.mkdir(parents=True, exist_ok=True)
     args.output.write_text(json.dumps(pool, indent=2) + "\n")
     print(f"{len(pool['targets'])} sessions written to {args.output}")

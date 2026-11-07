@@ -47,6 +47,31 @@ def write_corpus(folder, sessions=12, hits=3, blind=1, seed=0):
     return folder / "index.json"
 
 
+class DrawTests(unittest.TestCase):
+    def test_a_later_draw_never_takes_a_session_an_earlier_pool_drew(self):
+        from tracks.llm import sessions_corpus as corpus
+
+        names = [f"AGBT{k:02d}A_999_01" for k in range(10)]
+        rows = "".join(f'<tr><td><a href="{n}/">{n}/</a></td><td> HIP{k} </td></tr>' for k, n in enumerate(names))
+        pages = {corpus.BASE: f"<table>{rows}</table>"}
+        for k, n in enumerate(names):
+            pages[f"{corpus.BASE}{n}/"] = f'<a href="blc00_guppi_58000_1000{k}_HIP{k}_0001.gpuspec.0000.h5">x</a>'
+        quiet = lambda *a: None
+        first = corpus.draw(sessions=4, seed=1, fetch_text=pages.__getitem__, log=quiet)
+        self.assertEqual(first["id"], "llm-sessions/v1")
+        self.assertNotIn("excluded_sessions", first["draw"])
+        with tempfile.TemporaryDirectory() as tmp:
+            pool = Path(tmp) / "pool.json"
+            pool.write_text(json.dumps(first))
+            skip = corpus.excluded_sessions([pool])
+            second = corpus.draw(sessions=6, seed=1, fetch_text=pages.__getitem__, log=quiet, exclude=skip, pool_id="llm-sessions/v2")
+        taken = lambda p: {t["session"] for t in p["targets"]}
+        self.assertEqual(len(taken(first)), 4)
+        self.assertFalse(taken(first) & taken(second))
+        self.assertEqual(taken(first) | taken(second), set(names))
+        self.assertEqual((second["id"], second["draw"]["excluded_sessions"], second["draw"]["candidates"]), ("llm-sessions/v2", 4, 6))
+
+
 class SessionShardTests(unittest.TestCase):
     def test_session_shards_are_whole_disjoint_sessions_that_cover_the_training_split(self):
         with tempfile.TemporaryDirectory() as tmp:
