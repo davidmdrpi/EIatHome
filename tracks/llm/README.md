@@ -323,6 +323,22 @@ python -m tracks.llm.wsp_bench context --seed 42      # what the editor reads fi
 python -m tracks.llm.wsp_bench run --output runs/wsp  # the controls (about 20 s); --methods llm needs ANTHROPIC_API_KEY
 ```
 
+### The volunteer checkpoint pilot
+
+[pilot.py](pilot.py) ([PILOT.md](PILOT.md)) collects volunteers' own training runs on the session
+benchmark's shards. Each arrives as a versioned delta artifact in a GitHub issue, carrying its
+anchor, tokenizer, dataset, round and shard identities. The coordinator (CI) checks each one,
+evaluates it independently, retrains its shard to see whether it replicates, and stores it by
+content address. A maintainer merges the round once two or more volunteers have contributed. Each
+shard's weight is capped at its share, every event is recorded in a ledger, and rounds can be
+rolled back.
+
+```bash
+python -m tracks.llm.pilot status                         # the open round and each shard's coverage
+python -m tracks.llm.pilot contribute --output my-run     # train a shard; writes the issue to open
+python -m tracks.llm.pilot verify                         # replay the ledger
+```
+
 ## What the pipeline learns
 
 1. Verify each slice's SHA-256, shape, finite samples and start time. Take one fixed central

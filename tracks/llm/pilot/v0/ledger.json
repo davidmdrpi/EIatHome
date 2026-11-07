@@ -1,0 +1,11 @@
+{
+ "format": "eiathome-checkpoint-ledger",
+ "version": 1,
+ "pilot": "signal-lm-pilot/v0",
+ "start": {
+  "round": 1,
+  "weights_sha256": "ffbaa49dd11479e9f6b8baac10aa349bff86334b54dcb1f6c1e88564931e11da",
+  "checkpoint": "tracks/llm/benchmarks/sessions-v0/checkpoints/seed42/base.bin"
+ },
+ "events": []
+}

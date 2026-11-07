@@ -1,20 +1,29 @@
 #!/usr/bin/env node
-// Records work-unit result issues: validates each card with tools/ingest_result.mjs, commits
-// accepted cards to main, replies on the issue and labels it. Run from the repository root by
-// .github/workflows/ingest-results.yml, with GH_TOKEN and GITHUB_REPOSITORY set.
+// Records submissions made as issues, of two kinds:
 //
-// Usage: node tools/ingest_issues.mjs <issue number>...   record these issues
-//        node tools/ingest_issues.mjs --pending          record every open result issue that
-//                                                        isn't recorded or rejected yet
+// - result (the default): work-unit result cards, titled "Work unit result: ...", validated by
+//   tools/ingest_result.mjs and appended to web/data/community_results.json; the Live Lab is
+//   redeployed (.github/workflows/ingest-results.yml);
+// - checkpoint: checkpoint contributions to the volunteer pilot, titled "Checkpoint contribution:
+//   ...", checked by `python -m tracks.llm.pilot ingest` and stored under tracks/llm/pilot
+//   (.github/workflows/ingest-checkpoints.yml; tracks/llm/PILOT.md).
+//
+// Each accepted submission is committed to main, and the issue gets a reply and a label. Run from
+// the repository root, with GH_TOKEN and GITHUB_REPOSITORY set.
+//
+// Usage: node tools/ingest_issues.mjs [--kind checkpoint] <issue number>...   record these issues
+//        node tools/ingest_issues.mjs [--kind checkpoint] --pending          record every open issue
+//                                                                            of the kind that isn't
+//                                                                            recorded or rejected yet
 //
 // --pending is the retry path. It picks up issues whose run was cancelled (a full concurrency
-// queue), failed, or never started, and issues labelled work-unit-pending because saving failed.
-// Issues already labelled work-unit or work-unit-rejected are skipped, so re-running is safe.
-// An issue is labelled work-unit only after its card is on main and a Pages deploy was
-// requested, so a run that fails after the push leaves the publication to the next run.
+// queue), failed, or never started, and issues labelled work-unit-pending (checkpoint-pending)
+// because saving failed. Issues already labelled recorded or rejected are skipped, so re-running
+// is safe. A result issue is labelled work-unit only after its card is on main and a Pages deploy
+// was requested, so a run that fails after the push leaves the publication to the next run.
 //
-// The issue text is untrusted. It is only written to a file for ingest_result.mjs to parse as
-// JSON. gh and git run without a shell, with issue numbers and fixed strings as arguments.
+// The issue text is untrusted. It is only written to a file for the validator to parse. gh and
+// git run without a shell, with issue numbers and fixed strings as arguments.
 //
 // It resets the working tree to origin/main before each issue, so it only runs in CI
 // (GITHUB_ACTIONS=true), never in a working copy with changes to lose.
@@ -25,16 +34,44 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-const TITLE_PREFIX = 'Work unit result:';
 const RESULTS = 'web/data/community_results.json';
 const SLICES = 'web/data/slices';
-const LABELS = {
-  recorded: ['work-unit', '1D76DB', 'Work-unit result card'],
-  rejected: ['work-unit-rejected', 'D93F0B', 'Result card that could not be recorded'],
-  pending: ['work-unit-pending', 'FBCA04', 'Valid result card waiting to be saved; retried automatically'],
-};
 const INGEST = fileURLToPath(new URL('./ingest_result.mjs', import.meta.url));
 const SAVE_ATTEMPTS = 3;
+
+// What differs between the kinds: the title, the validator (run as command + args), the paths it
+// writes, the labels, and whether the Live Lab is redeployed before an issue counts as published.
+const KINDS = {
+  result: {
+    prefix: 'Work unit result:',
+    validator: (event, comment) => [process.execPath, [INGEST, event, comment, RESULTS, SLICES]],
+    paths: [RESULTS],
+    commit: (n) => `Add work-unit result from #${n}`,
+    deploy: true,
+    labels: {
+      recorded: ['work-unit', '1D76DB', 'Work-unit result card'],
+      rejected: ['work-unit-rejected', 'D93F0B', 'Result card that could not be recorded'],
+      pending: ['work-unit-pending', 'FBCA04', 'Valid result card waiting to be saved; retried automatically'],
+    },
+  },
+  checkpoint: {
+    prefix: 'Checkpoint contribution:',
+    // EIATHOME_PYTHON lets the tests stand in a fake validator; CI uses the job's python.
+    validator: (event, comment) => [process.env.EIATHOME_PYTHON || 'python', ['-m', 'tracks.llm.pilot', 'ingest', event, comment]],
+    paths: ['tracks/llm/pilot'],
+    commit: (n) => `Add checkpoint contribution from #${n}`,
+    deploy: false,
+    labels: {
+      recorded: ['checkpoint', '1D76DB', 'Checkpoint contribution recorded by the pilot'],
+      rejected: ['checkpoint-rejected', 'D93F0B', 'Checkpoint contribution that could not be accepted'],
+      pending: ['checkpoint-pending', 'FBCA04', 'Checkpoint contribution waiting to be checked or saved; retried automatically'],
+    },
+  },
+};
+const argv = process.argv.slice(2);
+const kindName = argv.includes('--kind') ? argv[argv.indexOf('--kind') + 1] : 'result';
+const KIND = KINDS[kindName];
+const LABELS = KIND?.labels;
 
 const repo = process.env.GITHUB_REPOSITORY;
 const work = mkdtempSync(join(tmpdir(), 'eiathome-ingest-'));
@@ -44,7 +81,7 @@ const gh = (...args) => run('gh', args);
 const git = (...args) => run('git', args);
 
 const labelsOf = (issue) => (issue.labels ?? []).map((l) => (typeof l === 'string' ? l : l.name));
-const isOpenResult = (issue) => issue.state.toLowerCase() === 'open' && !issue.pull_request && String(issue.title).startsWith(TITLE_PREFIX);
+const isOpenResult = (issue) => issue.state.toLowerCase() === 'open' && !issue.pull_request && String(issue.title).startsWith(KIND.prefix);
 const isSettled = (issue) => labelsOf(issue).some((l) => l === LABELS.recorded[0] || l === LABELS.rejected[0]);
 
 function pendingIssues() {
@@ -59,14 +96,15 @@ function ingest(issue) {
   writeFileSync(event, JSON.stringify({ issue }));
   writeFileSync(comment, '');
   const env = { ...process.env, GITHUB_OUTPUT: '' };
-  const result = spawnSync(process.execPath, [INGEST, event, comment, RESULTS, SLICES], { encoding: 'utf8', env, stdio: ['ignore', 'pipe', 'inherit'] });
+  const [command, args] = KIND.validator(event, comment);
+  const result = spawnSync(command, args, { encoding: 'utf8', env, stdio: ['ignore', 'pipe', 'inherit'] });
   let status = 'error';
   try {
     status = JSON.parse(result.stdout.trim().split('\n').pop()).status ?? 'error';
   } catch {
     // the script crashed before reporting a status
   }
-  return { status, comment: readFileSync(comment, 'utf8').trim() || 'Something went wrong while recording this card.' };
+  return { status, comment: readFileSync(comment, 'utf8').trim() || 'Something went wrong while recording this submission.' };
 }
 
 // Commits the accepted card and pushes it to main. If main moved on, starts again from the new
@@ -77,8 +115,8 @@ function ingestAndSave(issue) {
     git('reset', '--quiet', '--hard', 'origin/main');
     const outcome = ingest(issue);
     if (outcome.status !== 'accepted') return outcome;
-    git('add', RESULTS);
-    git('commit', '--quiet', '-m', `Add work-unit result from #${issue.number}`);
+    git('add', ...KIND.paths);
+    git('commit', '--quiet', '-m', KIND.commit(issue.number));
     if (tryRun('git', ['push', '--quiet', 'origin', 'HEAD:main'])) return outcome;
     git('reset', '--quiet', '--hard', 'origin/main');
     if (attempt === SAVE_ATTEMPTS) return { status: 'unsaved', comment: outcome.comment };
@@ -130,8 +168,8 @@ function settle({ issue, status, comment }, published) {
 async function main() {
   if (process.env.GITHUB_ACTIONS !== 'true') throw new Error('This resets the working tree to origin/main, so it only runs in CI (GITHUB_ACTIONS=true).');
   if (!repo) throw new Error('Set GITHUB_REPOSITORY (owner/name).');
-  const args = process.argv.slice(2);
-  const numbers = args.includes('--pending') ? pendingIssues() : args.filter((a) => /^\d+$/.test(a)).map(Number);
+  if (!KIND) throw new Error(`Unknown --kind ${kindName}: ${Object.keys(KINDS).join(' or ')}`);
+  const numbers = argv.includes('--pending') ? pendingIssues() : argv.filter((a) => /^\d+$/.test(a)).map(Number);
   for (const [name, color, description] of Object.values(LABELS)) gh('label', 'create', name, '--repo', repo, '--color', color, '--description', description, '--force');
 
   let failed = 0;
@@ -156,8 +194,9 @@ async function main() {
   // with the card on main. Until then the issue stays open and unlabelled, so whichever run
   // comes next finds the card already stored ("recorded") and requests the deploy again.
   // (Pushes made with the workflow token don't trigger other workflows, hence the request.)
-  let published = false;
-  if (outcomes.some((o) => o.status === 'accepted' || o.status === 'recorded')) {
+  // Checkpoint contributions aren't shown in the Live Lab, so they're published once on main.
+  let published = !KIND.deploy;
+  if (KIND.deploy && outcomes.some((o) => o.status === 'accepted' || o.status === 'recorded')) {
     try {
       gh('workflow', 'run', 'pages.yml', '--repo', repo, '--ref', 'main');
       published = true;
