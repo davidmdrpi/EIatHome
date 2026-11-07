@@ -42,6 +42,9 @@ jobs:
       - run: python -m unittest discover -s tests -p 'test_llm_sessions.py' -v
       # The session benchmark's published checkpoints: hashes, provenance, and their one-shot merges replayed.
       - run: python -m tracks.llm.session_bench verify
+      - run: python -m unittest discover -s tests -p 'test_llm_wsp.py' -v
+      # The WSP benchmark's published picks: every edit program and query replayed from the cohort, and rescored.
+      - run: python -m tracks.llm.wsp_bench verify
 
   extract-slices:
     runs-on: ubuntu-latest

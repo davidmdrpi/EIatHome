@@ -1,0 +1,2975 @@
+{
+ "format": "eiathome-wsp-edit",
+ "version": 1,
+ "benchmark": "signal-lm-wsp-bench/v0",
+ "sessions_benchmark": "signal-lm-sessions-bench/v0",
+ "split_sha256": "4023ba4f1795914b34aced6b093da765a2680554d8bb74f62dcd4fb32decc418",
+ "protocol_sha256": "868d40e61949d46970adb31030fcd36b26cab63ad12f191fef55e5463761547f",
+ "seed": 43,
+ "method": "coordinate",
+ "inputs": {
+  "base": "9a0e52b6db3a65de062ad3981e8557d4e834af4dd448d74728923a845e29e6ac",
+  "w2": "3ed48dedabf5290985817bcdd007ef9aa70b7b2fb482555623a442ee6c00f940",
+  "w3": "e56f8976d860df4e4efd59929505243538ba6b3a605872f8a50d6ab516ac06d5",
+  "w4": "78e93fda7eaac6f43715b530efc6abc70b58f02e5f282583e92d915f4f28600c",
+  "w5": "6aa78761de1b92f200d75d7f1b7f4d46a215b52a5457168906bc6c9b668f51e1"
+ },
+ "budget": 32,
+ "references": {
+  "base": {
+   "program": {
+    "start": "base",
+    "ops": []
+   },
+   "validation": 1.7459317372295904,
+   "validation_sessions": [
+    1.0802721636017343,
+    0.7331858888890729,
+    2.3209584924410933,
+    3.891476298298576,
+    1.0786971999908461,
+    1.011630606977776,
+    1.3077542426791877
+   ]
+  },
+  "average": {
+   "program": {
+    "start": "average",
+    "ops": []
+   },
+   "validation": 1.6498831589011747,
+   "validation_sessions": [
+    1.0045576041450868,
+    0.5963021912069899,
+    2.1855683685358365,
+    3.6670832416534727,
+    1.0804701653167543,
+    0.9941438880032641,
+    1.209380533281983
+   ]
+  },
+  "w2 alone": {
+   "program": {
+    "start": "base",
+    "ops": [
+     {
+      "op": "combine",
+      "group": "embed",
+      "weights": {
+       "w2": 1.0
+      }
+     },
+     {
+      "op": "combine",
+      "group": "block0.attention",
+      "weights": {
+       "w2": 1.0
+      }
+     },
+     {
+      "op": "combine",
+      "group": "block0.feed-forward",
+      "weights": {
+       "w2": 1.0
+      }
+     },
+     {
+      "op": "combine",
+      "group": "block1.attention",
+      "weights": {
+       "w2": 1.0
+      }
+     },
+     {
+      "op": "combine",
+      "group": "block1.feed-forward",
+      "weights": {
+       "w2": 1.0
+      }
+     },
+     {
+      "op": "combine",
+      "group": "final-norm",
+      "weights": {
+       "w2": 1.0
+      }
+     },
+     {
+      "op": "combine",
+      "group": "head",
+      "weights": {
+       "w2": 1.0
+      }
+     }
+    ]
+   },
+   "validation": 1.7322019017315382,
+   "validation_sessions": [
+    1.0562638135869948,
+    0.663061636964231,
+    2.2474187720815433,
+    4.020505662970855,
+    1.0329419265904196,
+    1.020367142193446,
+    1.2534557884247013
+   ]
+  },
+  "w3 alone": {
+   "program": {
+    "start": "base",
+    "ops": [
+     {
+      "op": "combine",
+      "group": "embed",
+      "weights": {
+       "w3": 1.0
+      }
+     },
+     {
+      "op": "combine",
+      "group": "block0.attention",
+      "weights": {
+       "w3": 1.0
+      }
+     },
+     {
+      "op": "combine",
+      "group": "block0.feed-forward",
+      "weights": {
+       "w3": 1.0
+      }
+     },
+     {
+      "op": "combine",
+      "group": "block1.attention",
+      "weights": {
+       "w3": 1.0
+      }
+     },
+     {
+      "op": "combine",
+      "group": "block1.feed-forward",
+      "weights": {
+       "w3": 1.0
+      }
+     },
+     {
+      "op": "combine",
+      "group": "final-norm",
+      "weights": {
+       "w3": 1.0
+      }
+     },
+     {
+      "op": "combine",
+      "group": "head",
+      "weights": {
+       "w3": 1.0
+      }
+     }
+    ]
+   },
+   "validation": 1.74580998714744,
+   "validation_sessions": [
+    1.0719154883779436,
+    0.7272399670973231,
+    2.3199779008715873,
+    3.8967593607355333,
+    1.081467511818291,
+    1.008388490940199,
+    1.3129722421684056
+   ]
+  },
+  "w4 alone": {
+   "program": {
+    "start": "base",
+    "ops": [
+     {
+      "op": "combine",
+      "group": "embed",
+      "weights": {
+       "w4": 1.0
+      }
+     },
+     {
+      "op": "combine",
+      "group": "block0.attention",
+      "weights": {
+       "w4": 1.0
+      }
+     },
+     {
+      "op": "combine",
+      "group": "block0.feed-forward",
+      "weights": {
+       "w4": 1.0
+      }
+     },
+     {
+      "op": "combine",
+      "group": "block1.attention",
+      "weights": {
+       "w4": 1.0
+      }
+     },
+     {
+      "op": "combine",
+      "group": "block1.feed-forward",
+      "weights": {
+       "w4": 1.0
+      }
+     },
+     {
+      "op": "combine",
+      "group": "final-norm",
+      "weights": {
+       "w4": 1.0
+      }
+     },
+     {
+      "op": "combine",
+      "group": "head",
+      "weights": {
+       "w4": 1.0
+      }
+     }
+    ]
+   },
+   "validation": 1.7142620598498828,
+   "validation_sessions": [
+    1.0919042445893705,
+    0.6123012098032944,
+    2.1847854117850285,
+    3.7644626620184893,
+    1.1571920997744023,
+    1.0649810745158907,
+    1.2813534840484995
+   ]
+  },
+  "w5 alone": {
+   "program": {
+    "start": "base",
+    "ops": [
+     {
+      "op": "combine",
+      "group": "embed",
+      "weights": {
+       "w5": 1.0
+      }
+     },
+     {
+      "op": "combine",
+      "group": "block0.attention",
+      "weights": {
+       "w5": 1.0
+      }
+     },
+     {
+      "op": "combine",
+      "group": "block0.feed-forward",
+      "weights": {
+       "w5": 1.0
+      }
+     },
+     {
+      "op": "combine",
+      "group": "block1.attention",
+      "weights": {
+       "w5": 1.0
+      }
+     },
+     {
+      "op": "combine",
+      "group": "block1.feed-forward",
+      "weights": {
+       "w5": 1.0
+      }
+     },
+     {
+      "op": "combine",
+      "group": "final-norm",
+      "weights": {
+       "w5": 1.0
+      }
+     },
+     {
+      "op": "combine",
+      "group": "head",
+      "weights": {
+       "w5": 1.0
+      }
+     }
+    ]
+   },
+   "validation": 1.5565948308470179,
+   "validation_sessions": [
+    0.996606043609995,
+    0.523589256421361,
+    1.8938033632988729,
+    3.1573872023892116,
+    1.228906266335247,
+    1.0506722647226339,
+    1.2722083486290732
+   ]
+  }
+ },
+ "pick": "query 32",
+ "program": {
+  "start": "base",
+  "ops": [
+   {
+    "op": "combine",
+    "group": "embed",
+    "weights": {
+     "w2": 0.25,
+     "w3": 0.25,
+     "w4": 0.25,
+     "w5": 0.25
+    }
+   },
+   {
+    "op": "combine",
+    "group": "block0.attention",
+    "weights": {
+     "w2": 0.25,
+     "w3": 0.25,
+     "w4": 0.25,
+     "w5": 0.25
+    }
+   },
+   {
+    "op": "combine",
+    "group": "block0.feed-forward",
+    "weights": {
+     "w5": 1.0
+    }
+   },
+   {
+    "op": "combine",
+    "group": "block1.attention",
+    "weights": {
+     "w5": 1.0
+    }
+   },
+   {
+    "op": "combine",
+    "group": "block1.feed-forward",
+    "weights": {
+     "w5": 1.0
+    }
+   },
+   {
+    "op": "combine",
+    "group": "final-norm",
+    "weights": {
+     "w3": 1.0
+    }
+   },
+   {
+    "op": "combine",
+    "group": "head",
+    "weights": {
+     "w5": 1.0
+    }
+   }
+  ]
+ },
+ "output_sha256": "4dcc45a032796725e704bbf9f179596005fa2a082ffc34cbb0f318d0a908bfff",
+ "queries": [
+  {
+   "query": 1,
+   "program": {
+    "start": "base",
+    "ops": [
+     {
+      "op": "combine",
+      "group": "embed",
+      "weights": {
+       "w2": 0.25,
+       "w3": 0.25,
+       "w4": 0.25,
+       "w5": 0.25
+      }
+     },
+     {
+      "op": "combine",
+      "group": "block0.attention",
+      "weights": {
+       "w2": 0.25,
+       "w3": 0.25,
+       "w4": 0.25,
+       "w5": 0.25
+      }
+     },
+     {
+      "op": "combine",
+      "group": "block0.feed-forward",
+      "weights": {
+       "w2": 0.25,
+       "w3": 0.25,
+       "w4": 0.25,
+       "w5": 0.25
+      }
+     },
+     {
+      "op": "combine",
+      "group": "block1.attention",
+      "weights": {
+       "w2": 0.25,
+       "w3": 0.25,
+       "w4": 0.25,
+       "w5": 0.25
+      }
+     },
+     {
+      "op": "combine",
+      "group": "block1.feed-forward",
+      "weights": {
+       "w2": 0.25,
+       "w3": 0.25,
+       "w4": 0.25,
+       "w5": 0.25
+      }
+     },
+     {
+      "op": "combine",
+      "group": "final-norm",
+      "weights": {
+       "w2": 0.25,
+       "w3": 0.25,
+       "w4": 0.25,
+       "w5": 0.25
+      }
+     },
+     {
+      "op": "combine",
+      "group": "head",
+      "weights": {
+       "w2": 1.0
+      }
+     }
+    ]
+   },
+   "validation": 1.676545534441569,
+   "validation_sessions": [
+    1.0290168697393682,
+    0.628476476220203,
+    2.195118435195801,
+    3.7122051297036283,
+    1.1037903401304943,
+    1.012666061777275,
+    1.2451868014218304
+   ],
+   "weights_sha256": "f8c8bddd69b7b710a58f15bd5d8aa6f9cbf8393153b451b5a9137c271f0f9d44"
+  },
+  {
+   "query": 2,
+   "program": {
+    "start": "base",
+    "ops": [
+     {
+      "op": "combine",
+      "group": "embed",
+      "weights": {
+       "w2": 0.25,
+       "w3": 0.25,
+       "w4": 0.25,
+       "w5": 0.25
+      }
+     },
+     {
+      "op": "combine",
+      "group": "block0.attention",
+      "weights": {
+       "w2": 0.25,
+       "w3": 0.25,
+       "w4": 0.25,
+       "w5": 0.25
+      }
+     },
+     {
+      "op": "combine",
+      "group": "block0.feed-forward",
+      "weights": {
+       "w2": 0.25,
+       "w3": 0.25,
+       "w4": 0.25,
+       "w5": 0.25
+      }
+     },
+     {
+      "op": "combine",
+      "group": "block1.attention",
+      "weights": {
+       "w2": 0.25,
+       "w3": 0.25,
+       "w4": 0.25,
+       "w5": 0.25
+      }
+     },
+     {
+      "op": "combine",
+      "group": "block1.feed-forward",
+      "weights": {
+       "w2": 0.25,
+       "w3": 0.25,
+       "w4": 0.25,
+       "w5": 0.25
+      }
+     },
+     {
+      "op": "combine",
+      "group": "final-norm",
+      "weights": {
+       "w2": 0.25,
+       "w3": 0.25,
+       "w4": 0.25,
+       "w5": 0.25
+      }
+     },
+     {
+      "op": "combine",
+      "group": "head",
+      "weights": {
+       "w3": 1.0
+      }
+     }
+    ]
+   },
+   "validation": 1.6780189702378476,
+   "validation_sessions": [
+    1.0553592918548838,
+    0.6752957030919273,
+    2.2060147667593726,
+    3.6772655929747424,
+    1.0946147523163554,
+    1.0260102277611483,
+    1.2344223079365735
+   ],
+   "weights_sha256": "d7927ad823b2b5fccbbb92c05f16d03523777a6791272b82aa7c75270f8d3b4e"
+  },
+  {
+   "query": 3,
+   "program": {
+    "start": "base",
+    "ops": [
+     {
+      "op": "combine",
+      "group": "embed",
+      "weights": {
+       "w2": 0.25,
+       "w3": 0.25,
+       "w4": 0.25,
+       "w5": 0.25
+      }
+     },
+     {
+      "op": "combine",
+      "group": "block0.attention",
+      "weights": {
+       "w2": 0.25,
+       "w3": 0.25,
+       "w4": 0.25,
+       "w5": 0.25
+      }
+     },
+     {
+      "op": "combine",
+      "group": "block0.feed-forward",
+      "weights": {
+       "w2": 0.25,
+       "w3": 0.25,
+       "w4": 0.25,
+       "w5": 0.25
+      }
+     },
+     {
+      "op": "combine",
+      "group": "block1.attention",
+      "weights": {
+       "w2": 0.25,
+       "w3": 0.25,
+       "w4": 0.25,
+       "w5": 0.25
+      }
+     },
+     {
+      "op": "combine",
+      "group": "block1.feed-forward",
+      "weights": {
+       "w2": 0.25,
+       "w3": 0.25,
+       "w4": 0.25,
+       "w5": 0.25
+      }
+     },
+     {
+      "op": "combine",
+      "group": "final-norm",
+      "weights": {
+       "w2": 0.25,
+       "w3": 0.25,
+       "w4": 0.25,
+       "w5": 0.25
+      }
+     },
+     {
+      "op": "combine",
+      "group": "head",
+      "weights": {
+       "w4": 1.0
+      }
+     }
+    ]
+   },
+   "validation": 1.659633845130996,
+   "validation_sessions": [
+    1.0012488719653407,
+    0.5929099595393316,
+    2.2207405175327697,
+    3.697555448767627,
+    1.0838217632167688,
+    0.9903829805666045,
+    1.2080862453573031
+   ],
+   "weights_sha256": "fbfefb4ab41f399a40b5013fb8efd412e6ea6271ed71dbe5387ac4d2e8613f04"
+  },
+  {
+   "query": 4,
+   "program": {
+    "start": "base",
+    "ops": [
+     {
+      "op": "combine",
+      "group": "embed",
+      "weights": {
+       "w2": 0.25,
+       "w3": 0.25,
+       "w4": 0.25,
+       "w5": 0.25
+      }
+     },
+     {
+      "op": "combine",
+      "group": "block0.attention",
+      "weights": {
+       "w2": 0.25,
+       "w3": 0.25,
+       "w4": 0.25,
+       "w5": 0.25
+      }
+     },
+     {
+      "op": "combine",
+      "group": "block0.feed-forward",
+      "weights": {
+       "w2": 0.25,
+       "w3": 0.25,
+       "w4": 0.25,
+       "w5": 0.25
+      }
+     },
+     {
+      "op": "combine",
+      "group": "block1.attention",
+      "weights": {
+       "w2": 0.25,
+       "w3": 0.25,
+       "w4": 0.25,
+       "w5": 0.25
+      }
+     },
+     {
+      "op": "combine",
+      "group": "block1.feed-forward",
+      "weights": {
+       "w2": 0.25,
+       "w3": 0.25,
+       "w4": 0.25,
+       "w5": 0.25
+      }
+     },
+     {
+      "op": "combine",
+      "group": "final-norm",
+      "weights": {
+       "w2": 0.25,
+       "w3": 0.25,
+       "w4": 0.25,
+       "w5": 0.25
+      }
+     },
+     {
+      "op": "combine",
+      "group": "head",
+      "weights": {
+       "w5": 1.0
+      }
+     }
+    ]
+   },
+   "validation": 1.6209176660713018,
+   "validation_sessions": [
+    0.9771603551042792,
+    0.5304658107334596,
+    2.159423581239019,
+    3.619741630856181,
+    1.064283677987336,
+    0.9838342481180704,
+    1.178364830416409
+   ],
+   "weights_sha256": "3e70fb58f09c17b226fc16355b8427014b9b3b1d48079f5dd7c6d4a201a65841"
+  },
+  {
+   "query": 5,
+   "program": {
+    "start": "base",
+    "ops": [
+     {
+      "op": "combine",
+      "group": "embed",
+      "weights": {
+       "w2": 0.25,
+       "w3": 0.25,
+       "w4": 0.25,
+       "w5": 0.25
+      }
+     },
+     {
+      "op": "combine",
+      "group": "block0.attention",
+      "weights": {
+       "w2": 0.25,
+       "w3": 0.25,
+       "w4": 0.25,
+       "w5": 0.25
+      }
+     },
+     {
+      "op": "combine",
+      "group": "block0.feed-forward",
+      "weights": {
+       "w2": 0.25,
+       "w3": 0.25,
+       "w4": 0.25,
+       "w5": 0.25
+      }
+     },
+     {
+      "op": "combine",
+      "group": "block1.attention",
+      "weights": {
+       "w2": 0.25,
+       "w3": 0.25,
+       "w4": 0.25,
+       "w5": 0.25
+      }
+     },
+     {
+      "op": "combine",
+      "group": "block1.feed-forward",
+      "weights": {
+       "w2": 0.25,
+       "w3": 0.25,
+       "w4": 0.25,
+       "w5": 0.25
+      }
+     },
+     {
+      "op": "combine",
+      "group": "final-norm",
+      "weights": {
+       "w2": 0.25,
+       "w3": 0.25,
+       "w4": 0.25,
+       "w5": 0.25
+      }
+     },
+     {
+      "op": "combine",
+      "group": "head",
+      "weights": {}
+     }
+    ]
+   },
+   "validation": 1.6784845120896794,
+   "validation_sessions": [
+    1.0566348680671498,
+    0.6769754003153541,
+    2.2074082389897236,
+    3.6780671391391904,
+    1.0943420260504537,
+    1.026603352355036,
+    1.2330409432848433
+   ],
+   "weights_sha256": "e4a9d39a8cdf41f1c79254df9ad8f1d031479b762e5ad9600fda0a29e331141d"
+  },
+  {
+   "query": 6,
+   "program": {
+    "start": "base",
+    "ops": [
+     {
+      "op": "combine",
+      "group": "embed",
+      "weights": {
+       "w2": 0.25,
+       "w3": 0.25,
+       "w4": 0.25,
+       "w5": 0.25
+      }
+     },
+     {
+      "op": "combine",
+      "group": "block0.attention",
+      "weights": {
+       "w2": 0.25,
+       "w3": 0.25,
+       "w4": 0.25,
+       "w5": 0.25
+      }
+     },
+     {
+      "op": "combine",
+      "group": "block0.feed-forward",
+      "weights": {
+       "w2": 0.25,
+       "w3": 0.25,
+       "w4": 0.25,
+       "w5": 0.25
+      }
+     },
+     {
+      "op": "combine",
+      "group": "block1.attention",
+      "weights": {
+       "w2": 0.25,
+       "w3": 0.25,
+       "w4": 0.25,
+       "w5": 0.25
+      }
+     },
+     {
+      "op": "combine",
+      "group": "block1.feed-forward",
+      "weights": {
+       "w2": 0.25,
+       "w3": 0.25,
+       "w4": 0.25,
+       "w5": 0.25
+      }
+     },
+     {
+      "op": "combine",
+      "group": "final-norm",
+      "weights": {
+       "w2": 0.25,
+       "w3": 0.25,
+       "w4": 0.25,
+       "w5": 0.25
+      }
+     },
+     {
+      "op": "combine",
+      "group": "head",
+      "weights": {
+       "w2": 0.375,
+       "w3": 0.375,
+       "w4": 0.375,
+       "w5": 0.375
+      }
+     }
+    ]
+   },
+   "validation": 1.6437744442198128,
+   "validation_sessions": [
+    0.9902541510381287,
+    0.5668425262170356,
+    2.183951089549163,
+    3.6694301551255135,
+    1.0785157086103092,
+    0.9870629357502682,
+    1.202958135466936
+   ],
+   "weights_sha256": "3d6e3f81ff2d47aaafcba225cb26c62255818c1fff9a22d86f48af6f0e1068fb"
+  },
+  {
+   "query": 7,
+   "program": {
+    "start": "base",
+    "ops": [
+     {
+      "op": "combine",
+      "group": "embed",
+      "weights": {
+       "w2": 0.25,
+       "w3": 0.25,
+       "w4": 0.25,
+       "w5": 0.25
+      }
+     },
+     {
+      "op": "combine",
+      "group": "block0.attention",
+      "weights": {
+       "w2": 0.25,
+       "w3": 0.25,
+       "w4": 0.25,
+       "w5": 0.25
+      }
+     },
+     {
+      "op": "combine",
+      "group": "block0.feed-forward",
+      "weights": {
+       "w2": 0.25,
+       "w3": 0.25,
+       "w4": 0.25,
+       "w5": 0.25
+      }
+     },
+     {
+      "op": "combine",
+      "group": "block1.attention",
+      "weights": {
+       "w2": 0.25,
+       "w3": 0.25,
+       "w4": 0.25,
+       "w5": 0.25
+      }
+     },
+     {
+      "op": "combine",
+      "group": "block1.feed-forward",
+      "weights": {
+       "w2": 0.25,
+       "w3": 0.25,
+       "w4": 0.25,
+       "w5": 0.25
+      }
+     },
+     {
+      "op": "combine",
+      "group": "final-norm",
+      "weights": {
+       "w2": 0.25,
+       "w3": 0.25,
+       "w4": 0.25,
+       "w5": 0.25
+      }
+     },
+     {
+      "op": "combine",
+      "group": "head",
+      "weights": {
+       "w2": 0.25,
+       "w3": 0.25,
+       "w4": 0.25,
+       "w5": 0.25
+      }
+     }
+    ]
+   },
+   "validation": 1.6498831589011747,
+   "validation_sessions": [
+    1.0045576041450868,
+    0.5963021912069899,
+    2.1855683685358365,
+    3.6670832416534727,
+    1.0804701653167543,
+    0.9941438880032641,
+    1.209380533281983
+   ],
+   "weights_sha256": "a230c4d9491a91f392753da10d67224570be48c2ab1af358451e307dec1808f2"
+  },
+  {
+   "query": 8,
+   "program": {
+    "start": "base",
+    "ops": [
+     {
+      "op": "combine",
+      "group": "embed",
+      "weights": {
+       "w2": 0.25,
+       "w3": 0.25,
+       "w4": 0.25,
+       "w5": 0.25
+      }
+     },
+     {
+      "op": "combine",
+      "group": "block0.attention",
+      "weights": {
+       "w2": 0.25,
+       "w3": 0.25,
+       "w4": 0.25,
+       "w5": 0.25
+      }
+     },
+     {
+      "op": "combine",
+      "group": "block0.feed-forward",
+      "weights": {
+       "w2": 0.25,
+       "w3": 0.25,
+       "w4": 0.25,
+       "w5": 0.25
+      }
+     },
+     {
+      "op": "combine",
+      "group": "block1.attention",
+      "weights": {
+       "w2": 0.25,
+       "w3": 0.25,
+       "w4": 0.25,
+       "w5": 0.25
+      }
+     },
+     {
+      "op": "combine",
+      "group": "block1.feed-forward",
+      "weights": {
+       "w2": 0.25,
+       "w3": 0.25,
+       "w4": 0.25,
+       "w5": 0.25
+      }
+     },
+     {
+      "op": "combine",
+      "group": "final-norm",
+      "weights": {
+       "w2": 1.0
+      }
+     },
+     {
+      "op": "combine",
+      "group": "head",
+      "weights": {
+       "w5": 1.0
+      }
+     }
+    ]
+   },
+   "validation": 1.6183234810052018,
+   "validation_sessions": [
+    0.9839977738087149,
+    0.5352669701390262,
+    2.1449901245353558,
+    3.606180653605855,
+    1.0612800200992005,
+    0.9886107979528497,
+    1.1809485143148108
+   ],
+   "weights_sha256": "c8197e695c3bc0fea1fb1ce60c0bf65e54498973cc40a931585e1950a1f62148"
+  },
+  {
+   "query": 9,
+   "program": {
+    "start": "base",
+    "ops": [
+     {
+      "op": "combine",
+      "group": "embed",
+      "weights": {
+       "w2": 0.25,
+       "w3": 0.25,
+       "w4": 0.25,
+       "w5": 0.25
+      }
+     },
+     {
+      "op": "combine",
+      "group": "block0.attention",
+      "weights": {
+       "w2": 0.25,
+       "w3": 0.25,
+       "w4": 0.25,
+       "w5": 0.25
+      }
+     },
+     {
+      "op": "combine",
+      "group": "block0.feed-forward",
+      "weights": {
+       "w2": 0.25,
+       "w3": 0.25,
+       "w4": 0.25,
+       "w5": 0.25
+      }
+     },
+     {
+      "op": "combine",
+      "group": "block1.attention",
+      "weights": {
+       "w2": 0.25,
+       "w3": 0.25,
+       "w4": 0.25,
+       "w5": 0.25
+      }
+     },
+     {
+      "op": "combine",
+      "group": "block1.feed-forward",
+      "weights": {
+       "w2": 0.25,
+       "w3": 0.25,
+       "w4": 0.25,
+       "w5": 0.25
+      }
+     },
+     {
+      "op": "combine",
+      "group": "final-norm",
+      "weights": {
+       "w3": 1.0
+      }
+     },
+     {
+      "op": "combine",
+      "group": "head",
+      "weights": {
+       "w5": 1.0
+      }
+     }
+    ]
+   },
+   "validation": 1.616343758033134,
+   "validation_sessions": [
+    0.9850307704028571,
+    0.538630583893581,
+    2.141190790823922,
+    3.5973328265058933,
+    1.060311413809541,
+    0.9887078787196086,
+    1.1801201847188687
+   ],
+   "weights_sha256": "7045a2aaa0dd376cd17dc2611a6b801b9e7469c356c63f5751afdda90706c401"
+  },
+  {
+   "query": 10,
+   "program": {
+    "start": "base",
+    "ops": [
+     {
+      "op": "combine",
+      "group": "embed",
+      "weights": {
+       "w2": 0.25,
+       "w3": 0.25,
+       "w4": 0.25,
+       "w5": 0.25
+      }
+     },
+     {
+      "op": "combine",
+      "group": "block0.attention",
+      "weights": {
+       "w2": 0.25,
+       "w3": 0.25,
+       "w4": 0.25,
+       "w5": 0.25
+      }
+     },
+     {
+      "op": "combine",
+      "group": "block0.feed-forward",
+      "weights": {
+       "w2": 0.25,
+       "w3": 0.25,
+       "w4": 0.25,
+       "w5": 0.25
+      }
+     },
+     {
+      "op": "combine",
+      "group": "block1.attention",
+      "weights": {
+       "w2": 0.25,
+       "w3": 0.25,
+       "w4": 0.25,
+       "w5": 0.25
+      }
+     },
+     {
+      "op": "combine",
+      "group": "block1.feed-forward",
+      "weights": {
+       "w2": 0.25,
+       "w3": 0.25,
+       "w4": 0.25,
+       "w5": 0.25
+      }
+     },
+     {
+      "op": "combine",
+      "group": "final-norm",
+      "weights": {
+       "w4": 1.0
+      }
+     },
+     {
+      "op": "combine",
+      "group": "head",
+      "weights": {
+       "w5": 1.0
+      }
+     }
+    ]
+   },
+   "validation": 1.6210536556971862,
+   "validation_sessions": [
+    0.975952104367071,
+    0.530793357424783,
+    2.1617822353933587,
+    3.619599275083307,
+    1.0659078057053506,
+    0.982584379108088,
+    1.1775047031392405
+   ],
+   "weights_sha256": "46dd0b54d8f9e562c927141e34edab4e1185870f32391dc7f3b29cf8d7139cf8"
+  },
+  {
+   "query": 11,
+   "program": {
+    "start": "base",
+    "ops": [
+     {
+      "op": "combine",
+      "group": "embed",
+      "weights": {
+       "w2": 0.25,
+       "w3": 0.25,
+       "w4": 0.25,
+       "w5": 0.25
+      }
+     },
+     {
+      "op": "combine",
+      "group": "block0.attention",
+      "weights": {
+       "w2": 0.25,
+       "w3": 0.25,
+       "w4": 0.25,
+       "w5": 0.25
+      }
+     },
+     {
+      "op": "combine",
+      "group": "block0.feed-forward",
+      "weights": {
+       "w2": 0.25,
+       "w3": 0.25,
+       "w4": 0.25,
+       "w5": 0.25
+      }
+     },
+     {
+      "op": "combine",
+      "group": "block1.attention",
+      "weights": {
+       "w2": 0.25,
+       "w3": 0.25,
+       "w4": 0.25,
+       "w5": 0.25
+      }
+     },
+     {
+      "op": "combine",
+      "group": "block1.feed-forward",
+      "weights": {
+       "w2": 0.25,
+       "w3": 0.25,
+       "w4": 0.25,
+       "w5": 0.25
+      }
+     },
+     {
+      "op": "combine",
+      "group": "final-norm",
+      "weights": {
+       "w5": 1.0
+      }
+     },
+     {
+      "op": "combine",
+      "group": "head",
+      "weights": {
+       "w5": 1.0
+      }
+     }
+    ]
+   },
+   "validation": 1.629751101580405,
+   "validation_sessions": [
+    0.9655723016752639,
+    0.5189534296708239,
+    2.1919286385737187,
+    3.657749154628298,
+    1.071039339961388,
+    0.9771485165829612,
+    1.1765674053357116
+   ],
+   "weights_sha256": "73d2caa57cb50971f03b5c73016b186b71ae90c05f327b951b74d8c84cedc9a4"
+  },
+  {
+   "query": 12,
+   "program": {
+    "start": "base",
+    "ops": [
+     {
+      "op": "combine",
+      "group": "embed",
+      "weights": {
+       "w2": 0.25,
+       "w3": 0.25,
+       "w4": 0.25,
+       "w5": 0.25
+      }
+     },
+     {
+      "op": "combine",
+      "group": "block0.attention",
+      "weights": {
+       "w2": 0.25,
+       "w3": 0.25,
+       "w4": 0.25,
+       "w5": 0.25
+      }
+     },
+     {
+      "op": "combine",
+      "group": "block0.feed-forward",
+      "weights": {
+       "w2": 0.25,
+       "w3": 0.25,
+       "w4": 0.25,
+       "w5": 0.25
+      }
+     },
+     {
+      "op": "combine",
+      "group": "block1.attention",
+      "weights": {
+       "w2": 0.25,
+       "w3": 0.25,
+       "w4": 0.25,
+       "w5": 0.25
+      }
+     },
+     {
+      "op": "combine",
+      "group": "block1.feed-forward",
+      "weights": {
+       "w2": 0.25,
+       "w3": 0.25,
+       "w4": 0.25,
+       "w5": 0.25
+      }
+     },
+     {
+      "op": "combine",
+      "group": "final-norm",
+      "weights": {}
+     },
+     {
+      "op": "combine",
+      "group": "head",
+      "weights": {
+       "w5": 1.0
+      }
+     }
+    ]
+   },
+   "validation": 1.6163623309199124,
+   "validation_sessions": [
+    0.9849696821652706,
+    0.5387445510635527,
+    2.1414165543606276,
+    3.5973541064925603,
+    1.0603828362935261,
+    0.9886440387596083,
+    1.1799937277866077
+   ],
+   "weights_sha256": "b4408264191861be0f761de556dd8780bca5f070f22ca3e598444e99994a0539"
+  },
+  {
+   "query": 13,
+   "program": {
+    "start": "base",
+    "ops": [
+     {
+      "op": "combine",
+      "group": "embed",
+      "weights": {
+       "w2": 0.25,
+       "w3": 0.25,
+       "w4": 0.25,
+       "w5": 0.25
+      }
+     },
+     {
+      "op": "combine",
+      "group": "block0.attention",
+      "weights": {
+       "w2": 0.25,
+       "w3": 0.25,
+       "w4": 0.25,
+       "w5": 0.25
+      }
+     },
+     {
+      "op": "combine",
+      "group": "block0.feed-forward",
+      "weights": {
+       "w2": 0.25,
+       "w3": 0.25,
+       "w4": 0.25,
+       "w5": 0.25
+      }
+     },
+     {
+      "op": "combine",
+      "group": "block1.attention",
+      "weights": {
+       "w2": 0.25,
+       "w3": 0.25,
+       "w4": 0.25,
+       "w5": 0.25
+      }
+     },
+     {
+      "op": "combine",
+      "group": "block1.feed-forward",
+      "weights": {
+       "w2": 0.25,
+       "w3": 0.25,
+       "w4": 0.25,
+       "w5": 0.25
+      }
+     },
+     {
+      "op": "combine",
+      "group": "final-norm",
+      "weights": {
+       "w2": 0.375,
+       "w3": 0.375,
+       "w4": 0.375,
+       "w5": 0.375
+      }
+     },
+     {
+      "op": "combine",
+      "group": "head",
+      "weights": {
+       "w5": 1.0
+      }
+     }
+    ]
+   },
+   "validation": 1.623518713090232,
+   "validation_sessions": [
+    0.9736136295104325,
+    0.526662288289018,
+    2.1688215082241937,
+    3.631269268690867,
+    1.0664777179919431,
+    0.9817435994969579,
+    1.1778422477553339
+   ],
+   "weights_sha256": "25c61c271e9edb0d6df5097679cef272ad6851294ec622117127e12670d85afb"
+  },
+  {
+   "query": 14,
+   "program": {
+    "start": "base",
+    "ops": [
+     {
+      "op": "combine",
+      "group": "embed",
+      "weights": {
+       "w2": 0.25,
+       "w3": 0.25,
+       "w4": 0.25,
+       "w5": 0.25
+      }
+     },
+     {
+      "op": "combine",
+      "group": "block0.attention",
+      "weights": {
+       "w2": 0.25,
+       "w3": 0.25,
+       "w4": 0.25,
+       "w5": 0.25
+      }
+     },
+     {
+      "op": "combine",
+      "group": "block0.feed-forward",
+      "weights": {
+       "w2": 0.25,
+       "w3": 0.25,
+       "w4": 0.25,
+       "w5": 0.25
+      }
+     },
+     {
+      "op": "combine",
+      "group": "block1.attention",
+      "weights": {
+       "w2": 0.25,
+       "w3": 0.25,
+       "w4": 0.25,
+       "w5": 0.25
+      }
+     },
+     {
+      "op": "combine",
+      "group": "block1.feed-forward",
+      "weights": {
+       "w2": 0.25,
+       "w3": 0.25,
+       "w4": 0.25,
+       "w5": 0.25
+      }
+     },
+     {
+      "op": "combine",
+      "group": "final-norm",
+      "weights": {
+       "w2": 0.25,
+       "w3": 0.25,
+       "w4": 0.25,
+       "w5": 0.25
+      }
+     },
+     {
+      "op": "combine",
+      "group": "head",
+      "weights": {
+       "w5": 1.0
+      }
+     }
+    ]
+   },
+   "validation": 1.6209176660713018,
+   "validation_sessions": [
+    0.9771603551042792,
+    0.5304658107334596,
+    2.159423581239019,
+    3.619741630856181,
+    1.064283677987336,
+    0.9838342481180704,
+    1.178364830416409
+   ],
+   "weights_sha256": "3e70fb58f09c17b226fc16355b8427014b9b3b1d48079f5dd7c6d4a201a65841"
+  },
+  {
+   "query": 15,
+   "program": {
+    "start": "base",
+    "ops": [
+     {
+      "op": "combine",
+      "group": "embed",
+      "weights": {
+       "w2": 0.25,
+       "w3": 0.25,
+       "w4": 0.25,
+       "w5": 0.25
+      }
+     },
+     {
+      "op": "combine",
+      "group": "block0.attention",
+      "weights": {
+       "w2": 0.25,
+       "w3": 0.25,
+       "w4": 0.25,
+       "w5": 0.25
+      }
+     },
+     {
+      "op": "combine",
+      "group": "block0.feed-forward",
+      "weights": {
+       "w2": 0.25,
+       "w3": 0.25,
+       "w4": 0.25,
+       "w5": 0.25
+      }
+     },
+     {
+      "op": "combine",
+      "group": "block1.attention",
+      "weights": {
+       "w2": 0.25,
+       "w3": 0.25,
+       "w4": 0.25,
+       "w5": 0.25
+      }
+     },
+     {
+      "op": "combine",
+      "group": "block1.feed-forward",
+      "weights": {
+       "w2": 1.0
+      }
+     },
+     {
+      "op": "combine",
+      "group": "final-norm",
+      "weights": {
+       "w3": 1.0
+      }
+     },
+     {
+      "op": "combine",
+      "group": "head",
+      "weights": {
+       "w5": 1.0
+      }
+     }
+    ]
+   },
+   "validation": 1.6316611638319072,
+   "validation_sessions": [
+    0.9865861662099138,
+    0.5455909281531799,
+    2.1776590622271437,
+    3.690290167802538,
+    1.0291145864597517,
+    0.9926876765018786,
+    1.1691569557259478
+   ],
+   "weights_sha256": "c1293ff9626ec7341d7ccf463c71e9514d3033f2daf29f353d023692f3ab3328"
+  },
+  {
+   "query": 16,
+   "program": {
+    "start": "base",
+    "ops": [
+     {
+      "op": "combine",
+      "group": "embed",
+      "weights": {
+       "w2": 0.25,
+       "w3": 0.25,
+       "w4": 0.25,
+       "w5": 0.25
+      }
+     },
+     {
+      "op": "combine",
+      "group": "block0.attention",
+      "weights": {
+       "w2": 0.25,
+       "w3": 0.25,
+       "w4": 0.25,
+       "w5": 0.25
+      }
+     },
+     {
+      "op": "combine",
+      "group": "block0.feed-forward",
+      "weights": {
+       "w2": 0.25,
+       "w3": 0.25,
+       "w4": 0.25,
+       "w5": 0.25
+      }
+     },
+     {
+      "op": "combine",
+      "group": "block1.attention",
+      "weights": {
+       "w2": 0.25,
+       "w3": 0.25,
+       "w4": 0.25,
+       "w5": 0.25
+      }
+     },
+     {
+      "op": "combine",
+      "group": "block1.feed-forward",
+      "weights": {
+       "w3": 1.0
+      }
+     },
+     {
+      "op": "combine",
+      "group": "final-norm",
+      "weights": {
+       "w3": 1.0
+      }
+     },
+     {
+      "op": "combine",
+      "group": "head",
+      "weights": {
+       "w5": 1.0
+      }
+     }
+    ]
+   },
+   "validation": 1.628386068773055,
+   "validation_sessions": [
+    0.9620199503378157,
+    0.5434615077632569,
+    2.204558677556761,
+    3.6640641741198197,
+    1.0546739295256855,
+    0.9670019254231935,
+    1.169408035108861
+   ],
+   "weights_sha256": "500cf3fe8ccd524c38156a43bb9e8c700ce219dfc2d70e8204a5429785ea306c"
+  },
+  {
+   "query": 17,
+   "program": {
+    "start": "base",
+    "ops": [
+     {
+      "op": "combine",
+      "group": "embed",
+      "weights": {
+       "w2": 0.25,
+       "w3": 0.25,
+       "w4": 0.25,
+       "w5": 0.25
+      }
+     },
+     {
+      "op": "combine",
+      "group": "block0.attention",
+      "weights": {
+       "w2": 0.25,
+       "w3": 0.25,
+       "w4": 0.25,
+       "w5": 0.25
+      }
+     },
+     {
+      "op": "combine",
+      "group": "block0.feed-forward",
+      "weights": {
+       "w2": 0.25,
+       "w3": 0.25,
+       "w4": 0.25,
+       "w5": 0.25
+      }
+     },
+     {
+      "op": "combine",
+      "group": "block1.attention",
+      "weights": {
+       "w2": 0.25,
+       "w3": 0.25,
+       "w4": 0.25,
+       "w5": 0.25
+      }
+     },
+     {
+      "op": "combine",
+      "group": "block1.feed-forward",
+      "weights": {
+       "w4": 1.0
+      }
+     },
+     {
+      "op": "combine",
+      "group": "final-norm",
+      "weights": {
+       "w3": 1.0
+      }
+     },
+     {
+      "op": "combine",
+      "group": "head",
+      "weights": {
+       "w5": 1.0
+      }
+     }
+    ]
+   },
+   "validation": 1.6310739016462759,
+   "validation_sessions": [
+    1.0084133787406973,
+    0.5381375210990673,
+    2.138977916808127,
+    3.614266070149031,
+    1.0780481603975103,
+    1.0063215438214774,
+    1.2006036394709108
+   ],
+   "weights_sha256": "c46f8eec12db326368f122b57d3e630e760ec6f47f0950975f859dcc0901bfec"
+  },
+  {
+   "query": 18,
+   "program": {
+    "start": "base",
+    "ops": [
+     {
+      "op": "combine",
+      "group": "embed",
+      "weights": {
+       "w2": 0.25,
+       "w3": 0.25,
+       "w4": 0.25,
+       "w5": 0.25
+      }
+     },
+     {
+      "op": "combine",
+      "group": "block0.attention",
+      "weights": {
+       "w2": 0.25,
+       "w3": 0.25,
+       "w4": 0.25,
+       "w5": 0.25
+      }
+     },
+     {
+      "op": "combine",
+      "group": "block0.feed-forward",
+      "weights": {
+       "w2": 0.25,
+       "w3": 0.25,
+       "w4": 0.25,
+       "w5": 0.25
+      }
+     },
+     {
+      "op": "combine",
+      "group": "block1.attention",
+      "weights": {
+       "w2": 0.25,
+       "w3": 0.25,
+       "w4": 0.25,
+       "w5": 0.25
+      }
+     },
+     {
+      "op": "combine",
+      "group": "block1.feed-forward",
+      "weights": {
+       "w5": 1.0
+      }
+     },
+     {
+      "op": "combine",
+      "group": "final-norm",
+      "weights": {
+       "w3": 1.0
+      }
+     },
+     {
+      "op": "combine",
+      "group": "head",
+      "weights": {
+       "w5": 1.0
+      }
+     }
+    ]
+   },
+   "validation": 1.5755989397971648,
+   "validation_sessions": [
+    0.9899619792671697,
+    0.5352459653246009,
+    2.0063978518318475,
+    3.4237622483621584,
+    1.0887212966986288,
+    0.9970796456121044,
+    1.1980343868278345
+   ],
+   "weights_sha256": "6499ffd7e48882ac60a764b92517a768b404618a8d028aeea4be864db9821304"
+  },
+  {
+   "query": 19,
+   "program": {
+    "start": "base",
+    "ops": [
+     {
+      "op": "combine",
+      "group": "embed",
+      "weights": {
+       "w2": 0.25,
+       "w3": 0.25,
+       "w4": 0.25,
+       "w5": 0.25
+      }
+     },
+     {
+      "op": "combine",
+      "group": "block0.attention",
+      "weights": {
+       "w2": 0.25,
+       "w3": 0.25,
+       "w4": 0.25,
+       "w5": 0.25
+      }
+     },
+     {
+      "op": "combine",
+      "group": "block0.feed-forward",
+      "weights": {
+       "w2": 0.25,
+       "w3": 0.25,
+       "w4": 0.25,
+       "w5": 0.25
+      }
+     },
+     {
+      "op": "combine",
+      "group": "block1.attention",
+      "weights": {
+       "w2": 0.25,
+       "w3": 0.25,
+       "w4": 0.25,
+       "w5": 0.25
+      }
+     },
+     {
+      "op": "combine",
+      "group": "block1.feed-forward",
+      "weights": {}
+     },
+     {
+      "op": "combine",
+      "group": "final-norm",
+      "weights": {
+       "w3": 1.0
+      }
+     },
+     {
+      "op": "combine",
+      "group": "head",
+      "weights": {
+       "w5": 1.0
+      }
+     }
+    ]
+   },
+   "validation": 1.6269254545158074,
+   "validation_sessions": [
+    0.9606777212937485,
+    0.543500582221533,
+    2.2053538641849637,
+    3.6612838337929117,
+    1.053146295540315,
+    0.9655500432984055,
+    1.1664537859253998
+   ],
+   "weights_sha256": "c6729355ac4cabe8873dcd2bb3cab1ef4ff78506ea0518ab4f57d2e61a98843b"
+  },
+  {
+   "query": 20,
+   "program": {
+    "start": "base",
+    "ops": [
+     {
+      "op": "combine",
+      "group": "embed",
+      "weights": {
+       "w2": 0.25,
+       "w3": 0.25,
+       "w4": 0.25,
+       "w5": 0.25
+      }
+     },
+     {
+      "op": "combine",
+      "group": "block0.attention",
+      "weights": {
+       "w2": 0.25,
+       "w3": 0.25,
+       "w4": 0.25,
+       "w5": 0.25
+      }
+     },
+     {
+      "op": "combine",
+      "group": "block0.feed-forward",
+      "weights": {
+       "w2": 0.25,
+       "w3": 0.25,
+       "w4": 0.25,
+       "w5": 0.25
+      }
+     },
+     {
+      "op": "combine",
+      "group": "block1.attention",
+      "weights": {
+       "w2": 0.25,
+       "w3": 0.25,
+       "w4": 0.25,
+       "w5": 0.25
+      }
+     },
+     {
+      "op": "combine",
+      "group": "block1.feed-forward",
+      "weights": {
+       "w2": 0.375,
+       "w3": 0.375,
+       "w4": 0.375,
+       "w5": 0.375
+      }
+     },
+     {
+      "op": "combine",
+      "group": "final-norm",
+      "weights": {
+       "w3": 1.0
+      }
+     },
+     {
+      "op": "combine",
+      "group": "head",
+      "weights": {
+       "w5": 1.0
+      }
+     }
+    ]
+   },
+   "validation": 1.6120513982994527,
+   "validation_sessions": [
+    0.9994767015814634,
+    0.5379584298319688,
+    2.1076586683856164,
+    3.565515577475871,
+    1.0650767855363816,
+    1.0024492466615067,
+    1.1885616129930046
+   ],
+   "weights_sha256": "caa06a3282be3a3d2a92593d73405f7175348d595caebc24ea89be45dac12951"
+  },
+  {
+   "query": 21,
+   "program": {
+    "start": "base",
+    "ops": [
+     {
+      "op": "combine",
+      "group": "embed",
+      "weights": {
+       "w2": 0.25,
+       "w3": 0.25,
+       "w4": 0.25,
+       "w5": 0.25
+      }
+     },
+     {
+      "op": "combine",
+      "group": "block0.attention",
+      "weights": {
+       "w2": 0.25,
+       "w3": 0.25,
+       "w4": 0.25,
+       "w5": 0.25
+      }
+     },
+     {
+      "op": "combine",
+      "group": "block0.feed-forward",
+      "weights": {
+       "w2": 0.25,
+       "w3": 0.25,
+       "w4": 0.25,
+       "w5": 0.25
+      }
+     },
+     {
+      "op": "combine",
+      "group": "block1.attention",
+      "weights": {
+       "w2": 0.25,
+       "w3": 0.25,
+       "w4": 0.25,
+       "w5": 0.25
+      }
+     },
+     {
+      "op": "combine",
+      "group": "block1.feed-forward",
+      "weights": {
+       "w2": 0.25,
+       "w3": 0.25,
+       "w4": 0.25,
+       "w5": 0.25
+      }
+     },
+     {
+      "op": "combine",
+      "group": "final-norm",
+      "weights": {
+       "w3": 1.0
+      }
+     },
+     {
+      "op": "combine",
+      "group": "head",
+      "weights": {
+       "w5": 1.0
+      }
+     }
+    ]
+   },
+   "validation": 1.616343758033134,
+   "validation_sessions": [
+    0.9850307704028571,
+    0.538630583893581,
+    2.141190790823922,
+    3.5973328265058933,
+    1.060311413809541,
+    0.9887078787196086,
+    1.1801201847188687
+   ],
+   "weights_sha256": "7045a2aaa0dd376cd17dc2611a6b801b9e7469c356c63f5751afdda90706c401"
+  },
+  {
+   "query": 22,
+   "program": {
+    "start": "base",
+    "ops": [
+     {
+      "op": "combine",
+      "group": "embed",
+      "weights": {
+       "w2": 0.25,
+       "w3": 0.25,
+       "w4": 0.25,
+       "w5": 0.25
+      }
+     },
+     {
+      "op": "combine",
+      "group": "block0.attention",
+      "weights": {
+       "w2": 0.25,
+       "w3": 0.25,
+       "w4": 0.25,
+       "w5": 0.25
+      }
+     },
+     {
+      "op": "combine",
+      "group": "block0.feed-forward",
+      "weights": {
+       "w2": 0.25,
+       "w3": 0.25,
+       "w4": 0.25,
+       "w5": 0.25
+      }
+     },
+     {
+      "op": "combine",
+      "group": "block1.attention",
+      "weights": {
+       "w2": 1.0
+      }
+     },
+     {
+      "op": "combine",
+      "group": "block1.feed-forward",
+      "weights": {
+       "w5": 1.0
+      }
+     },
+     {
+      "op": "combine",
+      "group": "final-norm",
+      "weights": {
+       "w3": 1.0
+      }
+     },
+     {
+      "op": "combine",
+      "group": "head",
+      "weights": {
+       "w5": 1.0
+      }
+     }
+    ]
+   },
+   "validation": 1.579799416792517,
+   "validation_sessions": [
+    0.9875937858084621,
+    0.537012433528143,
+    1.9975303346292808,
+    3.4738076404538676,
+    1.0775482030096153,
+    0.992119280720083,
+    1.199845509371214
+   ],
+   "weights_sha256": "aea89e37b9e6136ec9f422edc36c20fca5274c3d806ef3062c05be467cf2b17f"
+  },
+  {
+   "query": 23,
+   "program": {
+    "start": "base",
+    "ops": [
+     {
+      "op": "combine",
+      "group": "embed",
+      "weights": {
+       "w2": 0.25,
+       "w3": 0.25,
+       "w4": 0.25,
+       "w5": 0.25
+      }
+     },
+     {
+      "op": "combine",
+      "group": "block0.attention",
+      "weights": {
+       "w2": 0.25,
+       "w3": 0.25,
+       "w4": 0.25,
+       "w5": 0.25
+      }
+     },
+     {
+      "op": "combine",
+      "group": "block0.feed-forward",
+      "weights": {
+       "w2": 0.25,
+       "w3": 0.25,
+       "w4": 0.25,
+       "w5": 0.25
+      }
+     },
+     {
+      "op": "combine",
+      "group": "block1.attention",
+      "weights": {
+       "w3": 1.0
+      }
+     },
+     {
+      "op": "combine",
+      "group": "block1.feed-forward",
+      "weights": {
+       "w5": 1.0
+      }
+     },
+     {
+      "op": "combine",
+      "group": "final-norm",
+      "weights": {
+       "w3": 1.0
+      }
+     },
+     {
+      "op": "combine",
+      "group": "head",
+      "weights": {
+       "w5": 1.0
+      }
+     }
+    ]
+   },
+   "validation": 1.5811022953797234,
+   "validation_sessions": [
+    0.9689618121952018,
+    0.536928918752884,
+    2.025156037779821,
+    3.4662808847100806,
+    1.0930024875794135,
+    0.9746502461482839,
+    1.205544265340817
+   ],
+   "weights_sha256": "b9a44f9ea121cf2a583039e164490c83b9900507feb0555c1c9a0cee67600d25"
+  },
+  {
+   "query": 24,
+   "program": {
+    "start": "base",
+    "ops": [
+     {
+      "op": "combine",
+      "group": "embed",
+      "weights": {
+       "w2": 0.25,
+       "w3": 0.25,
+       "w4": 0.25,
+       "w5": 0.25
+      }
+     },
+     {
+      "op": "combine",
+      "group": "block0.attention",
+      "weights": {
+       "w2": 0.25,
+       "w3": 0.25,
+       "w4": 0.25,
+       "w5": 0.25
+      }
+     },
+     {
+      "op": "combine",
+      "group": "block0.feed-forward",
+      "weights": {
+       "w2": 0.25,
+       "w3": 0.25,
+       "w4": 0.25,
+       "w5": 0.25
+      }
+     },
+     {
+      "op": "combine",
+      "group": "block1.attention",
+      "weights": {
+       "w4": 1.0
+      }
+     },
+     {
+      "op": "combine",
+      "group": "block1.feed-forward",
+      "weights": {
+       "w5": 1.0
+      }
+     },
+     {
+      "op": "combine",
+      "group": "final-norm",
+      "weights": {
+       "w3": 1.0
+      }
+     },
+     {
+      "op": "combine",
+      "group": "head",
+      "weights": {
+       "w5": 1.0
+      }
+     }
+    ]
+   },
+   "validation": 1.5814748538042604,
+   "validation_sessions": [
+    1.0004190136347242,
+    0.5346201319236211,
+    1.9999994245764945,
+    3.4335150863893262,
+    1.0953138121082358,
+    1.005488469033106,
+    1.2070665181801339
+   ],
+   "weights_sha256": "b20767e8b8169be344dd2c9a72ff144844fbf0490be08fa5f1deb68d08a826ad"
+  },
+  {
+   "query": 25,
+   "program": {
+    "start": "base",
+    "ops": [
+     {
+      "op": "combine",
+      "group": "embed",
+      "weights": {
+       "w2": 0.25,
+       "w3": 0.25,
+       "w4": 0.25,
+       "w5": 0.25
+      }
+     },
+     {
+      "op": "combine",
+      "group": "block0.attention",
+      "weights": {
+       "w2": 0.25,
+       "w3": 0.25,
+       "w4": 0.25,
+       "w5": 0.25
+      }
+     },
+     {
+      "op": "combine",
+      "group": "block0.feed-forward",
+      "weights": {
+       "w2": 0.25,
+       "w3": 0.25,
+       "w4": 0.25,
+       "w5": 0.25
+      }
+     },
+     {
+      "op": "combine",
+      "group": "block1.attention",
+      "weights": {
+       "w5": 1.0
+      }
+     },
+     {
+      "op": "combine",
+      "group": "block1.feed-forward",
+      "weights": {
+       "w5": 1.0
+      }
+     },
+     {
+      "op": "combine",
+      "group": "final-norm",
+      "weights": {
+       "w3": 1.0
+      }
+     },
+     {
+      "op": "combine",
+      "group": "head",
+      "weights": {
+       "w5": 1.0
+      }
+     }
+    ]
+   },
+   "validation": 1.5629807208253552,
+   "validation_sessions": [
+    1.010465246420591,
+    0.53732479988415,
+    2.003260521383788,
+    3.3170228136318904,
+    1.0899192131894386,
+    1.0248455520770974,
+    1.1845669681395774
+   ],
+   "weights_sha256": "6425a0644d467c416ca74bc7bd0f7b4050d07d460d83567464670ea2b5cc5cbd"
+  },
+  {
+   "query": 26,
+   "program": {
+    "start": "base",
+    "ops": [
+     {
+      "op": "combine",
+      "group": "embed",
+      "weights": {
+       "w2": 0.25,
+       "w3": 0.25,
+       "w4": 0.25,
+       "w5": 0.25
+      }
+     },
+     {
+      "op": "combine",
+      "group": "block0.attention",
+      "weights": {
+       "w2": 0.25,
+       "w3": 0.25,
+       "w4": 0.25,
+       "w5": 0.25
+      }
+     },
+     {
+      "op": "combine",
+      "group": "block0.feed-forward",
+      "weights": {
+       "w2": 0.25,
+       "w3": 0.25,
+       "w4": 0.25,
+       "w5": 0.25
+      }
+     },
+     {
+      "op": "combine",
+      "group": "block1.attention",
+      "weights": {}
+     },
+     {
+      "op": "combine",
+      "group": "block1.feed-forward",
+      "weights": {
+       "w5": 1.0
+      }
+     },
+     {
+      "op": "combine",
+      "group": "final-norm",
+      "weights": {
+       "w3": 1.0
+      }
+     },
+     {
+      "op": "combine",
+      "group": "head",
+      "weights": {
+       "w5": 1.0
+      }
+     }
+    ]
+   },
+   "validation": 1.5800170458080691,
+   "validation_sessions": [
+    0.9682144443876124,
+    0.537030961792396,
+    2.024152209443265,
+    3.4643370679969685,
+    1.0918090961432398,
+    0.9741049648347642,
+    1.2041621668964433
+   ],
+   "weights_sha256": "bf817998dbcebf24937710458bd3fcb7ba11e36e3bcf28ec43e736fbb0fe82bf"
+  },
+  {
+   "query": 27,
+   "program": {
+    "start": "base",
+    "ops": [
+     {
+      "op": "combine",
+      "group": "embed",
+      "weights": {
+       "w2": 0.25,
+       "w3": 0.25,
+       "w4": 0.25,
+       "w5": 0.25
+      }
+     },
+     {
+      "op": "combine",
+      "group": "block0.attention",
+      "weights": {
+       "w2": 0.25,
+       "w3": 0.25,
+       "w4": 0.25,
+       "w5": 0.25
+      }
+     },
+     {
+      "op": "combine",
+      "group": "block0.feed-forward",
+      "weights": {
+       "w2": 0.25,
+       "w3": 0.25,
+       "w4": 0.25,
+       "w5": 0.25
+      }
+     },
+     {
+      "op": "combine",
+      "group": "block1.attention",
+      "weights": {
+       "w2": 0.375,
+       "w3": 0.375,
+       "w4": 0.375,
+       "w5": 0.375
+      }
+     },
+     {
+      "op": "combine",
+      "group": "block1.feed-forward",
+      "weights": {
+       "w5": 1.0
+      }
+     },
+     {
+      "op": "combine",
+      "group": "final-norm",
+      "weights": {
+       "w3": 1.0
+      }
+     },
+     {
+      "op": "combine",
+      "group": "head",
+      "weights": {
+       "w5": 1.0
+      }
+     }
+    ]
+   },
+   "validation": 1.574002990377742,
+   "validation_sessions": [
+    1.0023594059821654,
+    0.5353075580446299,
+    1.9982219341959504,
+    3.403147077830575,
+    1.0874901149413054,
+    1.0096743157897217,
+    1.1953011315288955
+   ],
+   "weights_sha256": "4d335c396d325c36d708a231881ce1ccee79fef6b316cef2a12814d4c674bd9b"
+  },
+  {
+   "query": 28,
+   "program": {
+    "start": "base",
+    "ops": [
+     {
+      "op": "combine",
+      "group": "embed",
+      "weights": {
+       "w2": 0.25,
+       "w3": 0.25,
+       "w4": 0.25,
+       "w5": 0.25
+      }
+     },
+     {
+      "op": "combine",
+      "group": "block0.attention",
+      "weights": {
+       "w2": 0.25,
+       "w3": 0.25,
+       "w4": 0.25,
+       "w5": 0.25
+      }
+     },
+     {
+      "op": "combine",
+      "group": "block0.feed-forward",
+      "weights": {
+       "w2": 0.25,
+       "w3": 0.25,
+       "w4": 0.25,
+       "w5": 0.25
+      }
+     },
+     {
+      "op": "combine",
+      "group": "block1.attention",
+      "weights": {
+       "w2": 0.25,
+       "w3": 0.25,
+       "w4": 0.25,
+       "w5": 0.25
+      }
+     },
+     {
+      "op": "combine",
+      "group": "block1.feed-forward",
+      "weights": {
+       "w5": 1.0
+      }
+     },
+     {
+      "op": "combine",
+      "group": "final-norm",
+      "weights": {
+       "w3": 1.0
+      }
+     },
+     {
+      "op": "combine",
+      "group": "head",
+      "weights": {
+       "w5": 1.0
+      }
+     }
+    ]
+   },
+   "validation": 1.5755989397971648,
+   "validation_sessions": [
+    0.9899619792671697,
+    0.5352459653246009,
+    2.0063978518318475,
+    3.4237622483621584,
+    1.0887212966986288,
+    0.9970796456121044,
+    1.1980343868278345
+   ],
+   "weights_sha256": "6499ffd7e48882ac60a764b92517a768b404618a8d028aeea4be864db9821304"
+  },
+  {
+   "query": 29,
+   "program": {
+    "start": "base",
+    "ops": [
+     {
+      "op": "combine",
+      "group": "embed",
+      "weights": {
+       "w2": 0.25,
+       "w3": 0.25,
+       "w4": 0.25,
+       "w5": 0.25
+      }
+     },
+     {
+      "op": "combine",
+      "group": "block0.attention",
+      "weights": {
+       "w2": 0.25,
+       "w3": 0.25,
+       "w4": 0.25,
+       "w5": 0.25
+      }
+     },
+     {
+      "op": "combine",
+      "group": "block0.feed-forward",
+      "weights": {
+       "w2": 1.0
+      }
+     },
+     {
+      "op": "combine",
+      "group": "block1.attention",
+      "weights": {
+       "w5": 1.0
+      }
+     },
+     {
+      "op": "combine",
+      "group": "block1.feed-forward",
+      "weights": {
+       "w5": 1.0
+      }
+     },
+     {
+      "op": "combine",
+      "group": "final-norm",
+      "weights": {
+       "w3": 1.0
+      }
+     },
+     {
+      "op": "combine",
+      "group": "head",
+      "weights": {
+       "w5": 1.0
+      }
+     }
+    ]
+   },
+   "validation": 1.5795072086624626,
+   "validation_sessions": [
+    1.0190502534553405,
+    0.545256272845621,
+    2.0714479582003267,
+    3.4206808084537923,
+    1.0356130541121935,
+    1.0351929089041763,
+    1.1490905397930646
+   ],
+   "weights_sha256": "4132b216ad5b37dbf028ac0656b0c660b72a776beca65e087373a6523e701cd5"
+  },
+  {
+   "query": 30,
+   "program": {
+    "start": "base",
+    "ops": [
+     {
+      "op": "combine",
+      "group": "embed",
+      "weights": {
+       "w2": 0.25,
+       "w3": 0.25,
+       "w4": 0.25,
+       "w5": 0.25
+      }
+     },
+     {
+      "op": "combine",
+      "group": "block0.attention",
+      "weights": {
+       "w2": 0.25,
+       "w3": 0.25,
+       "w4": 0.25,
+       "w5": 0.25
+      }
+     },
+     {
+      "op": "combine",
+      "group": "block0.feed-forward",
+      "weights": {
+       "w3": 1.0
+      }
+     },
+     {
+      "op": "combine",
+      "group": "block1.attention",
+      "weights": {
+       "w5": 1.0
+      }
+     },
+     {
+      "op": "combine",
+      "group": "block1.feed-forward",
+      "weights": {
+       "w5": 1.0
+      }
+     },
+     {
+      "op": "combine",
+      "group": "final-norm",
+      "weights": {
+       "w3": 1.0
+      }
+     },
+     {
+      "op": "combine",
+      "group": "head",
+      "weights": {
+       "w5": 1.0
+      }
+     }
+    ]
+   },
+   "validation": 1.5682298271729953,
+   "validation_sessions": [
+    0.9859190263980333,
+    0.537278525085558,
+    2.0616029068976025,
+    3.373230840942784,
+    1.0635042679009725,
+    0.9938642396267573,
+    1.1791793402508952
+   ],
+   "weights_sha256": "70e4f1e0b2982be810739658b5a2a135efd79ffc5172458f7b9dc95054ea8de6"
+  },
+  {
+   "query": 31,
+   "program": {
+    "start": "base",
+    "ops": [
+     {
+      "op": "combine",
+      "group": "embed",
+      "weights": {
+       "w2": 0.25,
+       "w3": 0.25,
+       "w4": 0.25,
+       "w5": 0.25
+      }
+     },
+     {
+      "op": "combine",
+      "group": "block0.attention",
+      "weights": {
+       "w2": 0.25,
+       "w3": 0.25,
+       "w4": 0.25,
+       "w5": 0.25
+      }
+     },
+     {
+      "op": "combine",
+      "group": "block0.feed-forward",
+      "weights": {
+       "w4": 1.0
+      }
+     },
+     {
+      "op": "combine",
+      "group": "block1.attention",
+      "weights": {
+       "w5": 1.0
+      }
+     },
+     {
+      "op": "combine",
+      "group": "block1.feed-forward",
+      "weights": {
+       "w5": 1.0
+      }
+     },
+     {
+      "op": "combine",
+      "group": "final-norm",
+      "weights": {
+       "w3": 1.0
+      }
+     },
+     {
+      "op": "combine",
+      "group": "head",
+      "weights": {
+       "w5": 1.0
+      }
+     }
+    ]
+   },
+   "validation": 1.5673944240803976,
+   "validation_sessions": [
+    1.0246270163979316,
+    0.5351206702306923,
+    1.9618210494171733,
+    3.3580755768752852,
+    1.102697478286505,
+    1.028542619553757,
+    1.182884626205164
+   ],
+   "weights_sha256": "7ac23f0f176f1c6b65a7e0ad7707014e429d920c7b46153d6a6a7e5c6f67713a"
+  },
+  {
+   "query": 32,
+   "program": {
+    "start": "base",
+    "ops": [
+     {
+      "op": "combine",
+      "group": "embed",
+      "weights": {
+       "w2": 0.25,
+       "w3": 0.25,
+       "w4": 0.25,
+       "w5": 0.25
+      }
+     },
+     {
+      "op": "combine",
+      "group": "block0.attention",
+      "weights": {
+       "w2": 0.25,
+       "w3": 0.25,
+       "w4": 0.25,
+       "w5": 0.25
+      }
+     },
+     {
+      "op": "combine",
+      "group": "block0.feed-forward",
+      "weights": {
+       "w5": 1.0
+      }
+     },
+     {
+      "op": "combine",
+      "group": "block1.attention",
+      "weights": {
+       "w5": 1.0
+      }
+     },
+     {
+      "op": "combine",
+      "group": "block1.feed-forward",
+      "weights": {
+       "w5": 1.0
+      }
+     },
+     {
+      "op": "combine",
+      "group": "final-norm",
+      "weights": {
+       "w3": 1.0
+      }
+     },
+     {
+      "op": "combine",
+      "group": "head",
+      "weights": {
+       "w5": 1.0
+      }
+     }
+    ]
+   },
+   "validation": 1.5565249817202327,
+   "validation_sessions": [
+    1.0207011646048496,
+    0.5460901364610843,
+    1.8783885812330594,
+    3.177315787603857,
+    1.1869954548938406,
+    1.0504610058205177,
+    1.2777547203263384
+   ],
+   "weights_sha256": "4dcc45a032796725e704bbf9f179596005fa2a082ffc34cbb0f318d0a908bfff"
+  }
+ ],
+ "refused": []
+}

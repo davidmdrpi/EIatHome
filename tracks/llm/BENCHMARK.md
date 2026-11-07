@@ -51,7 +51,7 @@ Bits per token on the 7 test sessions (lower is better): the mean over seeds 42,
 So the gap is not "merging can't work". The plain merges here can't tell a volunteer's useful
 sessions from unhelpful ones, and the shard that helps on average isn't the one that helps on
 every new session. That leaves room for selective, layer-wise or routed combination, which the
-next benchmark tests against these baselines.
+next benchmark ([WSP_RESULTS.md](WSP_RESULTS.md)) tests against these baselines.
 
 **What v0 is for now.** Its test scores have been seen, and its training budget was revised after
 the first run (below). So v0 is a public development and replay benchmark: methods can be

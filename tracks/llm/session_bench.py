@@ -63,6 +63,7 @@ import platform
 import statistics
 import tempfile
 import time
+from typing import NamedTuple
 
 import numpy as np
 import torch
@@ -101,6 +102,35 @@ CHAINS = {
 }
 # split.json's SHA-256: the frozen split. A different split is a new benchmark version.
 SPLIT_SHA256 = "4023ba4f1795914b34aced6b093da765a2680554d8bb74f62dcd4fb32decc418"
+# v1: the same protocol on a second draw of sessions (sessions_corpus.py --exclude the first's),
+# for scoring merge methods frozen on v0 (wsp_bench.py) on sessions nobody has looked at. It is
+# cut only once the methods it scores are frozen (WSP_RESULTS.md); until then it has no split.
+BENCHMARK_V1 = "signal-lm-sessions-bench/v1"
+MANIFEST_V1 = ROOT / "tracks/llm/data/sessions-v1/index.json"
+FOLDER_V1 = Path(__file__).resolve().parent / "benchmarks" / "sessions-v1"
+SPLIT_SHA256_V1 = None
+
+
+class Benchmark(NamedTuple):
+    name: str
+    id: str
+    manifest: Path
+    folder: Path
+    split_sha256: str | None
+
+
+def benchmark(bench=None):
+    """A benchmark version by name ("v0", the default, or "v1"), read when called, so the module's
+    settings are the ones in force."""
+    if isinstance(bench, Benchmark):
+        return bench
+    if bench in (None, "v0"):
+        return Benchmark("v0", BENCHMARK, MANIFEST, FOLDER, SPLIT_SHA256)
+    if bench == "v1":
+        return Benchmark("v1", BENCHMARK_V1, MANIFEST_V1, FOLDER_V1, SPLIT_SHA256_V1)
+    raise ValueError(f"Unknown session benchmark {bench!r}: v0 or v1")
+
+
 CODE_FILES = ("data.py", "model.py", "train.py", "runtime.py", "anchor.py", "merge.py", "session_bench.py")
 
 
@@ -114,9 +144,11 @@ def sessions_of(records):
             for g in session_groups(records)]
 
 
-def build_split(manifest=MANIFEST):
+def build_split(manifest=None, bench=None):
     """split.json's content, from the manifest: the family's sessions in each split, the control's,
     and the cohort's session shards."""
+    bench = benchmark(bench)
+    manifest = bench.manifest if manifest is None else manifest
     records = load_slices(manifest)
     partitions, independent = split_records(records, FAMILY)
     if not independent:
@@ -126,7 +158,7 @@ def build_split(manifest=MANIFEST):
         raise ValueError(f"The manifest has no control family for {FAMILY}")
     targets = lambda rs: sum(len(r["frames"]) - 1 for r in rs)
     split = {
-        "format": "eiathome-signal-lm-benchmark-split", "version": 1, "benchmark": BENCHMARK,
+        "format": "eiathome-signal-lm-benchmark-split", "version": 1, "benchmark": bench.id,
         "manifest": os.path.relpath(Path(manifest).resolve(), ROOT), "dataset_sha256": dataset_digest(records),
         "anchor": ANCHOR, "family": FAMILY, "evaluation": EVALUATION, "split_unit": "session",
         "splits": {name: {"sessions": sessions_of(rs), "slices": len(rs), "targets": targets(rs)} for name, rs in partitions.items()},
@@ -144,12 +176,16 @@ def split_text(split):
     return json.dumps(split, indent=1, sort_keys=True) + "\n"
 
 
-def check_split(manifest=MANIFEST, folder=FOLDER):
+def check_split(manifest=None, folder=None, bench=None):
     """The committed split.json: pinned, and what the manifest splits into today."""
+    bench = benchmark(bench)
+    if bench.split_sha256 is None:
+        raise ValueError(f"{bench.id} hasn't been cut: its sessions wait until the methods it scores are frozen")
+    folder = bench.folder if folder is None else folder
     text = (folder / "split.json").read_text()
-    if digest(text.encode()) != SPLIT_SHA256:
+    if digest(text.encode()) != bench.split_sha256:
         raise ValueError("split.json doesn't match its pinned SHA-256: a different split is a new benchmark version")
-    if split_text(build_split(manifest)) != text:
+    if split_text(build_split(manifest, bench)) != text:
         raise ValueError("The manifest no longer splits as split.json records")
     return json.loads(text)
 
@@ -216,6 +252,9 @@ class Context:
         self.validation = encode(partitions["validation"])
         self.test = encode(partitions["test"])
         self.test_sessions = [encode(g) for g in session_groups(partitions["test"])]
+        # Per validation session too, and the records, for merge methods that look (wsp_bench.py).
+        self.validation_sessions = [encode(g) for g in session_groups(partitions["validation"])]
+        self.partitions = partitions
         control = controls(records, FAMILY, EVALUATION)
         self.control = encode(control["reporting"])
 
@@ -363,28 +402,30 @@ def theta0_scores(ctx):
 
 
 def run(args):
-    manifest = Path(args.manifest)
-    split = build_split(manifest)
+    bench = benchmark(getattr(args, "benchmark", None))
+    manifest = Path(args.manifest or bench.manifest)
+    split = build_split(manifest, bench)
     if args.publish:
-        if manifest.resolve() != MANIFEST.resolve() or tuple(args.seeds) != SEEDS or args.epochs != EPOCHS or args.rounds != ROUNDS:
+        if manifest.resolve() != bench.manifest.resolve() or tuple(args.seeds) != SEEDS or args.epochs != EPOCHS or args.rounds != ROUNDS:
             raise ValueError("--publish writes the frozen benchmark: its manifest, seeds, epochs and rounds only")
-        check_split(manifest)
+        check_split(manifest, bench=bench)
     if args.epochs % args.rounds:
         raise ValueError("--epochs must be a multiple of --rounds, so the chains train as many epochs as the one-shot workers")
     require_new_output(args.output)
     args.output.mkdir(parents=True)
     anchor = load_anchor(ANCHOR)
     ctx = Context(anchor, manifest)
-    report = {"format": "eiathome-signal-lm-benchmark-report", "version": 1, "benchmark": BENCHMARK,
+    flag = "" if bench.name == "v0" else f" --benchmark {bench.name}"
+    report = {"format": "eiathome-signal-lm-benchmark-report", "version": 1, "benchmark": bench.id,
               "protocol": __doc__.split("\n\n", 1)[1].split("\n\nThe base and the four", 1)[0],
               "split_sha256": digest(split_text(split).encode()), "dataset_sha256": ctx.dataset_sha256,
               "anchor": anchor.identity(), "code_sha256": code_sha256(), "environment": environment(),
               "settings": {"seeds": list(args.seeds), "epochs": args.epochs, "patience": PATIENCE, "rounds": args.rounds,
                            "shards": SHARDS, "unit": UNIT,
                            "one_shot_rules": ONE_SHOT, "chain_rules": CHAINS, "tolerance_bits": RULE["tolerance_bits"]},
-              "commands": {"split": "python -m tracks.llm.session_bench split --check",
-                           "run": f"python -m tracks.llm.session_bench run --output {args.output}",
-                           "verify": "python -m tracks.llm.session_bench verify"},
+              "commands": {"split": f"python -m tracks.llm.session_bench split --check{flag}",
+                           "run": f"python -m tracks.llm.session_bench run --output {args.output}{flag}",
+                           "verify": f"python -m tracks.llm.session_bench verify{flag}"},
               "theta0": theta0_scores(ctx), "baselines": baselines(ctx), "seeds": {}}
     for seed in args.seeds:
         report["seeds"][str(seed)] = one_seed(args.output / f"seed{seed}", seed, args.epochs, args.rounds, manifest, ctx)
@@ -393,28 +434,30 @@ def run(args):
     (args.output / "report.json").write_text(json.dumps(report, indent=2, allow_nan=False) + "\n")
     print(table(report))
     if args.publish:
-        publish(report, {seed: cohort_paths(args.output, seed) for seed in args.seeds}, anchor)
+        publish(report, {seed: cohort_paths(args.output, seed) for seed in args.seeds}, anchor, bench=bench)
     return report
 
 
 # ---------- published checkpoints ----------
 
-def export(anchor, path, header):
+def export(anchor, path, header, bench=None):
     """A checkpoint's weights as θ₀ is stored (raw float32 in parameter order) and its header."""
     checkpoint = load_checkpoint(path, anchor)
     state = checkpoint["model"]
     difference(state, anchor.theta0)  # the anchor's parameters, in its order
     data = b"".join(np.ascontiguousarray(v.detach().cpu().numpy(), dtype="<f4").tobytes() for v in state.values())
     merge_info = {k: v for k, v in checkpoint["merge"].items()}
-    return {"format": "eiathome-signal-lm-weights", "version": 1, "benchmark": BENCHMARK, **header,
+    return {"format": "eiathome-signal-lm-weights", "version": 1, "benchmark": benchmark(bench).id, **header,
             "anchor": anchor.identity(), "config": anchor.spec["model"], "dtype": "float32-le",
             "dataset_sha256": checkpoint["dataset_sha256"], "evaluation": checkpoint["evaluation"],
             "best_epoch": checkpoint.get("best_epoch"), "merge": merge_info,
             "tensors": canonical_layout(anchor.spec["model"])[0], "sha256": digest(data)}, data
 
 
-def publish(report, published, anchor, folder=FOLDER):
+def publish(report, published, anchor, folder=None, bench=None):
     """Writes split.json's companions: the report and each seed's base and workers."""
+    bench = benchmark(bench)
+    folder = bench.folder if folder is None else folder
     (folder / "checkpoints").mkdir(parents=True, exist_ok=True)
     for seed, (base, workers) in published.items():
         target = folder / "checkpoints" / f"seed{seed}"
@@ -423,19 +466,21 @@ def publish(report, published, anchor, folder=FOLDER):
         entries += [(f"worker{k}", path, {"role": "worker", "seed": seed, "shard": [k, SHARDS], "shard_unit": UNIT})
                     for k, path in workers.items()]
         for name, path, header in entries:
-            head, data = export(anchor, path, {**header, "split_sha256": report["split_sha256"]})
+            head, data = export(anchor, path, {**header, "split_sha256": report["split_sha256"]}, bench)
             (target / f"{name}.bin").write_bytes(data)
             (target / f"{name}.json").write_text(json.dumps(head, indent=1) + "\n")
     (folder / "report.json").write_text(json.dumps(report, indent=2, allow_nan=False) + "\n")
 
 
-def load_published(anchor, path, manifest=MANIFEST):
+def load_published(anchor, path, manifest=None, bench=None):
     """A published base or worker, as a checkpoint merge.py loads: the weights from the .bin,
     checked against its header, and its splits from the manifest."""
+    bench = benchmark(bench)
+    manifest = bench.manifest if manifest is None else manifest
     path = Path(path)
     header = json.loads(path.with_suffix(".json").read_text())
     data = path.with_suffix(".bin").read_bytes()
-    if header.get("format") != "eiathome-signal-lm-weights" or header.get("benchmark") != BENCHMARK:
+    if header.get("format") != "eiathome-signal-lm-weights" or header.get("benchmark") != bench.id:
         raise ValueError(f"{path}: not this benchmark's published weights")
     if header.get("anchor") != anchor.identity() or header.get("tensors") != canonical_layout(anchor.spec["model"])[0]:
         raise ValueError(f"{path}: not anchor {anchor.name}'s parameters")
@@ -461,10 +506,10 @@ def load_published(anchor, path, manifest=MANIFEST):
 PUBLISHED = ("base", *(f"worker{k}" for k in WORKER_SHARDS))
 
 
-def published_files(folder=FOLDER, seeds=SEEDS):
+def published_files(folder=None, seeds=SEEDS, bench=None):
     """Each seed's published base and workers 2 to 5: all of them, and nothing else. Refuses a
     missing or extra seed, and a seed missing a checkpoint or its header."""
-    root = folder / "checkpoints"
+    root = (benchmark(bench).folder if folder is None else folder) / "checkpoints"
     found = sorted(p.name for p in root.iterdir()) if root.is_dir() else []
     expected = sorted(f"seed{s}" for s in seeds)
     if found != expected:
@@ -482,27 +527,32 @@ def published_files(folder=FOLDER, seeds=SEEDS):
     return files
 
 
-def materialize(output, manifest=MANIFEST, folder=FOLDER, seeds=SEEDS):
+def materialize(output, manifest=None, folder=None, seeds=SEEDS, bench=None):
     """Every published base and worker as a .pt checkpoint, under output/seed*/."""
+    bench = benchmark(bench)
+    manifest = bench.manifest if manifest is None else manifest
     anchor = load_anchor(ANCHOR)
     require_new_output(output)
     paths = {}
-    for seed, files in published_files(folder, seeds).items():
+    for seed, files in published_files(folder, seeds, bench).items():
         (output / f"seed{seed}").mkdir(parents=True)
         for name, path in files.items():
             target = output / f"seed{seed}" / f"{name}.pt"
-            torch.save(load_published(anchor, path, manifest), target)
+            torch.save(load_published(anchor, path, manifest, bench), target)
             paths[(seed, name)] = target
     return paths
 
 
-def verify(manifest=MANIFEST, folder=FOLDER, seeds=SEEDS):
+def verify(manifest=None, folder=None, seeds=SEEDS, bench=None):
     """The frozen benchmark, checked: the split's pin; every seed's base and workers 2 to 5, all
     present (hashes, starts, disjoint session shards, none trained on a held-out session); their
     one-shot merges and scores, and the baselines, recomputed and compared with report.json."""
-    split = check_split(manifest, folder)
+    bench = benchmark(bench)
+    manifest = bench.manifest if manifest is None else manifest
+    folder = bench.folder if folder is None else folder
+    split = check_split(manifest, folder, bench)
     report = json.loads((folder / "report.json").read_text())
-    if report["split_sha256"] != SPLIT_SHA256:
+    if report["split_sha256"] != bench.split_sha256:
         raise ValueError("report.json was made on another split")
     if sorted(report["seeds"]) != sorted(map(str, seeds)) or report["settings"]["seeds"] != list(seeds):
         raise ValueError(f"report.json covers seeds {', '.join(sorted(report['seeds']))}; the benchmark's are {', '.join(map(str, seeds))}")
@@ -515,7 +565,7 @@ def verify(manifest=MANIFEST, folder=FOLDER, seeds=SEEDS):
     held_out_ids = {s["sha256"] for name in ("validation", "test") for sess in split["splits"][name]["sessions"] for s in sess["slices"]}
     checked = []
     with tempfile.TemporaryDirectory() as tmp:
-        paths = materialize(Path(tmp) / "checkpoints", manifest, folder, seeds)
+        paths = materialize(Path(tmp) / "checkpoints", manifest, folder, seeds, bench)
         for seed in seeds:
             recorded_seed = report["seeds"][str(seed)]
             if sorted(w["shard"] for w in recorded_seed["workers"]) != list(WORKER_SHARDS):
@@ -566,40 +616,43 @@ def main(argv=None):
     p = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     sub = p.add_subparsers(dest="command", required=True)
     s = sub.add_parser("split", help="build split.json")
-    s.add_argument("--manifest", type=Path, default=MANIFEST)
+    s.add_argument("--manifest", type=Path, default=None, help="default: the benchmark's corpus")
     s.add_argument("--write", action="store_true", help="write split.json (a new benchmark version: re-pin SPLIT_SHA256)")
     s.add_argument("--check", action="store_true", help="check split.json against its pin and the manifest")
     r = sub.add_parser("run", help="run the benchmark")
     r.add_argument("--output", type=Path, required=True)
-    r.add_argument("--manifest", type=Path, default=MANIFEST)
+    r.add_argument("--manifest", type=Path, default=None, help="default: the benchmark's corpus")
     r.add_argument("--seeds", type=int, nargs="+", default=list(SEEDS))
     r.add_argument("--epochs", type=int, default=EPOCHS)
     r.add_argument("--rounds", type=int, default=ROUNDS)
     r.add_argument("--publish", action="store_true", help="rewrite the published report and checkpoints (the frozen settings only)")
     v = sub.add_parser("verify", help="check the published split, checkpoints and one-shot merges")
-    v.add_argument("--manifest", type=Path, default=MANIFEST)
+    v.add_argument("--manifest", type=Path, default=None, help="default: the benchmark's corpus")
     m = sub.add_parser("materialize", help="write the published checkpoints as .pt files")
     m.add_argument("--output", type=Path, required=True)
+    for command in (s, r, v, m):
+        command.add_argument("--benchmark", choices=("v0", "v1"), default="v0", help="the benchmark version (default v0)")
     args = p.parse_args(argv)
     try:
+        bench = benchmark(args.benchmark)
         if args.command == "split":
-            split = build_split(args.manifest)
+            split = build_split(args.manifest, bench)
             if args.write:
-                FOLDER.mkdir(parents=True, exist_ok=True)
-                (FOLDER / "split.json").write_text(split_text(split))
+                bench.folder.mkdir(parents=True, exist_ok=True)
+                (bench.folder / "split.json").write_text(split_text(split))
                 print(f"wrote split.json: {digest(split_text(split).encode())}")
             if args.check:
-                check_split(args.manifest)
-                print(f"split.json matches its pin ({SPLIT_SHA256[:16]}) and the manifest")
+                check_split(args.manifest, bench=bench)
+                print(f"split.json matches its pin ({bench.split_sha256[:16]}) and the manifest")
             for name, part in split["splits"].items():
                 print(f"{name}: {len(part['sessions'])} sessions, {part['slices']} slices, {part['targets']} targets")
         elif args.command == "run":
             run(args)
         elif args.command == "verify":
-            seeds = verify(args.manifest)
+            seeds = verify(args.manifest, bench=bench)
             print(f"verified: split.json, and the published base, workers and one-shot merges of seeds {', '.join(map(str, seeds))}")
         else:
-            paths = materialize(args.output)
+            paths = materialize(args.output, bench=bench)
             print(f"wrote {len(paths)} checkpoints under {args.output}")
     except (ValueError, OSError, RuntimeError) as exc:
         p.error(str(exc))
