@@ -59,10 +59,21 @@ version, never an edit.
   "no line" in every frame, so it isn't one of v3's families.
 - **Model:** v1's, with 33 tokens: 27,584 parameters. θ₀ is drawn as v1's is.
 
+## v4
+
+- **Data:** the sessions corpus (`tracks/llm/data/sessions`): 16-frame windows of the
+  fine-resolution product from 57 Green Bank observing sessions, for the session benchmark
+  ([BENCHMARK.md](../BENCHMARK.md)).
+- **Tokenizer:** v3's peak tokenizer, so nothing is fitted on any session and every session can
+  be held out.
+- **Families:** the on-target hits (`stars`) and the blind windows (`blind-window`).
+- **Model:** v3's, 27,584 parameters. θ₀ is drawn as v3's is, from the same seed, so its bytes
+  are v3's; v4 is a separate anchor because it's defined on a different product.
+
 Check that the committed files rebuild, or write them for a new version:
 
 ```bash
-python -m tracks.llm.anchor build --anchor v1   # or v2, v3
+python -m tracks.llm.anchor build --anchor v1   # or v2, v3, v4
 python -m tracks.llm.anchor build --anchor v1 --write   # only when defining a new anchor
 ```
 

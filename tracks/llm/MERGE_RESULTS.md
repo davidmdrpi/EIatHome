@@ -14,7 +14,9 @@ milestone:
 Milestones 2 to 3b, and milestone 5's Python results, use one 2020 observing session: training,
 validation and test are three scans of the same cadence (`--allow-within-session`). The browser
 uses its synthetic Rosetta text. None of it is evidence of generalization across sessions, or
-of language.
+of language. The session benchmark ([BENCHMARK.md](BENCHMARK.md)) merges workers trained on
+different observing sessions and tests on later ones; there, trained to convergence, no one-shot
+merge beats the best worker, and DiLoCo doesn't help.
 
 ## Summary
 

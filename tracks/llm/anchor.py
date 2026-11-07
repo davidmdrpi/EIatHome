@@ -90,6 +90,22 @@ ANCHORS = {
         "codebook_record_sha256": "51ce459876f09e068e7bd6ba1777236d8c792fa2f1eaa03c1f1ccff5b2857a65",
         "theta0_sha256": "83124fecefc322b17e9f1326ecafad80f15346cfcb5e0d10d5dd6f840039fa15",
     },
+    # The session benchmark (BENCHMARK.md): the sessions corpus (tracks/llm/data/sessions, made by
+    # sessions_corpus.py), 16-frame windows of the fine-resolution product from many Green Bank
+    # observing sessions. v3's peak tokenizer, so nothing is fitted on any session and every
+    # session can be held out, and v3's model, drawn from the same seed (the same θ₀ bytes).
+    "v4": {
+        "id": "signal-lm-anchor/v4",
+        "manifest": "tracks/llm/data/sessions/index.json",
+        "product": "fine_resolution",
+        "families": ("stars", "blind-window"),
+        "tokenizer": {"kind": "peak", "threshold": 6.0, "width": 2, "channels": 64},
+        "theta_seed": 0,
+        "model": dict(vocab_size=33, context=15, width=32, layers=2, heads=4, dropout=0.1, position="rope"),
+        "codebook_sha256": "17d422eda0950f22b4ed96afc06f8770be96a56869a6d9a242269f85d0748215",
+        "codebook_record_sha256": "0b9c7fa86afa1050a701ff603fcff3c0e97333c99ecaca9bb280ce506b913983",
+        "theta0_sha256": "83124fecefc322b17e9f1326ecafad80f15346cfcb5e0d10d5dd6f840039fa15",
+    },
 }
 
 

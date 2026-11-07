@@ -130,8 +130,9 @@ python -m tracks.llm.merge round --merge ties --dare-p 0.9 --soup greedy \
 ```
 
 - **Workers:** `--shard i/n` trains on every n-th training slice in a fixed order by content,
-  so shards are disjoint and don't depend on the manifest's order. Validation and test aren't
-  sharded. `--start` continues from a merged round (round 1 starts from θ₀). `--variants real`
+  so shards are disjoint and don't depend on the manifest's order. With `--shard-unit session`
+  it takes every n-th observing session instead, whole, so no two workers share a session (the
+  session benchmark's volunteers). Validation and test aren't sharded. `--start` continues from a merged round (round 1 starts from θ₀). `--variants real`
   skips the surrogate controls. Each worker records its round, its start's digest, its shard,
   its seed and its number of training targets.
 - **Refused before the gate:**
@@ -146,10 +147,13 @@ python -m tracks.llm.merge round --merge ties --dare-p 0.9 --soup greedy \
   - the same shard and seed twice, which counts once;
   - with DARE, a compressed delta over a result card's 16 KB.
 - **Refused outright:**
-  - workers divided into different numbers of shards, whose shards would overlap;
+  - workers divided into different numbers of shards, or some by slice and some by session,
+    whose shards would overlap;
   - a chain that changes family, dataset or split: `train.py --start` and `merge round
     --start` both refuse a merge from another family's runs, or from another manifest;
-  - a chain that changes its outer step.
+  - a chain that changes its outer step. Plain rounds (lr 1, no momentum) carry nothing from
+    one round to the next, so a chain may take up an outer step after them, as if it started
+    from that merge; once it has one, it keeps it.
 - **The rule:**
   - **DARE** (`--dare-p p`, `--dare-method random|magnitude`): each delta is compressed as a
     volunteer would send it. A fraction p of its entries is dropped; the rest are stored as
@@ -284,6 +288,22 @@ epoch both ways, the selection check that milestone 3b's review asked for.
 
 ```bash
 python -m tracks.llm.route_bench --output runs/route-bench   # about half an hour on a CPU
+```
+
+### The session benchmark: merging across observing sessions
+
+Every benchmark above trains and tests on one 2020 session. [session_bench.py](session_bench.py)
+(results in [BENCHMARK.md](BENCHMARK.md)) is frozen on the sessions corpus
+([data/sessions](data/sessions/README.md)): 57 Green Bank sessions from 2016 to 2024, split by
+whole session, chronologically. Anchor v4 trains a base on 5 training sessions. Four volunteers
+then train from it on their own sessions (`--shard-unit session`), and their merges are compared
+with the best worker and with one model on every training session. It publishes the split, the
+whole report and each seed's base and workers ([benchmarks/sessions-v0](benchmarks/sessions-v0)).
+
+```bash
+python -m tracks.llm.session_bench verify      # the published split, checkpoints and one-shot merges
+python -m tracks.llm.session_bench materialize --output runs/sessions-v0-checkpoints
+python -m tracks.llm.session_bench run --output runs/sessions-bench   # about 5 minutes on a CPU
 ```
 
 ## What the pipeline learns
