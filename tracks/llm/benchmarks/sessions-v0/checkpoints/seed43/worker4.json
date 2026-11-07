@@ -1,0 +1,280 @@
+{
+ "format": "eiathome-signal-lm-weights",
+ "version": 1,
+ "benchmark": "signal-lm-sessions-bench/v0",
+ "role": "worker",
+ "seed": 43,
+ "shard": [
+  4,
+  5
+ ],
+ "shard_unit": "session",
+ "split_sha256": "4023ba4f1795914b34aced6b093da765a2680554d8bb74f62dcd4fb32decc418",
+ "anchor": {
+  "anchor": "signal-lm-anchor/v4",
+  "codebook_sha256": "17d422eda0950f22b4ed96afc06f8770be96a56869a6d9a242269f85d0748215",
+  "codebook_record_sha256": "0b9c7fa86afa1050a701ff603fcff3c0e97333c99ecaca9bb280ce506b913983",
+  "theta0_sha256": "83124fecefc322b17e9f1326ecafad80f15346cfcb5e0d10d5dd6f840039fa15"
+ },
+ "config": {
+  "vocab_size": 33,
+  "context": 15,
+  "width": 32,
+  "layers": 2,
+  "heads": 4,
+  "dropout": 0.1,
+  "position": "rope"
+ },
+ "dtype": "float32-le",
+ "dataset_sha256": "4d6f46ef9687f890b09543a43e3be96d5512878b3830d589fea647cee21c8d32",
+ "evaluation": "independent_sessions",
+ "best_epoch": 42,
+ "merge": {
+  "round": 2,
+  "start_sha256": "9a0e52b6db3a65de062ad3981e8557d4e834af4dd448d74728923a845e29e6ac",
+  "shard": [
+   4,
+   5
+  ],
+  "shard_unit": "session",
+  "seed": 43,
+  "training_targets": 225
+ },
+ "tensors": [
+  {
+   "name": "token.weight",
+   "shape": [
+    33,
+    32
+   ],
+   "offset": 0,
+   "count": 1056
+  },
+  {
+   "name": "blocks.0.norm1.weight",
+   "shape": [
+    32
+   ],
+   "offset": 1056,
+   "count": 32
+  },
+  {
+   "name": "blocks.0.norm1.bias",
+   "shape": [
+    32
+   ],
+   "offset": 1088,
+   "count": 32
+  },
+  {
+   "name": "blocks.0.norm2.weight",
+   "shape": [
+    32
+   ],
+   "offset": 1120,
+   "count": 32
+  },
+  {
+   "name": "blocks.0.norm2.bias",
+   "shape": [
+    32
+   ],
+   "offset": 1152,
+   "count": 32
+  },
+  {
+   "name": "blocks.0.qkv.weight",
+   "shape": [
+    96,
+    32
+   ],
+   "offset": 1184,
+   "count": 3072
+  },
+  {
+   "name": "blocks.0.qkv.bias",
+   "shape": [
+    96
+   ],
+   "offset": 4256,
+   "count": 96
+  },
+  {
+   "name": "blocks.0.out.weight",
+   "shape": [
+    32,
+    32
+   ],
+   "offset": 4352,
+   "count": 1024
+  },
+  {
+   "name": "blocks.0.out.bias",
+   "shape": [
+    32
+   ],
+   "offset": 5376,
+   "count": 32
+  },
+  {
+   "name": "blocks.0.feed.0.weight",
+   "shape": [
+    128,
+    32
+   ],
+   "offset": 5408,
+   "count": 4096
+  },
+  {
+   "name": "blocks.0.feed.0.bias",
+   "shape": [
+    128
+   ],
+   "offset": 9504,
+   "count": 128
+  },
+  {
+   "name": "blocks.0.feed.3.weight",
+   "shape": [
+    32,
+    128
+   ],
+   "offset": 9632,
+   "count": 4096
+  },
+  {
+   "name": "blocks.0.feed.3.bias",
+   "shape": [
+    32
+   ],
+   "offset": 13728,
+   "count": 32
+  },
+  {
+   "name": "blocks.1.norm1.weight",
+   "shape": [
+    32
+   ],
+   "offset": 13760,
+   "count": 32
+  },
+  {
+   "name": "blocks.1.norm1.bias",
+   "shape": [
+    32
+   ],
+   "offset": 13792,
+   "count": 32
+  },
+  {
+   "name": "blocks.1.norm2.weight",
+   "shape": [
+    32
+   ],
+   "offset": 13824,
+   "count": 32
+  },
+  {
+   "name": "blocks.1.norm2.bias",
+   "shape": [
+    32
+   ],
+   "offset": 13856,
+   "count": 32
+  },
+  {
+   "name": "blocks.1.qkv.weight",
+   "shape": [
+    96,
+    32
+   ],
+   "offset": 13888,
+   "count": 3072
+  },
+  {
+   "name": "blocks.1.qkv.bias",
+   "shape": [
+    96
+   ],
+   "offset": 16960,
+   "count": 96
+  },
+  {
+   "name": "blocks.1.out.weight",
+   "shape": [
+    32,
+    32
+   ],
+   "offset": 17056,
+   "count": 1024
+  },
+  {
+   "name": "blocks.1.out.bias",
+   "shape": [
+    32
+   ],
+   "offset": 18080,
+   "count": 32
+  },
+  {
+   "name": "blocks.1.feed.0.weight",
+   "shape": [
+    128,
+    32
+   ],
+   "offset": 18112,
+   "count": 4096
+  },
+  {
+   "name": "blocks.1.feed.0.bias",
+   "shape": [
+    128
+   ],
+   "offset": 22208,
+   "count": 128
+  },
+  {
+   "name": "blocks.1.feed.3.weight",
+   "shape": [
+    32,
+    128
+   ],
+   "offset": 22336,
+   "count": 4096
+  },
+  {
+   "name": "blocks.1.feed.3.bias",
+   "shape": [
+    32
+   ],
+   "offset": 26432,
+   "count": 32
+  },
+  {
+   "name": "norm.weight",
+   "shape": [
+    32
+   ],
+   "offset": 26464,
+   "count": 32
+  },
+  {
+   "name": "norm.bias",
+   "shape": [
+    32
+   ],
+   "offset": 26496,
+   "count": 32
+  },
+  {
+   "name": "head.weight",
+   "shape": [
+    33,
+    32
+   ],
+   "offset": 26528,
+   "count": 1056
+  }
+ ],
+ "sha256": "78e93fda7eaac6f43715b530efc6abc70b58f02e5f282583e92d915f4f28600c"
+}

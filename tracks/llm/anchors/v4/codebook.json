@@ -1,0 +1,24 @@
+{
+ "format": "eiathome-signal-lm-codebook",
+ "version": 1,
+ "anchor": "signal-lm-anchor/v4",
+ "fit": {
+  "manifest": "tracks/llm/data/sessions/index.json",
+  "product": "fine_resolution",
+  "families": [
+   "stars",
+   "blind-window"
+  ],
+  "split": null,
+  "seed": null,
+  "frames": 0,
+  "slices": []
+ },
+ "tokenizer": {
+  "kind": "peak",
+  "threshold": 6.0,
+  "width": 2,
+  "channels": 64
+ },
+ "sha256": "17d422eda0950f22b4ed96afc06f8770be96a56869a6d9a242269f85d0748215"
+}

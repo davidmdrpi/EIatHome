@@ -1,0 +1,5336 @@
+{
+  "format": "eiathome-signal-lm-benchmark-report",
+  "version": 1,
+  "benchmark": "signal-lm-sessions-bench/v0",
+  "protocol": "Every earlier merge benchmark (merge_bench.py, moe_bench.py, route_bench.py) trains and tests on\none 2020 Voyager session; they stay as smoke tests. This one is frozen on the sessions corpus\n(tracks/llm/data/sessions, made by sessions_corpus.py): on-target scans of nearby stars from many\nGreen Bank observing sessions, 16-frame windows of the fine-resolution product. BENCHMARK.md has\nthe results; split.json and checkpoints/ are what it publishes.\n\nFixed before any run:\n\n- Data: the corpus's on-target hits (family stars), split by whole observing session,\n  chronologically, 60/20/20 (data.split_records): every validation and test session was observed\n  after every training session. The blind windows of the same sessions (family blind-window)\n  are the control: its validation part is the selection diagnostic, its test part the reporting\n  control. split.json lists every session and slice by content hash; its SHA-256 is pinned below.\n- Anchor v4: the peak tokenizer (fitted on nothing) and \u03b8\u2080, so every run's change is in the\n  same coordinates and no session shaped the tokens.\n- The cohort: the training sessions in 5 session shards (merge.shard_records, by session).\n  Shard 1 trains the base, from \u03b8\u2080, recorded as round 1 of a chain. Shards 2 to 5 are four\n  volunteers: each worker trains from the base on its own sessions. No two of them, and no\n  worker and the base, share a session.\n- Training: to convergence. Up to 1,000 epochs, stopping once validation hasn't improved for 50,\n  and keeping the best epoch (train.py, lr 3e-4, batch 32), the real stream only, seeds 42, 43\n  and 44. A worker's seed is its seed's; in the chains, round r's workers train up to\n  epochs / rounds = 100 epochs with seed + r and the same patience. (The first run used 50\n  epochs and train.py's patience of 8: every run's best epoch was its last, so it compared\n  models still training. BENCHMARK.md records that run.)\n- Arms, per seed: the base; each worker; the best worker by validation; one-shot merges of the\n  four workers from the base (the plain average, a greedy soup of it, and TIES keeping 20%, the\n  TIES paper's default); ten-round chains from the base (the plain average, and the average with\n  DiLoCo's outer step, lr 0.7 and Nesterov momentum 0.9, the DiLoCo paper's); and one model on all\n  the training sessions, from \u03b8\u2080 and from the base, trained the same way.\n- Every round gates its workers and merge against the incumbent on validation (merge.py, a\n  tolerance of 0.02 bits). Nothing is chosen on test.\n- Reported, on the test sessions only after everything is chosen: bits per token (the mean over\n  test targets), the worst test session's, the control's, and the order gain (how many fewer\n  bits the model needs for the test tokens in their real order than shuffled within each slice,\n  merge.order_gain). Also: each arm's training seconds, contributions and bytes sent (a float32\n  delta per contribution), and evaluation seconds.",
+  "split_sha256": "4023ba4f1795914b34aced6b093da765a2680554d8bb74f62dcd4fb32decc418",
+  "dataset_sha256": "4d6f46ef9687f890b09543a43e3be96d5512878b3830d589fea647cee21c8d32",
+  "anchor": {
+    "anchor": "signal-lm-anchor/v4",
+    "codebook_sha256": "17d422eda0950f22b4ed96afc06f8770be96a56869a6d9a242269f85d0748215",
+    "codebook_record_sha256": "0b9c7fa86afa1050a701ff603fcff3c0e97333c99ecaca9bb280ce506b913983",
+    "theta0_sha256": "83124fecefc322b17e9f1326ecafad80f15346cfcb5e0d10d5dd6f840039fa15"
+  },
+  "code_sha256": "d3ef63bc0ede7a32a828ec17d3b332f683ef820a3fde654333ee9520a1f32c3a",
+  "environment": {
+    "python": "3.13.17",
+    "numpy": "2.5.3",
+    "torch": "2.15.0+cpu",
+    "platform": "Linux-6.18.44-fc-v300-x86_64-with-glibc2.39",
+    "machine": "x86_64",
+    "cpu_count": 4,
+    "threads": 1,
+    "device": "cpu",
+    "deterministic_algorithms": true
+  },
+  "settings": {
+    "seeds": [
+      42,
+      43,
+      44
+    ],
+    "epochs": 1000,
+    "patience": 50,
+    "rounds": 10,
+    "shards": 5,
+    "unit": "session",
+    "one_shot_rules": {
+      "average (FedAvg)": {},
+      "average, greedy soup": {
+        "soup": "greedy"
+      },
+      "TIES, keep 20%": {
+        "merge": "ties",
+        "ties_keep": 0.2
+      }
+    },
+    "chain_rules": {
+      "average (FedAvg)": {},
+      "average + DiLoCo": {
+        "outer": {
+          "lr": 0.7,
+          "momentum": 0.9
+        }
+      }
+    },
+    "tolerance_bits": 0.02
+  },
+  "commands": {
+    "split": "python -m tracks.llm.session_bench split --check",
+    "run": "python -m tracks.llm.session_bench run --output runs/sessions-bench-v1",
+    "verify": "python -m tracks.llm.session_bench verify"
+  },
+  "theta0": {
+    "validation": 5.393740050866813,
+    "test": 5.328593781302918,
+    "test_worst_session": 5.696179868228636,
+    "test_sessions": [
+      5.170873491159021,
+      5.046070405218024,
+      5.355084674130005,
+      5.696179868228636,
+      5.3213155366677904,
+      5.554752587646266,
+      5.108577797777373
+    ],
+    "control": 6.183687151991151,
+    "test_order_gain_bits": -0.09754071313752011,
+    "test_order_p": 1.0,
+    "weights_sha256": "83124fecefc322b17e9f1326ecafad80f15346cfcb5e0d10d5dd6f840039fa15",
+    "eval_seconds": 1.0000060250000047
+  },
+  "baselines": {
+    "unigram": {
+      "validation": 2.4224689876201078,
+      "test": 2.089539847254579,
+      "test_worst_session": 3.91681183746169,
+      "test_sessions": [
+        1.4395420457257617,
+        1.0436085516609117,
+        1.3593069223035417,
+        1.778913612067061,
+        3.91681183746169,
+        1.562092889126786,
+        1.4892571663691143
+      ],
+      "control": 1.8920374675141605
+    },
+    "Markov-1": {
+      "validation": 1.6115965699053185,
+      "test": 1.4882073035614958,
+      "test_worst_session": 3.0600321039821785,
+      "test_sessions": [
+        1.5520326053359905,
+        0.2634683643393636,
+        0.524753160365887,
+        1.3673131248638664,
+        3.0600321039821785,
+        0.932763332213078,
+        1.1671881821112455
+      ],
+      "control": 0.3923174227787606
+    }
+  },
+  "seeds": {
+    "42": {
+      "base": {
+        "validation": 1.744883603683143,
+        "test": 1.660413886543463,
+        "test_worst_session": 3.460867940975191,
+        "test_sessions": [
+          1.5072067880545281,
+          0.1495581884476188,
+          0.5952584628954337,
+          0.9971878800270474,
+          3.460867940975191,
+          1.2280609372097262,
+          1.212772122881078
+        ],
+        "control": 0.6812672992876532,
+        "test_order_gain_bits": 0.255242606971104,
+        "test_order_p": 0.05,
+        "weights_sha256": "ffbaa49dd11479e9f6b8baac10aa349bff86334b54dcb1f6c1e88564931e11da",
+        "eval_seconds": 0.07547474700001544,
+        "shard": 1,
+        "training": {
+          "command": "python -m tracks.llm.train --anchor v4 --manifest tracks/llm/data/sessions/index.json --family stars --variants real --epochs 1000 --patience 50 --seed 42 --output base-worker --shard 1/5 --shard-unit session",
+          "seconds": 3.327464599000024,
+          "best_epoch": 190,
+          "epochs_run": 240,
+          "training_targets": 360
+        },
+        "round": {
+          "round": 1,
+          "decision": "accepted",
+          "reason": null,
+          "validation_bits": 1.744883603683143,
+          "weights_sha256": "ffbaa49dd11479e9f6b8baac10aa349bff86334b54dcb1f6c1e88564931e11da",
+          "contributors": [
+            {
+              "file": "base-worker/real.pt",
+              "shard": [
+                1,
+                5
+              ],
+              "status": "accepted",
+              "reason": null,
+              "weight": 1.0,
+              "validation_bits": 1.744883603683143
+            }
+          ]
+        },
+        "merge_seconds": 0.2307971900000041
+      },
+      "workers": [
+        {
+          "validation": 1.7293564720139116,
+          "test": 1.6595562052417734,
+          "test_worst_session": 3.542895196246655,
+          "test_sessions": [
+            1.5477363571429785,
+            0.14045565121989287,
+            0.5467325107712403,
+            0.966584048857433,
+            3.542895196246655,
+            1.1996879885503704,
+            1.1798127256011661
+          ],
+          "control": 0.43799926136545747,
+          "test_order_gain_bits": 0.36612215772802004,
+          "test_order_p": 0.05,
+          "weights_sha256": "7c0211ad39099a64e38e5c17070a26963cce38ee10d8e8ac3c256150c1164edc",
+          "eval_seconds": 0.06715312200000767,
+          "shard": 2,
+          "training": {
+            "command": "python -m tracks.llm.train --anchor v4 --manifest tracks/llm/data/sessions/index.json --family stars --variants real --epochs 1000 --patience 50 --seed 42 --output worker2 --shard 2/5 --shard-unit session --start base/merged.pt",
+            "seconds": 0.9106639350000023,
+            "best_epoch": 20,
+            "epochs_run": 70,
+            "training_targets": 225
+          }
+        },
+        {
+          "validation": 1.745065425600907,
+          "test": 1.6530869669963053,
+          "test_worst_session": 3.4607334123238496,
+          "test_sessions": [
+            1.5031507492165797,
+            0.14988150436573083,
+            0.586102687482674,
+            0.989568452387302,
+            3.4607334123238496,
+            1.2028463543875487,
+            1.215282182917564
+          ],
+          "control": 0.6623794099308739,
+          "test_order_gain_bits": 0.2599413516132534,
+          "test_order_p": 0.05,
+          "weights_sha256": "5fcf74d83c64cc39938fa5293aa5c9355a561623225ed927d1f41f89ce07eda9",
+          "eval_seconds": 0.06728033499999242,
+          "shard": 3,
+          "training": {
+            "command": "python -m tracks.llm.train --anchor v4 --manifest tracks/llm/data/sessions/index.json --family stars --variants real --epochs 1000 --patience 50 --seed 42 --output worker3 --shard 3/5 --shard-unit session --start base/merged.pt",
+            "seconds": 0.6804159549999724,
+            "best_epoch": 1,
+            "epochs_run": 51,
+            "training_targets": 225
+          }
+        },
+        {
+          "validation": 1.714584194820459,
+          "test": 1.571147399945761,
+          "test_worst_session": 3.265344977505538,
+          "test_sessions": [
+            1.76624696506001,
+            0.2032443959305437,
+            0.5488734731079545,
+            0.9006266384597355,
+            3.265344977505538,
+            1.0463900220723932,
+            1.2200650433690787
+          ],
+          "control": 0.362793587107203,
+          "test_order_gain_bits": 0.35450305972075435,
+          "test_order_p": 0.05,
+          "weights_sha256": "5102ea4e1aaf925e094560854c36e685e33fe55b4a359822e8748c1c3aa78582",
+          "eval_seconds": 0.06716510200001835,
+          "shard": 4,
+          "training": {
+            "command": "python -m tracks.llm.train --anchor v4 --manifest tracks/llm/data/sessions/index.json --family stars --variants real --epochs 1000 --patience 50 --seed 42 --output worker4 --shard 4/5 --shard-unit session --start base/merged.pt",
+            "seconds": 1.3023325080000063,
+            "best_epoch": 44,
+            "epochs_run": 94,
+            "training_targets": 225
+          }
+        },
+        {
+          "validation": 1.5546294366637352,
+          "test": 1.339959668017717,
+          "test_worst_session": 2.4112379797833974,
+          "test_sessions": [
+            1.8609858325967394,
+            0.13029308172530893,
+            0.5067721813261259,
+            0.8132219366725205,
+            2.4112379797833974,
+            1.0028646222173399,
+            1.2249327791697127
+          ],
+          "control": 0.18987089783652195,
+          "test_order_gain_bits": 0.3445005970224051,
+          "test_order_p": 0.05,
+          "weights_sha256": "1eb8c9085aa300a236c0c357c68217f5dcd2e862e51cf835a6304db38d07cf43",
+          "eval_seconds": 0.06715119400001868,
+          "shard": 5,
+          "training": {
+            "command": "python -m tracks.llm.train --anchor v4 --manifest tracks/llm/data/sessions/index.json --family stars --variants real --epochs 1000 --patience 50 --seed 42 --output worker5 --shard 5/5 --shard-unit session --start base/merged.pt",
+            "seconds": 2.142160068999999,
+            "best_epoch": 115,
+            "epochs_run": 165,
+            "training_targets": 225
+          }
+        }
+      ],
+      "best_worker": {
+        "validation": 1.5546294366637352,
+        "test": 1.339959668017717,
+        "test_worst_session": 2.4112379797833974,
+        "test_sessions": [
+          1.8609858325967394,
+          0.13029308172530893,
+          0.5067721813261259,
+          0.8132219366725205,
+          2.4112379797833974,
+          1.0028646222173399,
+          1.2249327791697127
+        ],
+        "control": 0.18987089783652195,
+        "test_order_gain_bits": 0.3445005970224051,
+        "test_order_p": 0.05,
+        "weights_sha256": "1eb8c9085aa300a236c0c357c68217f5dcd2e862e51cf835a6304db38d07cf43",
+        "eval_seconds": 0.06715119400001868,
+        "shard": 5,
+        "training": {
+          "command": "python -m tracks.llm.train --anchor v4 --manifest tracks/llm/data/sessions/index.json --family stars --variants real --epochs 1000 --patience 50 --seed 42 --output worker5 --shard 5/5 --shard-unit session --start base/merged.pt",
+          "seconds": 2.142160068999999,
+          "best_epoch": 115,
+          "epochs_run": 165,
+          "training_targets": 225
+        }
+      },
+      "one_shot": {
+        "average (FedAvg)": {
+          "rule": {
+            "merge": "average",
+            "ties_keep": 1.0,
+            "ties_mean": "agreeing",
+            "dare": null,
+            "soup": "all",
+            "outer": {
+              "lr": 1.0,
+              "momentum": 0.0
+            },
+            "tolerance_bits": 0.02,
+            "max_abs_delta": 10.0
+          },
+          "round": {
+            "round": 2,
+            "decision": "accepted",
+            "reason": null,
+            "validation_bits": 1.646842490759745,
+            "weights_sha256": "be4d6f462a2a63ead394035262f15f512de104d0c8f1d219d9c03c802d65f042",
+            "contributors": [
+              {
+                "file": "worker2/real.pt",
+                "shard": [
+                  2,
+                  5
+                ],
+                "status": "accepted",
+                "reason": null,
+                "weight": 0.25,
+                "validation_bits": 1.7293564720139116
+              },
+              {
+                "file": "worker3/real.pt",
+                "shard": [
+                  3,
+                  5
+                ],
+                "status": "accepted",
+                "reason": null,
+                "weight": 0.25,
+                "validation_bits": 1.745065425600907
+              },
+              {
+                "file": "worker4/real.pt",
+                "shard": [
+                  4,
+                  5
+                ],
+                "status": "accepted",
+                "reason": null,
+                "weight": 0.25,
+                "validation_bits": 1.714584194820459
+              },
+              {
+                "file": "worker5/real.pt",
+                "shard": [
+                  5,
+                  5
+                ],
+                "status": "accepted",
+                "reason": null,
+                "weight": 0.25,
+                "validation_bits": 1.5546294366637352
+              }
+            ]
+          },
+          "merge_seconds": 0.4398651120000068,
+          "training_seconds": 5.03557246699998,
+          "contributions": 4,
+          "bytes_sent": 441344,
+          "validation": 1.646842490759745,
+          "test": 1.497018688690883,
+          "test_worst_session": 3.057242362147708,
+          "test_sessions": [
+            1.6105871646595706,
+            0.12820944311704566,
+            0.5080380042111696,
+            0.8735534505951938,
+            3.057242362147708,
+            1.076524439972906,
+            1.1648975340269256
+          ],
+          "control": 0.37640887613123225,
+          "test_order_gain_bits": 0.3297673345295773,
+          "test_order_p": 0.05,
+          "weights_sha256": "be4d6f462a2a63ead394035262f15f512de104d0c8f1d219d9c03c802d65f042",
+          "eval_seconds": 0.06736923500000103
+        },
+        "average, greedy soup": {
+          "rule": {
+            "merge": "average",
+            "ties_keep": 1.0,
+            "ties_mean": "agreeing",
+            "dare": null,
+            "soup": "greedy",
+            "outer": {
+              "lr": 1.0,
+              "momentum": 0.0
+            },
+            "tolerance_bits": 0.02,
+            "max_abs_delta": 10.0
+          },
+          "round": {
+            "round": 2,
+            "decision": "accepted",
+            "reason": null,
+            "validation_bits": 1.5546294366637352,
+            "weights_sha256": "1eb8c9085aa300a236c0c357c68217f5dcd2e862e51cf835a6304db38d07cf43",
+            "contributors": [
+              {
+                "file": "worker2/real.pt",
+                "shard": [
+                  2,
+                  5
+                ],
+                "status": "set aside",
+                "reason": "the soup scores 1.5988 bits on validation with it, no better than 1.5546 without it",
+                "weight": 0.0,
+                "validation_bits": 1.7293564720139116
+              },
+              {
+                "file": "worker3/real.pt",
+                "shard": [
+                  3,
+                  5
+                ],
+                "status": "set aside",
+                "reason": "the soup scores 1.5999 bits on validation with it, no better than 1.5546 without it",
+                "weight": 0.0,
+                "validation_bits": 1.745065425600907
+              },
+              {
+                "file": "worker4/real.pt",
+                "shard": [
+                  4,
+                  5
+                ],
+                "status": "set aside",
+                "reason": "the soup scores 1.6133 bits on validation with it, no better than 1.5546 without it",
+                "weight": 0.0,
+                "validation_bits": 1.714584194820459
+              },
+              {
+                "file": "worker5/real.pt",
+                "shard": [
+                  5,
+                  5
+                ],
+                "status": "accepted",
+                "reason": null,
+                "weight": 1.0,
+                "validation_bits": 1.5546294366637352
+              }
+            ]
+          },
+          "merge_seconds": 0.5541654179999966,
+          "training_seconds": 5.03557246699998,
+          "contributions": 4,
+          "bytes_sent": 441344,
+          "validation": 1.5546294366637352,
+          "test": 1.339959668017717,
+          "test_worst_session": 2.4112379797833974,
+          "test_sessions": [
+            1.8609858325967394,
+            0.13029308172530893,
+            0.5067721813261259,
+            0.8132219366725205,
+            2.4112379797833974,
+            1.0028646222173399,
+            1.2249327791697127
+          ],
+          "control": 0.18987089783652195,
+          "test_order_gain_bits": 0.3445005970224051,
+          "test_order_p": 0.05,
+          "weights_sha256": "1eb8c9085aa300a236c0c357c68217f5dcd2e862e51cf835a6304db38d07cf43",
+          "eval_seconds": 0.09939828299999931
+        },
+        "TIES, keep 20%": {
+          "rule": {
+            "merge": "ties",
+            "ties_keep": 0.2,
+            "ties_mean": "agreeing",
+            "dare": null,
+            "soup": "all",
+            "outer": {
+              "lr": 1.0,
+              "momentum": 0.0
+            },
+            "tolerance_bits": 0.02,
+            "max_abs_delta": 10.0
+          },
+          "round": {
+            "round": 2,
+            "decision": "accepted",
+            "reason": null,
+            "validation_bits": 1.6074788289370534,
+            "weights_sha256": "f9a9f9921dce11e6b732e79618df60fcc5b058d386d07bfc6141608c5a1753d7",
+            "contributors": [
+              {
+                "file": "worker2/real.pt",
+                "shard": [
+                  2,
+                  5
+                ],
+                "status": "accepted",
+                "reason": null,
+                "weight": 0.25,
+                "validation_bits": 1.7293564720139116
+              },
+              {
+                "file": "worker3/real.pt",
+                "shard": [
+                  3,
+                  5
+                ],
+                "status": "accepted",
+                "reason": null,
+                "weight": 0.25,
+                "validation_bits": 1.745065425600907
+              },
+              {
+                "file": "worker4/real.pt",
+                "shard": [
+                  4,
+                  5
+                ],
+                "status": "accepted",
+                "reason": null,
+                "weight": 0.25,
+                "validation_bits": 1.714584194820459
+              },
+              {
+                "file": "worker5/real.pt",
+                "shard": [
+                  5,
+                  5
+                ],
+                "status": "accepted",
+                "reason": null,
+                "weight": 0.25,
+                "validation_bits": 1.5546294366637352
+              }
+            ]
+          },
+          "merge_seconds": 0.5000308459999872,
+          "training_seconds": 5.03557246699998,
+          "contributions": 4,
+          "bytes_sent": 441344,
+          "validation": 1.6074788289370534,
+          "test": 1.4886747325395826,
+          "test_worst_session": 3.0323142030541144,
+          "test_sessions": [
+            1.477766660293712,
+            0.08837773949651156,
+            0.49655791002485594,
+            0.7929140418104792,
+            3.0323142030541144,
+            1.1478708541204925,
+            1.1330583935163674
+          ],
+          "control": 0.3862510700898744,
+          "test_order_gain_bits": 0.2836801036359933,
+          "test_order_p": 0.05,
+          "weights_sha256": "f9a9f9921dce11e6b732e79618df60fcc5b058d386d07bfc6141608c5a1753d7",
+          "eval_seconds": 0.06749134599999707
+        }
+      },
+      "chains": {
+        "average (FedAvg)": {
+          "rule": {
+            "merge": "average",
+            "ties_keep": 1.0,
+            "ties_mean": "agreeing",
+            "dare": null,
+            "soup": "all",
+            "outer": {
+              "lr": 1.0,
+              "momentum": 0.0
+            },
+            "tolerance_bits": 0.02,
+            "max_abs_delta": 10.0
+          },
+          "history": [
+            {
+              "round": 2,
+              "decision": "accepted",
+              "reason": null,
+              "validation_bits": 1.6507250372180469,
+              "weights_sha256": "36bfcb487576b07c2705dac0d5e74d3b9e101a26c99a0a1f77ec244f5595b0d2",
+              "contributors": [
+                {
+                  "file": "chain0-r1-worker2/real.pt",
+                  "shard": [
+                    2,
+                    5
+                  ],
+                  "status": "accepted",
+                  "reason": null,
+                  "weight": 0.25,
+                  "validation_bits": 1.730811840645369
+                },
+                {
+                  "file": "chain0-r1-worker3/real.pt",
+                  "shard": [
+                    3,
+                    5
+                  ],
+                  "status": "accepted",
+                  "reason": null,
+                  "weight": 0.25,
+                  "validation_bits": 1.744934850174799
+                },
+                {
+                  "file": "chain0-r1-worker4/real.pt",
+                  "shard": [
+                    4,
+                    5
+                  ],
+                  "status": "accepted",
+                  "reason": null,
+                  "weight": 0.25,
+                  "validation_bits": 1.7162214646986147
+                },
+                {
+                  "file": "chain0-r1-worker5/real.pt",
+                  "shard": [
+                    5,
+                    5
+                  ],
+                  "status": "accepted",
+                  "reason": null,
+                  "weight": 0.25,
+                  "validation_bits": 1.5584475581111452
+                }
+              ]
+            },
+            {
+              "round": 3,
+              "decision": "accepted",
+              "reason": null,
+              "validation_bits": 1.6111869509007288,
+              "weights_sha256": "f42ef8f6d0ee3e25dd4cacb3cc24e5dd00ca071871ed94c96123d68b9ccf6580",
+              "contributors": [
+                {
+                  "file": "chain0-r2-worker2/real.pt",
+                  "shard": [
+                    2,
+                    5
+                  ],
+                  "status": "accepted",
+                  "reason": null,
+                  "weight": 0.25,
+                  "validation_bits": 1.6502811819136711
+                },
+                {
+                  "file": "chain0-r2-worker3/real.pt",
+                  "shard": [
+                    3,
+                    5
+                  ],
+                  "status": "accepted",
+                  "reason": null,
+                  "weight": 0.25,
+                  "validation_bits": 1.6474608598037985
+                },
+                {
+                  "file": "chain0-r2-worker4/real.pt",
+                  "shard": [
+                    4,
+                    5
+                  ],
+                  "status": "accepted",
+                  "reason": null,
+                  "weight": 0.25,
+                  "validation_bits": 1.6482863666118235
+                },
+                {
+                  "file": "chain0-r2-worker5/real.pt",
+                  "shard": [
+                    5,
+                    5
+                  ],
+                  "status": "accepted",
+                  "reason": null,
+                  "weight": 0.25,
+                  "validation_bits": 1.5727536984857577
+                }
+              ]
+            },
+            {
+              "round": 4,
+              "decision": "accepted",
+              "reason": null,
+              "validation_bits": 1.5888825103744568,
+              "weights_sha256": "b69ec16c85a89db1aec014a94f0e1581257cf5d448608fa4bbe9cc4b10d3c38b",
+              "contributors": [
+                {
+                  "file": "chain0-r3-worker2/real.pt",
+                  "shard": [
+                    2,
+                    5
+                  ],
+                  "status": "accepted",
+                  "reason": null,
+                  "weight": 0.25,
+                  "validation_bits": 1.6101418417699072
+                },
+                {
+                  "file": "chain0-r3-worker3/real.pt",
+                  "shard": [
+                    3,
+                    5
+                  ],
+                  "status": "accepted",
+                  "reason": null,
+                  "weight": 0.25,
+                  "validation_bits": 1.6082591083363234
+                },
+                {
+                  "file": "chain0-r3-worker4/real.pt",
+                  "shard": [
+                    4,
+                    5
+                  ],
+                  "status": "accepted",
+                  "reason": null,
+                  "weight": 0.25,
+                  "validation_bits": 1.6070654458596236
+                },
+                {
+                  "file": "chain0-r3-worker5/real.pt",
+                  "shard": [
+                    5,
+                    5
+                  ],
+                  "status": "accepted",
+                  "reason": null,
+                  "weight": 0.25,
+                  "validation_bits": 1.5744538167122328
+                }
+              ]
+            },
+            {
+              "round": 5,
+              "decision": "accepted",
+              "reason": null,
+              "validation_bits": 1.57579786701642,
+              "weights_sha256": "1eab96f8a4b99f660afe0149e778214325c55fd41aae29ba76fc1d96d45e5a13",
+              "contributors": [
+                {
+                  "file": "chain0-r4-worker2/real.pt",
+                  "shard": [
+                    2,
+                    5
+                  ],
+                  "status": "accepted",
+                  "reason": null,
+                  "weight": 0.25,
+                  "validation_bits": 1.5898983570445826
+                },
+                {
+                  "file": "chain0-r4-worker3/real.pt",
+                  "shard": [
+                    3,
+                    5
+                  ],
+                  "status": "accepted",
+                  "reason": null,
+                  "weight": 0.25,
+                  "validation_bits": 1.586537497491471
+                },
+                {
+                  "file": "chain0-r4-worker4/real.pt",
+                  "shard": [
+                    4,
+                    5
+                  ],
+                  "status": "accepted",
+                  "reason": null,
+                  "weight": 0.25,
+                  "validation_bits": 1.5825767922005003
+                },
+                {
+                  "file": "chain0-r4-worker5/real.pt",
+                  "shard": [
+                    5,
+                    5
+                  ],
+                  "status": "accepted",
+                  "reason": null,
+                  "weight": 0.25,
+                  "validation_bits": 1.5761490562092393
+                }
+              ]
+            },
+            {
+              "round": 6,
+              "decision": "accepted",
+              "reason": null,
+              "validation_bits": 1.5712590322833966,
+              "weights_sha256": "c249822392c58d8b0009303d666fe1e0a374c1f1c42c5f7c666d3c3426e42068",
+              "contributors": [
+                {
+                  "file": "chain0-r5-worker2/real.pt",
+                  "shard": [
+                    2,
+                    5
+                  ],
+                  "status": "accepted",
+                  "reason": null,
+                  "weight": 0.25,
+                  "validation_bits": 1.577466789139422
+                },
+                {
+                  "file": "chain0-r5-worker3/real.pt",
+                  "shard": [
+                    3,
+                    5
+                  ],
+                  "status": "accepted",
+                  "reason": null,
+                  "weight": 0.25,
+                  "validation_bits": 1.5728743776272929
+                },
+                {
+                  "file": "chain0-r5-worker4/real.pt",
+                  "shard": [
+                    4,
+                    5
+                  ],
+                  "status": "accepted",
+                  "reason": null,
+                  "weight": 0.25,
+                  "validation_bits": 1.5691159115385906
+                },
+                {
+                  "file": "chain0-r5-worker5/real.pt",
+                  "shard": [
+                    5,
+                    5
+                  ],
+                  "status": "accepted",
+                  "reason": null,
+                  "weight": 0.25,
+                  "validation_bits": 1.575365603652591
+                }
+              ]
+            },
+            {
+              "round": 7,
+              "decision": "accepted",
+              "reason": null,
+              "validation_bits": 1.5684139793782088,
+              "weights_sha256": "1510ebc9775343a96e2c41d9347d45e69856912610a14de34bd05e5f866a5446",
+              "contributors": [
+                {
+                  "file": "chain0-r6-worker2/real.pt",
+                  "shard": [
+                    2,
+                    5
+                  ],
+                  "status": "accepted",
+                  "reason": null,
+                  "weight": 0.25,
+                  "validation_bits": 1.5721018327991316
+                },
+                {
+                  "file": "chain0-r6-worker3/real.pt",
+                  "shard": [
+                    3,
+                    5
+                  ],
+                  "status": "accepted",
+                  "reason": null,
+                  "weight": 0.25,
+                  "validation_bits": 1.5699163603194453
+                },
+                {
+                  "file": "chain0-r6-worker4/real.pt",
+                  "shard": [
+                    4,
+                    5
+                  ],
+                  "status": "accepted",
+                  "reason": null,
+                  "weight": 0.25,
+                  "validation_bits": 1.5664610993343357
+                },
+                {
+                  "file": "chain0-r6-worker5/real.pt",
+                  "shard": [
+                    5,
+                    5
+                  ],
+                  "status": "accepted",
+                  "reason": null,
+                  "weight": 0.25,
+                  "validation_bits": 1.5725323112619356
+                }
+              ]
+            },
+            {
+              "round": 8,
+              "decision": "accepted",
+              "reason": null,
+              "validation_bits": 1.5658139537193096,
+              "weights_sha256": "e2d117f0ac80587968a7fd2fa883df20757d13923058bfb0791ad77904b2d2fe",
+              "contributors": [
+                {
+                  "file": "chain0-r7-worker2/real.pt",
+                  "shard": [
+                    2,
+                    5
+                  ],
+                  "status": "accepted",
+                  "reason": null,
+                  "weight": 0.25,
+                  "validation_bits": 1.5695148964144172
+                },
+                {
+                  "file": "chain0-r7-worker3/real.pt",
+                  "shard": [
+                    3,
+                    5
+                  ],
+                  "status": "accepted",
+                  "reason": null,
+                  "weight": 0.25,
+                  "validation_bits": 1.5674560329141165
+                },
+                {
+                  "file": "chain0-r7-worker4/real.pt",
+                  "shard": [
+                    4,
+                    5
+                  ],
+                  "status": "accepted",
+                  "reason": null,
+                  "weight": 0.25,
+                  "validation_bits": 1.5649335215402937
+                },
+                {
+                  "file": "chain0-r7-worker5/real.pt",
+                  "shard": [
+                    5,
+                    5
+                  ],
+                  "status": "accepted",
+                  "reason": null,
+                  "weight": 0.25,
+                  "validation_bits": 1.5685086584614771
+                }
+              ]
+            },
+            {
+              "round": 9,
+              "decision": "accepted",
+              "reason": null,
+              "validation_bits": 1.5642339494157118,
+              "weights_sha256": "58030da05c5bf39c218ecc4e5267d589a082cee722550230e873d72ed7fa0f5a",
+              "contributors": [
+                {
+                  "file": "chain0-r8-worker2/real.pt",
+                  "shard": [
+                    2,
+                    5
+                  ],
+                  "status": "accepted",
+                  "reason": null,
+                  "weight": 0.25,
+                  "validation_bits": 1.5666131828177972
+                },
+                {
+                  "file": "chain0-r8-worker3/real.pt",
+                  "shard": [
+                    3,
+                    5
+                  ],
+                  "status": "accepted",
+                  "reason": null,
+                  "weight": 0.25,
+                  "validation_bits": 1.5652970761307705
+                },
+                {
+                  "file": "chain0-r8-worker4/real.pt",
+                  "shard": [
+                    4,
+                    5
+                  ],
+                  "status": "accepted",
+                  "reason": null,
+                  "weight": 0.25,
+                  "validation_bits": 1.5621300469128756
+                },
+                {
+                  "file": "chain0-r8-worker5/real.pt",
+                  "shard": [
+                    5,
+                    5
+                  ],
+                  "status": "accepted",
+                  "reason": null,
+                  "weight": 0.25,
+                  "validation_bits": 1.5697057816629425
+                }
+              ]
+            },
+            {
+              "round": 10,
+              "decision": "accepted",
+              "reason": null,
+              "validation_bits": 1.5625009195975557,
+              "weights_sha256": "aed6bc61a9756c4ec72fca0ce762bffb681ea9664056b977e4b1f2550e515433",
+              "contributors": [
+                {
+                  "file": "chain0-r9-worker2/real.pt",
+                  "shard": [
+                    2,
+                    5
+                  ],
+                  "status": "accepted",
+                  "reason": null,
+                  "weight": 0.25,
+                  "validation_bits": 1.564315420231394
+                },
+                {
+                  "file": "chain0-r9-worker3/real.pt",
+                  "shard": [
+                    3,
+                    5
+                  ],
+                  "status": "accepted",
+                  "reason": null,
+                  "weight": 0.25,
+                  "validation_bits": 1.5625693606357545
+                },
+                {
+                  "file": "chain0-r9-worker4/real.pt",
+                  "shard": [
+                    4,
+                    5
+                  ],
+                  "status": "accepted",
+                  "reason": null,
+                  "weight": 0.25,
+                  "validation_bits": 1.561297212094531
+                },
+                {
+                  "file": "chain0-r9-worker5/real.pt",
+                  "shard": [
+                    5,
+                    5
+                  ],
+                  "status": "accepted",
+                  "reason": null,
+                  "weight": 0.25,
+                  "validation_bits": 1.5649285139013067
+                }
+              ]
+            },
+            {
+              "round": 11,
+              "decision": "accepted",
+              "reason": null,
+              "validation_bits": 1.5621666175516582,
+              "weights_sha256": "8afb67d97f40d3cd67648b74f7e663f2c69e12504551a354cc3a16346c609d06",
+              "contributors": [
+                {
+                  "file": "chain0-r10-worker2/real.pt",
+                  "shard": [
+                    2,
+                    5
+                  ],
+                  "status": "accepted",
+                  "reason": null,
+                  "weight": 0.25,
+                  "validation_bits": 1.5652953110619792
+                },
+                {
+                  "file": "chain0-r10-worker3/real.pt",
+                  "shard": [
+                    3,
+                    5
+                  ],
+                  "status": "accepted",
+                  "reason": null,
+                  "weight": 0.25,
+                  "validation_bits": 1.5622803653275457
+                },
+                {
+                  "file": "chain0-r10-worker4/real.pt",
+                  "shard": [
+                    4,
+                    5
+                  ],
+                  "status": "accepted",
+                  "reason": null,
+                  "weight": 0.25,
+                  "validation_bits": 1.559217187600965
+                },
+                {
+                  "file": "chain0-r10-worker5/real.pt",
+                  "shard": [
+                    5,
+                    5
+                  ],
+                  "status": "accepted",
+                  "reason": null,
+                  "weight": 0.25,
+                  "validation_bits": 1.5650469619165601
+                }
+              ]
+            }
+          ],
+          "training_seconds": 36.584447068999935,
+          "contributions": 40,
+          "bytes_sent": 4413440,
+          "validation": 1.5621666175516582,
+          "test": 1.3633231365974343,
+          "test_worst_session": 2.5972769179310173,
+          "test_sessions": [
+            1.5908543797820145,
+            0.1368866557836778,
+            0.4989124671702684,
+            0.8099227132224489,
+            2.5972769179310173,
+            1.0958744296880083,
+            1.0877408274278966
+          ],
+          "control": 0.22907605458865504,
+          "test_order_gain_bits": 0.3334692283020635,
+          "test_order_p": 0.05,
+          "weights_sha256": "8afb67d97f40d3cd67648b74f7e663f2c69e12504551a354cc3a16346c609d06",
+          "eval_seconds": 0.06878273000000945
+        },
+        "average + DiLoCo": {
+          "rule": {
+            "merge": "average",
+            "ties_keep": 1.0,
+            "ties_mean": "agreeing",
+            "dare": null,
+            "soup": "all",
+            "outer": {
+              "lr": 0.7,
+              "momentum": 0.9
+            },
+            "tolerance_bits": 0.02,
+            "max_abs_delta": 10.0
+          },
+          "history": [
+            {
+              "round": 2,
+              "decision": "accepted",
+              "reason": null,
+              "validation_bits": 1.6370214496811815,
+              "weights_sha256": "4dd8f9ad7c8cd618e1157366b74064ccf210ddd0dbf52ad897cdf2c3f5eb21d0",
+              "contributors": [
+                {
+                  "file": "chain1-r1-worker2/real.pt",
+                  "shard": [
+                    2,
+                    5
+                  ],
+                  "status": "accepted",
+                  "reason": null,
+                  "weight": 0.25,
+                  "validation_bits": 1.730811840645369
+                },
+                {
+                  "file": "chain1-r1-worker3/real.pt",
+                  "shard": [
+                    3,
+                    5
+                  ],
+                  "status": "accepted",
+                  "reason": null,
+                  "weight": 0.25,
+                  "validation_bits": 1.744934850174799
+                },
+                {
+                  "file": "chain1-r1-worker4/real.pt",
+                  "shard": [
+                    4,
+                    5
+                  ],
+                  "status": "accepted",
+                  "reason": null,
+                  "weight": 0.25,
+                  "validation_bits": 1.7162214646986147
+                },
+                {
+                  "file": "chain1-r1-worker5/real.pt",
+                  "shard": [
+                    5,
+                    5
+                  ],
+                  "status": "accepted",
+                  "reason": null,
+                  "weight": 0.25,
+                  "validation_bits": 1.5584475581111452
+                }
+              ]
+            },
+            {
+              "round": 3,
+              "decision": "accepted",
+              "reason": null,
+              "validation_bits": 1.6051204590447288,
+              "weights_sha256": "879bbb9a32214a8bd4ce3fe1700d9b4ca129fe0268c9ea20d30530920ab77b34",
+              "contributors": [
+                {
+                  "file": "chain1-r2-worker2/real.pt",
+                  "shard": [
+                    2,
+                    5
+                  ],
+                  "status": "accepted",
+                  "reason": null,
+                  "weight": 0.25,
+                  "validation_bits": 1.633969715153396
+                },
+                {
+                  "file": "chain1-r2-worker3/real.pt",
+                  "shard": [
+                    3,
+                    5
+                  ],
+                  "status": "accepted",
+                  "reason": null,
+                  "weight": 0.25,
+                  "validation_bits": 1.6312001338132225
+                },
+                {
+                  "file": "chain1-r2-worker4/real.pt",
+                  "shard": [
+                    4,
+                    5
+                  ],
+                  "status": "accepted",
+                  "reason": null,
+                  "weight": 0.25,
+                  "validation_bits": 1.6322923048344078
+                },
+                {
+                  "file": "chain1-r2-worker5/real.pt",
+                  "shard": [
+                    5,
+                    5
+                  ],
+                  "status": "accepted",
+                  "reason": null,
+                  "weight": 0.25,
+                  "validation_bits": 1.5740626854009172
+                }
+              ]
+            },
+            {
+              "round": 4,
+              "decision": "accepted",
+              "reason": null,
+              "validation_bits": 1.6014083210537469,
+              "weights_sha256": "1d7ed274f915c8930502bdea6a6cea6a59f8c40f78f0b38320f33e25fc81444e",
+              "contributors": [
+                {
+                  "file": "chain1-r3-worker2/real.pt",
+                  "shard": [
+                    2,
+                    5
+                  ],
+                  "status": "accepted",
+                  "reason": null,
+                  "weight": 0.25,
+                  "validation_bits": 1.6007489984472822
+                },
+                {
+                  "file": "chain1-r3-worker3/real.pt",
+                  "shard": [
+                    3,
+                    5
+                  ],
+                  "status": "accepted",
+                  "reason": null,
+                  "weight": 0.25,
+                  "validation_bits": 1.595206880764127
+                },
+                {
+                  "file": "chain1-r3-worker4/real.pt",
+                  "shard": [
+                    4,
+                    5
+                  ],
+                  "status": "accepted",
+                  "reason": null,
+                  "weight": 0.25,
+                  "validation_bits": 1.5741018838106533
+                },
+                {
+                  "file": "chain1-r3-worker5/real.pt",
+                  "shard": [
+                    5,
+                    5
+                  ],
+                  "status": "accepted",
+                  "reason": null,
+                  "weight": 0.25,
+                  "validation_bits": 1.579216825097901
+                }
+              ]
+            },
+            {
+              "round": 5,
+              "decision": "accepted",
+              "reason": null,
+              "validation_bits": 1.592623315859127,
+              "weights_sha256": "2f29bc354b089cd0fc51ca7ae8b00754e78b8687ab4232f31d853f5968f49dfa",
+              "contributors": [
+                {
+                  "file": "chain1-r4-worker2/real.pt",
+                  "shard": [
+                    2,
+                    5
+                  ],
+                  "status": "accepted",
+                  "reason": null,
+                  "weight": 0.25,
+                  "validation_bits": 1.601533700434648
+                },
+                {
+                  "file": "chain1-r4-worker3/real.pt",
+                  "shard": [
+                    3,
+                    5
+                  ],
+                  "status": "accepted",
+                  "reason": null,
+                  "weight": 0.25,
+                  "validation_bits": 1.5933311481090084
+                },
+                {
+                  "file": "chain1-r4-worker4/real.pt",
+                  "shard": [
+                    4,
+                    5
+                  ],
+                  "status": "accepted",
+                  "reason": null,
+                  "weight": 0.25,
+                  "validation_bits": 1.5424853865653791
+                },
+                {
+                  "file": "chain1-r4-worker5/real.pt",
+                  "shard": [
+                    5,
+                    5
+                  ],
+                  "status": "accepted",
+                  "reason": null,
+                  "weight": 0.25,
+                  "validation_bits": 1.5855113578921003
+                }
+              ]
+            },
+            {
+              "round": 6,
+              "decision": "accepted",
+              "reason": null,
+              "validation_bits": 1.5699567387470814,
+              "weights_sha256": "609bf769f316619baae61f456aa0d38ee2b1856439329cb5cd8cfe51b11f54d6",
+              "contributors": [
+                {
+                  "file": "chain1-r5-worker2/real.pt",
+                  "shard": [
+                    2,
+                    5
+                  ],
+                  "status": "accepted",
+                  "reason": null,
+                  "weight": 0.25,
+                  "validation_bits": 1.5953619291665135
+                },
+                {
+                  "file": "chain1-r5-worker3/real.pt",
+                  "shard": [
+                    3,
+                    5
+                  ],
+                  "status": "accepted",
+                  "reason": null,
+                  "weight": 0.25,
+                  "validation_bits": 1.5878478131662823
+                },
+                {
+                  "file": "chain1-r5-worker4/real.pt",
+                  "shard": [
+                    4,
+                    5
+                  ],
+                  "status": "accepted",
+                  "reason": null,
+                  "weight": 0.25,
+                  "validation_bits": 1.5319518923265016
+                },
+                {
+                  "file": "chain1-r5-worker5/real.pt",
+                  "shard": [
+                    5,
+                    5
+                  ],
+                  "status": "accepted",
+                  "reason": null,
+                  "weight": 0.25,
+                  "validation_bits": 1.5720762293855375
+                }
+              ]
+            },
+            {
+              "round": 7,
+              "decision": "accepted",
+              "reason": null,
+              "validation_bits": 1.5588440242933026,
+              "weights_sha256": "a4d27ed9a27d0bd805261318278a3f9a6ae568d5438146a1f4199fff0270d3e9",
+              "contributors": [
+                {
+                  "file": "chain1-r6-worker2/real.pt",
+                  "shard": [
+                    2,
+                    5
+                  ],
+                  "status": "accepted",
+                  "reason": null,
+                  "weight": 0.25,
+                  "validation_bits": 1.5731756292558743
+                },
+                {
+                  "file": "chain1-r6-worker3/real.pt",
+                  "shard": [
+                    3,
+                    5
+                  ],
+                  "status": "accepted",
+                  "reason": null,
+                  "weight": 0.25,
+                  "validation_bits": 1.5693008074525647
+                },
+                {
+                  "file": "chain1-r6-worker4/real.pt",
+                  "shard": [
+                    4,
+                    5
+                  ],
+                  "status": "accepted",
+                  "reason": null,
+                  "weight": 0.25,
+                  "validation_bits": 1.5276908972702798
+                },
+                {
+                  "file": "chain1-r6-worker5/real.pt",
+                  "shard": [
+                    5,
+                    5
+                  ],
+                  "status": "accepted",
+                  "reason": null,
+                  "weight": 0.25,
+                  "validation_bits": 1.579026534816384
+                }
+              ]
+            },
+            {
+              "round": 8,
+              "decision": "accepted",
+              "reason": null,
+              "validation_bits": 1.5486144392023113,
+              "weights_sha256": "3febcd435148d3895b1589a89e7bb45a3109ee4efe88db53295ac63231dfadbb",
+              "contributors": [
+                {
+                  "file": "chain1-r7-worker2/real.pt",
+                  "shard": [
+                    2,
+                    5
+                  ],
+                  "status": "accepted",
+                  "reason": null,
+                  "weight": 0.25,
+                  "validation_bits": 1.5632467008264561
+                },
+                {
+                  "file": "chain1-r7-worker3/real.pt",
+                  "shard": [
+                    3,
+                    5
+                  ],
+                  "status": "accepted",
+                  "reason": null,
+                  "weight": 0.25,
+                  "validation_bits": 1.5602171486519665
+                },
+                {
+                  "file": "chain1-r7-worker4/real.pt",
+                  "shard": [
+                    4,
+                    5
+                  ],
+                  "status": "accepted",
+                  "reason": null,
+                  "weight": 0.25,
+                  "validation_bits": 1.5205909179723553
+                },
+                {
+                  "file": "chain1-r7-worker5/real.pt",
+                  "shard": [
+                    5,
+                    5
+                  ],
+                  "status": "accepted",
+                  "reason": null,
+                  "weight": 0.25,
+                  "validation_bits": 1.566711887844489
+                }
+              ]
+            },
+            {
+              "round": 9,
+              "decision": "accepted",
+              "reason": null,
+              "validation_bits": 1.548152050675624,
+              "weights_sha256": "e27711f4830663cf0697cc7b72c4489dd2da945392207deef14f662b2f70454f",
+              "contributors": [
+                {
+                  "file": "chain1-r8-worker2/real.pt",
+                  "shard": [
+                    2,
+                    5
+                  ],
+                  "status": "accepted",
+                  "reason": null,
+                  "weight": 0.25,
+                  "validation_bits": 1.5511093341908277
+                },
+                {
+                  "file": "chain1-r8-worker3/real.pt",
+                  "shard": [
+                    3,
+                    5
+                  ],
+                  "status": "accepted",
+                  "reason": null,
+                  "weight": 0.25,
+                  "validation_bits": 1.5513093224345813
+                },
+                {
+                  "file": "chain1-r8-worker4/real.pt",
+                  "shard": [
+                    4,
+                    5
+                  ],
+                  "status": "accepted",
+                  "reason": null,
+                  "weight": 0.25,
+                  "validation_bits": 1.5252642449976255
+                },
+                {
+                  "file": "chain1-r8-worker5/real.pt",
+                  "shard": [
+                    5,
+                    5
+                  ],
+                  "status": "accepted",
+                  "reason": null,
+                  "weight": 0.25,
+                  "validation_bits": 1.560853208048403
+                }
+              ]
+            },
+            {
+              "round": 10,
+              "decision": "accepted",
+              "reason": null,
+              "validation_bits": 1.5481996480362952,
+              "weights_sha256": "e31cb30c4c85d7ed65d57ac538b2d1fe1a497f768de4fa62c0bd3163da4f1ff8",
+              "contributors": [
+                {
+                  "file": "chain1-r9-worker2/real.pt",
+                  "shard": [
+                    2,
+                    5
+                  ],
+                  "status": "accepted",
+                  "reason": null,
+                  "weight": 0.25,
+                  "validation_bits": 1.5500493013042125
+                },
+                {
+                  "file": "chain1-r9-worker3/real.pt",
+                  "shard": [
+                    3,
+                    5
+                  ],
+                  "status": "accepted",
+                  "reason": null,
+                  "weight": 0.25,
+                  "validation_bits": 1.5483289145349848
+                },
+                {
+                  "file": "chain1-r9-worker4/real.pt",
+                  "shard": [
+                    4,
+                    5
+                  ],
+                  "status": "accepted",
+                  "reason": null,
+                  "weight": 0.25,
+                  "validation_bits": 1.5334349467560824
+                },
+                {
+                  "file": "chain1-r9-worker5/real.pt",
+                  "shard": [
+                    5,
+                    5
+                  ],
+                  "status": "accepted",
+                  "reason": null,
+                  "weight": 0.25,
+                  "validation_bits": 1.5517626476305075
+                }
+              ]
+            },
+            {
+              "round": 11,
+              "decision": "accepted",
+              "reason": null,
+              "validation_bits": 1.5562229368023068,
+              "weights_sha256": "79b8274333f5cd8c411b706642ac59a4730687fca1fd61a21bc1ab69a0fcce0b",
+              "contributors": [
+                {
+                  "file": "chain1-r10-worker2/real.pt",
+                  "shard": [
+                    2,
+                    5
+                  ],
+                  "status": "accepted",
+                  "reason": null,
+                  "weight": 0.25,
+                  "validation_bits": 1.5521657576109256
+                },
+                {
+                  "file": "chain1-r10-worker3/real.pt",
+                  "shard": [
+                    3,
+                    5
+                  ],
+                  "status": "accepted",
+                  "reason": null,
+                  "weight": 0.25,
+                  "validation_bits": 1.5485502620943397
+                },
+                {
+                  "file": "chain1-r10-worker4/real.pt",
+                  "shard": [
+                    4,
+                    5
+                  ],
+                  "status": "accepted",
+                  "reason": null,
+                  "weight": 0.25,
+                  "validation_bits": 1.5404819938224936
+                },
+                {
+                  "file": "chain1-r10-worker5/real.pt",
+                  "shard": [
+                    5,
+                    5
+                  ],
+                  "status": "accepted",
+                  "reason": null,
+                  "weight": 0.25,
+                  "validation_bits": 1.5587572186067786
+                }
+              ]
+            }
+          ],
+          "training_seconds": 36.00328202200001,
+          "contributions": 40,
+          "bytes_sent": 4413440,
+          "validation": 1.5562229368023068,
+          "test": 1.3913289443374015,
+          "test_worst_session": 2.9387627343136353,
+          "test_sessions": [
+            1.6433787068722403,
+            0.08156046760416544,
+            0.4502878505101933,
+            0.736837241084031,
+            2.9387627343136353,
+            0.9350800375621826,
+            1.0560332803981052
+          ],
+          "control": 0.05885928823069463,
+          "test_order_gain_bits": 0.3085308025482356,
+          "test_order_p": 0.05,
+          "weights_sha256": "79b8274333f5cd8c411b706642ac59a4730687fca1fd61a21bc1ab69a0fcce0b",
+          "eval_seconds": 0.06891651699999102
+        }
+      },
+      "full_data": {
+        "from \u03b8\u2080": {
+          "validation": 1.470183964429647,
+          "test": 1.3330135868526296,
+          "test_worst_session": 2.5126867695527224,
+          "test_sessions": [
+            1.352838279258807,
+            0.08384723492136277,
+            0.4476034841461397,
+            0.7625850618479636,
+            2.5126867695527224,
+            1.0927835727740487,
+            1.1362379170414385
+          ],
+          "control": 0.12040299841579474,
+          "test_order_gain_bits": 0.28532207410144905,
+          "test_order_p": 0.05,
+          "weights_sha256": "0fafa22ada8253513bd26fc105050384650c1f932478f470d5230226c71c67d1",
+          "eval_seconds": 0.06557468100004371,
+          "training": {
+            "command": "python -m tracks.llm.train --anchor v4 --manifest tracks/llm/data/sessions/index.json --family stars --variants real --epochs 1000 --patience 50 --seed 42 --output full-theta0",
+            "seconds": 9.365069437999978,
+            "best_epoch": 207,
+            "epochs_run": 257,
+            "training_targets": 1260
+          }
+        },
+        "from the base": {
+          "validation": 1.5166857131871507,
+          "test": 1.334076607795776,
+          "test_worst_session": 2.5177147167472267,
+          "test_sessions": [
+            1.3030315532244547,
+            0.07734783856260637,
+            0.41723593420779065,
+            0.7491295520028196,
+            2.5177147167472267,
+            1.1620169087053809,
+            1.093038443418954
+          ],
+          "control": 0.11631873357672284,
+          "test_order_gain_bits": 0.27717362219546904,
+          "test_order_p": 0.05,
+          "weights_sha256": "4a880bf81c49471f2d62e927d50919bf9baad67b1580db20995c1a587e08edbd",
+          "eval_seconds": 0.06887452799998073,
+          "training": {
+            "command": "python -m tracks.llm.train --anchor v4 --manifest tracks/llm/data/sessions/index.json --family stars --variants real --epochs 1000 --patience 50 --seed 42 --output full-base --start base/merged.pt",
+            "seconds": 7.093119877999982,
+            "best_epoch": 144,
+            "epochs_run": 194,
+            "training_targets": 1260
+          }
+        }
+      }
+    },
+    "43": {
+      "base": {
+        "validation": 1.7459317372295904,
+        "test": 1.6658980081647892,
+        "test_worst_session": 3.4636020523655477,
+        "test_sessions": [
+          1.5023433938603692,
+          0.1493914684658724,
+          0.5993397564302022,
+          0.9981932676729713,
+          3.4636020523655477,
+          1.2513434440010907,
+          1.2073226118127787
+        ],
+        "control": 0.6807703215426144,
+        "test_order_gain_bits": 0.25253710705707344,
+        "test_order_p": 0.05,
+        "weights_sha256": "9a0e52b6db3a65de062ad3981e8557d4e834af4dd448d74728923a845e29e6ac",
+        "eval_seconds": 0.07079672600002596,
+        "shard": 1,
+        "training": {
+          "command": "python -m tracks.llm.train --anchor v4 --manifest tracks/llm/data/sessions/index.json --family stars --variants real --epochs 1000 --patience 50 --seed 43 --output base-worker --shard 1/5 --shard-unit session",
+          "seconds": 3.6593646430000035,
+          "best_epoch": 190,
+          "epochs_run": 240,
+          "training_targets": 360
+        },
+        "round": {
+          "round": 1,
+          "decision": "accepted",
+          "reason": null,
+          "validation_bits": 1.7459317372295904,
+          "weights_sha256": "9a0e52b6db3a65de062ad3981e8557d4e834af4dd448d74728923a845e29e6ac",
+          "contributors": [
+            {
+              "file": "base-worker/real.pt",
+              "shard": [
+                1,
+                5
+              ],
+              "status": "accepted",
+              "reason": null,
+              "weight": 1.0,
+              "validation_bits": 1.7459317372295904
+            }
+          ]
+        },
+        "merge_seconds": 0.2521735390000117
+      },
+      "workers": [
+        {
+          "validation": 1.7322019017315382,
+          "test": 1.6607379782944223,
+          "test_worst_session": 3.5461314664028376,
+          "test_sessions": [
+            1.5333197165207326,
+            0.13852307070663744,
+            0.5451057536295858,
+            0.9619689517490798,
+            3.5461314664028376,
+            1.2077264423643514,
+            1.1775716005685894
+          ],
+          "control": 0.4400842330998447,
+          "test_order_gain_bits": 0.3579749674304449,
+          "test_order_p": 0.05,
+          "weights_sha256": "3ed48dedabf5290985817bcdd007ef9aa70b7b2fb482555623a442ee6c00f940",
+          "eval_seconds": 0.0687963749999767,
+          "shard": 2,
+          "training": {
+            "command": "python -m tracks.llm.train --anchor v4 --manifest tracks/llm/data/sessions/index.json --family stars --variants real --epochs 1000 --patience 50 --seed 43 --output worker2 --shard 2/5 --shard-unit session --start base/merged.pt",
+            "seconds": 1.0380771659999937,
+            "best_epoch": 20,
+            "epochs_run": 70,
+            "training_targets": 225
+          }
+        },
+        {
+          "validation": 1.74580998714744,
+          "test": 1.6574695435606919,
+          "test_worst_session": 3.4613551792905954,
+          "test_sessions": [
+            1.5029582203716938,
+            0.15009914267764268,
+            0.5891475600576297,
+            0.9905224745481681,
+            3.4613551792905954,
+            1.2224558621009665,
+            1.2108974049752461
+          ],
+          "control": 0.6587774886767309,
+          "test_order_gain_bits": 0.2580044866199238,
+          "test_order_p": 0.05,
+          "weights_sha256": "e56f8976d860df4e4efd59929505243538ba6b3a605872f8a50d6ab516ac06d5",
+          "eval_seconds": 0.06803216899999143,
+          "shard": 3,
+          "training": {
+            "command": "python -m tracks.llm.train --anchor v4 --manifest tracks/llm/data/sessions/index.json --family stars --variants real --epochs 1000 --patience 50 --seed 43 --output worker3 --shard 3/5 --shard-unit session --start base/merged.pt",
+            "seconds": 0.7078320180000333,
+            "best_epoch": 1,
+            "epochs_run": 51,
+            "training_targets": 225
+          }
+        },
+        {
+          "validation": 1.7142620598498828,
+          "test": 1.5717266069391735,
+          "test_worst_session": 3.2652784469725105,
+          "test_sessions": [
+            1.7440266231203743,
+            0.2100529826990212,
+            0.5555775861487879,
+            0.9024354373264101,
+            3.2652784469725105,
+            1.0517519672185462,
+            1.2160015443059196
+          ],
+          "control": 0.3711120606412408,
+          "test_order_gain_bits": 0.3470155940672923,
+          "test_order_p": 0.05,
+          "weights_sha256": "78e93fda7eaac6f43715b530efc6abc70b58f02e5f282583e92d915f4f28600c",
+          "eval_seconds": 0.06605287399997906,
+          "shard": 4,
+          "training": {
+            "command": "python -m tracks.llm.train --anchor v4 --manifest tracks/llm/data/sessions/index.json --family stars --variants real --epochs 1000 --patience 50 --seed 43 --output worker4 --shard 4/5 --shard-unit session --start base/merged.pt",
+            "seconds": 1.2100957860000108,
+            "best_epoch": 42,
+            "epochs_run": 92,
+            "training_targets": 225
+          }
+        },
+        {
+          "validation": 1.5565948308470179,
+          "test": 1.342506662283935,
+          "test_worst_session": 2.424418607846749,
+          "test_sessions": [
+            1.8513632427638245,
+            0.13028110026729883,
+            0.5072812193979863,
+            0.8269202860206829,
+            2.424418607846749,
+            1.0127411043049686,
+            1.2111322186212243
+          ],
+          "control": 0.20073946757840777,
+          "test_order_gain_bits": 0.34564617607474313,
+          "test_order_p": 0.05,
+          "weights_sha256": "6aa78761de1b92f200d75d7f1b7f4d46a215b52a5457168906bc6c9b668f51e1",
+          "eval_seconds": 0.06753046899996207,
+          "shard": 5,
+          "training": {
+            "command": "python -m tracks.llm.train --anchor v4 --manifest tracks/llm/data/sessions/index.json --family stars --variants real --epochs 1000 --patience 50 --seed 43 --output worker5 --shard 5/5 --shard-unit session --start base/merged.pt",
+            "seconds": 1.9402286190000382,
+            "best_epoch": 107,
+            "epochs_run": 157,
+            "training_targets": 225
+          }
+        }
+      ],
+      "best_worker": {
+        "validation": 1.5565948308470179,
+        "test": 1.342506662283935,
+        "test_worst_session": 2.424418607846749,
+        "test_sessions": [
+          1.8513632427638245,
+          0.13028110026729883,
+          0.5072812193979863,
+          0.8269202860206829,
+          2.424418607846749,
+          1.0127411043049686,
+          1.2111322186212243
+        ],
+        "control": 0.20073946757840777,
+        "test_order_gain_bits": 0.34564617607474313,
+        "test_order_p": 0.05,
+        "weights_sha256": "6aa78761de1b92f200d75d7f1b7f4d46a215b52a5457168906bc6c9b668f51e1",
+        "eval_seconds": 0.06753046899996207,
+        "shard": 5,
+        "training": {
+          "command": "python -m tracks.llm.train --anchor v4 --manifest tracks/llm/data/sessions/index.json --family stars --variants real --epochs 1000 --patience 50 --seed 43 --output worker5 --shard 5/5 --shard-unit session --start base/merged.pt",
+          "seconds": 1.9402286190000382,
+          "best_epoch": 107,
+          "epochs_run": 157,
+          "training_targets": 225
+        }
+      },
+      "one_shot": {
+        "average (FedAvg)": {
+          "rule": {
+            "merge": "average",
+            "ties_keep": 1.0,
+            "ties_mean": "agreeing",
+            "dare": null,
+            "soup": "all",
+            "outer": {
+              "lr": 1.0,
+              "momentum": 0.0
+            },
+            "tolerance_bits": 0.02,
+            "max_abs_delta": 10.0
+          },
+          "round": {
+            "round": 2,
+            "decision": "accepted",
+            "reason": null,
+            "validation_bits": 1.6498831589011747,
+            "weights_sha256": "a230c4d9491a91f392753da10d67224570be48c2ab1af358451e307dec1808f2",
+            "contributors": [
+              {
+                "file": "worker2/real.pt",
+                "shard": [
+                  2,
+                  5
+                ],
+                "status": "accepted",
+                "reason": null,
+                "weight": 0.25,
+                "validation_bits": 1.7322019017315382
+              },
+              {
+                "file": "worker3/real.pt",
+                "shard": [
+                  3,
+                  5
+                ],
+                "status": "accepted",
+                "reason": null,
+                "weight": 0.25,
+                "validation_bits": 1.74580998714744
+              },
+              {
+                "file": "worker4/real.pt",
+                "shard": [
+                  4,
+                  5
+                ],
+                "status": "accepted",
+                "reason": null,
+                "weight": 0.25,
+                "validation_bits": 1.7142620598498828
+              },
+              {
+                "file": "worker5/real.pt",
+                "shard": [
+                  5,
+                  5
+                ],
+                "status": "accepted",
+                "reason": null,
+                "weight": 0.25,
+                "validation_bits": 1.5565948308470179
+              }
+            ]
+          },
+          "merge_seconds": 0.6121247700000367,
+          "training_seconds": 4.896233589000076,
+          "contributions": 4,
+          "bytes_sent": 441344,
+          "validation": 1.6498831589011747,
+          "test": 1.5015845911174162,
+          "test_worst_session": 3.066369275049816,
+          "test_sessions": [
+            1.599644114964351,
+            0.12913425115828528,
+            0.5105812377900887,
+            0.8795396392582656,
+            3.066369275049816,
+            1.0904509682585595,
+            1.1595073378639909
+          ],
+          "control": 0.38389799720685486,
+          "test_order_gain_bits": 0.32545831102255307,
+          "test_order_p": 0.05,
+          "weights_sha256": "a230c4d9491a91f392753da10d67224570be48c2ab1af358451e307dec1808f2",
+          "eval_seconds": 0.06778055500001301
+        },
+        "average, greedy soup": {
+          "rule": {
+            "merge": "average",
+            "ties_keep": 1.0,
+            "ties_mean": "agreeing",
+            "dare": null,
+            "soup": "greedy",
+            "outer": {
+              "lr": 1.0,
+              "momentum": 0.0
+            },
+            "tolerance_bits": 0.02,
+            "max_abs_delta": 10.0
+          },
+          "round": {
+            "round": 2,
+            "decision": "accepted",
+            "reason": null,
+            "validation_bits": 1.5565948308470179,
+            "weights_sha256": "6aa78761de1b92f200d75d7f1b7f4d46a215b52a5457168906bc6c9b668f51e1",
+            "contributors": [
+              {
+                "file": "worker2/real.pt",
+                "shard": [
+                  2,
+                  5
+                ],
+                "status": "set aside",
+                "reason": "the soup scores 1.6035 bits on validation with it, no better than 1.5566 without it",
+                "weight": 0.0,
+                "validation_bits": 1.7322019017315382
+              },
+              {
+                "file": "worker3/real.pt",
+                "shard": [
+                  3,
+                  5
+                ],
+                "status": "set aside",
+                "reason": "the soup scores 1.6026 bits on validation with it, no better than 1.5566 without it",
+                "weight": 0.0,
+                "validation_bits": 1.74580998714744
+              },
+              {
+                "file": "worker4/real.pt",
+                "shard": [
+                  4,
+                  5
+                ],
+                "status": "set aside",
+                "reason": "the soup scores 1.6149 bits on validation with it, no better than 1.5566 without it",
+                "weight": 0.0,
+                "validation_bits": 1.7142620598498828
+              },
+              {
+                "file": "worker5/real.pt",
+                "shard": [
+                  5,
+                  5
+                ],
+                "status": "accepted",
+                "reason": null,
+                "weight": 1.0,
+                "validation_bits": 1.5565948308470179
+              }
+            ]
+          },
+          "merge_seconds": 0.45823879499999975,
+          "training_seconds": 4.896233589000076,
+          "contributions": 4,
+          "bytes_sent": 441344,
+          "validation": 1.5565948308470179,
+          "test": 1.342506662283935,
+          "test_worst_session": 2.424418607846749,
+          "test_sessions": [
+            1.8513632427638245,
+            0.13028110026729883,
+            0.5072812193979863,
+            0.8269202860206829,
+            2.424418607846749,
+            1.0127411043049686,
+            1.2111322186212243
+          ],
+          "control": 0.20073946757840777,
+          "test_order_gain_bits": 0.34564617607474313,
+          "test_order_p": 0.05,
+          "weights_sha256": "6aa78761de1b92f200d75d7f1b7f4d46a215b52a5457168906bc6c9b668f51e1",
+          "eval_seconds": 0.06904720500000394
+        },
+        "TIES, keep 20%": {
+          "rule": {
+            "merge": "ties",
+            "ties_keep": 0.2,
+            "ties_mean": "agreeing",
+            "dare": null,
+            "soup": "all",
+            "outer": {
+              "lr": 1.0,
+              "momentum": 0.0
+            },
+            "tolerance_bits": 0.02,
+            "max_abs_delta": 10.0
+          },
+          "round": {
+            "round": 2,
+            "decision": "accepted",
+            "reason": null,
+            "validation_bits": 1.608984789596457,
+            "weights_sha256": "a2c1e23269736b7aadd099f0478f06eb2f43af1ef5082c04e68631e243883bfb",
+            "contributors": [
+              {
+                "file": "worker2/real.pt",
+                "shard": [
+                  2,
+                  5
+                ],
+                "status": "accepted",
+                "reason": null,
+                "weight": 0.25,
+                "validation_bits": 1.7322019017315382
+              },
+              {
+                "file": "worker3/real.pt",
+                "shard": [
+                  3,
+                  5
+                ],
+                "status": "accepted",
+                "reason": null,
+                "weight": 0.25,
+                "validation_bits": 1.74580998714744
+              },
+              {
+                "file": "worker4/real.pt",
+                "shard": [
+                  4,
+                  5
+                ],
+                "status": "accepted",
+                "reason": null,
+                "weight": 0.25,
+                "validation_bits": 1.7142620598498828
+              },
+              {
+                "file": "worker5/real.pt",
+                "shard": [
+                  5,
+                  5
+                ],
+                "status": "accepted",
+                "reason": null,
+                "weight": 0.25,
+                "validation_bits": 1.5565948308470179
+              }
+            ]
+          },
+          "merge_seconds": 0.49566275699999096,
+          "training_seconds": 4.896233589000076,
+          "contributions": 4,
+          "bytes_sent": 441344,
+          "validation": 1.608984789596457,
+          "test": 1.4918902119041941,
+          "test_worst_session": 3.044894833332483,
+          "test_sessions": [
+            1.470534950342072,
+            0.091983086332364,
+            0.4993954556032781,
+            0.7979104359213054,
+            3.044894833332483,
+            1.1484577659366635,
+            1.131106505084175
+          ],
+          "control": 0.39058731765507587,
+          "test_order_gain_bits": 0.28437772158969676,
+          "test_order_p": 0.05,
+          "weights_sha256": "a2c1e23269736b7aadd099f0478f06eb2f43af1ef5082c04e68631e243883bfb",
+          "eval_seconds": 0.07401440300003514
+        }
+      },
+      "chains": {
+        "average (FedAvg)": {
+          "rule": {
+            "merge": "average",
+            "ties_keep": 1.0,
+            "ties_mean": "agreeing",
+            "dare": null,
+            "soup": "all",
+            "outer": {
+              "lr": 1.0,
+              "momentum": 0.0
+            },
+            "tolerance_bits": 0.02,
+            "max_abs_delta": 10.0
+          },
+          "history": [
+            {
+              "round": 2,
+              "decision": "accepted",
+              "reason": null,
+              "validation_bits": 1.6530971905127327,
+              "weights_sha256": "d049dd8f11bc0bd133b6aecfb804ad5c0b78b4814bc4c13411e5a4c81144f6ef",
+              "contributors": [
+                {
+                  "file": "chain0-r1-worker2/real.pt",
+                  "shard": [
+                    2,
+                    5
+                  ],
+                  "status": "accepted",
+                  "reason": null,
+                  "weight": 0.25,
+                  "validation_bits": 1.7315454547989475
+                },
+                {
+                  "file": "chain0-r1-worker3/real.pt",
+                  "shard": [
+                    3,
+                    5
+                  ],
+                  "status": "accepted",
+                  "reason": null,
+                  "weight": 0.25,
+                  "validation_bits": 1.7454102288145028
+                },
+                {
+                  "file": "chain0-r1-worker4/real.pt",
+                  "shard": [
+                    4,
+                    5
+                  ],
+                  "status": "accepted",
+                  "reason": null,
+                  "weight": 0.25,
+                  "validation_bits": 1.71122612169617
+                },
+                {
+                  "file": "chain0-r1-worker5/real.pt",
+                  "shard": [
+                    5,
+                    5
+                  ],
+                  "status": "accepted",
+                  "reason": null,
+                  "weight": 0.25,
+                  "validation_bits": 1.5712575151175252
+                }
+              ]
+            },
+            {
+              "round": 3,
+              "decision": "accepted",
+              "reason": null,
+              "validation_bits": 1.6140255880783427,
+              "weights_sha256": "2818e385449ffb25698e545b39ae99d8accc7bbd1b8d13329c63b77a422da922",
+              "contributors": [
+                {
+                  "file": "chain0-r2-worker2/real.pt",
+                  "shard": [
+                    2,
+                    5
+                  ],
+                  "status": "accepted",
+                  "reason": null,
+                  "weight": 0.25,
+                  "validation_bits": 1.6521567559109205
+                },
+                {
+                  "file": "chain0-r2-worker3/real.pt",
+                  "shard": [
+                    3,
+                    5
+                  ],
+                  "status": "accepted",
+                  "reason": null,
+                  "weight": 0.25,
+                  "validation_bits": 1.649922149072458
+                },
+                {
+                  "file": "chain0-r2-worker4/real.pt",
+                  "shard": [
+                    4,
+                    5
+                  ],
+                  "status": "accepted",
+                  "reason": null,
+                  "weight": 0.25,
+                  "validation_bits": 1.6511659176873812
+                },
+                {
+                  "file": "chain0-r2-worker5/real.pt",
+                  "shard": [
+                    5,
+                    5
+                  ],
+                  "status": "accepted",
+                  "reason": null,
+                  "weight": 0.25,
+                  "validation_bits": 1.5742210259540834
+                }
+              ]
+            },
+            {
+              "round": 4,
+              "decision": "accepted",
+              "reason": null,
+              "validation_bits": 1.5909472937964915,
+              "weights_sha256": "3ea422ee8455c1fe58f029900c670ca6014dfc67fc8d276e9a30cdcfef88fe9c",
+              "contributors": [
+                {
+                  "file": "chain0-r3-worker2/real.pt",
+                  "shard": [
+                    2,
+                    5
+                  ],
+                  "status": "accepted",
+                  "reason": null,
+                  "weight": 0.25,
+                  "validation_bits": 1.6145594916394388
+                },
+                {
+                  "file": "chain0-r3-worker3/real.pt",
+                  "shard": [
+                    3,
+                    5
+                  ],
+                  "status": "accepted",
+                  "reason": null,
+                  "weight": 0.25,
+                  "validation_bits": 1.6118962705681317
+                },
+                {
+                  "file": "chain0-r3-worker4/real.pt",
+                  "shard": [
+                    4,
+                    5
+                  ],
+                  "status": "accepted",
+                  "reason": null,
+                  "weight": 0.25,
+                  "validation_bits": 1.6090110772221113
+                },
+                {
+                  "file": "chain0-r3-worker5/real.pt",
+                  "shard": [
+                    5,
+                    5
+                  ],
+                  "status": "accepted",
+                  "reason": null,
+                  "weight": 0.25,
+                  "validation_bits": 1.5750344450157208
+                }
+              ]
+            },
+            {
+              "round": 5,
+              "decision": "accepted",
+              "reason": null,
+              "validation_bits": 1.5785021705596562,
+              "weights_sha256": "6eced210051855cf27fbf67f4bc88f343413d4d399301cc160e1e3cd23b38e84",
+              "contributors": [
+                {
+                  "file": "chain0-r4-worker2/real.pt",
+                  "shard": [
+                    2,
+                    5
+                  ],
+                  "status": "accepted",
+                  "reason": null,
+                  "weight": 0.25,
+                  "validation_bits": 1.5921478479743718
+                },
+                {
+                  "file": "chain0-r4-worker3/real.pt",
+                  "shard": [
+                    3,
+                    5
+                  ],
+                  "status": "accepted",
+                  "reason": null,
+                  "weight": 0.25,
+                  "validation_bits": 1.586837658347204
+                },
+                {
+                  "file": "chain0-r4-worker4/real.pt",
+                  "shard": [
+                    4,
+                    5
+                  ],
+                  "status": "accepted",
+                  "reason": null,
+                  "weight": 0.25,
+                  "validation_bits": 1.5858396309389795
+                },
+                {
+                  "file": "chain0-r4-worker5/real.pt",
+                  "shard": [
+                    5,
+                    5
+                  ],
+                  "status": "accepted",
+                  "reason": null,
+                  "weight": 0.25,
+                  "validation_bits": 1.58037710992543
+                }
+              ]
+            },
+            {
+              "round": 6,
+              "decision": "accepted",
+              "reason": null,
+              "validation_bits": 1.5697157176119827,
+              "weights_sha256": "d6b83acd614f69fb071f1d30ca536661ebf758cca7c26307420f368d85419fbe",
+              "contributors": [
+                {
+                  "file": "chain0-r5-worker2/real.pt",
+                  "shard": [
+                    2,
+                    5
+                  ],
+                  "status": "accepted",
+                  "reason": null,
+                  "weight": 0.25,
+                  "validation_bits": 1.5783116026268689
+                },
+                {
+                  "file": "chain0-r5-worker3/real.pt",
+                  "shard": [
+                    3,
+                    5
+                  ],
+                  "status": "accepted",
+                  "reason": null,
+                  "weight": 0.25,
+                  "validation_bits": 1.5761870151043746
+                },
+                {
+                  "file": "chain0-r5-worker4/real.pt",
+                  "shard": [
+                    4,
+                    5
+                  ],
+                  "status": "accepted",
+                  "reason": null,
+                  "weight": 0.25,
+                  "validation_bits": 1.5729400818172528
+                },
+                {
+                  "file": "chain0-r5-worker5/real.pt",
+                  "shard": [
+                    5,
+                    5
+                  ],
+                  "status": "accepted",
+                  "reason": null,
+                  "weight": 0.25,
+                  "validation_bits": 1.5774069552906114
+                }
+              ]
+            },
+            {
+              "round": 7,
+              "decision": "accepted",
+              "reason": null,
+              "validation_bits": 1.5606958591069173,
+              "weights_sha256": "d332a5dd57a4ca56099961acc1d08504c10d2371f93f9bd18ffc5c205b55913f",
+              "contributors": [
+                {
+                  "file": "chain0-r6-worker2/real.pt",
+                  "shard": [
+                    2,
+                    5
+                  ],
+                  "status": "accepted",
+                  "reason": null,
+                  "weight": 0.25,
+                  "validation_bits": 1.5693298418425745
+                },
+                {
+                  "file": "chain0-r6-worker3/real.pt",
+                  "shard": [
+                    3,
+                    5
+                  ],
+                  "status": "accepted",
+                  "reason": null,
+                  "weight": 0.25,
+                  "validation_bits": 1.5662852766672395
+                },
+                {
+                  "file": "chain0-r6-worker4/real.pt",
+                  "shard": [
+                    4,
+                    5
+                  ],
+                  "status": "accepted",
+                  "reason": null,
+                  "weight": 0.25,
+                  "validation_bits": 1.5629168412008878
+                },
+                {
+                  "file": "chain0-r6-worker5/real.pt",
+                  "shard": [
+                    5,
+                    5
+                  ],
+                  "status": "accepted",
+                  "reason": null,
+                  "weight": 0.25,
+                  "validation_bits": 1.5684746759291814
+                }
+              ]
+            },
+            {
+              "round": 8,
+              "decision": "accepted",
+              "reason": null,
+              "validation_bits": 1.557358718905207,
+              "weights_sha256": "9fbe95faff77ea6bb9c395e38ae0290ff0f23898f37e1f17bcf7854fcc58ee54",
+              "contributors": [
+                {
+                  "file": "chain0-r7-worker2/real.pt",
+                  "shard": [
+                    2,
+                    5
+                  ],
+                  "status": "accepted",
+                  "reason": null,
+                  "weight": 0.25,
+                  "validation_bits": 1.5606107391602504
+                },
+                {
+                  "file": "chain0-r7-worker3/real.pt",
+                  "shard": [
+                    3,
+                    5
+                  ],
+                  "status": "accepted",
+                  "reason": null,
+                  "weight": 0.25,
+                  "validation_bits": 1.5578475140509498
+                },
+                {
+                  "file": "chain0-r7-worker4/real.pt",
+                  "shard": [
+                    4,
+                    5
+                  ],
+                  "status": "accepted",
+                  "reason": null,
+                  "weight": 0.25,
+                  "validation_bits": 1.5551902129013764
+                },
+                {
+                  "file": "chain0-r7-worker5/real.pt",
+                  "shard": [
+                    5,
+                    5
+                  ],
+                  "status": "accepted",
+                  "reason": null,
+                  "weight": 0.25,
+                  "validation_bits": 1.564976964048023
+                }
+              ]
+            },
+            {
+              "round": 9,
+              "decision": "accepted",
+              "reason": null,
+              "validation_bits": 1.554019654976836,
+              "weights_sha256": "d6fc22384acbd868f6b4fb9b4dc120853dc703cfde0081619dfaa3a072341f49",
+              "contributors": [
+                {
+                  "file": "chain0-r8-worker2/real.pt",
+                  "shard": [
+                    2,
+                    5
+                  ],
+                  "status": "accepted",
+                  "reason": null,
+                  "weight": 0.25,
+                  "validation_bits": 1.5570992934573151
+                },
+                {
+                  "file": "chain0-r8-worker3/real.pt",
+                  "shard": [
+                    3,
+                    5
+                  ],
+                  "status": "accepted",
+                  "reason": null,
+                  "weight": 0.25,
+                  "validation_bits": 1.5545595677047164
+                },
+                {
+                  "file": "chain0-r8-worker4/real.pt",
+                  "shard": [
+                    4,
+                    5
+                  ],
+                  "status": "accepted",
+                  "reason": null,
+                  "weight": 0.25,
+                  "validation_bits": 1.552727753530934
+                },
+                {
+                  "file": "chain0-r8-worker5/real.pt",
+                  "shard": [
+                    5,
+                    5
+                  ],
+                  "status": "accepted",
+                  "reason": null,
+                  "weight": 0.25,
+                  "validation_bits": 1.5586520086074613
+                }
+              ]
+            },
+            {
+              "round": 10,
+              "decision": "accepted",
+              "reason": null,
+              "validation_bits": 1.553434247105047,
+              "weights_sha256": "fbd221f8d5ee7661dd683dc4c040bb56cf2bb9cf7d8578455b4dbe67e7f7243d",
+              "contributors": [
+                {
+                  "file": "chain0-r9-worker2/real.pt",
+                  "shard": [
+                    2,
+                    5
+                  ],
+                  "status": "accepted",
+                  "reason": null,
+                  "weight": 0.25,
+                  "validation_bits": 1.556585232045949
+                },
+                {
+                  "file": "chain0-r9-worker3/real.pt",
+                  "shard": [
+                    3,
+                    5
+                  ],
+                  "status": "accepted",
+                  "reason": null,
+                  "weight": 0.25,
+                  "validation_bits": 1.5526335801696227
+                },
+                {
+                  "file": "chain0-r9-worker4/real.pt",
+                  "shard": [
+                    4,
+                    5
+                  ],
+                  "status": "accepted",
+                  "reason": null,
+                  "weight": 0.25,
+                  "validation_bits": 1.5504673647887748
+                },
+                {
+                  "file": "chain0-r9-worker5/real.pt",
+                  "shard": [
+                    5,
+                    5
+                  ],
+                  "status": "accepted",
+                  "reason": null,
+                  "weight": 0.25,
+                  "validation_bits": 1.5573939112037531
+                }
+              ]
+            },
+            {
+              "round": 11,
+              "decision": "accepted",
+              "reason": null,
+              "validation_bits": 1.552875305349015,
+              "weights_sha256": "bdc972783052f9f682c82c06b9d962edc40cce279d0c33642ecb0dc1b2f6ac1d",
+              "contributors": [
+                {
+                  "file": "chain0-r10-worker2/real.pt",
+                  "shard": [
+                    2,
+                    5
+                  ],
+                  "status": "accepted",
+                  "reason": null,
+                  "weight": 0.25,
+                  "validation_bits": 1.5560978350726757
+                },
+                {
+                  "file": "chain0-r10-worker3/real.pt",
+                  "shard": [
+                    3,
+                    5
+                  ],
+                  "status": "accepted",
+                  "reason": null,
+                  "weight": 0.25,
+                  "validation_bits": 1.5527953120347366
+                },
+                {
+                  "file": "chain0-r10-worker4/real.pt",
+                  "shard": [
+                    4,
+                    5
+                  ],
+                  "status": "accepted",
+                  "reason": null,
+                  "weight": 0.25,
+                  "validation_bits": 1.549412567611833
+                },
+                {
+                  "file": "chain0-r10-worker5/real.pt",
+                  "shard": [
+                    5,
+                    5
+                  ],
+                  "status": "accepted",
+                  "reason": null,
+                  "weight": 0.25,
+                  "validation_bits": 1.561257230311567
+                }
+              ]
+            }
+          ],
+          "training_seconds": 35.98211127900021,
+          "contributions": 40,
+          "bytes_sent": 4413440,
+          "validation": 1.552875305349015,
+          "test": 1.3517045084749322,
+          "test_worst_session": 2.5541533918471537,
+          "test_sessions": [
+            1.6118048935517597,
+            0.1302651288117887,
+            0.4959426860425161,
+            0.8021681760121857,
+            2.5541533918471537,
+            1.0896123655656058,
+            1.0910413044404013
+          ],
+          "control": 0.2051857673630559,
+          "test_order_gain_bits": 0.3356576683101793,
+          "test_order_p": 0.05,
+          "weights_sha256": "bdc972783052f9f682c82c06b9d962edc40cce279d0c33642ecb0dc1b2f6ac1d",
+          "eval_seconds": 0.06682806399999208
+        },
+        "average + DiLoCo": {
+          "rule": {
+            "merge": "average",
+            "ties_keep": 1.0,
+            "ties_mean": "agreeing",
+            "dare": null,
+            "soup": "all",
+            "outer": {
+              "lr": 0.7,
+              "momentum": 0.9
+            },
+            "tolerance_bits": 0.02,
+            "max_abs_delta": 10.0
+          },
+          "history": [
+            {
+              "round": 2,
+              "decision": "accepted",
+              "reason": null,
+              "validation_bits": 1.6395766049115315,
+              "weights_sha256": "123a2a2a464263be76f3d766fb3fdea58885308c5ce46873562853505bfe8209",
+              "contributors": [
+                {
+                  "file": "chain1-r1-worker2/real.pt",
+                  "shard": [
+                    2,
+                    5
+                  ],
+                  "status": "accepted",
+                  "reason": null,
+                  "weight": 0.25,
+                  "validation_bits": 1.7315454547989475
+                },
+                {
+                  "file": "chain1-r1-worker3/real.pt",
+                  "shard": [
+                    3,
+                    5
+                  ],
+                  "status": "accepted",
+                  "reason": null,
+                  "weight": 0.25,
+                  "validation_bits": 1.7454102288145028
+                },
+                {
+                  "file": "chain1-r1-worker4/real.pt",
+                  "shard": [
+                    4,
+                    5
+                  ],
+                  "status": "accepted",
+                  "reason": null,
+                  "weight": 0.25,
+                  "validation_bits": 1.71122612169617
+                },
+                {
+                  "file": "chain1-r1-worker5/real.pt",
+                  "shard": [
+                    5,
+                    5
+                  ],
+                  "status": "accepted",
+                  "reason": null,
+                  "weight": 0.25,
+                  "validation_bits": 1.5712575151175252
+                }
+              ]
+            },
+            {
+              "round": 3,
+              "decision": "accepted",
+              "reason": null,
+              "validation_bits": 1.6059533731920081,
+              "weights_sha256": "6d81eca38662a60afab0b0cae617cf4dc1b6dc9a030a0a68972e5d52c85a6211",
+              "contributors": [
+                {
+                  "file": "chain1-r2-worker2/real.pt",
+                  "shard": [
+                    2,
+                    5
+                  ],
+                  "status": "accepted",
+                  "reason": null,
+                  "weight": 0.25,
+                  "validation_bits": 1.635629088055913
+                },
+                {
+                  "file": "chain1-r2-worker3/real.pt",
+                  "shard": [
+                    3,
+                    5
+                  ],
+                  "status": "accepted",
+                  "reason": null,
+                  "weight": 0.25,
+                  "validation_bits": 1.6333320592621539
+                },
+                {
+                  "file": "chain1-r2-worker4/real.pt",
+                  "shard": [
+                    4,
+                    5
+                  ],
+                  "status": "accepted",
+                  "reason": null,
+                  "weight": 0.25,
+                  "validation_bits": 1.63576975808893
+                },
+                {
+                  "file": "chain1-r2-worker5/real.pt",
+                  "shard": [
+                    5,
+                    5
+                  ],
+                  "status": "accepted",
+                  "reason": null,
+                  "weight": 0.25,
+                  "validation_bits": 1.5731343583777257
+                }
+              ]
+            },
+            {
+              "round": 4,
+              "decision": "accepted",
+              "reason": null,
+              "validation_bits": 1.6002084907523935,
+              "weights_sha256": "e19c48dda88e296b357db907af8bc35457b6a065de5fa2e8a944900439af58dd",
+              "contributors": [
+                {
+                  "file": "chain1-r3-worker2/real.pt",
+                  "shard": [
+                    2,
+                    5
+                  ],
+                  "status": "accepted",
+                  "reason": null,
+                  "weight": 0.25,
+                  "validation_bits": 1.6035662465609444
+                },
+                {
+                  "file": "chain1-r3-worker3/real.pt",
+                  "shard": [
+                    3,
+                    5
+                  ],
+                  "status": "accepted",
+                  "reason": null,
+                  "weight": 0.25,
+                  "validation_bits": 1.5978252314068844
+                },
+                {
+                  "file": "chain1-r3-worker4/real.pt",
+                  "shard": [
+                    4,
+                    5
+                  ],
+                  "status": "accepted",
+                  "reason": null,
+                  "weight": 0.25,
+                  "validation_bits": 1.5750801384819653
+                },
+                {
+                  "file": "chain1-r3-worker5/real.pt",
+                  "shard": [
+                    5,
+                    5
+                  ],
+                  "status": "accepted",
+                  "reason": null,
+                  "weight": 0.25,
+                  "validation_bits": 1.576187768729252
+                }
+              ]
+            },
+            {
+              "round": 5,
+              "decision": "accepted",
+              "reason": null,
+              "validation_bits": 1.5860697344294743,
+              "weights_sha256": "9efb0460e4dfa0a9a42e68980ff4beccaad7cadf100c9e41bc8b49a5774f6834",
+              "contributors": [
+                {
+                  "file": "chain1-r4-worker2/real.pt",
+                  "shard": [
+                    2,
+                    5
+                  ],
+                  "status": "accepted",
+                  "reason": null,
+                  "weight": 0.25,
+                  "validation_bits": 1.59954121542025
+                },
+                {
+                  "file": "chain1-r4-worker3/real.pt",
+                  "shard": [
+                    3,
+                    5
+                  ],
+                  "status": "accepted",
+                  "reason": null,
+                  "weight": 0.25,
+                  "validation_bits": 1.5885497750750148
+                },
+                {
+                  "file": "chain1-r4-worker4/real.pt",
+                  "shard": [
+                    4,
+                    5
+                  ],
+                  "status": "accepted",
+                  "reason": null,
+                  "weight": 0.25,
+                  "validation_bits": 1.5438755468127165
+                },
+                {
+                  "file": "chain1-r4-worker5/real.pt",
+                  "shard": [
+                    5,
+                    5
+                  ],
+                  "status": "accepted",
+                  "reason": null,
+                  "weight": 0.25,
+                  "validation_bits": 1.5728749725943014
+                }
+              ]
+            },
+            {
+              "round": 6,
+              "decision": "accepted",
+              "reason": null,
+              "validation_bits": 1.5650905630821583,
+              "weights_sha256": "498aa6e08e315edc00da6dd611a91bcd967b386a4f5aa9a9631dc7e51460db71",
+              "contributors": [
+                {
+                  "file": "chain1-r5-worker2/real.pt",
+                  "shard": [
+                    2,
+                    5
+                  ],
+                  "status": "accepted",
+                  "reason": null,
+                  "weight": 0.25,
+                  "validation_bits": 1.5874180486638885
+                },
+                {
+                  "file": "chain1-r5-worker3/real.pt",
+                  "shard": [
+                    3,
+                    5
+                  ],
+                  "status": "accepted",
+                  "reason": null,
+                  "weight": 0.25,
+                  "validation_bits": 1.581187534319792
+                },
+                {
+                  "file": "chain1-r5-worker4/real.pt",
+                  "shard": [
+                    4,
+                    5
+                  ],
+                  "status": "accepted",
+                  "reason": null,
+                  "weight": 0.25,
+                  "validation_bits": 1.5298023161896548
+                },
+                {
+                  "file": "chain1-r5-worker5/real.pt",
+                  "shard": [
+                    5,
+                    5
+                  ],
+                  "status": "accepted",
+                  "reason": null,
+                  "weight": 0.25,
+                  "validation_bits": 1.5737969929672035
+                }
+              ]
+            },
+            {
+              "round": 7,
+              "decision": "accepted",
+              "reason": null,
+              "validation_bits": 1.5509978770379227,
+              "weights_sha256": "6e3338ad3012eef63dece001053da43806beb175a0c19f9ac4342ab176244f28",
+              "contributors": [
+                {
+                  "file": "chain1-r6-worker2/real.pt",
+                  "shard": [
+                    2,
+                    5
+                  ],
+                  "status": "accepted",
+                  "reason": null,
+                  "weight": 0.25,
+                  "validation_bits": 1.5682453359796804
+                },
+                {
+                  "file": "chain1-r6-worker3/real.pt",
+                  "shard": [
+                    3,
+                    5
+                  ],
+                  "status": "accepted",
+                  "reason": null,
+                  "weight": 0.25,
+                  "validation_bits": 1.5646216100861452
+                },
+                {
+                  "file": "chain1-r6-worker4/real.pt",
+                  "shard": [
+                    4,
+                    5
+                  ],
+                  "status": "accepted",
+                  "reason": null,
+                  "weight": 0.25,
+                  "validation_bits": 1.5188446898027301
+                },
+                {
+                  "file": "chain1-r6-worker5/real.pt",
+                  "shard": [
+                    5,
+                    5
+                  ],
+                  "status": "accepted",
+                  "reason": null,
+                  "weight": 0.25,
+                  "validation_bits": 1.574119881562657
+                }
+              ]
+            },
+            {
+              "round": 8,
+              "decision": "accepted",
+              "reason": null,
+              "validation_bits": 1.546172932586681,
+              "weights_sha256": "e3639b9474c890ba8df6d5d4c288ca2c59e01f4814af08db96e6437553e55a90",
+              "contributors": [
+                {
+                  "file": "chain1-r7-worker2/real.pt",
+                  "shard": [
+                    2,
+                    5
+                  ],
+                  "status": "accepted",
+                  "reason": null,
+                  "weight": 0.25,
+                  "validation_bits": 1.5552506218849618
+                },
+                {
+                  "file": "chain1-r7-worker3/real.pt",
+                  "shard": [
+                    3,
+                    5
+                  ],
+                  "status": "accepted",
+                  "reason": null,
+                  "weight": 0.25,
+                  "validation_bits": 1.5535913977241964
+                },
+                {
+                  "file": "chain1-r7-worker4/real.pt",
+                  "shard": [
+                    4,
+                    5
+                  ],
+                  "status": "accepted",
+                  "reason": null,
+                  "weight": 0.25,
+                  "validation_bits": 1.51905624023868
+                },
+                {
+                  "file": "chain1-r7-worker5/real.pt",
+                  "shard": [
+                    5,
+                    5
+                  ],
+                  "status": "accepted",
+                  "reason": null,
+                  "weight": 0.25,
+                  "validation_bits": 1.5629166131302012
+                }
+              ]
+            },
+            {
+              "round": 9,
+              "decision": "accepted",
+              "reason": null,
+              "validation_bits": 1.5429161625116872,
+              "weights_sha256": "8e8c39ad2731d84fdd85427a3a5dc871bde4e0f6149c1ffb7f8a3d806858c4d2",
+              "contributors": [
+                {
+                  "file": "chain1-r8-worker2/real.pt",
+                  "shard": [
+                    2,
+                    5
+                  ],
+                  "status": "accepted",
+                  "reason": null,
+                  "weight": 0.25,
+                  "validation_bits": 1.5494697439413394
+                },
+                {
+                  "file": "chain1-r8-worker3/real.pt",
+                  "shard": [
+                    3,
+                    5
+                  ],
+                  "status": "accepted",
+                  "reason": null,
+                  "weight": 0.25,
+                  "validation_bits": 1.5470904510425532
+                },
+                {
+                  "file": "chain1-r8-worker4/real.pt",
+                  "shard": [
+                    4,
+                    5
+                  ],
+                  "status": "accepted",
+                  "reason": null,
+                  "weight": 0.25,
+                  "validation_bits": 1.5238748978718661
+                },
+                {
+                  "file": "chain1-r8-worker5/real.pt",
+                  "shard": [
+                    5,
+                    5
+                  ],
+                  "status": "accepted",
+                  "reason": null,
+                  "weight": 0.25,
+                  "validation_bits": 1.5495307677241665
+                }
+              ]
+            },
+            {
+              "round": 10,
+              "decision": "accepted",
+              "reason": null,
+              "validation_bits": 1.547045769020223,
+              "weights_sha256": "64611d1fa681f49f94b6cb62ec5c4004c0acf01e90831f7886b15746e896e786",
+              "contributors": [
+                {
+                  "file": "chain1-r9-worker2/real.pt",
+                  "shard": [
+                    2,
+                    5
+                  ],
+                  "status": "accepted",
+                  "reason": null,
+                  "weight": 0.25,
+                  "validation_bits": 1.5487092967756821
+                },
+                {
+                  "file": "chain1-r9-worker3/real.pt",
+                  "shard": [
+                    3,
+                    5
+                  ],
+                  "status": "accepted",
+                  "reason": null,
+                  "weight": 0.25,
+                  "validation_bits": 1.5444420942303392
+                },
+                {
+                  "file": "chain1-r9-worker4/real.pt",
+                  "shard": [
+                    4,
+                    5
+                  ],
+                  "status": "accepted",
+                  "reason": null,
+                  "weight": 0.25,
+                  "validation_bits": 1.5276694982902113
+                },
+                {
+                  "file": "chain1-r9-worker5/real.pt",
+                  "shard": [
+                    5,
+                    5
+                  ],
+                  "status": "accepted",
+                  "reason": null,
+                  "weight": 0.25,
+                  "validation_bits": 1.5540429380190977
+                }
+              ]
+            },
+            {
+              "round": 11,
+              "decision": "accepted",
+              "reason": null,
+              "validation_bits": 1.5476324461549629,
+              "weights_sha256": "ad957e0bf79a858a0e9162613d5de0717864ecd8aabdfe01f15a7bdbfc627c51",
+              "contributors": [
+                {
+                  "file": "chain1-r10-worker2/real.pt",
+                  "shard": [
+                    2,
+                    5
+                  ],
+                  "status": "accepted",
+                  "reason": null,
+                  "weight": 0.25,
+                  "validation_bits": 1.5504183791717503
+                },
+                {
+                  "file": "chain1-r10-worker3/real.pt",
+                  "shard": [
+                    3,
+                    5
+                  ],
+                  "status": "accepted",
+                  "reason": null,
+                  "weight": 0.25,
+                  "validation_bits": 1.5486848039671703
+                },
+                {
+                  "file": "chain1-r10-worker4/real.pt",
+                  "shard": [
+                    4,
+                    5
+                  ],
+                  "status": "accepted",
+                  "reason": null,
+                  "weight": 0.25,
+                  "validation_bits": 1.5284554100438275
+                },
+                {
+                  "file": "chain1-r10-worker5/real.pt",
+                  "shard": [
+                    5,
+                    5
+                  ],
+                  "status": "accepted",
+                  "reason": null,
+                  "weight": 0.25,
+                  "validation_bits": 1.55558094756802
+                }
+              ]
+            }
+          ],
+          "training_seconds": 36.69425903099989,
+          "contributions": 40,
+          "bytes_sent": 4413440,
+          "validation": 1.5476324461549629,
+          "test": 1.3772189678908273,
+          "test_worst_session": 2.9192255051756204,
+          "test_sessions": [
+            1.6114695503135974,
+            0.07608952749756863,
+            0.4454075179358428,
+            0.7415180126339939,
+            2.9192255051756204,
+            0.9138649303950032,
+            1.0482353882724778
+          ],
+          "control": 0.06168322251148003,
+          "test_order_gain_bits": 0.3131877403200283,
+          "test_order_p": 0.05,
+          "weights_sha256": "ad957e0bf79a858a0e9162613d5de0717864ecd8aabdfe01f15a7bdbfc627c51",
+          "eval_seconds": 0.07352347300002293
+        }
+      },
+      "full_data": {
+        "from \u03b8\u2080": {
+          "validation": 1.4770342955708506,
+          "test": 1.346149331265943,
+          "test_worst_session": 2.526631275758146,
+          "test_sessions": [
+            1.3850035294500946,
+            0.0837121138853349,
+            0.45670752717751983,
+            0.7719702238986075,
+            2.526631275758146,
+            1.1275165468737383,
+            1.128647565935199
+          ],
+          "control": 0.11812300460924366,
+          "test_order_gain_bits": 0.2808102985375538,
+          "test_order_p": 0.05,
+          "weights_sha256": "2d50b6bbdcb5be3cb3b102917e7ddb0d8fb2b0534aa2a396c1f1d7863f3cb826",
+          "eval_seconds": 0.06758014500002218,
+          "training": {
+            "command": "python -m tracks.llm.train --anchor v4 --manifest tracks/llm/data/sessions/index.json --family stars --variants real --epochs 1000 --patience 50 --seed 43 --output full-theta0",
+            "seconds": 8.725194664000014,
+            "best_epoch": 197,
+            "epochs_run": 247,
+            "training_targets": 1260
+          }
+        },
+        "from the base": {
+          "validation": 1.5099490207445496,
+          "test": 1.3314787372395962,
+          "test_worst_session": 2.528741907998922,
+          "test_sessions": [
+            1.3008101794438705,
+            0.07434059579165953,
+            0.4145351186586411,
+            0.7493540008277056,
+            2.528741907998922,
+            1.11960956424175,
+            1.1162113705088619
+          ],
+          "control": 0.11312087357411243,
+          "test_order_gain_bits": 0.28673750218011196,
+          "test_order_p": 0.05,
+          "weights_sha256": "b148648fd2a012686050a6aec94c074d950383895bd6594f253c9f9b56e2e97a",
+          "eval_seconds": 0.06940228100000922,
+          "training": {
+            "command": "python -m tracks.llm.train --anchor v4 --manifest tracks/llm/data/sessions/index.json --family stars --variants real --epochs 1000 --patience 50 --seed 43 --output full-base --start base/merged.pt",
+            "seconds": 6.651826356000015,
+            "best_epoch": 136,
+            "epochs_run": 186,
+            "training_targets": 1260
+          }
+        }
+      }
+    },
+    "44": {
+      "base": {
+        "validation": 1.7438693237594727,
+        "test": 1.6673472486360599,
+        "test_worst_session": 3.456011945856856,
+        "test_sessions": [
+          1.509555658306952,
+          0.15888242277781695,
+          0.6080472456870596,
+          1.0285393541764927,
+          3.456011945856856,
+          1.2423174275874886,
+          1.2175394513883018
+        ],
+        "control": 0.7164651977355371,
+        "test_order_gain_bits": 0.25699997598494484,
+        "test_order_p": 0.05,
+        "weights_sha256": "857ee22dc2f77407d7197071c0215c268c6332ecab409096ce8d855bb2f7da32",
+        "eval_seconds": 0.06529571599998008,
+        "shard": 1,
+        "training": {
+          "command": "python -m tracks.llm.train --anchor v4 --manifest tracks/llm/data/sessions/index.json --family stars --variants real --epochs 1000 --patience 50 --seed 44 --output base-worker --shard 1/5 --shard-unit session",
+          "seconds": 3.361371385000041,
+          "best_epoch": 181,
+          "epochs_run": 231,
+          "training_targets": 360
+        },
+        "round": {
+          "round": 1,
+          "decision": "accepted",
+          "reason": null,
+          "validation_bits": 1.7438693237594727,
+          "weights_sha256": "857ee22dc2f77407d7197071c0215c268c6332ecab409096ce8d855bb2f7da32",
+          "contributors": [
+            {
+              "file": "base-worker/real.pt",
+              "shard": [
+                1,
+                5
+              ],
+              "status": "accepted",
+              "reason": null,
+              "weight": 1.0,
+              "validation_bits": 1.7438693237594727
+            }
+          ]
+        },
+        "merge_seconds": 0.2910067329999606
+      },
+      "workers": [
+        {
+          "validation": 1.7295369850042575,
+          "test": 1.6606517576587896,
+          "test_worst_session": 3.5407217024360715,
+          "test_sessions": [
+            1.5394655968078856,
+            0.14612384396151926,
+            0.5531260460756355,
+            0.9848660339543508,
+            3.5407217024360715,
+            1.1945990142676666,
+            1.1856473555086242
+          ],
+          "control": 0.4682055020004881,
+          "test_order_gain_bits": 0.3652163293300603,
+          "test_order_p": 0.05,
+          "weights_sha256": "22958589f43d5cfef350281fab0f336fe0a35ef8be462520fa8f291ed5443ecf",
+          "eval_seconds": 0.08576352899996209,
+          "shard": 2,
+          "training": {
+            "command": "python -m tracks.llm.train --anchor v4 --manifest tracks/llm/data/sessions/index.json --family stars --variants real --epochs 1000 --patience 50 --seed 44 --output worker2 --shard 2/5 --shard-unit session --start base/merged.pt",
+            "seconds": 0.900499104000005,
+            "best_epoch": 20,
+            "epochs_run": 70,
+            "training_targets": 225
+          }
+        },
+        {
+          "validation": 1.7432427045062362,
+          "test": 1.6596184553177127,
+          "test_worst_session": 3.4541762412599133,
+          "test_sessions": [
+            1.5052850768448076,
+            0.15954401710466606,
+            0.5987307696853337,
+            1.020437916493929,
+            3.4541762412599133,
+            1.219162111521029,
+            1.2182255475101436
+          ],
+          "control": 0.6965468633817627,
+          "test_order_gain_bits": 0.26105495919137045,
+          "test_order_p": 0.05,
+          "weights_sha256": "14afadf34c7a2972e20c4904ab5898e117e788da3f13fd231241e1e334d4dd69",
+          "eval_seconds": 0.08283718000001272,
+          "shard": 3,
+          "training": {
+            "command": "python -m tracks.llm.train --anchor v4 --manifest tracks/llm/data/sessions/index.json --family stars --variants real --epochs 1000 --patience 50 --seed 44 --output worker3 --shard 3/5 --shard-unit session --start base/merged.pt",
+            "seconds": 0.7021539430000416,
+            "best_epoch": 1,
+            "epochs_run": 51,
+            "training_targets": 225
+          }
+        },
+        {
+          "validation": 1.7113192538652167,
+          "test": 1.5710575103469102,
+          "test_worst_session": 3.2558220611733897,
+          "test_sessions": [
+            1.7435234248149698,
+            0.21154537935014833,
+            0.5592423300594934,
+            0.9231143560939127,
+            3.2558220611733897,
+            1.0548238678225443,
+            1.2142656355085175
+          ],
+          "control": 0.38894462275956204,
+          "test_order_gain_bits": 0.35549579105276896,
+          "test_order_p": 0.05,
+          "weights_sha256": "86c93b16c464f71a507cac1e1417dcd2989ece84124519508da1e33bdb589438",
+          "eval_seconds": 0.06738959799997701,
+          "shard": 4,
+          "training": {
+            "command": "python -m tracks.llm.train --anchor v4 --manifest tracks/llm/data/sessions/index.json --family stars --variants real --epochs 1000 --patience 50 --seed 44 --output worker4 --shard 4/5 --shard-unit session --start base/merged.pt",
+            "seconds": 1.2519240540000283,
+            "best_epoch": 43,
+            "epochs_run": 93,
+            "training_targets": 225
+          }
+        },
+        {
+          "validation": 1.562643781092387,
+          "test": 1.3484486705149183,
+          "test_worst_session": 2.4293609458994903,
+          "test_sessions": [
+            1.8685059230573466,
+            0.1267564419584762,
+            0.5068877230928122,
+            0.8178598730769083,
+            2.4293609458994903,
+            1.0096267048770242,
+            1.232509922008366
+          ],
+          "control": 0.19641981373321676,
+          "test_order_gain_bits": 0.3459010274093157,
+          "test_order_p": 0.05,
+          "weights_sha256": "b0adf6499eb074e388c3980c46aef0a21332b661538438bd38af3a78d9a8c047",
+          "eval_seconds": 0.08868759700004603,
+          "shard": 5,
+          "training": {
+            "command": "python -m tracks.llm.train --anchor v4 --manifest tracks/llm/data/sessions/index.json --family stars --variants real --epochs 1000 --patience 50 --seed 44 --output worker5 --shard 5/5 --shard-unit session --start base/merged.pt",
+            "seconds": 2.032015350999984,
+            "best_epoch": 119,
+            "epochs_run": 169,
+            "training_targets": 225
+          }
+        }
+      ],
+      "best_worker": {
+        "validation": 1.562643781092387,
+        "test": 1.3484486705149183,
+        "test_worst_session": 2.4293609458994903,
+        "test_sessions": [
+          1.8685059230573466,
+          0.1267564419584762,
+          0.5068877230928122,
+          0.8178598730769083,
+          2.4293609458994903,
+          1.0096267048770242,
+          1.232509922008366
+        ],
+        "control": 0.19641981373321676,
+        "test_order_gain_bits": 0.3459010274093157,
+        "test_order_p": 0.05,
+        "weights_sha256": "b0adf6499eb074e388c3980c46aef0a21332b661538438bd38af3a78d9a8c047",
+        "eval_seconds": 0.08868759700004603,
+        "shard": 5,
+        "training": {
+          "command": "python -m tracks.llm.train --anchor v4 --manifest tracks/llm/data/sessions/index.json --family stars --variants real --epochs 1000 --patience 50 --seed 44 --output worker5 --shard 5/5 --shard-unit session --start base/merged.pt",
+          "seconds": 2.032015350999984,
+          "best_epoch": 119,
+          "epochs_run": 169,
+          "training_targets": 225
+        }
+      },
+      "one_shot": {
+        "average (FedAvg)": {
+          "rule": {
+            "merge": "average",
+            "ties_keep": 1.0,
+            "ties_mean": "agreeing",
+            "dare": null,
+            "soup": "all",
+            "outer": {
+              "lr": 1.0,
+              "momentum": 0.0
+            },
+            "tolerance_bits": 0.02,
+            "max_abs_delta": 10.0
+          },
+          "round": {
+            "round": 2,
+            "decision": "accepted",
+            "reason": null,
+            "validation_bits": 1.6465748646832545,
+            "weights_sha256": "bb90b7b15a2321c022abf1b5f3307e112e992b0cd443edf33e3139ef64e34525",
+            "contributors": [
+              {
+                "file": "worker2/real.pt",
+                "shard": [
+                  2,
+                  5
+                ],
+                "status": "accepted",
+                "reason": null,
+                "weight": 0.25,
+                "validation_bits": 1.7295369850042575
+              },
+              {
+                "file": "worker3/real.pt",
+                "shard": [
+                  3,
+                  5
+                ],
+                "status": "accepted",
+                "reason": null,
+                "weight": 0.25,
+                "validation_bits": 1.7432427045062362
+              },
+              {
+                "file": "worker4/real.pt",
+                "shard": [
+                  4,
+                  5
+                ],
+                "status": "accepted",
+                "reason": null,
+                "weight": 0.25,
+                "validation_bits": 1.7113192538652167
+              },
+              {
+                "file": "worker5/real.pt",
+                "shard": [
+                  5,
+                  5
+                ],
+                "status": "accepted",
+                "reason": null,
+                "weight": 0.25,
+                "validation_bits": 1.562643781092387
+              }
+            ]
+          },
+          "merge_seconds": 0.46270599800004675,
+          "training_seconds": 4.886592452000059,
+          "contributions": 4,
+          "bytes_sent": 441344,
+          "validation": 1.6465748646832545,
+          "test": 1.5000743235579457,
+          "test_worst_session": 3.0571222647516922,
+          "test_sessions": [
+            1.5947750338772035,
+            0.13191691898373545,
+            0.5136343043828988,
+            0.8894699633811244,
+            3.0571222647516922,
+            1.0863094425776223,
+            1.1640210187140483
+          ],
+          "control": 0.3989643278295528,
+          "test_order_gain_bits": 0.3287376689678305,
+          "test_order_p": 0.05,
+          "weights_sha256": "bb90b7b15a2321c022abf1b5f3307e112e992b0cd443edf33e3139ef64e34525",
+          "eval_seconds": 0.0729974699999616
+        },
+        "average, greedy soup": {
+          "rule": {
+            "merge": "average",
+            "ties_keep": 1.0,
+            "ties_mean": "agreeing",
+            "dare": null,
+            "soup": "greedy",
+            "outer": {
+              "lr": 1.0,
+              "momentum": 0.0
+            },
+            "tolerance_bits": 0.02,
+            "max_abs_delta": 10.0
+          },
+          "round": {
+            "round": 2,
+            "decision": "accepted",
+            "reason": null,
+            "validation_bits": 1.562643781092387,
+            "weights_sha256": "b0adf6499eb074e388c3980c46aef0a21332b661538438bd38af3a78d9a8c047",
+            "contributors": [
+              {
+                "file": "worker2/real.pt",
+                "shard": [
+                  2,
+                  5
+                ],
+                "status": "set aside",
+                "reason": "the soup scores 1.6008 bits on validation with it, no better than 1.5626 without it",
+                "weight": 0.0,
+                "validation_bits": 1.7295369850042575
+              },
+              {
+                "file": "worker3/real.pt",
+                "shard": [
+                  3,
+                  5
+                ],
+                "status": "set aside",
+                "reason": "the soup scores 1.6007 bits on validation with it, no better than 1.5626 without it",
+                "weight": 0.0,
+                "validation_bits": 1.7432427045062362
+              },
+              {
+                "file": "worker4/real.pt",
+                "shard": [
+                  4,
+                  5
+                ],
+                "status": "set aside",
+                "reason": "the soup scores 1.6134 bits on validation with it, no better than 1.5626 without it",
+                "weight": 0.0,
+                "validation_bits": 1.7113192538652167
+              },
+              {
+                "file": "worker5/real.pt",
+                "shard": [
+                  5,
+                  5
+                ],
+                "status": "accepted",
+                "reason": null,
+                "weight": 1.0,
+                "validation_bits": 1.562643781092387
+              }
+            ]
+          },
+          "merge_seconds": 0.46628003899996884,
+          "training_seconds": 4.886592452000059,
+          "contributions": 4,
+          "bytes_sent": 441344,
+          "validation": 1.562643781092387,
+          "test": 1.3484486705149183,
+          "test_worst_session": 2.4293609458994903,
+          "test_sessions": [
+            1.8685059230573466,
+            0.1267564419584762,
+            0.5068877230928122,
+            0.8178598730769083,
+            2.4293609458994903,
+            1.0096267048770242,
+            1.232509922008366
+          ],
+          "control": 0.19641981373321676,
+          "test_order_gain_bits": 0.3459010274093157,
+          "test_order_p": 0.05,
+          "weights_sha256": "b0adf6499eb074e388c3980c46aef0a21332b661538438bd38af3a78d9a8c047",
+          "eval_seconds": 0.06782672100001719
+        },
+        "TIES, keep 20%": {
+          "rule": {
+            "merge": "ties",
+            "ties_keep": 0.2,
+            "ties_mean": "agreeing",
+            "dare": null,
+            "soup": "all",
+            "outer": {
+              "lr": 1.0,
+              "momentum": 0.0
+            },
+            "tolerance_bits": 0.02,
+            "max_abs_delta": 10.0
+          },
+          "round": {
+            "round": 2,
+            "decision": "accepted",
+            "reason": null,
+            "validation_bits": 1.6039997692716081,
+            "weights_sha256": "90c8a0c61e0f977f5ca80bb4eb5d37159459eb10c81394ebe10a233d351c5c73",
+            "contributors": [
+              {
+                "file": "worker2/real.pt",
+                "shard": [
+                  2,
+                  5
+                ],
+                "status": "accepted",
+                "reason": null,
+                "weight": 0.25,
+                "validation_bits": 1.7295369850042575
+              },
+              {
+                "file": "worker3/real.pt",
+                "shard": [
+                  3,
+                  5
+                ],
+                "status": "accepted",
+                "reason": null,
+                "weight": 0.25,
+                "validation_bits": 1.7432427045062362
+              },
+              {
+                "file": "worker4/real.pt",
+                "shard": [
+                  4,
+                  5
+                ],
+                "status": "accepted",
+                "reason": null,
+                "weight": 0.25,
+                "validation_bits": 1.7113192538652167
+              },
+              {
+                "file": "worker5/real.pt",
+                "shard": [
+                  5,
+                  5
+                ],
+                "status": "accepted",
+                "reason": null,
+                "weight": 0.25,
+                "validation_bits": 1.562643781092387
+              }
+            ]
+          },
+          "merge_seconds": 0.44549527299994907,
+          "training_seconds": 4.886592452000059,
+          "contributions": 4,
+          "bytes_sent": 441344,
+          "validation": 1.6039997692716081,
+          "test": 1.490069916952769,
+          "test_worst_session": 3.0327740464441546,
+          "test_sessions": [
+            1.4440665910640844,
+            0.08766124257475201,
+            0.49802106198166296,
+            0.8051724148194974,
+            3.0327740464441546,
+            1.1563852947626745,
+            1.1326259450516911
+          ],
+          "control": 0.41935285649687154,
+          "test_order_gain_bits": 0.28059867660118254,
+          "test_order_p": 0.05,
+          "weights_sha256": "90c8a0c61e0f977f5ca80bb4eb5d37159459eb10c81394ebe10a233d351c5c73",
+          "eval_seconds": 0.06603058299998565
+        }
+      },
+      "chains": {
+        "average (FedAvg)": {
+          "rule": {
+            "merge": "average",
+            "ties_keep": 1.0,
+            "ties_mean": "agreeing",
+            "dare": null,
+            "soup": "all",
+            "outer": {
+              "lr": 1.0,
+              "momentum": 0.0
+            },
+            "tolerance_bits": 0.02,
+            "max_abs_delta": 10.0
+          },
+          "history": [
+            {
+              "round": 2,
+              "decision": "accepted",
+              "reason": null,
+              "validation_bits": 1.6499597708196219,
+              "weights_sha256": "a621764a99fbdb6cc8ea8fecb0f72d0cb7af0cc70ffb23cc8a2d8629ffbc412f",
+              "contributors": [
+                {
+                  "file": "chain0-r1-worker2/real.pt",
+                  "shard": [
+                    2,
+                    5
+                  ],
+                  "status": "accepted",
+                  "reason": null,
+                  "weight": 0.25,
+                  "validation_bits": 1.7299157211695648
+                },
+                {
+                  "file": "chain0-r1-worker3/real.pt",
+                  "shard": [
+                    3,
+                    5
+                  ],
+                  "status": "accepted",
+                  "reason": null,
+                  "weight": 0.25,
+                  "validation_bits": 1.7434717073077657
+                },
+                {
+                  "file": "chain0-r1-worker4/real.pt",
+                  "shard": [
+                    4,
+                    5
+                  ],
+                  "status": "accepted",
+                  "reason": null,
+                  "weight": 0.25,
+                  "validation_bits": 1.7098965687547538
+                },
+                {
+                  "file": "chain0-r1-worker5/real.pt",
+                  "shard": [
+                    5,
+                    5
+                  ],
+                  "status": "accepted",
+                  "reason": null,
+                  "weight": 0.25,
+                  "validation_bits": 1.5671382610349351
+                }
+              ]
+            },
+            {
+              "round": 3,
+              "decision": "accepted",
+              "reason": null,
+              "validation_bits": 1.611213079868514,
+              "weights_sha256": "25a5dabd377850c9178ca3a0c3f7732c47cb8d41364e42f97ed39cecf707ebc3",
+              "contributors": [
+                {
+                  "file": "chain0-r2-worker2/real.pt",
+                  "shard": [
+                    2,
+                    5
+                  ],
+                  "status": "accepted",
+                  "reason": null,
+                  "weight": 0.25,
+                  "validation_bits": 1.6505088956200156
+                },
+                {
+                  "file": "chain0-r2-worker3/real.pt",
+                  "shard": [
+                    3,
+                    5
+                  ],
+                  "status": "accepted",
+                  "reason": null,
+                  "weight": 0.25,
+                  "validation_bits": 1.6467624379487662
+                },
+                {
+                  "file": "chain0-r2-worker4/real.pt",
+                  "shard": [
+                    4,
+                    5
+                  ],
+                  "status": "accepted",
+                  "reason": null,
+                  "weight": 0.25,
+                  "validation_bits": 1.6480658619223971
+                },
+                {
+                  "file": "chain0-r2-worker5/real.pt",
+                  "shard": [
+                    5,
+                    5
+                  ],
+                  "status": "accepted",
+                  "reason": null,
+                  "weight": 0.25,
+                  "validation_bits": 1.572047651136901
+                }
+              ]
+            },
+            {
+              "round": 4,
+              "decision": "accepted",
+              "reason": null,
+              "validation_bits": 1.5864214888409518,
+              "weights_sha256": "ee134afcc711bd9f6f9ff13952b5a740c9e1170a7ba2442bc9596e71d095d278",
+              "contributors": [
+                {
+                  "file": "chain0-r3-worker2/real.pt",
+                  "shard": [
+                    2,
+                    5
+                  ],
+                  "status": "accepted",
+                  "reason": null,
+                  "weight": 0.25,
+                  "validation_bits": 1.6125555138456615
+                },
+                {
+                  "file": "chain0-r3-worker3/real.pt",
+                  "shard": [
+                    3,
+                    5
+                  ],
+                  "status": "accepted",
+                  "reason": null,
+                  "weight": 0.25,
+                  "validation_bits": 1.6081957542660468
+                },
+                {
+                  "file": "chain0-r3-worker4/real.pt",
+                  "shard": [
+                    4,
+                    5
+                  ],
+                  "status": "accepted",
+                  "reason": null,
+                  "weight": 0.25,
+                  "validation_bits": 1.6074241514689822
+                },
+                {
+                  "file": "chain0-r3-worker5/real.pt",
+                  "shard": [
+                    5,
+                    5
+                  ],
+                  "status": "accepted",
+                  "reason": null,
+                  "weight": 0.25,
+                  "validation_bits": 1.5707498297692657
+                }
+              ]
+            },
+            {
+              "round": 5,
+              "decision": "accepted",
+              "reason": null,
+              "validation_bits": 1.5741710487253784,
+              "weights_sha256": "a092bdf56f970fa3283bc5d1ea37070e642d4f04e89f3c4b77ac386d122f22d2",
+              "contributors": [
+                {
+                  "file": "chain0-r4-worker2/real.pt",
+                  "shard": [
+                    2,
+                    5
+                  ],
+                  "status": "accepted",
+                  "reason": null,
+                  "weight": 0.25,
+                  "validation_bits": 1.5867168403800331
+                },
+                {
+                  "file": "chain0-r4-worker3/real.pt",
+                  "shard": [
+                    3,
+                    5
+                  ],
+                  "status": "accepted",
+                  "reason": null,
+                  "weight": 0.25,
+                  "validation_bits": 1.5839393261464147
+                },
+                {
+                  "file": "chain0-r4-worker4/real.pt",
+                  "shard": [
+                    4,
+                    5
+                  ],
+                  "status": "accepted",
+                  "reason": null,
+                  "weight": 0.25,
+                  "validation_bits": 1.5819788206087175
+                },
+                {
+                  "file": "chain0-r4-worker5/real.pt",
+                  "shard": [
+                    5,
+                    5
+                  ],
+                  "status": "accepted",
+                  "reason": null,
+                  "weight": 0.25,
+                  "validation_bits": 1.575565869547615
+                }
+              ]
+            },
+            {
+              "round": 6,
+              "decision": "accepted",
+              "reason": null,
+              "validation_bits": 1.5688703686542282,
+              "weights_sha256": "0f367c1b4a55ab5a53963f2b2ac74f8dacce7d570df9785a2ebf47e50feb4882",
+              "contributors": [
+                {
+                  "file": "chain0-r5-worker2/real.pt",
+                  "shard": [
+                    2,
+                    5
+                  ],
+                  "status": "accepted",
+                  "reason": null,
+                  "weight": 0.25,
+                  "validation_bits": 1.5742134897053104
+                },
+                {
+                  "file": "chain0-r5-worker3/real.pt",
+                  "shard": [
+                    3,
+                    5
+                  ],
+                  "status": "accepted",
+                  "reason": null,
+                  "weight": 0.25,
+                  "validation_bits": 1.5701678528738918
+                },
+                {
+                  "file": "chain0-r5-worker4/real.pt",
+                  "shard": [
+                    4,
+                    5
+                  ],
+                  "status": "accepted",
+                  "reason": null,
+                  "weight": 0.25,
+                  "validation_bits": 1.5690571387142787
+                },
+                {
+                  "file": "chain0-r5-worker5/real.pt",
+                  "shard": [
+                    5,
+                    5
+                  ],
+                  "status": "accepted",
+                  "reason": null,
+                  "weight": 0.25,
+                  "validation_bits": 1.5720801561677926
+                }
+              ]
+            },
+            {
+              "round": 7,
+              "decision": "accepted",
+              "reason": null,
+              "validation_bits": 1.5655945596349659,
+              "weights_sha256": "5a3654460b5ef3604cd1bf6d538e6be04c6224c9f4a7d1357b6950a0667cf52c",
+              "contributors": [
+                {
+                  "file": "chain0-r6-worker2/real.pt",
+                  "shard": [
+                    2,
+                    5
+                  ],
+                  "status": "accepted",
+                  "reason": null,
+                  "weight": 0.25,
+                  "validation_bits": 1.5692370269892653
+                },
+                {
+                  "file": "chain0-r6-worker3/real.pt",
+                  "shard": [
+                    3,
+                    5
+                  ],
+                  "status": "accepted",
+                  "reason": null,
+                  "weight": 0.25,
+                  "validation_bits": 1.5668488095853532
+                },
+                {
+                  "file": "chain0-r6-worker4/real.pt",
+                  "shard": [
+                    4,
+                    5
+                  ],
+                  "status": "accepted",
+                  "reason": null,
+                  "weight": 0.25,
+                  "validation_bits": 1.5635266129716703
+                },
+                {
+                  "file": "chain0-r6-worker5/real.pt",
+                  "shard": [
+                    5,
+                    5
+                  ],
+                  "status": "accepted",
+                  "reason": null,
+                  "weight": 0.25,
+                  "validation_bits": 1.5717360867468406
+                }
+              ]
+            },
+            {
+              "round": 8,
+              "decision": "accepted",
+              "reason": null,
+              "validation_bits": 1.5619913898515703,
+              "weights_sha256": "4a6e7c6a57cc18f26fad06b58131f8b4a130db67d51a77a56940a94a3040a854",
+              "contributors": [
+                {
+                  "file": "chain0-r7-worker2/real.pt",
+                  "shard": [
+                    2,
+                    5
+                  ],
+                  "status": "accepted",
+                  "reason": null,
+                  "weight": 0.25,
+                  "validation_bits": 1.5656572989060005
+                },
+                {
+                  "file": "chain0-r7-worker3/real.pt",
+                  "shard": [
+                    3,
+                    5
+                  ],
+                  "status": "accepted",
+                  "reason": null,
+                  "weight": 0.25,
+                  "validation_bits": 1.5629134201405896
+                },
+                {
+                  "file": "chain0-r7-worker4/real.pt",
+                  "shard": [
+                    4,
+                    5
+                  ],
+                  "status": "accepted",
+                  "reason": null,
+                  "weight": 0.25,
+                  "validation_bits": 1.5609257841073099
+                },
+                {
+                  "file": "chain0-r7-worker5/real.pt",
+                  "shard": [
+                    5,
+                    5
+                  ],
+                  "status": "accepted",
+                  "reason": null,
+                  "weight": 0.25,
+                  "validation_bits": 1.565163446540686
+                }
+              ]
+            },
+            {
+              "round": 9,
+              "decision": "accepted",
+              "reason": null,
+              "validation_bits": 1.5611129012314484,
+              "weights_sha256": "890f780a6d7c8ad93751d3afb6870ea19d2d4a419a5d748628bd962f2b9796f8",
+              "contributors": [
+                {
+                  "file": "chain0-r8-worker2/real.pt",
+                  "shard": [
+                    2,
+                    5
+                  ],
+                  "status": "accepted",
+                  "reason": null,
+                  "weight": 0.25,
+                  "validation_bits": 1.5645599318396086
+                },
+                {
+                  "file": "chain0-r8-worker3/real.pt",
+                  "shard": [
+                    3,
+                    5
+                  ],
+                  "status": "accepted",
+                  "reason": null,
+                  "weight": 0.25,
+                  "validation_bits": 1.5603160123365274
+                },
+                {
+                  "file": "chain0-r8-worker4/real.pt",
+                  "shard": [
+                    4,
+                    5
+                  ],
+                  "status": "accepted",
+                  "reason": null,
+                  "weight": 0.25,
+                  "validation_bits": 1.558659356450015
+                },
+                {
+                  "file": "chain0-r8-worker5/real.pt",
+                  "shard": [
+                    5,
+                    5
+                  ],
+                  "status": "accepted",
+                  "reason": null,
+                  "weight": 0.25,
+                  "validation_bits": 1.564085981120725
+                }
+              ]
+            },
+            {
+              "round": 10,
+              "decision": "accepted",
+              "reason": null,
+              "validation_bits": 1.5612939596082185,
+              "weights_sha256": "e7c1aaa7a64c4887bb68fed3fadbf7acffbc4841a5fefa70fcda5635b15cf821",
+              "contributors": [
+                {
+                  "file": "chain0-r9-worker2/real.pt",
+                  "shard": [
+                    2,
+                    5
+                  ],
+                  "status": "accepted",
+                  "reason": null,
+                  "weight": 0.25,
+                  "validation_bits": 1.5634450033303526
+                },
+                {
+                  "file": "chain0-r9-worker3/real.pt",
+                  "shard": [
+                    3,
+                    5
+                  ],
+                  "status": "accepted",
+                  "reason": null,
+                  "weight": 0.25,
+                  "validation_bits": 1.5602432280391678
+                },
+                {
+                  "file": "chain0-r9-worker4/real.pt",
+                  "shard": [
+                    4,
+                    5
+                  ],
+                  "status": "accepted",
+                  "reason": null,
+                  "weight": 0.25,
+                  "validation_bits": 1.558021968293927
+                },
+                {
+                  "file": "chain0-r9-worker5/real.pt",
+                  "shard": [
+                    5,
+                    5
+                  ],
+                  "status": "accepted",
+                  "reason": null,
+                  "weight": 0.25,
+                  "validation_bits": 1.566925897477407
+                }
+              ]
+            },
+            {
+              "round": 11,
+              "decision": "accepted",
+              "reason": null,
+              "validation_bits": 1.558681509054961,
+              "weights_sha256": "63a2c9b33c184cd5967175191df4eb578015cb83457e526666a63b17a8cb7ae3",
+              "contributors": [
+                {
+                  "file": "chain0-r10-worker2/real.pt",
+                  "shard": [
+                    2,
+                    5
+                  ],
+                  "status": "accepted",
+                  "reason": null,
+                  "weight": 0.25,
+                  "validation_bits": 1.5628833048938482
+                },
+                {
+                  "file": "chain0-r10-worker3/real.pt",
+                  "shard": [
+                    3,
+                    5
+                  ],
+                  "status": "accepted",
+                  "reason": null,
+                  "weight": 0.25,
+                  "validation_bits": 1.5603280703345643
+                },
+                {
+                  "file": "chain0-r10-worker4/real.pt",
+                  "shard": [
+                    4,
+                    5
+                  ],
+                  "status": "accepted",
+                  "reason": null,
+                  "weight": 0.25,
+                  "validation_bits": 1.555626492292512
+                },
+                {
+                  "file": "chain0-r10-worker5/real.pt",
+                  "shard": [
+                    5,
+                    5
+                  ],
+                  "status": "accepted",
+                  "reason": null,
+                  "weight": 0.25,
+                  "validation_bits": 1.5628582072022108
+                }
+              ]
+            }
+          ],
+          "training_seconds": 36.431066424999926,
+          "contributions": 40,
+          "bytes_sent": 4413440,
+          "validation": 1.558681509054961,
+          "test": 1.359420827318337,
+          "test_worst_session": 2.581488880007118,
+          "test_sessions": [
+            1.582807426203244,
+            0.13704656525245004,
+            0.500125518134354,
+            0.808939247631755,
+            2.581488880007118,
+            1.092321894902399,
+            1.0923445201755793
+          ],
+          "control": 0.23127379691069166,
+          "test_order_gain_bits": 0.33110848219501166,
+          "test_order_p": 0.05,
+          "weights_sha256": "63a2c9b33c184cd5967175191df4eb578015cb83457e526666a63b17a8cb7ae3",
+          "eval_seconds": 0.06797523099999125
+        },
+        "average + DiLoCo": {
+          "rule": {
+            "merge": "average",
+            "ties_keep": 1.0,
+            "ties_mean": "agreeing",
+            "dare": null,
+            "soup": "all",
+            "outer": {
+              "lr": 0.7,
+              "momentum": 0.9
+            },
+            "tolerance_bits": 0.02,
+            "max_abs_delta": 10.0
+          },
+          "history": [
+            {
+              "round": 2,
+              "decision": "accepted",
+              "reason": null,
+              "validation_bits": 1.6369809225117935,
+              "weights_sha256": "b78d14c767f93ec543652b0a2191fff0a2b31ee5a9c9a62257097707afc93521",
+              "contributors": [
+                {
+                  "file": "chain1-r1-worker2/real.pt",
+                  "shard": [
+                    2,
+                    5
+                  ],
+                  "status": "accepted",
+                  "reason": null,
+                  "weight": 0.25,
+                  "validation_bits": 1.7299157211695648
+                },
+                {
+                  "file": "chain1-r1-worker3/real.pt",
+                  "shard": [
+                    3,
+                    5
+                  ],
+                  "status": "accepted",
+                  "reason": null,
+                  "weight": 0.25,
+                  "validation_bits": 1.7434717073077657
+                },
+                {
+                  "file": "chain1-r1-worker4/real.pt",
+                  "shard": [
+                    4,
+                    5
+                  ],
+                  "status": "accepted",
+                  "reason": null,
+                  "weight": 0.25,
+                  "validation_bits": 1.7098965687547538
+                },
+                {
+                  "file": "chain1-r1-worker5/real.pt",
+                  "shard": [
+                    5,
+                    5
+                  ],
+                  "status": "accepted",
+                  "reason": null,
+                  "weight": 0.25,
+                  "validation_bits": 1.5671382610349351
+                }
+              ]
+            },
+            {
+              "round": 3,
+              "decision": "accepted",
+              "reason": null,
+              "validation_bits": 1.6075270410969666,
+              "weights_sha256": "708ef28d9d44f5bb302f6c3501c009b4aff36af456d6040d58cf11c7cd79303b",
+              "contributors": [
+                {
+                  "file": "chain1-r2-worker2/real.pt",
+                  "shard": [
+                    2,
+                    5
+                  ],
+                  "status": "accepted",
+                  "reason": null,
+                  "weight": 0.25,
+                  "validation_bits": 1.6357726238466874
+                },
+                {
+                  "file": "chain1-r2-worker3/real.pt",
+                  "shard": [
+                    3,
+                    5
+                  ],
+                  "status": "accepted",
+                  "reason": null,
+                  "weight": 0.25,
+                  "validation_bits": 1.6307482067897663
+                },
+                {
+                  "file": "chain1-r2-worker4/real.pt",
+                  "shard": [
+                    4,
+                    5
+                  ],
+                  "status": "accepted",
+                  "reason": null,
+                  "weight": 0.25,
+                  "validation_bits": 1.6325148720761296
+                },
+                {
+                  "file": "chain1-r2-worker5/real.pt",
+                  "shard": [
+                    5,
+                    5
+                  ],
+                  "status": "accepted",
+                  "reason": null,
+                  "weight": 0.25,
+                  "validation_bits": 1.5763702054462578
+                }
+              ]
+            },
+            {
+              "round": 4,
+              "decision": "accepted",
+              "reason": null,
+              "validation_bits": 1.6092239465015963,
+              "weights_sha256": "4c0698f0393106f41bf835557483d80a40d84c1689ac44be6832b7ed0c69654e",
+              "contributors": [
+                {
+                  "file": "chain1-r3-worker2/real.pt",
+                  "shard": [
+                    2,
+                    5
+                  ],
+                  "status": "accepted",
+                  "reason": null,
+                  "weight": 0.25,
+                  "validation_bits": 1.60557156303049
+                },
+                {
+                  "file": "chain1-r3-worker3/real.pt",
+                  "shard": [
+                    3,
+                    5
+                  ],
+                  "status": "accepted",
+                  "reason": null,
+                  "weight": 0.25,
+                  "validation_bits": 1.5957626791111315
+                },
+                {
+                  "file": "chain1-r3-worker4/real.pt",
+                  "shard": [
+                    4,
+                    5
+                  ],
+                  "status": "accepted",
+                  "reason": null,
+                  "weight": 0.25,
+                  "validation_bits": 1.5760769561239392
+                },
+                {
+                  "file": "chain1-r3-worker5/real.pt",
+                  "shard": [
+                    5,
+                    5
+                  ],
+                  "status": "accepted",
+                  "reason": null,
+                  "weight": 0.25,
+                  "validation_bits": 1.5821201054409766
+                }
+              ]
+            },
+            {
+              "round": 5,
+              "decision": "accepted",
+              "reason": null,
+              "validation_bits": 1.5959718298468144,
+              "weights_sha256": "01b82075bfec2ea0687fcbe1e9e801ee7c20dd66d45dc39a4d66cb2729618991",
+              "contributors": [
+                {
+                  "file": "chain1-r4-worker2/real.pt",
+                  "shard": [
+                    2,
+                    5
+                  ],
+                  "status": "accepted",
+                  "reason": null,
+                  "weight": 0.25,
+                  "validation_bits": 1.6068186138800762
+                },
+                {
+                  "file": "chain1-r4-worker3/real.pt",
+                  "shard": [
+                    3,
+                    5
+                  ],
+                  "status": "accepted",
+                  "reason": null,
+                  "weight": 0.25,
+                  "validation_bits": 1.5969233010866322
+                },
+                {
+                  "file": "chain1-r4-worker4/real.pt",
+                  "shard": [
+                    4,
+                    5
+                  ],
+                  "status": "accepted",
+                  "reason": null,
+                  "weight": 0.25,
+                  "validation_bits": 1.5474126256775964
+                },
+                {
+                  "file": "chain1-r4-worker5/real.pt",
+                  "shard": [
+                    5,
+                    5
+                  ],
+                  "status": "accepted",
+                  "reason": null,
+                  "weight": 0.25,
+                  "validation_bits": 1.5799593240921384
+                }
+              ]
+            },
+            {
+              "round": 6,
+              "decision": "accepted",
+              "reason": null,
+              "validation_bits": 1.5709884512040975,
+              "weights_sha256": "55b6f4b21f62d8014802a0251feed530fddccc75f81c6c6181ef98556ea5b1ff",
+              "contributors": [
+                {
+                  "file": "chain1-r5-worker2/real.pt",
+                  "shard": [
+                    2,
+                    5
+                  ],
+                  "status": "accepted",
+                  "reason": null,
+                  "weight": 0.25,
+                  "validation_bits": 1.5965046228028277
+                },
+                {
+                  "file": "chain1-r5-worker3/real.pt",
+                  "shard": [
+                    3,
+                    5
+                  ],
+                  "status": "accepted",
+                  "reason": null,
+                  "weight": 0.25,
+                  "validation_bits": 1.5898400601938771
+                },
+                {
+                  "file": "chain1-r5-worker4/real.pt",
+                  "shard": [
+                    4,
+                    5
+                  ],
+                  "status": "accepted",
+                  "reason": null,
+                  "weight": 0.25,
+                  "validation_bits": 1.5308115785582208
+                },
+                {
+                  "file": "chain1-r5-worker5/real.pt",
+                  "shard": [
+                    5,
+                    5
+                  ],
+                  "status": "accepted",
+                  "reason": null,
+                  "weight": 0.25,
+                  "validation_bits": 1.585232933164407
+                }
+              ]
+            },
+            {
+              "round": 7,
+              "decision": "accepted",
+              "reason": null,
+              "validation_bits": 1.5596279726557911,
+              "weights_sha256": "dab169c6483c6f552a1971c51eeb32cc45aa04508be304cb7fc1c1e5a5a131e1",
+              "contributors": [
+                {
+                  "file": "chain1-r6-worker2/real.pt",
+                  "shard": [
+                    2,
+                    5
+                  ],
+                  "status": "accepted",
+                  "reason": null,
+                  "weight": 0.25,
+                  "validation_bits": 1.5743746662678832
+                },
+                {
+                  "file": "chain1-r6-worker3/real.pt",
+                  "shard": [
+                    3,
+                    5
+                  ],
+                  "status": "accepted",
+                  "reason": null,
+                  "weight": 0.25,
+                  "validation_bits": 1.5718331060336754
+                },
+                {
+                  "file": "chain1-r6-worker4/real.pt",
+                  "shard": [
+                    4,
+                    5
+                  ],
+                  "status": "accepted",
+                  "reason": null,
+                  "weight": 0.25,
+                  "validation_bits": 1.5292891571449185
+                },
+                {
+                  "file": "chain1-r6-worker5/real.pt",
+                  "shard": [
+                    5,
+                    5
+                  ],
+                  "status": "accepted",
+                  "reason": null,
+                  "weight": 0.25,
+                  "validation_bits": 1.5846097647198192
+                }
+              ]
+            },
+            {
+              "round": 8,
+              "decision": "accepted",
+              "reason": null,
+              "validation_bits": 1.5455834194425342,
+              "weights_sha256": "e1cacc1491c4c7200110fec536fb2379f59a748114fb60d70a042fff357b67f5",
+              "contributors": [
+                {
+                  "file": "chain1-r7-worker2/real.pt",
+                  "shard": [
+                    2,
+                    5
+                  ],
+                  "status": "accepted",
+                  "reason": null,
+                  "weight": 0.25,
+                  "validation_bits": 1.5626532014033532
+                },
+                {
+                  "file": "chain1-r7-worker3/real.pt",
+                  "shard": [
+                    3,
+                    5
+                  ],
+                  "status": "accepted",
+                  "reason": null,
+                  "weight": 0.25,
+                  "validation_bits": 1.5599751359051872
+                },
+                {
+                  "file": "chain1-r7-worker4/real.pt",
+                  "shard": [
+                    4,
+                    5
+                  ],
+                  "status": "accepted",
+                  "reason": null,
+                  "weight": 0.25,
+                  "validation_bits": 1.5240432537030069
+                },
+                {
+                  "file": "chain1-r7-worker5/real.pt",
+                  "shard": [
+                    5,
+                    5
+                  ],
+                  "status": "accepted",
+                  "reason": null,
+                  "weight": 0.25,
+                  "validation_bits": 1.5638988441643527
+                }
+              ]
+            },
+            {
+              "round": 9,
+              "decision": "accepted",
+              "reason": null,
+              "validation_bits": 1.5439737362013346,
+              "weights_sha256": "0153a3f46de0d2a8c8fa40f9eb363cda9137055dadd57b490cfac06aaf8d93c3",
+              "contributors": [
+                {
+                  "file": "chain1-r8-worker2/real.pt",
+                  "shard": [
+                    2,
+                    5
+                  ],
+                  "status": "accepted",
+                  "reason": null,
+                  "weight": 0.25,
+                  "validation_bits": 1.5510704630129462
+                },
+                {
+                  "file": "chain1-r8-worker3/real.pt",
+                  "shard": [
+                    3,
+                    5
+                  ],
+                  "status": "accepted",
+                  "reason": null,
+                  "weight": 0.25,
+                  "validation_bits": 1.5459900000638345
+                },
+                {
+                  "file": "chain1-r8-worker4/real.pt",
+                  "shard": [
+                    4,
+                    5
+                  ],
+                  "status": "accepted",
+                  "reason": null,
+                  "weight": 0.25,
+                  "validation_bits": 1.528887653575423
+                },
+                {
+                  "file": "chain1-r8-worker5/real.pt",
+                  "shard": [
+                    5,
+                    5
+                  ],
+                  "status": "accepted",
+                  "reason": null,
+                  "weight": 0.25,
+                  "validation_bits": 1.557907923034535
+                }
+              ]
+            },
+            {
+              "round": 10,
+              "decision": "accepted",
+              "reason": null,
+              "validation_bits": 1.5431839174976962,
+              "weights_sha256": "3bec84f0fee54ece0c794b6568b2fd529a79752ccd616441928e5d315e63ac20",
+              "contributors": [
+                {
+                  "file": "chain1-r9-worker2/real.pt",
+                  "shard": [
+                    2,
+                    5
+                  ],
+                  "status": "accepted",
+                  "reason": null,
+                  "weight": 0.25,
+                  "validation_bits": 1.546697534830212
+                },
+                {
+                  "file": "chain1-r9-worker3/real.pt",
+                  "shard": [
+                    3,
+                    5
+                  ],
+                  "status": "accepted",
+                  "reason": null,
+                  "weight": 0.25,
+                  "validation_bits": 1.5446812709677122
+                },
+                {
+                  "file": "chain1-r9-worker4/real.pt",
+                  "shard": [
+                    4,
+                    5
+                  ],
+                  "status": "accepted",
+                  "reason": null,
+                  "weight": 0.25,
+                  "validation_bits": 1.5280628508116916
+                },
+                {
+                  "file": "chain1-r9-worker5/real.pt",
+                  "shard": [
+                    5,
+                    5
+                  ],
+                  "status": "accepted",
+                  "reason": null,
+                  "weight": 0.25,
+                  "validation_bits": 1.555069494095374
+                }
+              ]
+            },
+            {
+              "round": 11,
+              "decision": "accepted",
+              "reason": null,
+              "validation_bits": 1.5459133484809202,
+              "weights_sha256": "bff39e03851c2ab172384612194686b3d427f3683a8691a9407324fd130551bf",
+              "contributors": [
+                {
+                  "file": "chain1-r10-worker2/real.pt",
+                  "shard": [
+                    2,
+                    5
+                  ],
+                  "status": "accepted",
+                  "reason": null,
+                  "weight": 0.25,
+                  "validation_bits": 1.5469658252865293
+                },
+                {
+                  "file": "chain1-r10-worker3/real.pt",
+                  "shard": [
+                    3,
+                    5
+                  ],
+                  "status": "accepted",
+                  "reason": null,
+                  "weight": 0.25,
+                  "validation_bits": 1.5437628005646264
+                },
+                {
+                  "file": "chain1-r10-worker4/real.pt",
+                  "shard": [
+                    4,
+                    5
+                  ],
+                  "status": "accepted",
+                  "reason": null,
+                  "weight": 0.25,
+                  "validation_bits": 1.5314446631196155
+                },
+                {
+                  "file": "chain1-r10-worker5/real.pt",
+                  "shard": [
+                    5,
+                    5
+                  ],
+                  "status": "accepted",
+                  "reason": null,
+                  "weight": 0.25,
+                  "validation_bits": 1.5540458731896722
+                }
+              ]
+            }
+          ],
+          "training_seconds": 35.86992200499981,
+          "contributions": 40,
+          "bytes_sent": 4413440,
+          "validation": 1.5459133484809202,
+          "test": 1.3849741777443474,
+          "test_worst_session": 2.9105447382008705,
+          "test_sessions": [
+            1.6427392065832722,
+            0.06796668944048269,
+            0.4555245311371316,
+            0.7285130973341102,
+            2.9105447382008705,
+            0.9261009227283892,
+            1.0689523113839843
+          ],
+          "control": 0.06190539908073646,
+          "test_order_gain_bits": 0.31183760047632014,
+          "test_order_p": 0.05,
+          "weights_sha256": "bff39e03851c2ab172384612194686b3d427f3683a8691a9407324fd130551bf",
+          "eval_seconds": 0.06532828699999982
+        }
+      },
+      "full_data": {
+        "from \u03b8\u2080": {
+          "validation": 1.471293736558164,
+          "test": 1.3358554434628336,
+          "test_worst_session": 2.4888661481559913,
+          "test_sessions": [
+            1.372957772859583,
+            0.08838712401649365,
+            0.45593906283142455,
+            0.7673025688921506,
+            2.4888661481559913,
+            1.1280840131848517,
+            1.1270603724469161
+          ],
+          "control": 0.13366575844440456,
+          "test_order_gain_bits": 0.27795807227867453,
+          "test_order_p": 0.05,
+          "weights_sha256": "462d087093f8c0c9d58ada16da4d4f43ff28de596f17e5131e1830a1ea77ea70",
+          "eval_seconds": 0.06455938700003117,
+          "training": {
+            "command": "python -m tracks.llm.train --anchor v4 --manifest tracks/llm/data/sessions/index.json --family stars --variants real --epochs 1000 --patience 50 --seed 44 --output full-theta0",
+            "seconds": 8.193065047000005,
+            "best_epoch": 182,
+            "epochs_run": 232,
+            "training_targets": 1260
+          }
+        },
+        "from the base": {
+          "validation": 1.5025326578237967,
+          "test": 1.3221197012645367,
+          "test_worst_session": 2.529833546855172,
+          "test_sessions": [
+            1.3082420313390748,
+            0.07372008238734651,
+            0.4072594728724604,
+            0.7522739452050745,
+            2.529833546855172,
+            1.0824013852561496,
+            1.1169082289228114
+          ],
+          "control": 0.1106761433190549,
+          "test_order_gain_bits": 0.30001545432041543,
+          "test_order_p": 0.05,
+          "weights_sha256": "e48b69c1f806f5ffaee2ecb4b7feedea7171aefd7f5bd85b28b40edddaf798fb",
+          "eval_seconds": 0.0657984950000241,
+          "training": {
+            "command": "python -m tracks.llm.train --anchor v4 --manifest tracks/llm/data/sessions/index.json --family stars --variants real --epochs 1000 --patience 50 --seed 44 --output full-base --start base/merged.pt",
+            "seconds": 6.662289509999994,
+            "best_epoch": 142,
+            "epochs_run": 192,
+            "training_targets": 1260
+          }
+        }
+      }
+    }
+  },
+  "summary": {
+    "base (shard 1 only)": {
+      "validation": {
+        "mean": 1.7448948882240687,
+        "min": 1.7438693237594727,
+        "max": 1.7459317372295904
+      },
+      "test": {
+        "mean": 1.6645530477814372,
+        "min": 1.660413886543463,
+        "max": 1.6673472486360599
+      },
+      "test_worst_session": {
+        "mean": 3.460160646399198,
+        "min": 3.456011945856856,
+        "max": 3.4636020523655477
+      },
+      "control": {
+        "mean": 0.6928342728552682,
+        "min": 0.6807703215426144,
+        "max": 0.7164651977355371
+      },
+      "test_order_gain_bits": {
+        "mean": 0.2549265633377074,
+        "min": 0.25253710705707344,
+        "max": 0.25699997598494484
+      },
+      "runs": 3
+    },
+    "workers (one volunteer each)": {
+      "validation": {
+        "mean": 1.6866039194285822,
+        "min": 1.5546294366637352,
+        "max": 1.74580998714744
+      },
+      "test": {
+        "mean": 1.5579972854265092,
+        "min": 1.339959668017717,
+        "max": 1.6607379782944223
+      },
+      "test_worst_session": {
+        "mean": 3.171456351428416,
+        "min": 2.4112379797833974,
+        "max": 3.5461314664028376
+      },
+      "control": {
+        "mean": 0.4228227673426092,
+        "min": 0.18987089783652195,
+        "max": 0.6965468633817627
+      },
+      "test_order_gain_bits": {
+        "mean": 0.33011470810502935,
+        "min": 0.2580044866199238,
+        "max": 0.36612215772802004
+      },
+      "runs": 12
+    },
+    "best worker (by validation)": {
+      "validation": {
+        "mean": 1.5579560162010466,
+        "min": 1.5546294366637352,
+        "max": 1.562643781092387
+      },
+      "test": {
+        "mean": 1.3436383336055233,
+        "min": 1.339959668017717,
+        "max": 1.3484486705149183
+      },
+      "test_worst_session": {
+        "mean": 2.4216725111765456,
+        "min": 2.4112379797833974,
+        "max": 2.4293609458994903
+      },
+      "control": {
+        "mean": 0.1956767263827155,
+        "min": 0.18987089783652195,
+        "max": 0.20073946757840777
+      },
+      "test_order_gain_bits": {
+        "mean": 0.345349266835488,
+        "min": 0.3445005970224051,
+        "max": 0.3459010274093157
+      },
+      "runs": 3
+    },
+    "one-shot: average (FedAvg)": {
+      "validation": {
+        "mean": 1.6477668381147248,
+        "min": 1.6465748646832545,
+        "max": 1.6498831589011747
+      },
+      "test": {
+        "mean": 1.4995592011220815,
+        "min": 1.497018688690883,
+        "max": 1.5015845911174162
+      },
+      "test_worst_session": {
+        "mean": 3.060244633983072,
+        "min": 3.0571222647516922,
+        "max": 3.066369275049816
+      },
+      "control": {
+        "mean": 0.3864237337225466,
+        "min": 0.37640887613123225,
+        "max": 0.3989643278295528
+      },
+      "test_order_gain_bits": {
+        "mean": 0.32798777150665365,
+        "min": 0.32545831102255307,
+        "max": 0.3297673345295773
+      },
+      "runs": 3
+    },
+    "one-shot: average, greedy soup": {
+      "validation": {
+        "mean": 1.5579560162010466,
+        "min": 1.5546294366637352,
+        "max": 1.562643781092387
+      },
+      "test": {
+        "mean": 1.3436383336055233,
+        "min": 1.339959668017717,
+        "max": 1.3484486705149183
+      },
+      "test_worst_session": {
+        "mean": 2.4216725111765456,
+        "min": 2.4112379797833974,
+        "max": 2.4293609458994903
+      },
+      "control": {
+        "mean": 0.1956767263827155,
+        "min": 0.18987089783652195,
+        "max": 0.20073946757840777
+      },
+      "test_order_gain_bits": {
+        "mean": 0.345349266835488,
+        "min": 0.3445005970224051,
+        "max": 0.3459010274093157
+      },
+      "runs": 3
+    },
+    "one-shot: TIES, keep 20%": {
+      "validation": {
+        "mean": 1.606821129268373,
+        "min": 1.6039997692716081,
+        "max": 1.608984789596457
+      },
+      "test": {
+        "mean": 1.4902116204655151,
+        "min": 1.4886747325395826,
+        "max": 1.4918902119041941
+      },
+      "test_worst_session": {
+        "mean": 3.0366610276102506,
+        "min": 3.0323142030541144,
+        "max": 3.044894833332483
+      },
+      "control": {
+        "mean": 0.39873041474727394,
+        "min": 0.3862510700898744,
+        "max": 0.41935285649687154
+      },
+      "test_order_gain_bits": {
+        "mean": 0.2828855006089575,
+        "min": 0.28059867660118254,
+        "max": 0.28437772158969676
+      },
+      "runs": 3
+    },
+    "rounds: average (FedAvg)": {
+      "validation": {
+        "mean": 1.5579078106518782,
+        "min": 1.552875305349015,
+        "max": 1.5621666175516582
+      },
+      "test": {
+        "mean": 1.3581494907969012,
+        "min": 1.3517045084749322,
+        "max": 1.3633231365974343
+      },
+      "test_worst_session": {
+        "mean": 2.5776397299284297,
+        "min": 2.5541533918471537,
+        "max": 2.5972769179310173
+      },
+      "control": {
+        "mean": 0.22184520628746754,
+        "min": 0.2051857673630559,
+        "max": 0.23127379691069166
+      },
+      "test_order_gain_bits": {
+        "mean": 0.33341179293575146,
+        "min": 0.33110848219501166,
+        "max": 0.3356576683101793
+      },
+      "runs": 3
+    },
+    "rounds: average + DiLoCo": {
+      "validation": {
+        "mean": 1.5499229104793966,
+        "min": 1.5459133484809202,
+        "max": 1.5562229368023068
+      },
+      "test": {
+        "mean": 1.384507363324192,
+        "min": 1.3772189678908273,
+        "max": 1.3913289443374015
+      },
+      "test_worst_session": {
+        "mean": 2.9228443258967087,
+        "min": 2.9105447382008705,
+        "max": 2.9387627343136353
+      },
+      "control": {
+        "mean": 0.060815969940970376,
+        "min": 0.05885928823069463,
+        "max": 0.06190539908073646
+      },
+      "test_order_gain_bits": {
+        "mean": 0.3111853811148613,
+        "min": 0.3085308025482356,
+        "max": 0.3131877403200283
+      },
+      "runs": 3
+    },
+    "all training sessions, from \u03b8\u2080": {
+      "validation": {
+        "mean": 1.4728373321862207,
+        "min": 1.470183964429647,
+        "max": 1.4770342955708506
+      },
+      "test": {
+        "mean": 1.3383394538604687,
+        "min": 1.3330135868526296,
+        "max": 1.346149331265943
+      },
+      "test_worst_session": {
+        "mean": 2.50939473115562,
+        "min": 2.4888661481559913,
+        "max": 2.526631275758146
+      },
+      "control": {
+        "mean": 0.12406392048981434,
+        "min": 0.11812300460924366,
+        "max": 0.13366575844440456
+      },
+      "test_order_gain_bits": {
+        "mean": 0.2813634816392258,
+        "min": 0.27795807227867453,
+        "max": 0.28532207410144905
+      },
+      "runs": 3
+    },
+    "all training sessions, from the base": {
+      "validation": {
+        "mean": 1.509722463918499,
+        "min": 1.5025326578237967,
+        "max": 1.5166857131871507
+      },
+      "test": {
+        "mean": 1.329225015433303,
+        "min": 1.3221197012645367,
+        "max": 1.334076607795776
+      },
+      "test_worst_session": {
+        "mean": 2.52543005720044,
+        "min": 2.5177147167472267,
+        "max": 2.529833546855172
+      },
+      "control": {
+        "mean": 0.11337191682329673,
+        "min": 0.1106761433190549,
+        "max": 0.11631873357672284
+      },
+      "test_order_gain_bits": {
+        "mean": 0.2879755262319988,
+        "min": 0.27717362219546904,
+        "max": 0.30001545432041543
+      },
+      "runs": 3
+    }
+  }
+}

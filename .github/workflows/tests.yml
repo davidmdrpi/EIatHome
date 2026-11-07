@@ -39,6 +39,9 @@ jobs:
       - run: python -m unittest discover -s tests -p 'test_llm_moe.py' -v
       - run: python -m unittest discover -s tests -p 'test_llm_moe_v2.py' -v
       - run: python -m unittest discover -s tests -p 'test_llm_route.py' -v
+      - run: python -m unittest discover -s tests -p 'test_llm_sessions.py' -v
+      # The session benchmark's published checkpoints: hashes, provenance, and their one-shot merges replayed.
+      - run: python -m tracks.llm.session_bench verify
 
   extract-slices:
     runs-on: ubuntu-latest

@@ -60,7 +60,7 @@ import numpy as np
 import torch
 
 from .anchor import ANCHORS, ROOT, codebook_digest, difference, flatten, load_anchor, weights_digest
-from .data import control_family, dataset_digest, load_slices, split_records
+from .data import control_family, dataset_digest, load_slices, session_groups, split_records
 from .model import SignalLM, evaluate
 from .runtime import atomic_output, require_new_output, training_runtime
 
@@ -120,10 +120,23 @@ def parse_shard(text):
     return index, count
 
 
-def shard_records(records, index, count):
-    """Shard `index` of `count` (1-based) of the training slices: every count-th slice in a fixed
-    order (by content), so shards are disjoint, cover the split together, and don't depend on the
-    manifest's order."""
+SHARD_UNITS = ("slice", "session")
+
+
+def shard_records(records, index, count, unit="slice"):
+    """Shard `index` of `count` (1-based) of the training slices, so shards are disjoint, cover the
+    split together, and don't depend on the manifest's order. By slice: every count-th slice in a
+    fixed order (by content). By session: every count-th observing session, in a fixed order (by
+    its slices' content), so no two shards share a session, and each worker trains on
+    observations no other worker saw. Sessions are the manifest's (session_groups), so a session
+    another family's scan holds together stays in one shard."""
+    if unit == "session":
+        sessions = sorted(session_groups(records), key=lambda g: min(r["sha256"] for r in g))
+        if len(sessions) < count:
+            raise ValueError(f"{count} session shards need at least {count} training sessions; this split has {len(sessions)}")
+        return [r for g in sessions[index - 1::count] for r in sorted(g, key=lambda r: r["sha256"])]
+    if unit != "slice":
+        raise ValueError(f"A shard is of slices or sessions, not {unit!r}")
     ordered = sorted(records, key=lambda r: r["sha256"])
     if len(ordered) < count:
         raise ValueError(f"{count} shards need at least {count} training slices; this split has {len(ordered)}")
@@ -234,6 +247,15 @@ def controls(records, family, evaluation):
     except ValueError:
         return None
     return {"family": other, "selection": partitions["validation"], "reporting": partitions["test"]}
+
+
+def recorded_unit(path, merge):
+    """What a worker's shard divides: slices (the default, and every run before sessions could
+    be) or sessions."""
+    unit = merge.get("shard_unit", "slice")
+    if unit not in SHARD_UNITS:
+        raise ValueError(f"{path}: its shard divides {unit!r}, neither slices nor sessions")
+    return unit
 
 
 def recorded_shard(path, merge):
@@ -490,7 +512,10 @@ def merge_round(anchor, workers, start=None, rule=None, manifest=None):
     result. workers: checkpoint paths. Returns (record, Merged or None)."""
     rule = check_rule(rule)
     start_ = round_start(anchor, start)
-    if start_.outer is not None and start_.outer != rule["outer"]:
+    # Plain merging (lr 1, no momentum) carries nothing from round to round, so a chain may take up
+    # an outer rule after plain rounds, as if it started from that merge. Once it has one, it keeps it.
+    plain = start_.outer == RULE["outer"] and start_.momentum is None
+    if start_.outer is not None and start_.outer != rule["outer"] and not plain:
         raise ValueError(f"{start} was merged with outer step {start_.outer}: a round chain keeps one outer step")
     loaded = [(str(path), load_checkpoint(path, anchor)) for path in workers]
     if not loaded:
@@ -508,7 +533,11 @@ def merge_round(anchor, workers, start=None, rule=None, manifest=None):
     counts = sorted({n for _, n in shards})
     if len(counts) != 1:
         raise ValueError(f"A round merges workers from one division into shards; these use {' and '.join(map(str, counts))} shards")
-    assigned = {i: shard_records(partitions["train"], i, counts[0]) for i in range(1, counts[0] + 1)}
+    units = sorted({recorded_unit(path, c["merge"]) for path, c in loaded})
+    if len(units) != 1:
+        raise ValueError(f"A round merges workers from one division into shards; these divide {' and '.join(units)}")
+    unit = units[0]
+    assigned = {i: shard_records(partitions["train"], i, counts[0], unit) for i in range(1, counts[0] + 1)}
 
     encode = lambda rs: [anchor.tokenizer.encode(r["frames"]) for r in rs]
     validation = encode(partitions["validation"])
@@ -562,6 +591,8 @@ def merge_round(anchor, workers, start=None, rule=None, manifest=None):
         "format": "eiathome-signal-lm-merge-round", "version": 1, "anchor": anchor.identity(),
         "round": start_.round + 1, "family": chain["family"], "evaluation": chain["evaluation"],
         "dataset_sha256": chain["dataset_sha256"], "shards": counts[0],
+        # Recorded only for session shards, so rounds recorded before them replay as they were.
+        **({"shard_unit": unit} if unit != "slice" else {}),
         "control": None if control is None else {"family": control["family"], "selection": [r["entry"] for r in control["selection"]],
                                                  "shuffles": ORDER_SHUFFLES, "role": "diagnostic"},
         "start": {"checkpoint": "theta0" if start is None else str(start), "round": start_.round,

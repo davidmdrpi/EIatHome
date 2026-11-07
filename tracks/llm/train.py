@@ -78,6 +78,8 @@ def run(args):
         raise ValueError("--start and --warm are two different starts; give one")
     if getattr(args, "shard", None):
         parse_shard(args.shard)
+    if getattr(args, "shard_unit", "slice") != "slice" and not getattr(args, "shard", None):
+        raise ValueError("--shard-unit divides the training split for --shard; give --shard too")
     if "real" not in getattr(args, "variants", ("real",)):
         raise ValueError("--variants must include real")
     config = model_config(args, anchor)
@@ -108,9 +110,10 @@ def _run(args, config, output, anchor=None):
     start = (round_start(anchor, getattr(args, "start", None)) if warm is None else Start(warm.state, 0, warm.weights_sha256, None)) \
         if anchor is not None else None
     shard = parse_shard(args.shard) if getattr(args, "shard", None) else None
+    unit = getattr(args, "shard_unit", "slice")
     if shard:
         # Only training is sharded: every worker is selected and scored on the same validation and test.
-        partitions = {**partitions, "train": shard_records(partitions["train"], *shard)}
+        partitions = {**partitions, "train": shard_records(partitions["train"], *shard, unit)}
     if args.context > max(len(r["frames"]) - 1 for r in partitions["train"]):
         raise ValueError("Context exceeds the longest training sequence's next-token span; reduce --context")
     if anchor is not None:
@@ -152,6 +155,8 @@ def _run(args, config, output, anchor=None):
         # of the training slices, its seed, and how many training targets weight it.
         "merge": None if anchor is None else {
             "round": start.round + 1, "start_sha256": start.weights_sha256, "shard": list(shard) if shard else None,
+            # Only for session shards, so slice-shard records are as they were.
+            **({"shard_unit": unit} if shard and unit != "slice" else {}),
             "seed": args.seed, "training_targets": sum(len(s) - 1 for s in streams["train"]),
         },
     }
@@ -236,6 +241,8 @@ def parser():
                    help="with --anchor: start from this warm start (tracks.llm.moe warmup) instead of θ₀")
     p.add_argument("--shard", default=None, metavar="I/N",
                    help="with --anchor: train on shard I of N of the training slices, as one worker in a merge round")
+    p.add_argument("--shard-unit", choices=("slice", "session"), default="slice",
+                   help="with --shard: divide the training slices (default), or whole observing sessions, so no two workers share one")
     p.add_argument("--start", type=Path, default=None,
                    help="with --anchor: start from this merged round's checkpoint (merge.py) instead of θ₀")
     p.add_argument("--variants", nargs="+", choices=("real", "shuffled", "markov"), default=["real", "shuffled", "markov"],
