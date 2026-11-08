@@ -14,6 +14,7 @@ from pathlib import Path
 import shutil
 import tempfile
 import unittest
+import unittest.mock
 
 import numpy as np
 import torch
@@ -154,7 +155,10 @@ class ArtifactTests(unittest.TestCase):
             (lambda a: a["shard"].update(slices_sha256="0" * 64), "slices or training targets"),
             (lambda a: a["shard"].update(training_targets=1), "slices or training targets"),
             (lambda a: a["training"].update(epochs=10), "settings"),
-            (lambda a: a["training"].update(seed="11"), "settings"),
+            (lambda a: a["training"].update(seed="11"), "seed isn't an integer"),
+            (lambda a: a["training"].update(seed=-1), "seed isn't an integer"),
+            (lambda a: a["training"].update(seed=2**31), "seed isn't an integer"),
+            (lambda a: a["training"].update(seed=True), "seed isn't an integer"),
         ]
         for change, pattern in cases:
             changed = copy.deepcopy(artifact)
@@ -242,6 +246,27 @@ class IngestTests(unittest.TestCase):
         self.assertEqual(status, "rejected")
         self.assertIn("worse than the incumbent", comment)
 
+    def test_a_seed_out_of_range_is_rejected_not_retried(self):
+        """Through the command line, as the driver runs it: rejected (labelled, not retried), never
+        an error, and before any training."""
+        card, text = P.parse_issue(self.s.bodies[101])
+        for seed in (-1, 2**40):
+            artifact = json.loads(text)
+            artifact["training"]["seed"] = seed
+            changed = json.dumps(artifact, separators=(",", ":"), sort_keys=True)
+            changed_card = {**card, "seed": seed, "artifact_sha256": P.digest(changed.encode()), "artifact_bytes": len(changed.encode())}
+            body = f"```eiathome-checkpoint-card\n{json.dumps(changed_card)}\n```\n\n```eiathome-delta\n{changed}\n```\n"
+            with tempfile.TemporaryDirectory() as tmp, self.subTest(seed=seed):
+                event, comment = Path(tmp) / "event.json", Path(tmp) / "comment.md"
+                event.write_text(json.dumps({"issue": self.s.issue("eve", 400, body)}))
+                out = io.StringIO()
+                with contextlib.redirect_stdout(out), unittest.mock.patch.object(P, "train_worker", side_effect=AssertionError("trained")):
+                    P.main(["ingest", str(event), str(comment)])
+                self.assertEqual(json.loads(out.getvalue().strip().splitlines()[-1]), {"status": "rejected"})
+                self.assertIn("seed isn't an integer from 0 to 2147483647", comment.read_text())
+        with self.assertRaisesRegex(ValueError, "seed must be"):
+            P.contribute(self.s.pilot, self.s.root / "bad-seed", shard=2, seed=-5, ledger=P.new_ledger())
+
     def test_the_command_line_ingest_reports_a_status_and_never_crashes(self):
         with tempfile.TemporaryDirectory() as tmp:
             event, comment = Path(tmp) / "event.json", Path(tmp) / "comment.md"
@@ -274,6 +299,7 @@ class MergeTests(unittest.TestCase):
         self.assertAlmostEqual(sum(weights[2]), sum(weights[3]))  # both shards have 225 training targets
         self.assertAlmostEqual(weights[2][0], weights[2][1])
         self.assertEqual(self.s.round["volunteers"], ["alice", "bob", "carol"])
+        self.assertEqual(self.s.round["volunteer_weights"], {"alice": 0.25, "bob": 0.5, "carol": 0.25})
         self.assertLessEqual(record["merged"]["validation_bits"], record["start"]["validation_bits"] + P.RULE["tolerance_bits"])
 
     def test_the_merge_becomes_the_current_model_and_old_contributions_go_stale(self):
@@ -356,6 +382,29 @@ class VerifyTests(unittest.TestCase):
         def inputs(folder, ledger):
             ledger["events"][-1]["submissions"] = ledger["events"][-1]["submissions"][:2]
         self.refused(inputs, "eligible then")
+
+    def test_a_replication_flag_that_contradicts_its_numbers_is_refused_and_never_trusted(self):
+        """Mallory's shard-2 run sent as shard 4 failed replication (cosine 0.13): flipping only its
+        flag doesn't make it eligible, and verify refuses the ledger."""
+        def flip(folder, ledger):
+            event = next(e for e in ledger["events"] if e.get("issue") == 106)
+            event["replication"]["replicated"] = True
+        pilot, ledger, tmp = tampered_copy(self.s, flip)
+        with tmp:
+            before = {**ledger, "events": ledger["events"][:-1]}  # up to the merge
+            self.assertNotIn(106, [s["issue"] for s in P.state_of(before).eligible()])
+            with self.assertRaisesRegex(ValueError, "recorded as True, but the rule makes it False"):
+                P.verify(pilot, ledger)
+        for change in (lambda r: r.update(cosine="0.99"), lambda r: r.update(cosine=float("nan")), lambda r: r.update(cosine=1.5),
+                       lambda r: r.update(validation_bits=None), lambda r: r.pop("best_epoch"), lambda r: r.update(replicated=1)):
+            def malformed(folder, ledger, change=change):
+                change(ledger["events"][0]["replication"])
+            self.refused(malformed, "replication record is malformed")
+
+    def test_the_volunteer_weights_a_round_records_are_replayed(self):
+        def change(folder, ledger):
+            ledger["events"][-1]["volunteer_weights"]["alice"] = 0.5
+        self.refused(change, "volunteer weights")
 
     def test_a_stored_file_the_ledger_doesnt_name_is_refused(self):
         def stray(folder, ledger):

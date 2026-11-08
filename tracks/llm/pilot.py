@@ -63,6 +63,7 @@ import argparse
 import base64
 from collections import OrderedDict
 import json
+import math
 import os
 from pathlib import Path
 import platform
@@ -94,6 +95,7 @@ TRAINING = {"epochs": sessions.EPOCHS, "patience": sessions.PATIENCE, "lr": 3e-4
 RULE = check_rule(None)  # merge.py's plain average and its gate
 MIN_VOLUNTEERS = 2
 REPLICATION = {"validation_bits": 0.02, "cosine": 0.9}
+SEEDS = range(0, 2**31)  # what NumPy's and PyTorch's generators all take (train.py seeds both)
 SCORE_TOLERANCE = 1e-6  # bits, between environments (session_bench.py's)
 ARTIFACT_FORMAT, ARTIFACT_VERSION = "eiathome-signal-lm-delta", 2
 CARD_FORMAT, CARD_VERSION = "eiathome-checkpoint-card", 1
@@ -214,6 +216,10 @@ def decode_artifact(anchor, text):
     return artifact, tau
 
 
+def valid_seed(seed):
+    return type(seed) is int and seed in SEEDS
+
+
 def identity_problems(pilot, artifact, head):
     """How an artifact's identities differ from what the pilot's next round needs (empty: none)."""
     expected = pilot.identities()
@@ -228,8 +234,10 @@ def identity_problems(pilot, artifact, head):
     elif shard != pilot.shard(index):
         problems.append(f"its shard's slices or training targets aren't shard {index}'s")
     training = artifact.get("training")
-    if not isinstance(training, dict) or any(training.get(k) != v for k, v in TRAINING.items()) or type(training.get("seed")) is not int:
-        problems.append("it wasn't trained with the pilot's settings and an integer seed")
+    if not isinstance(training, dict) or any(training.get(k) != v for k, v in TRAINING.items()):
+        problems.append("it wasn't trained with the pilot's settings")
+    elif not valid_seed(training.get("seed")):
+        problems.append(f"its seed isn't an integer from 0 to {SEEDS.stop - 1}")
     return problems
 
 
@@ -328,11 +336,13 @@ class State(NamedTuple):
         return self.heads[-1]
 
     def eligible(self):
-        """The contributions the next merge takes: validated and replicated, for the next round
-        from the current model, neither excluded nor already in a live round."""
+        """The contributions the next merge takes: validated and replicated (by the rule, on the
+        recorded numbers), for the next round from the current model, neither excluded nor already
+        in a live round."""
         return [s for i, s in self.submissions.items()
                 if s["round"] == self.head.round + 1 and s["start_sha256"] == self.head.weights_sha256
-                and s["status"] == "validated" and s["replication"]["replicated"] and i not in self.excluded and i not in self.merged]
+                and s["status"] == "validated" and replication_problem(s) is None and replicates(s["evaluation"], s["replication"])
+                and i not in self.excluded and i not in self.merged]
 
 
 def state_of(ledger):
@@ -415,7 +425,9 @@ def contribute(pilot, output, shard=None, seed=None, ledger=None):
         shard = min(OPEN_SHARDS, key=lambda k: (cover[k]["contributions"], k))
     if shard not in OPEN_SHARDS:
         raise ValueError(f"Shard {shard} isn't open: contribute to one of {', '.join(map(str, OPEN_SHARDS))}")
-    seed = random.SystemRandom().randrange(1, 2**31) if seed is None else seed
+    seed = random.SystemRandom().randrange(SEEDS.start, SEEDS.stop) if seed is None else seed
+    if not valid_seed(seed):
+        raise ValueError(f"The seed must be an integer from 0 to {SEEDS.stop - 1}")
     output = Path(output)
     output.mkdir(parents=True, exist_ok=True)
     start = head_checkpoint(pilot, head)
@@ -482,9 +494,31 @@ def evaluate_contribution(pilot, head, artifact, tau, replicate_run=True):
                       "max_abs_delta": max(float(v.abs().max()) for v in tau.values())}
         replication = replicate(pilot, head_pt, start["model"], artifact, tau, tmp) if replicate_run and entry["status"] == "accepted" else None
     if replication is not None:
-        replication["replicated"] = bool(abs(replication["validation_bits"] - evaluation["validation_bits"]) <= REPLICATION["validation_bits"]
-                                          and replication["cosine"] >= REPLICATION["cosine"])
+        replication["replicated"] = replicates(evaluation, replication)
     return evaluation, replication
+
+
+def replicates(evaluation, replication):
+    """The replication rule, on recorded numbers: the coordinator's run within REPLICATION's bits of
+    the contribution on validation, and their deltas' cosine at least REPLICATION's."""
+    return (abs(replication["validation_bits"] - evaluation["validation_bits"]) <= REPLICATION["validation_bits"]
+            and replication["cosine"] >= REPLICATION["cosine"])
+
+
+def replication_problem(event):
+    """Why a submission's recorded replication doesn't hold together (None if it does): its numbers
+    must be finite and in range, and its decision the rule's on them."""
+    finite = lambda x: isinstance(x, (int, float)) and not isinstance(x, bool) and math.isfinite(x)
+    evaluation, replication = event.get("evaluation"), event.get("replication")
+    if not isinstance(evaluation, dict) or not finite(evaluation.get("validation_bits")):
+        return "its evaluation has no finite validation score"
+    if (not isinstance(replication, dict) or not finite(replication.get("validation_bits")) or not finite(replication.get("cosine"))
+            or not -1 <= replication["cosine"] <= 1 or type(replication.get("best_epoch")) is not int
+            or type(replication.get("replicated")) is not bool):
+        return "its replication record is malformed"
+    if replication["replicated"] != replicates(evaluation, replication):
+        return f"its replication is recorded as {replication['replicated']}, but the rule makes it {not replication['replicated']}"
+    return None
 
 
 def receipt(event, state):
@@ -549,7 +583,7 @@ def ingest(pilot, issue, ledger):
     event = {"event": "submission", "id": artifact_id, "issue": number, "volunteer": login, "submitted_at": issue.get("created_at"),
              "round": artifact["round"]["number"], "start_sha256": artifact["round"]["start_sha256"], "shard": shard, "seed": seed,
              "artifact": f"submissions/{artifact_id}.json", "bytes": len(text.encode()), "card_sha256": digest(json.dumps(card, sort_keys=True).encode()),
-             "volunteer_validation_bits": card.get("validation_bits") if isinstance(card.get("validation_bits"), (int, float)) else None,
+             "volunteer_validation_bits": claimed if isinstance(claimed := card.get("validation_bits"), float) and math.isfinite(claimed) else None,
              "status": "validated", "evaluation": evaluation, "replication": replication}
     ledger["events"].append(event)
     return "accepted", receipt(event, state_of(ledger)), text
@@ -594,6 +628,16 @@ def run_merge(pilot, head, events):
     return record, None if merged is None else merged.state
 
 
+def volunteer_weights(record, events):
+    """Each volunteer's total weight in a merge: the shard cap bounds each shard, not each volunteer,
+    so one volunteer on several shards can hold most of it. Recorded so that shows."""
+    who = {e["id"]: e["volunteer"] for e in events}
+    out = {}
+    for entry in record["contributors"]:
+        out[who[entry["submission"]]] = out.get(who[entry["submission"]], 0.0) + entry["weight"]
+    return dict(sorted(out.items()))
+
+
 def merge(pilot, ledger, by):
     """Merges the current round's eligible contributions. Adds the round to the ledger (and, if
     accepted, writes its weights); returns the event."""
@@ -605,7 +649,8 @@ def merge(pilot, ledger, by):
     record, merged = run_merge(pilot, state.head, eligible)
     accepted = record["merged"]["decision"] == "accepted"
     event = {"event": "round", "round": record["round"], "start_sha256": state.head.weights_sha256, "by": by,
-             "submissions": [s["id"] for s in eligible], "volunteers": volunteers, "decision": record["merged"]["decision"],
+             "submissions": [s["id"] for s in eligible], "volunteers": volunteers,
+             "volunteer_weights": volunteer_weights(record, eligible), "decision": record["merged"]["decision"],
              "merged": [e["submission"] for e in record["contributors"] if e["weight"] > 0] if accepted else [],
              "weights_sha256": record["merged"].get("weights_sha256") if accepted else None,
              "checkpoint": None, "record": record}
@@ -680,6 +725,9 @@ def verify(pilot, ledger=None, replicate_runs=False):
             if evaluation["status"] != event["status"] or not all(close(evaluation[k], recorded[k]) for k in ("validation_bits", "start_validation_bits")):
                 raise ValueError(f"{where}: the contribution evaluates as {evaluation['status']} at {evaluation['validation_bits']!r} bits; "
                                  f"the ledger says {event['status']} at {recorded['validation_bits']!r}")
+            problem = replication_problem(event)
+            if problem:
+                raise ValueError(f"{where}: {problem}")
             if replication is not None and replication["replicated"] != event["replication"]["replicated"]:
                 raise ValueError(f"{where}: retrained here, the contribution's replication comes out {replication['replicated']}")
         elif event["event"] == "round":
@@ -690,6 +738,7 @@ def verify(pilot, ledger=None, replicate_runs=False):
                 raise ValueError(f"{where}: the round merged fewer than {MIN_VOLUNTEERS} volunteers' contributions")
             record, merged = run_merge(pilot, before.head, eligible)
             check_record(record, event["record"], where)
+            check_record(volunteer_weights(record, eligible), event["volunteer_weights"], f"{where} (volunteer weights)")
             if event["decision"] != record["merged"]["decision"]:
                 raise ValueError(f"{where}: merged again, the round is {record['merged']['decision']}")
             if record["merged"]["decision"] == "accepted":

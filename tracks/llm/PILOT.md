@@ -32,7 +32,7 @@ as its body.
 
 `contribute` trains one of the session benchmark's session shards from the current model, with
 the benchmark's settings: up to 1,000 epochs, patience 50, lr 3e-4, batch 32, one CPU thread. The
-seed is random unless you give one. It writes four files:
+seed is random unless you give one (any integer from 0 to 2^31 − 1). It writes four files:
 
 - `artifact.json`: the delta artifact (below);
 - `card.json`: its summary;
@@ -77,7 +77,7 @@ Nothing in the issue is executed. The artifact and card are parsed as JSON and c
    artifact (its id and size) and the same round, shard and seed.
 2. **Its identities are the pilot's next round.** That means the same anchor, tokenizer, dataset
    and split, the next round's number and start, an open shard with that shard's slices and
-   training targets, and the pilot's training settings. A contribution trained from an older
+   training targets, the pilot's training settings, and a seed from 0 to 2^31 − 1. A contribution trained from an older
    round is refused: pull and run `contribute` again.
 3. **It counts once.** Each volunteer counts once per shard per round. An artifact recorded
    before, or a run of the same shard with the same seed as one already recorded, is a duplicate.
@@ -113,8 +113,12 @@ A maintainer merges the round with the **Checkpoint pilot round** workflow (`pil
 - is merge.py's round with its plain rule: the shard-weighted average of the deltas, gated
   against the current model like each worker.
 - **caps each shard's influence.** Each shard weighs its share of the training targets, split
-  equally among its contributions, so ten volunteers on one shard weigh what one would. Together
-  with the once-per-volunteer rule, no volunteer and no shard can outvote the rest.
+  equally among its contributions, so ten contributions to one shard weigh what one would. With
+  the once-per-volunteer rule, nobody can raise a shard's weight by contributing to it twice.
+  The cap is per shard, not per volunteer: a volunteer who contributes to several shards holds
+  each of those shares (in full, where no one else contributed), so one volunteer can hold most of
+  a merge's weight. Every round records each volunteer's total weight (`volunteer_weights`), so
+  that's visible. A per-volunteer cap is a possible later rule.
 - is recorded whole in the ledger: merge.py's round record, with each contribution's status,
   reason and weight. An accepted merge's weights are stored under
   `pilot/v0/rounds/<digest>.bin` (raw float32, as the session benchmark publishes them, with a
@@ -142,6 +146,9 @@ Issue cards and replies are the receipts. The ledger and the stored artifacts ar
 
 - each artifact, under its id, with its identities and the round that was current when it came;
 - each evaluation, rescored to 1e-6 bits;
+- each replication record: its numbers finite and in range, and its decision the rule's on them.
+  The merge applies the rule to the recorded numbers too, never trusting the flag alone. Only
+  retraining (`--replicate`) can check the numbers themselves;
 - each merge, from exactly the contributions eligible then. It is merged again from the stored
   artifacts and must reproduce its record and its weights bit for bit.
 
