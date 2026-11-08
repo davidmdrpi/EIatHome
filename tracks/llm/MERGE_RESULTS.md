@@ -32,7 +32,7 @@ caveats.
 | DARE-TIES in the ten-round chain | 2, 5 | 2.11 with DARE's 10× kept; 2.51 with an all-contributor denominator | the same chain without DARE or TIES, 2.34; without the soup too, 1.83 | the per-round soup causes the gap, not the rescale |
 | Compress a delta for a card (DARE, p = 0.9) | 2, 4, 5 | about 8 KB (Python model), 1.4 KB (browser model) | averaged, it costs 0.11 bits one-shot | fits a card; costly inside TIES or from a random start |
 | Mix families token by token (Branch-Train-MiX) | 3, 3b | 3.76, the best mixture | dense rivals 3.56–3.73 | loses |
-| Keep family specialists whole, routed by sequence | 3b, 5 | 3.39 without the label (posterior mixture, chosen on validation, running all three specialists); 3.43 committing after 8 tokens | 3.37 with the label; largest dense rival 3.56 | **wins, without the label** |
+| Keep family specialists whole, routed by sequence | 3b, 5 | 3.39 without the label (posterior mixture, chosen on validation, running all three specialists); 3.43 committing after 8 tokens, which, run selectively, takes 0.63 of the bank's time per sequence and the same memory | 3.37 with the label; largest dense rival 3.56 | **wins, without the label** |
 | Browser: 4 seeds on all the text | 4, 5 | plain average 2.31 | the kept seed 2.31 | nothing to merge |
 | Browser: 4 disjoint shards from θ₀ | 5 | plain average 2.48 | the kept shard worker 2.49 (ahead in 6 of 10 units) | level |
 | Browser: 4 shards from a 3-epoch warm start | 5 | TIES 2.43; plain average 2.46 | the kept worker 2.49 (each ahead in 9 of 10 units); one worker on all the text 2.31 | **beats the workers**, not the full-data worker |
@@ -913,13 +913,93 @@ own specialist, mean over seeds:
 - **What the best router costs.** The posterior mixture runs all three specialists for every
   target: 82,851 parameters per target, more than the largest dense rival's 61,166, and 3 times
   the dense model of the anchor's size. Cheaper choices:
-  - committing to one specialist after 8 tokens would run 35,728 per target on average
-    (projected: this benchmark doesn't dispatch selectively) and scores 3.43, still 0.13 ahead of
-    the largest dense rival;
+  - committing to one specialist after 8 tokens scores 3.43, still 0.13 ahead of the largest
+    dense rival. This benchmark projected it would run 35,728 parameters per target. Run
+    selectively, it runs 39,652 and takes 0.63 of the bank's time per sequence, but no less
+    memory ([1b](#1b-the-committed-router-run-selectively-and-measured));
   - the frequency routers run one specialist, but misroute Voyager: its first frames look like
     another family's. A sequence's first token alone sends every Voyager sequence elsewhere.
 - **The family label was a crutch for the bank, not a requirement.** What remains open is
   whether the bank's advantage holds with more families, or with sequences that mix families.
+
+### 1b. The committed router, run selectively and measured
+
+The routing benchmark scores every specialist on every target and routes over the cached scores,
+so what it reports for the committed routers is a projection. [selective.py](selective.py) runs
+them as a deployment would: every specialist on each sequence's first n − 1 targets (the
+evidence), then only the specialist that evidence picks, on the rest.
+
+**Setup:**
+
+- **The bank:** milestone 5's own, seeds 42–44. `selective.train_bank` retrains it with
+  route_bench's code, and every warm start and specialist comes out bit for bit the run reported
+  above.
+- **Exactness first.** Run selectively, committing after 8 tokens reproduces the benchmark's
+  router exactly: the same specialist for every one of each seed's 576 test targets, and the
+  same bits (3.43 on test). Committing after 4 routes every target the same way too, with bits
+  within 1.6e-6. The 3-token prefix runs at another length than the window, so float32 rounds
+  differently.
+- **What's measured,** per seed on its 24 held-out sequences (validation and test, 48 targets
+  each), on one CPU thread (an Intel Xeon at 2.30 GHz, PyTorch 2.15 CPU). Each figure is the
+  median of 25 repeats, with the arms taking turns within each repeat, so drift in the shared
+  machine hits them alike:
+  - the compute run: forward calls and token positions;
+  - latency one sequence at a time (batch 1, as a stream would arrive);
+  - throughput with every window of one length in one batch;
+  - memory: the weights each arm keeps resident, and its peak resident memory in a fresh
+    process, above that process's own peak before it loads a model (the runtime warmed up
+    first);
+  - energy: RAPL package counters, where the machine exposes them. **This one exposes none, so
+    energy was not measured.** On one thread, CPU time equalled wall time.
+
+**Results,** the mean over seeds. Brackets: the ratio to the bank. The per-seed ratios agree to
+within 0.06.
+
+| Arm | Test bits | Forward calls per sequence | Parameter-positions per target (projected in 1) | ms per sequence, batch 1 | Sequences per second, batched | Weights resident | Peak memory added |
+|---|---:|---:|---:|---:|---:|---:|---:|
+| bank: all three specialists (posterior mixture) | 3.39 | 12 | 82,752 (82,851) | 7.25 | 873 | 331 KB | 304–308 KB |
+| committed after 8 tokens | 3.43 | 7 | 39,652 (35,728) [0.48] | 4.57 [0.63] | 1,219 [1.40] | 331 KB | 308–316 KB |
+| committed after 4 tokens | 3.48 | 7 | 32,756 (31,131) [0.40] | 4.45 [0.61] | 1,200 [1.37] | 331 KB | 304 KB |
+| one specialist, dispatched by label | 3.37 | 4 | 27,584 (27,584) [0.33] | 2.32 [0.32] | 2,729 [3.13] | 110 KB | 112 KB |
+
+(The projections in 1 include the router's 99 frequencies; the measured counts leave out its
+arithmetic, which is negligible.)
+
+**What this shows:**
+
+- **The committed router works as projected in what it computes, and is exact.** It reproduces
+  the benchmark's routing and scores.
+- **It saves less than projected, and less in time than in compute.**
+  - It runs 48% of the bank's parameter-positions, not the projected 43%. The model has no
+    key-value cache, so the committed specialist reruns the 7-token prefix in its first window.
+  - One sequence at a time, it takes 0.63 of the bank's time. At this size a forward call costs
+    about the same whatever its length, and it makes 7 calls to the bank's 12.
+  - Batched, it is 1.4 times as fast as the bank, not the 2.1 its compute would suggest.
+- **It saves no memory.** The evidence needs all three specialists, so all three stay
+  resident: the same 331 KB of weights as the bank, and the same peak. Only dispatch by label
+  (one specialist) cuts memory, to a third.
+- **Committing after 4 tokens buys nothing over 8.** It makes the same calls in about the same
+  time, and scores 0.05 bits worse.
+- **Routing has a real cost here.** Dispatch by label takes half the committed router's time
+  per sequence: about 2.3 ms of the 4.6 go to finding the family.
+- **No energy saving can be claimed yet.** `selective.py` reads RAPL wherever a machine exposes
+  it. Until it runs on one, energy is unmeasured.
+
+These are a 27,584-parameter model's numbers on one thread of a shared machine. The ratios are
+what carry over, and even they depend on size: per-call overhead dominates here, and a larger
+model would come closer to its compute ratio.
+
+The savings left are runtime work, not routing:
+- a key-value cache would remove the prefix rerun, reaching the projection;
+- running the three specialists' prefixes as one batched call would take the calls from 7 to 5.
+
+```bash
+python -m tracks.llm.selective --output runs/selective      # retrains the three banks (under a minute), then measures (about a minute)
+```
+
+The published run is [benchmarks/selective-v0/report.json](benchmarks/selective-v0/report.json):
+each seed's exactness check, every arm's counts and timings with their quartiles, and its
+memory probes.
 
 ### 2. DARE inside TIES: what the 10× rescale cost milestone 2
 
@@ -1062,8 +1142,9 @@ Milestone 5 closes issue #20. What it leaves open:
 
 - **More families, and mixed sequences,** for the sequence router: three families this
   different are easy to tell apart within a few tokens.
-- **A cheaper router:** commit after a few tokens, and send ambiguous sequences on to the
-  mixture.
+- **A cheaper router:** run selectively (1b), committing after 8 tokens saves 37% of the bank's
+  time per sequence but no memory. A key-value cache and a batched prefix would save more.
+  Sending only ambiguous sequences on to the mixture is still untried.
 - **For the chains:**
   - a soup that keeps at least two shards a round;
   - a momentum restart when the gate rejects a round;

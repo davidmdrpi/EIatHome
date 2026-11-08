@@ -291,6 +291,16 @@ epoch both ways, the selection check that milestone 3b's review asked for.
 python -m tracks.llm.route_bench --output runs/route-bench   # about half an hour on a CPU
 ```
 
+[selective.py](selective.py) runs the committed routers as a deployment would: every specialist
+on the first few tokens, then only the one the evidence picks. It checks that this reproduces
+route_bench's routing exactly, and measures what it saves: compute, latency, throughput, memory,
+and energy where RAPL counters exist. Results are in
+[MERGE_RESULTS.md](MERGE_RESULTS.md#1b-the-committed-router-run-selectively-and-measured).
+
+```bash
+python -m tracks.llm.selective --output runs/selective      # retrains milestone 5's banks, then measures (about two minutes)
+```
+
 ### The session benchmark: merging across observing sessions
 
 Every benchmark above trains and tests on one 2020 session. [session_bench.py](session_bench.py)
