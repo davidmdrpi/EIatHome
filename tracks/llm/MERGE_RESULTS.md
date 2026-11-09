@@ -32,7 +32,7 @@ caveats.
 | DARE-TIES in the ten-round chain | 2, 5 | 2.11 with DARE's 10× kept; 2.51 with an all-contributor denominator | the same chain without DARE or TIES, 2.34; without the soup too, 1.83 | the per-round soup causes the gap, not the rescale |
 | Compress a delta for a card (DARE, p = 0.9) | 2, 4, 5 | about 8 KB (Python model), 1.4 KB (browser model) | averaged, it costs 0.11 bits one-shot | fits a card; costly inside TIES or from a random start |
 | Mix families token by token (Branch-Train-MiX) | 3, 3b | 3.76, the best mixture | dense rivals 3.56–3.73 | loses |
-| Keep family specialists whole, routed by sequence | 3b, 5 | 3.39 without the label (posterior mixture, chosen on validation, running all three specialists); 3.43 committing after 8 tokens, which, run selectively, takes 0.63 of the bank's time per sequence and the same memory | 3.37 with the label; largest dense rival 3.56 | **wins, without the label** |
+| Keep family specialists whole, routed by sequence | 3b, 5 | 3.39 without the label (posterior mixture, chosen on validation, running all three specialists); 3.43 committing after 8 tokens, which, run selectively, takes 0.61 of the bank's time per sequence and the same memory | 3.37 with the label; largest dense rival 3.56 | **wins, without the label** |
 | Browser: 4 seeds on all the text | 4, 5 | plain average 2.31 | the kept seed 2.31 | nothing to merge |
 | Browser: 4 disjoint shards from θ₀ | 5 | plain average 2.48 | the kept shard worker 2.49 (ahead in 6 of 10 units) | level |
 | Browser: 4 shards from a 3-epoch warm start | 5 | TIES 2.43; plain average 2.46 | the kept worker 2.49 (each ahead in 9 of 10 units); one worker on all the text 2.31 | **beats the workers**, not the full-data worker |
@@ -915,7 +915,7 @@ own specialist, mean over seeds:
   the dense model of the anchor's size. Cheaper choices:
   - committing to one specialist after 8 tokens scores 3.43, still 0.13 ahead of the largest
     dense rival. This benchmark projected it would run 35,728 parameters per target. Run
-    selectively, it runs 39,652 and takes 0.63 of the bank's time per sequence, but no less
+    selectively, it runs 39,652 and takes 0.61 of the bank's time per sequence, but no less
     memory ([1b](#1b-the-committed-router-run-selectively-and-measured));
   - the frequency routers run one specialist, but misroute Voyager: its first frames look like
     another family's. A sequence's first token alone sends every Voyager sequence elsewhere.
@@ -955,21 +955,25 @@ evidence completed, only the one the evidence ends inside: there's no key-value 
     family to its own specialist. Per-family batches put each family's sequences in a batch of
     their own. Within a batch, the windows run as one call per (specialist, window length): the
     15-token windows, and the 3-token tail;
-  - memory: the exact bytes of weight tensors each arm keeps resident, and, measured, its peak
-    resident memory in a fresh process above that process's own peak before it loads a model
-    (`/proc/self/status` VmHWM, with the runtime warmed up first);
+  - memory: the exact bytes of weight tensors each arm keeps resident; and, measured in a fresh
+    process running the arm's timed workload on the same sequences, what loading its specialists
+    and then running the workload add to the process's peak resident memory (`/proc/self/status`
+    VmHWM). The runtime is warmed up first, on a model kept alive throughout. Each probe must
+    score what the timed workload scores, or the run stops;
   - energy: RAPL package counters, where the machine exposes them. **This one exposes none, so
     energy was not measured.** On one thread, CPU time equalled wall time.
 
 **Compute and time,** the mean over seeds. Brackets: the ratio to the bank; parentheses in the
-batched columns: forward calls per batch. The per-seed ratios agree to within 0.09.
+batched columns: forward calls per batch. The per-seed ratios agree to within 0.10. They also
+move between runs on this shared machine: the run before this one gave 1.40 and 1.50 for the
+committed routers in mixed batches, against 1.28 and 1.39 here, in the same order.
 
 | Arm | Test bits | Calls per sequence, batch 1 | Parameter-positions per target, measured (projected in 1) | ms per sequence, batch 1 | Sequences/s, mixed batches | Sequences/s, per-family batches |
 |---|---:|---:|---:|---:|---:|---:|
-| bank: all three specialists (posterior mixture) | 3.39 | 12 | 82,752 (82,851) | 7.46 | 1,342 (6 calls) | 887 (18) |
-| committed after 8 tokens | 3.43 | 7 | 39,652 (35,728) [0.48] | 4.68 [0.63] | 1,883 [1.40] (9) | 1,258 [1.42] (17) |
-| committed after 4 tokens | 3.48 | 7 | 32,756 (31,131) [0.40] | 4.57 [0.61] | 2,013 [1.50] (9) | 1,246 [1.40] (19) |
-| one specialist, dispatched by label | 3.37 | 4 | 27,584 (27,584) [0.33] | 2.37 [0.32] | 2,797 [2.08] (6) | 2,737 [3.08] (6) |
+| bank: all three specialists (posterior mixture) | 3.39 | 12 | 82,752 (82,851) | 9.42 | 1,161 (6 calls) | 776 (18) |
+| committed after 8 tokens | 3.43 | 7 | 39,652 (35,728) [0.48] | 5.78 [0.61] | 1,485 [1.28] (9) | 1,059 [1.36] (17) |
+| committed after 4 tokens | 3.48 | 7 | 32,756 (31,131) [0.40] | 5.67 [0.60] | 1,616 [1.39] (9) | 1,067 [1.37] (19) |
+| one specialist, dispatched by label | 3.37 | 4 | 27,584 (27,584) [0.33] | 3.04 [0.32] | 2,351 [2.03] (6) | 2,434 [3.14] (6) |
 
 **Why the projections are 99 higher.** Section 1's projections add the router's own parameters
 to every target: its add-one token frequencies, 33 for each family's specialist, 99 in all. The
@@ -984,17 +988,27 @@ committed routers' projections carry the 99 too: committing after 8 projects
   bytes, per specialist;
 - the peak resident memory measured for running it.
 
-| Arm | Specialists resident | Weight tensors (exact) | Peak resident memory added (measured VmHWM, seeds 42, 43, 44) |
-|---|---:|---:|---:|
-| bank | 3 | 331,008 bytes (323 KiB) | 328, 328, 328 KiB |
-| committed after 8 tokens | 3 | 331,008 bytes (323 KiB) | 336, 332, 328 KiB |
-| committed after 4 tokens | 3 | 331,008 bytes (323 KiB) | 324, 320, 320 KiB |
-| one specialist, dispatched by label | 1 | 110,336 bytes (108 KiB) | 116, 116, 116 KiB |
+Every deployment arm may be sent a sequence of any family, so every one keeps all three
+specialists loaded. The committed routers need them for the evidence, and dispatch by label
+needs them because any family may come next. Only the control, a worker that serves one family
+alone (Voyager's specialist on Voyager's sequences), holds one.
 
-VmHWM counts 4 KiB pages and the allocator's own rounding. So it lands within about 13 KiB of the
-weights, and it moves between runs: an earlier run measured 304–316 KiB for the
-three-specialist arms. What it confirms is that nothing else of note is added; activations
-take a few KiB.
+| Arm | Specialists resident | Weight tensors (exact) | Loading them (measured) | Then running the workload (measured) | Peak added in all |
+|---|---:|---:|---:|---:|---:|
+| bank | 3 | 331,008 bytes (323 KiB) | 284–288 KiB | 124 KiB | 408–412 KiB |
+| committed after 8 tokens | 3 | 331,008 bytes (323 KiB) | 288 KiB | 120–124 KiB | 408–412 KiB |
+| committed after 4 tokens | 3 | 331,008 bytes (323 KiB) | 284–288 KiB | 120–124 KiB | 404–408 KiB |
+| one specialist, dispatched by label | 3 | 331,008 bytes (323 KiB) | 284–296 KiB | 8–12 KiB | 296–304 KiB |
+| control: one family's specialist alone | 1 | 110,336 bytes (108 KiB) | 160–164 KiB | 0 | 160–164 KiB |
+
+The measured columns are VmHWM increments over seeds 42–44, which count 4 KiB pages.
+- **Loading** measures the weights plus the checkpoint reader's buffers, less pages the
+  allocator reuses: about 290 KiB for three specialists' 323 KiB, and 160 KiB for one's 108.
+- **Running** adds activations and allocator growth:
+  - about 120 KiB for the arms that run several specialists over each family's batch (the bank,
+    and the committed routers' evidence);
+  - about 10 KiB for dispatch by label, which runs one specialist per batch;
+  - nothing for the control.
 
 **What this shows:**
 
@@ -1003,10 +1017,10 @@ take a few KiB.
 - **It saves less than projected, and less in time than in compute.**
   - It runs 48% of the bank's parameter-positions, not the projected 43%: the committed
     specialist reruns the 7-token prefix in its first window.
-  - One sequence at a time, it takes 0.63 of the bank's time. At this size a forward call costs
+  - One sequence at a time, it takes 0.61 of the bank's time. At this size a forward call costs
     about the same whatever its length, and it makes 7 calls to the bank's 12.
-  - In mixed batches, it is 1.40 times as fast as the bank, not the 2.1 its compute would
-    suggest.
+  - In mixed batches, it is 1.28 times as fast as the bank (1.40 in the run before), not the 2.1
+    its compute would suggest.
 - **Batched, the calls follow the groups, and per-family batches split them.**
   - In mixed batches, the committed routers make 9 calls: 3 for the prefixes, then 2 for each of
     the three specialists that get sequences. The bank makes 6.
@@ -1015,17 +1029,22 @@ take a few KiB.
     - After 8 tokens, only the sweep's sequences split (4 to its own specialist, 2 to
       Voyager's): 17 calls.
     - After 4 tokens, Voyager's split too (4 and 2), and the sweep's evenly (3 and 3): 19 calls.
-    - That is why committing after 4, with 17% less compute, isn't faster per family (1.40 times
-      the bank, against 1.42). In mixed batches, where both make 9 calls, it is (1.50 against
-      1.40).
-- **It saves no memory.** The evidence needs all three specialists, so all three stay resident:
-  the same 331,008 bytes of weights as the bank, and about the same measured peak. Only
-  dispatch by label, one specialist, cuts memory, to a third.
-- **Committing after 4 tokens is a little cheaper and worse.** It takes 0.61 of the bank's time
-  per sequence (0.63 after 8 tokens), has 1.50 times its mixed-batch throughput, and scores 0.05
-  bits worse.
-- **Routing has a real cost here.** Dispatch by label takes half the committed router's time per
-  sequence: about 2.3 ms of the 4.7 go to finding the family.
+    - That is why committing after 4, with 17% less compute, is no faster per family (1.37 times
+      the bank, against 1.36). In mixed batches, where both make 9 calls, it is faster (1.39
+      against 1.28).
+- **It saves no memory, and neither does dispatch by label.**
+  - Every arm that can be sent any family holds the same 331,008 bytes of weights, all three
+    specialists.
+  - Running the committed routers adds about as much on top as running the bank (about 120 KiB
+    here), since their evidence runs all three over each batch.
+  - Dispatch by label runs one specialist per batch, so it adds about 10 KiB.
+  - Only a worker serving one family alone holds a single specialist (the control: 110,336
+    bytes), and that needs the family known before the sequence arrives.
+- **Committing after 4 tokens is a little cheaper and worse.** It takes 0.60 of the bank's time
+  per sequence (0.61 after 8 tokens), has 1.39 times its mixed-batch throughput (1.28 after 8),
+  and scores 0.05 bits worse.
+- **Routing has a real cost here.** Dispatch by label takes about half the committed router's
+  time per sequence (3.0 against 5.8 ms): about 2.7 ms go to finding the family.
 - **No energy saving can be claimed yet.** `selective.py` reads RAPL wherever a machine exposes
   it. Until it runs on one, energy is unmeasured.
 
@@ -1044,7 +1063,8 @@ python -m tracks.llm.selective --output runs/selective      # retrains the three
 The published run is [benchmarks/selective-v0/report.json](benchmarks/selective-v0/report.json).
 It holds each seed's exactness check, every arm's counts and timings with their quartiles
 (batch 1, mixed and per-family batches, and the calls in each), where each family's sequences
-were committed, and the memory probes.
+were committed, and the memory probes: each arm's resident specialists, its peak after loading
+and after running, and what the probe scored.
 
 ### 2. DARE inside TIES: what the 10× rescale cost milestone 2
 
@@ -1187,7 +1207,7 @@ Milestone 5 closes issue #20. What it leaves open:
 
 - **More families, and mixed sequences,** for the sequence router: three families this
   different are easy to tell apart within a few tokens.
-- **A cheaper router:** run selectively (1b), committing after 8 tokens saves 37% of the bank's
+- **A cheaper router:** run selectively (1b), committing after 8 tokens saves 39% of the bank's
   time per sequence but no memory. A key-value cache and a batched prefix would save more.
   Sending only ambiguous sequences on to the mixture is still untried.
 - **For the chains:**

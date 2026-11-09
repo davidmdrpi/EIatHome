@@ -113,6 +113,37 @@ class CommittedTests(unittest.TestCase):
         self.assertEqual([w.calls for w in works], [1, 1, 1])  # the prefix only: no specialist runs alone
 
 
+class WorkloadTests(unittest.TestCase):
+    """The memory probes and the timings run one workload: same specialists, same sequences."""
+
+    @classmethod
+    def setUpClass(cls):
+        cls.models = specialists()
+        cls.logfreq = logfreq()
+        cls.sequences = {f: sequences([49, 49, 30], seed=k) for k, f in enumerate(sel.FAMILIES)}
+
+    def test_label_dispatch_sends_each_family_to_its_own_specialist_and_keeps_all_three_loaded(self):
+        bits = sel.workload_bits(sel.workload("one specialist", self.models, self.logfreq, self.sequences))
+        for k, f in enumerate(sel.FAMILIES):
+            own = np.concatenate(sel.one(self.models[k], self.sequences[f])).mean()
+            self.assertAlmostEqual(bits[f], own, places=12)
+        self.assertEqual(sel.resident("one specialist"), [0, 1, 2], "any family may arrive next")
+        self.assertEqual(sel.resident(sel.CONTROL), [0])
+        self.assertEqual(list(sel.workload_bits(sel.workload(sel.CONTROL, self.models, self.logfreq, self.sequences))), [sel.FAMILIES[0]])
+
+    def test_every_memory_probe_runs_the_timed_workload(self):
+        for arm in sel.MEMORY_ARMS:
+            loads = []
+            probe = sel.probe_memory(arm, lambda k: loads.append(k) or self.models[k], self.logfreq, self.sequences,
+                                     model_from(ANCHOR, ANCHOR.theta0))
+            timed = sel.workload_bits(sel.workload(arm, self.models, self.logfreq, self.sequences))
+            with self.subTest(arm=arm):
+                self.assertEqual(loads, sel.resident(arm), "it loads exactly the arm's resident specialists")
+                self.assertEqual(probe["bits"].keys(), timed.keys())
+                for f in timed:
+                    self.assertAlmostEqual(probe["bits"][f], timed[f], places=12)
+
+
 class MeasurementTests(unittest.TestCase):
     def test_rapl_counters_are_read_where_present_and_wrap_around(self):
         with tempfile.TemporaryDirectory() as tmp:
@@ -160,6 +191,11 @@ class PublishedReportTests(unittest.TestCase):
             self.assertEqual(arms["bank"]["forward_calls_per_sequence"], 12)
             self.assertAlmostEqual(arms["committed after 8"]["positions_per_target"], 69 / 48)
             self.assertEqual(arms["committed after 8"]["weights_resident_bytes"], arms["bank"]["weights_resident_bytes"])
+            # dispatch by label keeps all three loaded; only the control, serving one family, holds one
+            self.assertEqual(arms["one specialist"]["weights_resident_bytes"], 3 * 27_584 * 4)
+            self.assertEqual(seed["memory"][sel.CONTROL]["weights_resident_bytes"], 27_584 * 4)
+            self.assertEqual(seed["memory"]["one specialist"]["resident"], list(sel.FAMILIES))
+            self.assertEqual(list(seed["memory"][sel.CONTROL]["bits"]), [sel.FAMILIES[0]])
             # batched: one call per (specialist, window length) in each batch
             self.assertEqual([arms[a]["batched"]["forward_calls"] for a in sel.ARMS], [6, 9, 9, 6])
             self.assertEqual(arms["bank"]["batched_per_family"]["forward_calls"], 18)

@@ -19,8 +19,11 @@ the bank, the committed routers and a single specialist cost:
   sequences per second batched: every family's sequences together, as a router that doesn't
   know the family would get them, and each family's apart. Within a batch, the windows run as one
   call per (specialist, window length). One CPU thread, the median of repeated runs;
-- **memory:** the weights each arm must keep resident, and each arm's peak resident memory in a
-  fresh process (/proc/self/status VmHWM), above the same process's before it loads a model;
+- **memory:** the exact bytes of weights each arm must keep resident (every arm that may see any
+  family keeps all three specialists; only a control serving one family keeps one), and, in a
+  fresh process running the arm's timed workload, what loading its specialists and then running
+  it add to the peak resident memory (/proc/self/status VmHWM). Each probe must score what the
+  timed workload scores;
 - **energy:** RAPL package energy (/sys/class/powercap) where the machine exposes it; otherwise
   it isn't measured, and only CPU seconds are reported. Nothing is estimated.
 
@@ -59,6 +62,10 @@ COMMIT_AFTER = (8, 4)
 SEEDS = (42, 43, 44)
 REPEATS = 25
 ARMS = ("bank", "committed after 8", "committed after 4", "one specialist")
+# A memory control, not a deployment arm: a worker that only ever serves Voyager's sequences, so it
+# loads Voyager's specialist alone. Every arm above may see any family, so keeps all three loaded.
+CONTROL = "one family's specialist alone (memory control)"
+MEMORY_ARMS = (*ARMS, CONTROL)
 FOLDER = Path(__file__).resolve().parent / "benchmarks" / "selective-v0"
 
 
@@ -158,6 +165,27 @@ def one(model, sequences, batched=True, work=None):
     return window_bits(model, sequences, batched, work)
 
 
+def resident(arm):
+    """The specialists an arm keeps loaded. Dispatch by label keeps all three too: any family may
+    arrive next. Only the control, which serves one family, loads one."""
+    return [0] if arm == CONTROL else list(range(len(FAMILIES)))
+
+
+def workload(arm, models, logfreq, sequences):
+    """What an arm runs over each family's sequences (one batch per family), the same for the
+    timings and the memory probes: {family: per-sequence results}. Dispatch by label sends each
+    family to its own specialist; the control runs Voyager's sequences on Voyager's specialist."""
+    if arm == CONTROL:
+        return {FAMILIES[0]: one(models[0], sequences[FAMILIES[0]])}
+    return {f: run_arm(arm, models, logfreq, sequences[f], k) for k, f in enumerate(FAMILIES)}
+
+
+def workload_bits(results):
+    """Each family's mean bits per target from a workload's results (routers return (bits, routing))."""
+    bits = lambda r: r[0] if isinstance(r, tuple) else r
+    return {f: float(np.concatenate([bits(r) for r in rs]).mean()) for f, rs in results.items()}
+
+
 def run_arm(arm, models, logfreq, sequences, own, batched=True, works=None):
     if arm == "bank":
         return bank(models, logfreq, sequences, batched, works)
@@ -250,30 +278,38 @@ def peak_memory_kib():
     return {k: int(v.split()[0]) for k, v in (line.split(":", 1) for line in status.splitlines()) if k in ("VmHWM", "VmRSS")}
 
 
-def memory_probe(folder, arm, family_index, data):
-    """Run in a fresh process: one arm over every family's test sequences, batched. Returns the
-    peak resident memory (VmHWM) before any of the arm's models is loaded and after, in KB. The
-    runtime is warmed up first on a throwaway model (θ₀), so what's left is the arm's own weights
-    and activations."""
+def probe_memory(arm, load, logfreq, sequences, warm):
+    """One arm's workload, measured: the peak resident memory (VmHWM, KiB) before any of its
+    specialists is loaded, after loading them, and after the workload ran (so what loading and
+    running each add), and what it scored, so a probe can be checked against the timed workload. The runtime is warmed up first on `warm` (θ₀), so what's left is the arm's
+    own weights and activations. load(k): specialist k."""
+    for f in FAMILIES:
+        window_bits(warm, sequences[f])
+    gc.collect()
+    # The warm-up model stays alive until after the measurement: freed, its memory would be
+    # reused by the arm's own weights without raising the peak, by an amount that depends on the
+    # order of allocations.
+    before = peak_memory_kib()
+    loaded = {k: load(k) for k in resident(arm)}
+    models = [loaded.get(k) for k in range(len(FAMILIES))]
+    after_load = peak_memory_kib()
+    results = workload(arm, models, logfreq, sequences)
+    after = peak_memory_kib()
+    del warm
+    return {"resident": [FAMILIES[k] for k in resident(arm)], "before_kib": before, "after_load_kib": after_load, "after_kib": after,
+            "load_increase_kib": after_load["VmHWM"] - before["VmHWM"], "run_increase_kib": after["VmHWM"] - after_load["VmHWM"],
+            "peak_increase_kib": after["VmHWM"] - before["VmHWM"], "bits": workload_bits(results)}
+
+
+def memory_probe(folder, arm, data):
+    """probe_memory in this (fresh) process, on a trained bank's checkpoints."""
     anchor = load_anchor(ANCHOR)
     folder = Path(folder)
     data = json.loads(Path(data).read_text())
-    logfreq = np.asarray(data["logfreq"])
-    sequences = {f: [np.asarray(s) for s in seqs] for f, seqs in data["test"].items()}
+    sequences = {f: [np.asarray(s) for s in seqs] for f, seqs in data["sequences"].items()}
+    load = lambda k: model_from(anchor, load_checkpoint(folder / f"warm-{FAMILIES[k]}" / "real.pt", anchor)["model"])
     with training_runtime(1, "cpu"):
-        warm = model_from(anchor, anchor.theta0)
-        for f in FAMILIES:
-            window_bits(warm, sequences[f])
-        del warm
-        gc.collect()
-        before = peak_memory_kib()
-        needed = [family_index] if arm == "one specialist" else list(range(len(FAMILIES)))
-        loaded = {k: model_from(anchor, load_checkpoint(folder / f"warm-{FAMILIES[k]}" / "real.pt", anchor)["model"]) for k in needed}
-        models = [loaded.get(k) for k in range(len(FAMILIES))]
-        for f in FAMILIES:
-            run_arm(arm, models, logfreq, sequences[f], family_index)
-        after = peak_memory_kib()
-    return {"before_kib": before, "after_kib": after, "peak_increase_kib": after["VmHWM"] - before["VmHWM"]}
+        return probe_memory(arm, load, np.asarray(data["logfreq"]), sequences, model_from(anchor, anchor.theta0))
 
 
 def exactness(models, logfreq, sequences):
@@ -335,7 +371,7 @@ def measure_seed(folder, repeats=REPEATS, memory=True):
                     run_arm(a, models, logfreq, seqs, k, batched=b, works=works)
                 counted[mode] = (sum(w.calls for w in works), sum(w.positions for w in works))
             calls, positions = counted["stream"]
-            resident = (1 if arm == "one specialist" else len(models)) * single
+            loaded = len(resident(arm)) * single
             s, b, bf = timings["stream"][arm], timings["mixed"][arm], timings["per family"][arm]
             committed_to = None
             if arm.startswith("committed after"):  # where each family's sequences go, which sets the batched calls
@@ -352,15 +388,26 @@ def measure_seed(folder, repeats=REPEATS, memory=True):
                 "batched": {**b, "sequences_per_s": count / b["wall_s"], "forward_calls": counted["mixed"][0]},
                 "batched_per_family": {**bf, "sequences_per_s": count / bf["wall_s"], "forward_calls": counted["per family"][0]},
                 "committed_to": committed_to,
-                "weights_resident_bytes": resident * 4, "weights_resident_parameters": resident,
+                "weights_resident_bytes": loaded * 4, "weights_resident_parameters": loaded,
             }
     if memory:
+        # Each probe runs, in a fresh process, the same workload as the per-family timings, on the
+        # same held-out sequences, and must score what it scores here.
         data = Path(folder) / "selective-probe.json"
-        data.write_text(json.dumps({"logfreq": logfreq.tolist(), "test": {f: [s.tolist() for s in seqs] for f, seqs in sequences["test"].items()}}))
-        for arm in ARMS:
-            probe = subprocess.run([sys.executable, "-m", "tracks.llm.selective", "memory", str(folder), arm, "0", str(data)],
-                                   capture_output=True, text=True, check=True, cwd=Path(__file__).resolve().parents[2])
-            out["arms"][arm]["memory"] = json.loads(probe.stdout.strip().splitlines()[-1])
+        data.write_text(json.dumps({"logfreq": logfreq.tolist(), "sequences": {f: [s.tolist() for s in seqs] for f, seqs in test.items()}}))
+        out["memory"] = {}
+        with training_runtime(1, "cpu"):
+            for arm in MEMORY_ARMS:
+                probe = subprocess.run([sys.executable, "-m", "tracks.llm.selective", "memory", str(folder), arm, str(data)],
+                                       capture_output=True, text=True, check=True, cwd=Path(__file__).resolve().parents[2])
+                measured = json.loads(probe.stdout.strip().splitlines()[-1])
+                here = workload_bits(workload(arm, models, logfreq, test))
+                if measured["bits"].keys() != here.keys() or any(abs(measured["bits"][f] - here[f]) > 1e-9 for f in here):
+                    raise RuntimeError(f"{arm}: the memory probe ran another workload than the timings")
+                measured["weights_resident_bytes"] = len(resident(arm)) * single * 4
+                out["memory"][arm] = measured
+                if arm in out["arms"]:
+                    out["arms"][arm]["memory"] = measured
         data.unlink()
     out["energy"] = "RAPL package counters" if domains else "not measured: this machine exposes no readable RAPL counters"
     return out
@@ -387,13 +434,20 @@ def summarize(seeds):
                     "sequences_per_s_batched": mean(lambda r: r["batched"]["sequences_per_s"]),
                     "cpu_s_per_sequence_stream": mean(lambda r: r["per_sequence"]["cpu_s"] / r["sequences"]),
                     "weights_resident_bytes": rows[0]["weights_resident_bytes"],  # exact: parameters × 4 bytes
-                    "peak_rss_increase_kib": [r["memory"]["peak_increase_kib"] for r in rows if "memory" in r]}  # measured
+                    "peak_rss_increase_kib": [r["memory"]["peak_increase_kib"] for r in rows if "memory" in r],  # measured
+                    "peak_rss_load_kib": [r["memory"]["load_increase_kib"] for r in rows if "memory" in r],
+                    "peak_rss_run_kib": [r["memory"]["run_increase_kib"] for r in rows if "memory" in r]}
+    probes = [s["memory"][CONTROL] for s in seeds.values() if CONTROL in s.get("memory", {})]
+    control = {"weights_resident_bytes": probes[0]["weights_resident_bytes"] if probes else None,
+               "peak_rss_increase_kib": [m["peak_increase_kib"] for m in probes],
+               "peak_rss_load_kib": [m["load_increase_kib"] for m in probes], "peak_rss_run_kib": [m["run_increase_kib"] for m in probes]}
     bank = out["bank"]
     for arm, row in out.items():
         row["latency_vs_bank"] = row["ms_per_sequence"] / bank["ms_per_sequence"]
         row["throughput_vs_bank"] = row["sequences_per_s_batched"] / bank["sequences_per_s_batched"]
         row["throughput_per_family_vs_bank"] = row["sequences_per_s_batched_per_family"] / bank["sequences_per_s_batched_per_family"]
         row["compute_vs_bank"] = row["parameter_positions_per_target"] / bank["parameter_positions_per_target"]
+    out[CONTROL] = control
     return out
 
 
@@ -401,8 +455,8 @@ def main(argv=None):
     if argv is None:
         argv = sys.argv[1:]
     if argv[:1] == ["memory"]:
-        folder, arm, family, data = argv[1], argv[2], int(argv[3]), argv[4]
-        print(json.dumps(memory_probe(folder, arm, family, data)))
+        folder, arm, data = argv[1], argv[2], argv[3]
+        print(json.dumps(memory_probe(folder, arm, data)))
         return
     p = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     p.add_argument("--output", type=Path, required=True)
@@ -428,6 +482,9 @@ def main(argv=None):
         FOLDER.mkdir(parents=True, exist_ok=True)
         (FOLDER / "report.json").write_text(text)
     for arm, row in report["summary"].items():
+        if arm == CONTROL:
+            print(f"{arm}: {row['weights_resident_bytes']:,} bytes of weights, peak +{row['peak_rss_increase_kib']} KiB")
+            continue
         print(f"{arm}: {row['parameter_positions_per_target']:,.0f} parameter-positions per target ({row['compute_vs_bank']:.2f} of the bank's), "
               f"{row['ms_per_sequence']:.3f} ms per sequence ({row['latency_vs_bank']:.2f}), "
               f"{row['sequences_per_s_batched']:,.0f} sequences/s batched ({row['throughput_vs_bank']:.2f})")
