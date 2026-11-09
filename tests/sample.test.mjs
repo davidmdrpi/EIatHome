@@ -58,7 +58,7 @@ test('Track A’s sample callout says held out only when its family has held-out
   const off = trackAScoreText({ sample, gain: 0.2, family: 'Off-source', model: 'GRU', reconstruction: pools('offsource').reason });
   assert.equal(
     off,
-    ', in the training data: GRU prediction gain 0.12, against 0.20 averaged over snippets of Off-source from the data it trained on ' +
+    ', in the training split: GRU prediction gain 0.12, against 0.20 averaged over snippets of Off-source from the data it trained on ' +
       '(nothing could be held out: all loaded slices come from one observing session, so both scores measure reconstruction); ' +
       'residual error 0.81, against 0.92 on those snippets (root mean square of actual − prediction over frames 2 to 15, as in the residual panel).',
   );
@@ -68,7 +68,7 @@ test('Track A’s sample callout says held out only when its family has held-out
     const p = pools(family);
     assert.equal(p.heldOut, true, family);
     const text = trackAScoreText({ sample: { ...sample, heldOut: true }, gain: -0.05, family: familyById[family].label, model: 'LSTM', reconstruction: p.reason ?? null });
-    assert.match(text, new RegExp(`^, held out: LSTM prediction gain 0\\.12, against -0\\.05 averaged over the held-out snippets of ${familyById[family].label}; `));
+    assert.match(text, new RegExp(`^, held out in the test split: LSTM prediction gain 0\\.12, against -0\\.05 averaged over the held-out snippets of ${familyById[family].label}; `));
   }
 });
 

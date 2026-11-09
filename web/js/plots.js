@@ -1,6 +1,8 @@
 // Small canvas chart helpers. Colors come from CSS custom properties, so light and dark
 // themes each use their own validated steps. Every chart gets a hover tooltip.
 
+import { fixed } from './format.js';
+
 const tooltip = document.getElementById('tooltip');
 
 export function token(name) {
@@ -68,7 +70,8 @@ export function niceTicks(lo, hi, count = 4) {
   return ticks;
 }
 
-export const fmt = (v, digits = 2) => (Number.isFinite(v) ? v.toFixed(digits) : '–');
+// Numbers in tables, axes and captions: never "-0.00" (format.js).
+export const fmt = (v, digits = 2) => fixed(v, digits);
 
 // ---------- heatmap ----------
 

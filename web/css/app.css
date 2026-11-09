@@ -934,3 +934,139 @@ dialog.review::backdrop {
 .review .chip.opened {
   border-color: var(--accent);
 }
+
+/* Contributions: each entry's stages, in order, with its state and what decided it. */
+.entries {
+  display: grid;
+  gap: 10px;
+}
+
+.entry {
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 10px 12px;
+  min-width: 0;
+}
+
+.entry > header {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 10px;
+  align-items: baseline;
+}
+
+.entry > header .chip {
+  margin-left: auto;
+}
+
+.entry .chip.done {
+  border-color: var(--series-3);
+}
+
+.entry .chip.current {
+  border-color: var(--accent);
+}
+
+.entry .chip.failed {
+  border-color: var(--critical);
+}
+
+.entry > p {
+  margin: 6px 0 0;
+}
+
+.stages {
+  list-style: none;
+  margin: 8px 0 0;
+  padding: 0;
+  display: grid;
+  gap: 4px;
+}
+
+.stages li {
+  display: grid;
+  grid-template-columns: 7rem 6.5rem minmax(0, 1fr);
+  gap: 8px;
+  font-size: 0.88rem;
+}
+
+.stage-name {
+  font-weight: 600;
+}
+
+.stage-state {
+  color: var(--ink-2);
+  white-space: nowrap;
+}
+
+.stage-state::before {
+  display: inline-block;
+  width: 1.1em;
+  content: "○";
+}
+
+.stages li[data-state="done"] .stage-state::before {
+  content: "✓";
+  color: var(--series-3);
+}
+
+.stages li[data-state="current"] .stage-state::before {
+  content: "●";
+  color: var(--accent);
+}
+
+.stages li[data-state="failed"] .stage-state::before {
+  content: "✗";
+  color: var(--critical);
+}
+
+.stages li[data-state="skipped"] .stage-state::before {
+  content: "–";
+}
+
+.stages li[data-state="pending"],
+.stages li[data-state="skipped"] {
+  color: var(--ink-muted);
+}
+
+@media (max-width: 640px) {
+  .stages li {
+    grid-template-columns: auto 1fr;
+    gap: 0 8px;
+  }
+
+  .stage-text {
+    grid-column: 1 / -1;
+  }
+}
+
+.next-steps {
+  margin: 0;
+  padding-left: 1.4rem;
+}
+
+.next-steps li + li {
+  margin-top: 6px;
+}
+
+.card-group + .card-group {
+  margin-top: 16px;
+}
+
+.card-group > header {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+  margin-bottom: 8px;
+}
+
+.card-group > header h3 {
+  margin: 0;
+}
+
+/* What decides a recorded unit's status: a sentence, so it wraps. */
+#ct-units td:nth-child(5) {
+  white-space: normal;
+  min-width: 16rem;
+}

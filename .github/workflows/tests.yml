@@ -49,6 +49,8 @@ jobs:
       - run: python -m unittest discover -s tests -p 'test_llm_pilot.py' -v
       # The checkpoint pilot's ledger: every stored contribution and merge replayed.
       - run: python -m tracks.llm.pilot verify
+      # The Live Lab's copy of its status (web/data/pilot_status.json) is the ledger's.
+      - run: python -m tracks.llm.pilot export --check
 
   extract-slices:
     runs-on: ubuntu-latest

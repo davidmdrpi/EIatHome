@@ -1,6 +1,7 @@
 // The Live Lab's random sky sample: one real slice, picked at random, and what the sky map's
 // marker card says about it.
 
+import { fixed } from './format.js';
 import { deriveSeed, makeRng } from './rng.js';
 import { T, driftToHzPerS, familyById } from './signals.js';
 import { mjdDate } from './splits.js';
@@ -91,7 +92,17 @@ export function sampleDetail(d) {
   ].filter(Boolean).join(' · ');
 }
 
-const two = (v) => (Number.isFinite(v) ? v.toFixed(2) : '–');
+const two = (v) => fixed(v, 2);
+
+// Where a sample's window sits, named the same way in Track A and Track B. Track A splits a real
+// family's observing sessions in two: the latest 30% are its test split, held out, and the rest
+// its training split. Track B splits its frames in three (training, validation and test), so a
+// sample can sit in different splits of the two tracks; each panel names its own.
+export const SPLIT_NOTES = { train: 'in the training split', validation: 'in the validation split', test: 'held out in the test split' };
+export const splitNote = (split) => SPLIT_NOTES[split] ?? 'not in the split';
+// Track A's split of the sample: test when its scan was held out, else training (also when
+// nothing could be held out, so the model trained on every slice).
+export const trackASplit = (sample) => (sample?.heldOut ? 'test' : 'train');
 
 // Track A's callout for the sample, after its bold "This sample (id)": its prediction gain and
 // residual error against its family's, over the snippets the family is scored on. Those are held
@@ -99,7 +110,7 @@ const two = (v) => (Number.isFinite(v) ? v.toFixed(2) : '–');
 // they come from the data the model trained on, and the callout says so. sample: the engine's
 // { heldOut, gru, rms, familyRms }; gain: the family's GRU gain.
 export function trackAScoreText({ sample, gain, family, model, reconstruction = null }) {
-  const status = sample.heldOut ? 'held out' : 'in the training data';
+  const status = splitNote(trackASplit(sample));
   const over = reconstruction
     ? `averaged over snippets of ${family} from the data it trained on (nothing could be held out: ${reconstruction.charAt(0).toLowerCase()}${reconstruction.slice(1).replace(/\.$/, '')}, so both scores measure reconstruction)`
     : `averaged over the held-out snippets of ${family}`;

@@ -1,15 +1,17 @@
 import { ANCHOR } from './anchor.js';
-import { isRecoveryCard, issueLink, submissionText, summarize, validateCard } from './community.js';
+import { AGREEMENT_TOLERANCE, isRecoveryCard, issueLink, submissionText, summarize, validateCard } from './community.js';
 import { STATUSES, acceptedCards, cardKey, cardStatus, keepCard, pruneMarks, safeToDrop, tally } from './contributions.js';
+import { STATE_LABELS, cardLifecycle, communityIndex, nextSteps, openShards, pilotLifecycle, pilotStatusProblems, roundShards, roundText, sortLifecycles } from './lifecycle.js';
 import { architectureLabel, tokenArchitectureLabel } from './models.js';
 import { ARMS, MERGES_V1, MERGE_SPEC_V1, isMergeCard } from './merge.js';
+import { possessive } from './format.js';
 import { fmt, heatmap, lineChart, scatterPanel } from './plots.js';
 import { DECOYS, KINDS, RECOVERY_DATA, RECOVERY_SPEC, SIGNALS, STRENGTHS, combine, wilson } from './recovery.js';
 import { deriveSeed, makeRng } from './rng.js';
 import { forWorkers, loadPublishedSlices, loadSliceFiles } from './slices.js';
 import { SCAN_GAP_DAYS, groups, mjdDate, sessions } from './splits.js';
 import { C, FAMILIES, ROSETTA_TEXT, T, driftToHzPerS, familyById, makeSnippet, normalise, shuffleFrames } from './signals.js';
-import { describeSample, pickSample, pointingId, sampleDetail, sampleLines, sampleOrder, sampleTitle, trackAScoreText } from './sample.js';
+import { describeSample, pickSample, pointingId, sampleDetail, sampleLines, sampleOrder, sampleTitle, splitNote, trackAScoreText, trackASplit } from './sample.js';
 import { GREEN_BANK, OUTCOMES, SkyMap, constellationAt, horizonToEquatorial, loadSky, siderealHours } from './skymap.js';
 import { centralWindow } from './trackb-splits.js';
 import { MAX_UNIT, SPEC, specSlices, workUnitConfig } from './workunits.js';
@@ -350,7 +352,7 @@ function sampleFrames(seed) {
 function sampleCaption(focus) {
   const shuffled = focus ? focus.shuffled : $('shuffle').checked;
   const title = focus ? (state.runFocus?.id === focus.id ? state.runFocus.title : focus.id) : sampleTitle(describeSample(state.sample));
-  return `Actual: ${title}${shuffled ? ', frames shuffled' : ''}${focus ? ` (${focus.heldOut ? 'held out' : 'in the training data'})` : ''}`;
+  return `Actual: ${title}${shuffled ? ', frames shuffled' : ''}${focus ? ` (${splitNote(trackASplit(focus))})` : ''}`;
 }
 
 // Before training: show a sample of the chosen family.
@@ -413,7 +415,7 @@ function renderLab() {
       // The sample, scored on its own, right under its family's held-out average.
       const s = e.sample;
       if (!s) return [tr];
-      const own = makeRow([`This sample (${s.id}) · ${s.heldOut ? 'held out' : 'in the training data'}`, fmt(s.persistence), fmt(s.linear), fmt(s.gru), fmt(s.shuffled)]);
+      const own = makeRow([`This sample (${s.id}) · ${splitNote(trackASplit(s))}`, fmt(s.persistence), fmt(s.linear), fmt(s.gru), fmt(s.shuffled)]);
       own.className = 'this-sample';
       return [tr, own];
     }).flat(),
@@ -652,9 +654,9 @@ function renderTrackB() {
 
 const STREAM_NAMES = Object.fromEntries(STREAMS.map((s) => [s.id, s.name]));
 
-// Where the sample's window sits in Track B's split: a training window's tokens were counted.
-const SPLIT_NOTES = { train: 'in the training split', validation: 'in the validation split', test: 'held out (test split)' };
-const sampleRowName = (s) => `This sample (${s.id}) · ${SPLIT_NOTES[s.split] ?? 'not in the split'}`;
+// Where the sample's window sits in Track B's split (named as in Track A's): a training window's
+// tokens were counted.
+const sampleRowName = (s) => `This sample (${s.id}) · ${splitNote(s.split)}`;
 
 // Track B's callout: the sample's tokens, scored by the n-gram model (and the token model, once
 // trained) against the family's held-out test tokens.
@@ -667,7 +669,7 @@ function renderSampleScoreB() {
   const family = familyById[r.family].label;
   const ngram = (bits) => `${fmt(bits[3].bits)} bits per token with 3 tokens of context`;
   const parts = [
-    `, ${SPLIT_NOTES[s.split] ?? 'not in the split'}: its ${s.tokens.length} tokens (${s.tokens.map((t) => t.toString(36)).join(' ')}) cost ${ngram(s.crossEntropy)} under the n-gram model, ` +
+    `, ${splitNote(s.split)}: its ${s.tokens.length} tokens (${s.tokens.map((t) => t.toString(36)).join(' ')}) cost ${ngram(s.crossEntropy)} under the n-gram model, ` +
       `against ${fmt(r.crossEntropy.real[3].bits)} for the held-out test tokens of ${family} (${fmt(s.crossEntropy[0].bits)} against ${fmt(r.crossEntropy.real[0].bits)} with no context).`,
   ];
   const m = state.tokenLm;
@@ -687,11 +689,11 @@ function controlNote(r) {
   const own = familyById[r.family].label;
   const control = r.control.crossEntropy.map((e) => e.bits);
   const real = r.crossEntropy.real.map((e) => e.bits);
-  const inTraining = p.trainCommonest ? `${own}’s commonest training token (${pct(p.trainShare)})` : `${pct(p.trainShare)} of ${own}’s training tokens`;
+  const inTraining = p.trainCommonest ? `${possessive(own)} commonest training token (${pct(p.trainShare)})` : `${pct(p.trainShare)} of ${possessive(own)} training tokens`;
   const parts = [
     p.share >= 0.5
-      ? `${pct(p.share)} of ${name}’s ${p.frames} frames land on one token type${p.flattest ? ', the codebook’s flattest frame (the one plain noise is nearest)' : ''}. It is also ${inTraining}.`
-      : `${name}’s ${p.frames} frames use ${p.typesUsed} of the ${r.k} token types. The commonest takes ${pct(p.share)} of them and is ${inTraining}.`,
+      ? `${pct(p.share)} of ${possessive(name)} ${p.frames} frames land on one token type${p.flattest ? ', the codebook’s flattest frame (the one plain noise is nearest)' : ''}. It is also ${inTraining}.`
+      : `${possessive(name)} ${p.frames} frames use ${p.typesUsed} of the ${r.k} token types. The commonest takes ${pct(p.share)} of them and is ${inTraining}.`,
   ];
   if (control[0] < real[0]) {
     parts.push(`Frames concentrated on few token types are cheap to predict, so ${name} costs less than ${own} with no context (${fmt(control[0])} against ${fmt(real[0])} bits), with no structure behind it.`);
@@ -1391,6 +1393,8 @@ const KIND_NAMES = { lab: 'Track A work units', recovery: 'recovery units', merg
 const STORE_KEYS = { lab: 'results', recovery: 'recoveryResults', merge: 'mergeResults' };
 const DOWNLOAD_NAMES = { lab: 'eiathome-results.json', recovery: 'eiathome-recovery-results.json', merge: 'eiathome-merge-results.json' };
 const REVIEW_SHOWN = 50;
+// What cardOutcome() reports for each kind of card.
+const MEASURED = { lab: 'GRU gain: drifting tones', recovery: 'Signals found at 1% false alarms', merge: 'Held-out bits: average · kept worker' };
 const keptCards = (kind) => ({ lab: state.results, recovery: rc.results, merge: mg.results })[kind];
 const computedThisSession = (kind) => ({ lab: session.units, recovery: session.recovery, merge: session.merge })[kind];
 const statusOf = (card) => cardStatus(card, contributions.marks, contributions.accepted);
@@ -1433,6 +1437,7 @@ function refreshContributions() {
   $('mg-review').textContent = merges.awaiting ? `Review and submit (${merges.awaiting.toLocaleString()})` : 'Review results';
   $('mg-review').disabled = !merges.total;
   if ($('review').open) renderReview();
+  renderContributionsTab();
 }
 
 // Every kept card exists nowhere else: stop auto-run rather than drop one, and show the review.
@@ -1495,7 +1500,7 @@ function renderReview() {
   $('review-view-all').textContent = `All (${cards.length.toLocaleString()})`;
   $('review-view-pending').setAttribute('aria-pressed', String(contributions.view === 'pending'));
   $('review-view-all').setAttribute('aria-pressed', String(contributions.view === 'all'));
-  const measured = { lab: 'GRU gain: drifting tones', recovery: 'Signals found at 1% false alarms', merge: 'Held-out bits: average · kept worker' }[kind];
+  const measured = MEASURED[kind];
   fillTable($('review-table'), ['Unit', 'Started', measured, 'Status', ''], []);
   $('review-table').tBodies[0].append(...listed.slice(0, contributions.shown).map((card) => reviewRow(kind, card)));
   const shown = Math.min(listed.length, contributions.shown);
@@ -1584,10 +1589,14 @@ async function loadCommunity() {
   } catch {
     status.textContent = "Couldn't load community results.";
     rc.communityFailed = true;
+    ledgers.communityFailed = true;
     renderCombined();
+    renderContributionsTab();
     return;
   }
   const all = Array.isArray(store.results) ? store.results : [];
+  ledgers.community = all;
+  ledgers.communityFailed = false;
   contributions.accepted = acceptedCards(all);
   contributions.checked = Date.now();
   refreshContributions();
@@ -1627,6 +1636,205 @@ async function loadCommunity() {
     }),
   );
   $('community-tables').hidden = false;
+}
+
+// ---------- contributions ----------
+
+// What the Contributions tab reads: the community results (loadCommunity) and the checkpoint
+// pilot's status, which `python -m tracks.llm.pilot export` makes from its ledger.
+const ledgers = { community: null, communityFailed: false, pilot: null, pilotProblem: null, expanded: {} };
+const GROUP_SHOWN = 6;
+const KIND_TITLES = { lab: 'Track A work units', merge: 'Merge units', recovery: 'Recovery units' };
+
+async function loadPilotStatus() {
+  try {
+    const response = await fetch('data/pilot_status.json', { cache: 'no-cache' });
+    if (!response.ok) throw new Error(`HTTP ${response.status}`);
+    const status = await response.json();
+    const problems = pilotStatusProblems(status);
+    if (problems.length) throw new Error(problems.join('; '));
+    ledgers.pilot = status;
+    ledgers.pilotProblem = null;
+  } catch (err) {
+    ledgers.pilot = null;
+    ledgers.pilotProblem = err.message;
+  }
+  renderContributionsTab();
+}
+
+const issueAnchor = (n) => link(`#${n}`, `${REPO}/issues/${n}`);
+
+// One entry: a title, where it stands, and each stage with its state and what decided it.
+function lifecycleEntry(title, life, details = []) {
+  const article = element('article', null, 'entry');
+  article.dataset.stage = life.stage;
+  article.dataset.state = life.state;
+  const head = document.createElement('header');
+  const at = life.stages.find((s) => s.id === life.stage);
+  head.append(...[title].flat(), element('span', life.state === 'done' ? 'Complete' : `${at.name}: ${STATE_LABELS[life.state]}`, `chip ${life.state}`));
+  const stages = element('ol', null, 'stages');
+  for (const s of life.stages) {
+    const li = document.createElement('li');
+    li.dataset.stage = s.id;
+    li.dataset.state = s.state;
+    li.append(element('span', s.name, 'stage-name'), element('span', STATE_LABELS[s.state], 'stage-state'), element('span', s.text, 'stage-text'));
+    stages.append(li);
+  }
+  article.append(head, stages, ...details);
+  return article;
+}
+
+function renderContributionsTab() {
+  if ($('tab-contributions').hidden) return;
+  const index = ledgers.community ? communityIndex(ledgers.community) : null;
+  const pilot = ledgers.pilot;
+  const awaiting = Object.fromEntries(['lab', 'merge', 'recovery'].map((kind) => [kind, tally(keptCards(kind), contributions.marks, contributions.accepted).awaiting]));
+
+  const read = [
+    ledgers.communityFailed ? 'Couldn’t load the community results.' : ledgers.community ? `${plural(ledgers.community.length, 'result card')} recorded in the community results.` : 'Loading the community results…',
+    ledgers.pilotProblem ? `Couldn’t load the checkpoint pilot’s status (${ledgers.pilotProblem}).` : pilot ? `The checkpoint pilot’s ledger: ${plural(pilot.ledger.events, 'event')} (SHA-256 ${pilot.ledger.sha256.slice(0, 12)}…).` : 'Loading the checkpoint pilot’s status…',
+    `${plural(['lab', 'merge', 'recovery'].reduce((n, kind) => n + keptCards(kind).length, 0), 'result card')} kept in this browser.`,
+  ];
+  $('ct-status').textContent = read.join(' ');
+
+  const steps = nextSteps({ index, pilot, awaiting });
+  $('ct-next').replaceChildren(...steps.map((step) => {
+    const li = element('li', step.text);
+    li.dataset.step = step.id;
+    return li;
+  }));
+  $('ct-next-empty').hidden = steps.length > 0 || !index || !pilot;
+
+  renderPilotContributions(pilot);
+  renderRecordedUnits(index);
+  renderBrowserCards(index);
+}
+
+function renderPilotContributions(pilot) {
+  $('ct-pilot-rejected').href = `${REPO}/issues?q=${encodeURIComponent('label:checkpoint-rejected')}`;
+  for (const id of ['ct-pilot-rules', 'ct-shards-title']) $(id).hidden = !pilot;
+  if (!pilot) {
+    $('ct-pilot-summary').textContent = ledgers.pilotProblem ? `The pilot’s status couldn’t be read: ${ledgers.pilotProblem}.` : 'Loading…';
+    for (const id of ['ct-shards', 'ct-pilot-entries', 'ct-rounds']) $(id).replaceChildren();
+    return;
+  }
+  const { rules, open, current } = pilot;
+  const merged = pilot.submissions.filter((s) => s.stage === 'merged').length;
+  $('ct-pilot-summary').textContent = `The current model is round ${current.round} (${current.weights_sha256.slice(0, 12)}…). Round ${open.round} is open to shards ${open.shards.map((s) => s.index).join(', ')}. ` +
+    `${plural(pilot.submissions.length, 'contribution')} recorded, ${merged} merged into the current model; ${plural(pilot.rounds.length, 'merge')} run, ${plural(pilot.rollbacks.length, 'rollback')}.`;
+  $('ct-pilot-rules').textContent = `The rules, from the pilot’s code: a worker or merge may score at most ${rules.gate_bits} bits per token worse than the current model on validation (the held-out gate); ` +
+    `a contribution is replicated when the coordinator’s own run of its shard and seed lands within ${rules.replication.validation_bits} bits of it with a delta cosine of at least ${rules.replication.cosine}; ` +
+    `a merge (${rules.merge}) needs eligible contributions from at least ${rules.min_volunteers} volunteers, and ${rules.influence}, which caps each shard’s influence however many contribute to it.`;
+  $('ct-shards-title').textContent = `Round ${open.round}: shard coverage, the least covered first`;
+  fillTable($('ct-shards'), ['Shard', 'Training targets', 'Eligible contributions', 'Volunteers', 'Coverage'],
+    openShards(pilot).map((s) => [s.index, s.training_targets, s.contributions, s.volunteers, s.contributions ? 'covered' : 'missing: no contribution yet']));
+  for (const row of $('ct-shards').tBodies[0].rows) row.dataset.coverage = row.cells[2].textContent === '0' ? 'missing' : 'covered';
+
+  const lives = sortLifecycles(pilot.submissions.map((sub) => pilotLifecycle(sub, pilot)).map((life) => ({ ...life, card: { started: life.sub.submitted_at } })));
+  $('ct-pilot-entries').replaceChildren(...(lives.length
+    ? lives.map((life) => {
+      const sub = life.sub;
+      const title = [element('b', `Round ${sub.round}, shard ${sub.shard}`), issueAnchor(sub.issue), document.createTextNode(` by ${sub.volunteer}`)];
+      const artifact = element('p', null, 'muted small');
+      artifact.append('Artifact ', link(`${sub.id.slice(0, 16)}…`, `${REPO}/blob/main/${sub.artifact}`), ` (${sub.bytes.toLocaleString()} bytes).`);
+      const entry = lifecycleEntry(title, life, [artifact]);
+      entry.dataset.issue = sub.issue;
+      return entry;
+    })
+    : [element('p', `No contributions yet. Round ${open.round} is open: tracks/llm/PILOT.md shows how to train a shard and submit it.`, 'muted')]));
+
+  $('ct-rounds').replaceChildren(...(pilot.rounds.length
+    ? [...pilot.rounds].reverse().map((round) => {
+      const box = element('article', null, 'entry');
+      box.dataset.round = round.round;
+      box.dataset.decision = round.decision;
+      const head = document.createElement('header');
+      const state = round.rolled_back ? 'failed' : round.decision === 'accepted' ? 'done' : 'failed';
+      head.append(element('b', `Round ${round.round}`), element('span', round.rolled_back ? 'Rolled back' : round.decision === 'accepted' ? (round.live ? 'Accepted, current chain' : 'Accepted') : 'Rejected', `chip ${state}`));
+      const { total, shards } = roundShards(round);
+      const table = document.createElement('table');
+      fillTable(table, ['Shard', 'Contributions merged', 'Training targets', 'Shard weight (cap)', 'Each contribution'],
+        shards.map((s) => [s.shard, s.contributions, `${s.training_targets} of ${total}`, fmt(s.weight, 3), fmt(s.weight / s.contributions, 3)]));
+      const wrap = element('div', null, 'table-wrap');
+      wrap.append(table);
+      const who = Object.entries(round.volunteer_weights).sort((a, b) => b[1] - a[1]).map(([v, w]) => `${v} ${fmt(w, 3)}`).join(', ');
+      const outcomes = round.contributors.filter((c) => c.weight === 0).map((c) => `shard ${c.shard} (${c.volunteer ?? c.submission.slice(0, 12)}): ${c.status}${c.reason ? `, ${c.reason}` : ''}`);
+      box.append(head, element('p', roundText(round, pilot.rules)), wrap,
+        element('p', `Each volunteer’s total weight: ${who}. The cap is per shard, not per volunteer, so a volunteer on several shards holds each of their shares.${outcomes.length ? ` Not merged: ${outcomes.join('; ')}.` : ''}`, 'muted small'));
+      return box;
+    })
+    : [element('p', `No merge yet: round ${open.round} needs eligible contributions from at least ${rules.min_volunteers} volunteers.`, 'muted')]));
+}
+
+const UNIT_STATUS = { single: 'Not replicated yet', disagree: 'Runs disagree', replicated: 'Replicated' };
+
+function renderRecordedUnits(index) {
+  $('ct-cards-rejected').href = `${REPO}/issues?q=${encodeURIComponent('label:work-unit-rejected')}`;
+  if (!index) {
+    $('ct-units-summary').textContent = ledgers.communityFailed ? 'The community results couldn’t be loaded.' : 'Loading…';
+    $('ct-units').replaceChildren();
+    return;
+  }
+  const order = { single: 0, disagree: 1, replicated: 2 };
+  const units = [...index.units.values()].sort((a, b) => order[a.status] - order[b.status] || a.spec.localeCompare(b.spec) || a.unit - b.unit);
+  const counts = Object.fromEntries(Object.keys(order).map((k) => [k, units.filter((u) => u.status === k).length]));
+  $('ct-units-summary').textContent = units.length || index.recovery.length
+    ? `${plural(units.length, 'unit')} with recorded runs: ${counts.single} not replicated yet, ${counts.disagree} disagreeing, ${counts.replicated} replicated, listed in that order. ` +
+      `Plus ${plural(index.recovery.length, 'recovery unit')}, each recomputed exactly on the published windows when it was recorded and combined on the Recovery tab.`
+    : 'No result cards are recorded yet. Run a unit on the Work units or Recovery tab and submit its card to be the first.';
+  fillTable($('ct-units'), ['Unit', 'Data', 'Volunteers', 'Status', 'What decides it', 'Issues'], []);
+  $('ct-units').tBodies[0].append(...units.map((u) => {
+    const criterion = u.status === 'single'
+      ? `Needs a different volunteer’s run within ${AGREEMENT_TOLERANCE} on all ${u.metrics} metrics`
+      : u.status === 'replicated'
+        ? `Agree within ${AGREEMENT_TOLERANCE} on all ${u.metrics} metrics (largest difference ${fmt(u.spread, 4)})`
+        : `Apart by more than ${AGREEMENT_TOLERANCE} on ${u.over.length} of ${u.metrics} metrics: ${u.over.slice(0, 3).map((w) => `${w.metric} ${Number.isFinite(w.spread) ? fmt(w.spread, 3) : 'missing'}`).join(', ')}`;
+    const tr = makeRow([`${u.spec} #${u.unit}`, u.dataset_id ? `slices ${u.dataset_id.slice(0, 8)}` : 'synthetic only', u.volunteers.length, UNIT_STATUS[u.status], criterion]);
+    tr.dataset.status = u.status;
+    const issues = document.createElement('td');
+    u.issues.filter(Number.isInteger).forEach((n, i) => issues.append(...(i ? [', '] : []), issueAnchor(n)));
+    tr.append(issues);
+    return tr;
+  }));
+}
+
+function renderBrowserCards(index) {
+  const groups = ['lab', 'merge', 'recovery'].filter((kind) => keptCards(kind).length);
+  const total = groups.reduce((n, kind) => n + keptCards(kind).length, 0);
+  $('ct-cards-summary').textContent = total
+    ? `${plural(total, 'card')} kept here, the ones that need something first: not submitted, then waiting to be recorded, then recorded but not replicated, then disagreeing; complete ones last.${index ? '' : ' Their recorded stages appear once the community results load.'}`
+    : 'No result cards in this browser yet. Run a unit on the Work units or Recovery tab.';
+  $('ct-cards').replaceChildren(...groups.map((kind) => {
+    const lives = sortLifecycles(keptCards(kind).map((card) => cardLifecycle(card, { marks: contributions.marks, index: index ?? communityIndex([]) })));
+    const group = element('section', null, 'card-group');
+    group.dataset.kind = kind;
+    const head = document.createElement('header');
+    const t = tally(keptCards(kind), contributions.marks, contributions.accepted);
+    head.append(element('h3', `${KIND_TITLES[kind]} (${lives.length.toLocaleString()})`));
+    const review = element('button', t.awaiting ? `Review and submit (${t.awaiting.toLocaleString()})` : 'Review results');
+    review.type = 'button';
+    review.onclick = () => openReview(kind);
+    head.append(review);
+    const shown = ledgers.expanded[kind] ? lives.length : GROUP_SHOWN;
+    const list = element('div', null, 'entries');
+    list.append(...lives.slice(0, shown).map((life) => {
+      const title = [element('b', `${life.card.spec} #${life.card.unit}`), element('span', `${MEASURED[kind]}: ${cardOutcome(kind, life.card)}`, 'muted small')];
+      const entry = lifecycleEntry(title, life);
+      entry.dataset.unit = life.card.unit;
+      return entry;
+    }));
+    group.append(head, list);
+    if (lives.length > GROUP_SHOWN) {
+      const more = element('button', ledgers.expanded[kind] ? `Show the first ${GROUP_SHOWN}` : `Show all ${lives.length.toLocaleString()}`);
+      more.type = 'button';
+      more.onclick = () => {
+        ledgers.expanded[kind] = !ledgers.expanded[kind];
+        renderContributionsTab();
+      };
+      group.append(more);
+    }
+    return group;
+  }));
 }
 
 // ---------- data ----------
@@ -1711,6 +1919,10 @@ function showTab(name) {
     startRecovery();
     renderRecoveryUnit();
     renderCombined();
+  }
+  if (name === 'contributions') {
+    if (ledgers.pilotProblem) loadPilotStatus();
+    renderContributionsTab();
   }
 }
 
@@ -1921,6 +2133,7 @@ function init() {
   renderPreview();
   analyzeTokens();
   loadCommunity();
+  loadPilotStatus();
   loadPublishedSlices()
     .then((slices) => setSlices(slices, 'site'))
     .catch((err) => {

@@ -57,6 +57,9 @@ digest and identities, every evaluation, and every merge from its stored artifac
     python -m tracks.llm.pilot rollback --to-round 2 --reason "..." --by <login>
     python -m tracks.llm.pilot exclude <artifact id> --reason "..." --by <login>
     python -m tracks.llm.pilot verify                       # replay the ledger
+    python -m tracks.llm.pilot export [--check]             # the Live Lab's copy of the status (web/data/pilot_status.json)
+
+Every command that changes the ledger (ingest, merge, rollback, exclude) also rewrites that copy.
 """
 
 import argparse
@@ -771,6 +774,138 @@ def check_record(again, recorded, where):
     walk(json.loads(json.dumps(again)), recorded, "")
 
 
+# ---------- the published status ----------
+
+STATUS_FORMAT, STATUS_VERSION = "eiathome-pilot-status", 1
+STATUS_PATH = ROOT / "web" / "data" / "pilot_status.json"  # what the Live Lab's Contributions tab reads
+
+
+def ledger_text(ledger):
+    """The ledger as save_ledger writes it: its digest names the ledger a status was made from."""
+    return json.dumps(ledger, indent=1, ensure_ascii=False) + "\n"
+
+
+def export(pilot, ledger=None):
+    """The ledger as the Live Lab shows it (web/data/pilot_status.json): each contribution's stage
+    and the numbers each check decided it on, each round's merge with its gate and shard weights,
+    rollbacks and exclusions, and the open round's coverage. Made from the ledger alone, nothing
+    rescored, so `export --check` can tell whether the published copy is the ledger's."""
+    ledger = load_ledger(pilot.folder) if ledger is None else ledger
+    state = state_of(ledger)
+    eligible = {s["id"] for s in state.eligible()}
+    volunteer = {i: s["volunteer"] for i, s in state.submissions.items()}
+
+    # Rounds in ledger order, each marked live or with the rollback that undid it.
+    rounds, live, rollbacks, exclusions = [], [], [], []
+    for n, event in enumerate(ledger["events"], 1):
+        if event["event"] == "round":
+            record = event["record"]
+            entry = {
+                "event": n, "round": event["round"], "by": event["by"], "decision": event["decision"],
+                "reason": record["merged"].get("reason"), "volunteers": event["volunteers"],
+                "volunteer_weights": event["volunteer_weights"], "weights_sha256": event["weights_sha256"],
+                "checkpoint": None if event["checkpoint"] is None else f"tracks/llm/pilot/v0/{event['checkpoint']}",
+                "gate_bits": record["rule"]["tolerance_bits"],
+                "start_validation_bits": record["start"]["validation_bits"],
+                "merged_validation_bits": record["merged"].get("validation_bits"),
+                "best_worker": record.get("best_worker"),
+                "contributors": [{"submission": c["submission"], "volunteer": volunteer.get(c["submission"]), "shard": c["shard"][0],
+                                  "seed": c["seed"], "training_targets": c["training_targets"], "status": c["status"],
+                                  "reason": c["reason"], "validation_bits": c["validation_bits"], "weight": c["weight"]}
+                                 for c in record["contributors"]],
+                "live": False, "rolled_back": None,
+            }
+            rounds.append(entry)
+            if event["decision"] == "accepted":
+                entry["live"] = True
+                live.append(entry)
+        elif event["event"] == "rollback":
+            while live and live[-1]["round"] > event["to_round"]:
+                gone = live.pop()
+                gone.update(live=False, rolled_back={"event": n, "to_round": event["to_round"], "reason": event["reason"], "by": event["by"]})
+            rollbacks.append({"event": n, **{k: event[k] for k in ("to_round", "reason", "by", "rolled_back")}})
+        elif event["event"] == "exclusion":
+            exclusions.append({"event": n, **{k: event[k] for k in ("submission", "reason", "by")}})
+
+    def stage(i, s):
+        """Where a recorded contribution stands, and why."""
+        if i in state.merged:
+            return "merged", f"in round {state.merged[i]}, the current chain"
+        if i in state.excluded:
+            return "excluded", state.excluded[i]
+        problem = replication_problem(s)
+        if problem is not None:
+            return "not replicated", problem
+        if not replicates(s["evaluation"], s["replication"]):
+            return "not replicated", "the coordinator's run of its shard and seed didn't land within the rule"
+        if i in eligible:
+            return "eligible", f"waiting for round {s['round']}'s merge"
+        took = [r for r in rounds if any(c["submission"] == i for c in r["contributors"])]
+        if took and took[-1]["rolled_back"]:
+            r = took[-1]
+            return "rolled back", f"round {r['round']} was rolled back to round {r['rolled_back']['to_round']}: {r['rolled_back']['reason']}"
+        if took:
+            mine = next(c for c in took[-1]["contributors"] if c["submission"] == i)
+            return "not merged", mine["reason"] or f"round {took[-1]['round']} gave it no weight"
+        return "superseded", f"round {s['round']}'s start is no longer the current model"
+
+    submissions = []
+    for i, s in state.submissions.items():
+        where, why = stage(i, s)
+        evaluation, replication = s["evaluation"], s["replication"]
+        submissions.append({
+            "id": i, "issue": s["issue"], "volunteer": s["volunteer"], "submitted_at": s["submitted_at"],
+            "round": s["round"], "start_sha256": s["start_sha256"], "shard": s["shard"], "seed": s["seed"],
+            "bytes": s["bytes"], "artifact": f"tracks/llm/pilot/v0/{s['artifact']}",
+            "volunteer_validation_bits": s["volunteer_validation_bits"],
+            "evaluation": {k: evaluation.get(k) for k in ("status", "reason", "validation_bits", "start_validation_bits", "max_abs_delta")},
+            "replication": None if replication is None else {k: replication.get(k) for k in ("validation_bits", "cosine", "best_epoch", "replicated")},
+            "stage": where, "why": why,
+            "rounds": [{"event": r["event"], "round": r["round"], "decision": r["decision"], "live": r["live"],
+                        **{k: c[k] for k in ("status", "reason", "weight")}}
+                       for r in rounds for c in r["contributors"] if c["submission"] == i],
+        })
+
+    waiting = state.eligible()
+    return {
+        "format": STATUS_FORMAT, "version": STATUS_VERSION, "pilot": PILOT,
+        "ledger": {"path": "tracks/llm/pilot/v0/ledger.json", "sha256": digest(ledger_text(ledger).encode()), "events": len(ledger["events"])},
+        "rules": {
+            "gate_bits": RULE["tolerance_bits"], "max_abs_delta": RULE["max_abs_delta"], "merge": RULE["merge"],
+            "replication": REPLICATION, "min_volunteers": MIN_VOLUNTEERS, "seeds": [SEEDS.start, SEEDS.stop - 1],
+            "influence": "each shard weighs its share of the merged shards' training targets, split equally among its contributions",
+        },
+        "current": {"round": state.head.round, "weights_sha256": state.head.weights_sha256, "checkpoint": posix(state.head.path(pilot))},
+        "open": {
+            "round": state.head.round + 1,
+            "volunteers": len({s["volunteer"] for s in waiting}),
+            "shards": [{"index": k, "training_targets": pilot.shard(k)["training_targets"], **c} for k, c in coverage(state).items()],
+        },
+        "submissions": submissions,
+        "rounds": rounds,
+        "rollbacks": rollbacks,
+        "exclusions": exclusions,
+    }
+
+
+def status_text(pilot, ledger=None):
+    return json.dumps(export(pilot, ledger), indent=1, ensure_ascii=False) + "\n"
+
+
+def write_status(pilot, ledger=None, path=STATUS_PATH):
+    Path(path).write_text(status_text(pilot, ledger))
+
+
+def status_problem(pilot, ledger=None, path=STATUS_PATH):
+    """Why the published status isn't the ledger's (None if it is)."""
+    path = Path(path)
+    if not path.exists():
+        return f"{posix(path)} is missing: run python -m tracks.llm.pilot export"
+    if path.read_text() != status_text(pilot, ledger):
+        return f"{posix(path)} isn't the ledger's status: run python -m tracks.llm.pilot export"
+    return None
+
+
 # ---------- the command line ----------
 
 def status(pilot, ledger=None):
@@ -808,6 +943,8 @@ def main(argv=None):
     x.add_argument("--by", required=True)
     v = commands.add_parser("verify", help="replay the ledger")
     v.add_argument("--replicate", action="store_true", help="retrain every contribution too")
+    e = commands.add_parser("export", help="write the Live Lab's copy of the pilot's status (web/data/pilot_status.json)")
+    e.add_argument("--check", action="store_true", help="only check that the published copy is the ledger's")
     args = parser.parse_args(argv)
 
     if args.command == "ingest":
@@ -820,6 +957,7 @@ def main(argv=None):
             result, comment, text = ingest(pilot, issue, ledger)
             if result == "accepted":
                 store(pilot.folder, ledger, ledger["events"][-1]["id"], text)
+                write_status(pilot, ledger)
         except Exception as err:  # noqa: BLE001 - reported to the driver, which retries
             comment = f"Something went wrong while checking this contribution ({type(err).__name__}). It will be retried."
             print(f"{type(err).__name__}: {err}", file=sys.stderr)
@@ -848,6 +986,16 @@ def main(argv=None):
             event, note = exclude(ledger, args.submission, args.reason, args.by)
             print(f"Excluded {event['submission'][:16]}… from later merges." + (f" {note}" if note else ""))
         save_ledger(ledger, pilot.folder)
+        write_status(pilot, ledger)
+    elif args.command == "export":
+        if args.check:
+            problem = status_problem(pilot)
+            if problem:
+                sys.exit(problem)
+            print(f"{posix(STATUS_PATH)} is the ledger's status")
+        else:
+            write_status(pilot)
+            print(f"Wrote {posix(STATUS_PATH)}")
     else:
         count = verify(pilot, replicate_runs=args.replicate)
         print(f"{pilot.folder}: {count} events replayed")

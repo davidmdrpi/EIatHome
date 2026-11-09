@@ -210,6 +210,22 @@ test('Track B finds held-out structure in Voyager data but not in off-source noi
   await page.close();
 });
 
+// The SETI targets and the blind windows are each other's control: both plural names.
+test('Track B’s control note writes a plural family name’s possessive with the apostrophe alone', async () => {
+  const { page, errors } = await openLab();
+  await waitForPublished(page);
+  for (const [family, own, control] of [['stars', 'SETI targets', 'Blind windows'], ['blind-window', 'Blind windows', 'SETI targets']]) {
+    await page.click(`#families button[data-family="${family}"]`);
+    await page.waitForFunction((l) => document.getElementById('tb-status').textContent.startsWith(l) && !document.getElementById('tb-control-note').hidden, own, { timeout: 120000 });
+    const note = await page.textContent('#tb-control-note');
+    assert.match(note, new RegExp(`${control}’ \\d+ frames`), note);
+    assert.match(note, new RegExp(`${own}’ (commonest )?training token`), note);
+    assert.doesNotMatch(note, /s’s\b/, note);
+  }
+  assert.deepEqual(errors, []);
+  await page.close();
+});
+
 // Runs in a test-only page against the real layers (web/js/layers.js), on TF.js's CPU backend.
 const LAYER_CHECKS = `<!doctype html><meta charset="utf-8"><script type="module">
 import { LayerNorm, attentionStates, buildTokenModel } from '/js/layers.js';
@@ -770,7 +786,7 @@ test('one click on the random sky sample picks a real slice, flies to where it c
   // Track B tokenizes the family meanwhile; once Track A is done, the token model trains.
   await page.waitForFunction(() => /^(Done|Stopped)/.test(document.getElementById('lab-status').textContent), null, { timeout: 120000 });
   const caption = await page.textContent('#wf-actual-caption');
-  assert.ok([`Actual: ${title} (held out)`, `Actual: ${title} (in the training data)`].includes(caption), caption);
+  assert.ok([`Actual: ${title} (held out in the test split)`, `Actual: ${title} (in the training split)`].includes(caption), caption);
   assert.ok((await viewportState(page, 'lab-viewport')).fov <= 2, 'still in the beam');
 
   // Track A scores the sample itself, under its family's row.
@@ -782,8 +798,10 @@ test('one click on the random sky sample picks a real slice, flies to where it c
     slice: await page.getAttribute('#sample-score-a', 'data-slice'),
   });
   const a = await scoreA();
-  assert.match(a.row[0], new RegExp(`^This sample \\(${picked}\\) · (held out|in the training data)$`));
+  assert.match(a.row[0], new RegExp(`^This sample \\(${picked}\\) · (held out in the test split|in the training split)$`));
   assert.ok(a.row.slice(1).every((v) => /^-?\d+\.\d\d$/.test(v)), a.row.join());
+  const gains = await page.$$eval('#gains tbody td', (tds) => tds.map((td) => td.textContent));
+  assert.ok(!gains.includes('-0.00') && !a.callout.includes('-0.00'), 'a gain that rounds to zero is written 0.00');
   assert.equal(a.current, 'this-sample', 'right under its family');
   assert.equal(a.display, 'table-row', 'laid out as a row of the table');
   assert.equal(a.slice, picked);
@@ -833,7 +851,7 @@ test('an off-source sample is scored as reconstruction, and its caption outlives
   // out: its row says so, and the callout compares the sample with what the model trained on.
   assert.match(await page.$eval('#gains tbody tr.current', (tr) => tr.cells[0].textContent), /\(trained on; not held out\)$/);
   const callout = await page.textContent('#sample-score-a');
-  assert.match(callout, new RegExp(`^This sample \\(${picked}\\), in the training data: GRU prediction gain -?\\d+\\.\\d\\d, against -?\\d+\\.\\d\\d averaged over snippets of Off-source from the data it trained on \\(nothing could be held out: all loaded slices come from one observing session, so both scores measure reconstruction\\); `));
+  assert.match(callout, new RegExp(`^This sample \\(${picked}\\), in the training split: GRU prediction gain -?\\d+\\.\\d\\d, against -?\\d+\\.\\d\\d averaged over snippets of Off-source from the data it trained on \\(nothing could be held out: all loaded slices come from one observing session, so both scores measure reconstruction\\); `));
   assert.doesNotMatch(callout, /held-out/);
   await stopTokenModel(page);
 
@@ -846,7 +864,7 @@ test('an off-source sample is scored as reconstruction, and its caption outlives
   // A tab button sets the location hash, and the Live Lab redraws on the hashchange that follows.
   await page.click('.tabs button[data-tab="data"]');
   await page.click('.tabs button[data-tab="lab"]');
-  const caption = `Actual: ${title} (in the training data)`;
+  const caption = `Actual: ${title} (in the training split)`;
   await page.waitForFunction((caption) => document.getElementById('wf-actual-caption').textContent === caption, caption, { timeout: 10000 })
     .catch(async () => assert.equal(await page.textContent('#wf-actual-caption'), caption));
   assert.deepEqual(errors, []);
@@ -936,7 +954,7 @@ test('with Shuffle frames on, the waterfall keeps showing the sample, in its own
   assert.equal(await page.textContent('#wf-actual-caption'), `Actual: ${title}, frames shuffled`);
   const preview = await page.$eval('#wf-actual', (c) => c.toDataURL());
   // Training on the shuffled family still shows the sample, not another random example.
-  await page.waitForFunction((title) => [' (held out)', ' (in the training data)'].map((s) => `Actual: ${title}, frames shuffled${s}`).includes(document.getElementById('wf-actual-caption').textContent), title, { timeout: 120000 });
+  await page.waitForFunction((title) => [' (held out in the test split)', ' (in the training split)'].map((s) => `Actual: ${title}, frames shuffled${s}`).includes(document.getElementById('wf-actual-caption').textContent), title, { timeout: 120000 });
   await page.waitForFunction(() => /^(Done|Stopped)/.test(document.getElementById('lab-status').textContent), null, { timeout: 120000 });
   assert.equal(await page.getAttribute('#sample-status', 'data-slice'), picked);
   // The same frames in the same order: the worker's waterfall drops the first two frames of the
@@ -1004,6 +1022,121 @@ test('observatory mode fills the window and keeps running units until it is clos
   assert.equal((await page.textContent('#rc-viewport .hud-stats')).match(/(\d+) recovery units/)[1], done, 'no unit started after it stopped');
   assert.deepEqual(errors, []);
   await page.close();
+});
+
+// ---------- the Contributions tab ----------
+
+const pilotFixture = async () => JSON.parse(await readFile(new URL('./fixtures/pilot_status.json', import.meta.url), 'utf8'));
+const stagesOf = (page, selector) => page.$$eval(`${selector} .stages li`, (lis) => lis.map((li) => [li.dataset.stage, li.dataset.state]));
+
+test('the Contributions tab shows every entry’s stages, what decided them, and what to do next', async () => {
+  const pilot = await pilotFixture();
+  pilot.exclusions[0].reason = ATTACK; // maintainers' text, shown as text
+  pilot.submissions.find((s) => s.issue === 109).why = ATTACK;
+  const [single, apart, together, unsent, opened] = await Promise.all([
+    makeCard(7), makeCard(8), makeCard(9), makeCard(12, { started: '2026-10-29T00:00:00.000Z' }), makeCard(13, { started: '2026-10-30T00:00:00.000Z' }),
+  ]);
+  const recorded = (issue, by, card) => ({ issue, submitted_by: by, submitted_at: '2026-10-28T00:00:00Z', card_sha256: String(issue), card });
+  const results = [
+    recorded(50, 'alice', single),
+    recorded(51, 'alice', apart), recorded(52, 'bob', await makeCard(8, { shift: 0.5, backend: 'webgl' })),
+    recorded(53, 'alice', together), recorded(54, 'bob', await makeCard(9, { shift: 0.01 })),
+  ];
+  overrides.set('/data/pilot_status.json', JSON.stringify(pilot));
+  overrides.set('/data/community_results.json', JSON.stringify({ format: 'eiathome-community-results', version: 1, results }));
+  try {
+    const seed = ([cards, marks]) => {
+      localStorage.setItem('eiathome.results', JSON.stringify(cards));
+      localStorage.setItem('eiathome.contributionMarks', JSON.stringify(marks));
+    };
+    const marks = { [`${opened.spec}#${opened.unit}@${opened.started}`]: { opened: '2026-10-30T01:00:00.000Z' } };
+    const { page, errors } = await openLab(seed, [[opened, unsent, single, together], marks]);
+    await page.click('.tabs button[data-tab="contributions"]');
+    await page.waitForFunction(() => /5 result cards recorded/.test(document.getElementById('ct-status').textContent) && /ledger: 10 events/.test(document.getElementById('ct-status').textContent), null, { timeout: 30000 });
+    assert.match(await page.textContent('#ct-status'), /4 result cards kept in this browser\.$/);
+
+    // What would help next: missing shard coverage, then volunteers, unreplicated units, disagreeing units, unsubmitted cards.
+    assert.deepEqual(await page.$$eval('#ct-next li', (lis) => lis.map((li) => li.dataset.step)), ['pilot-shards', 'pilot-volunteers', 'unreplicated', 'disagree', 'unsubmitted']);
+    const next = await page.$$eval('#ct-next li', (lis) => lis.map((li) => li.textContent));
+    assert.match(next[0], /^Checkpoint pilot, round 3: shards 2, 3 and 5 have no contribution yet\./);
+    assert.match(next[2], /track-a\/v0 #7\. Running one of them yourself replicates it/);
+    assert.match(next[3], /track-a\/v0 #8\./);
+    assert.equal(next[4], 'In this browser, 1 Track A work unit is computed but not submitted.');
+
+    // The pilot: its rules, the open round's shards (least covered first), each contribution's stages.
+    assert.match(await page.textContent('#ct-pilot-summary'), /^The current model is round 2 \(222222222222…\)\. Round 3 is open to shards 2, 3, 4, 5\. 6 contributions recorded, 3 merged into the current model; 2 merges run, 1 rollback\.$/);
+    assert.match(await page.textContent('#ct-pilot-rules'), /at most 0\.02 bits per token worse than the current model on validation \(the held-out gate\).*within 0\.02 bits of it with a delta cosine of at least 0\.9.*from at least 2 volunteers.*caps each shard’s influence/);
+    assert.deepEqual(await page.$$eval('#ct-shards tbody tr', (trs) => trs.map((tr) => [tr.cells[0].textContent, tr.dataset.coverage])),
+      [['2', 'missing'], ['3', 'missing'], ['5', 'missing'], ['4', 'covered']]);
+    assert.deepEqual(await page.$$eval('#ct-pilot-entries .entry', (es) => es.map((e) => [Number(e.dataset.issue), e.dataset.stage, e.dataset.state])),
+      [[106, 'replicated', 'failed'], [108, 'merge', 'current'], [109, 'merge', 'failed'], [101, 'merge', 'done'], [102, 'merge', 'done'], [103, 'merge', 'done']],
+      'the unreplicated contribution first, then the one waiting for a merge; merged ones last');
+    assert.deepEqual(await stagesOf(page, '#ct-pilot-entries .entry[data-issue="101"]'), [['submitted', 'done'], ['validated', 'done'], ['replicated', 'done'], ['merge', 'done']]);
+    const alice = await page.textContent('#ct-pilot-entries .entry[data-issue="101"]');
+    assert.match(alice, /1\.5500 bits per token on validation, against the current model’s 1\.6200: within the 0\.02-bit gate, with 0\.0900 to spare/);
+    assert.match(alice, /0\.0010 from the contribution \(at most 0\.02 allowed\), and a cosine of 1\.000/);
+    assert.match(alice, /In round 2, with weight 0\.250: shard 2 holds its share of the round’s training targets \(225 of 450\), split equally among the 2 contributions merged on it\./);
+    assert.match(await page.textContent('#ct-pilot-entries .entry[data-issue="106"]'), /a cosine of 0\.130 .*Not replicated: their deltas point different ways\..*Not offered to a merge/);
+    assert.equal(await page.getAttribute('#ct-pilot-entries .entry[data-issue="101"] header a', 'href'), 'https://github.com/davidmdrpi/EIatHome/issues/101');
+    // Merges, newest first: the live round, then the one rolled back.
+    assert.deepEqual(await page.$$eval('#ct-rounds .entry', (es) => es.map((e) => e.querySelector('.chip').textContent)), ['Accepted, current chain', 'Rolled back']);
+    assert.deepEqual(await page.$$eval('#ct-rounds .entry:first-child tbody tr', (trs) => trs.map((tr) => [...tr.cells].map((td) => td.textContent))),
+      [['2', '2', '225 of 450', '0.500', '0.250'], ['3', '1', '225 of 450', '0.500', '0.500']], 'each shard holds its share however many contribute to it');
+    assert.match(await page.textContent('#ct-rounds .entry:first-child'), /The merged model scores 1\.5200 bits per token on validation, against the current model’s 1\.6200: within the 0\.02-bit gate/);
+    assert.match(await page.textContent('#ct-rounds .entry:last-child'), /Rolled back to round 1 by maintainer: a test of rollback\./);
+    assert.equal(await page.getAttribute('#ct-pilot-rejected', 'href'), 'https://github.com/davidmdrpi/EIatHome/issues?q=label%3Acheckpoint-rejected');
+
+    // Recorded result cards: unreplicated first, then disagreeing, then replicated, with what decides each.
+    const units = await page.$$eval('#ct-units tbody tr', (trs) => trs.map((tr) => [tr.cells[0].textContent, tr.dataset.status, tr.cells[4].textContent]));
+    assert.deepEqual(units.map(([unit, status]) => [unit, status]), [['track-a/v0 #7', 'single'], ['track-a/v0 #8', 'disagree'], ['track-a/v0 #9', 'replicated']]);
+    assert.match(units[0][2], /^Needs a different volunteer’s run within 0\.02 on all \d+ metrics$/);
+    assert.match(units[1][2], /^Apart by more than 0\.02 on \d+ of \d+ metrics: /);
+    assert.match(units[2][2], /^Agree within 0\.02 on all \d+ metrics \(largest difference 0\.0100\)$/);
+
+    // This browser's cards: what needs doing first.
+    const cards = await page.$$eval('#ct-cards .card-group[data-kind="lab"] .entry', (es) => es.map((e) => [Number(e.dataset.unit), e.dataset.stage, e.dataset.state]));
+    assert.deepEqual(cards, [[13, 'submitted', 'current'], [12, 'submitted', 'current'], [7, 'replicated', 'current'], [9, 'counted', 'done']]);
+    assert.match(await page.textContent('#ct-cards .entry[data-unit="13"] li[data-stage="submitted"]'), /^SubmittedNowOpened as a GitHub issue on 2026-10-30: it’s submitted once you post that issue\./);
+    assert.deepEqual(await stagesOf(page, '#ct-cards .entry[data-unit="7"]'),
+      [['computed', 'done'], ['submitted', 'done'], ['validated', 'done'], ['replicated', 'current'], ['counted', 'pending']]);
+    assert.match(await page.textContent('#ct-cards .entry[data-unit="7"]'), /As issue #50, by alice\..*Recorded in the community results: its settings are unit 7’s in track-a\/v0/);
+    assert.match(await page.textContent('#ct-cards .entry[data-unit="9"]'), /2 volunteers’ runs agree within 0\.02 on all \d+ metrics/);
+    await page.click('#ct-cards .card-group[data-kind="lab"] header button');
+    assert.equal(await page.isVisible('#review'), true, 'the group’s button opens the review, to submit');
+
+    assert.equal(await page.evaluate(() => window.__pwned), undefined);
+    assert.match(await page.textContent('#ct-pilot-entries .entry[data-issue="109"]'), /Excluded from later merges: <img/);
+    assert.deepEqual(errors, []);
+    await page.close();
+  } finally {
+    overrides.delete('/data/pilot_status.json');
+    overrides.delete('/data/community_results.json');
+  }
+});
+
+test('the Contributions tab reads the published pilot status, and says when a status can’t be read', async () => {
+  const { page, errors } = await openLab();
+  await page.click('.tabs button[data-tab="contributions"]');
+  await page.waitForFunction(() => /ledger: 0 events/.test(document.getElementById('ct-status').textContent), null, { timeout: 30000 });
+  assert.match(await page.textContent('#ct-pilot-summary'), /^The current model is round 1 \(ffbaa49dd114…\)\. Round 2 is open to shards 2, 3, 4, 5\. 0 contributions recorded, 0 merged/);
+  assert.match(await page.textContent('#ct-pilot-entries'), /^No contributions yet\. Round 2 is open/);
+  assert.match(await page.textContent('#ct-next li[data-step="pilot-shards"]'), /shards 2, 3, 4 and 5 have no contribution yet/);
+  assert.equal(await page.$$eval('#ct-shards tbody tr[data-coverage="missing"]', (trs) => trs.length), 4);
+  assert.deepEqual(errors, []);
+  await page.close();
+
+  overrides.set('/data/pilot_status.json', JSON.stringify({ format: 'something-else' }));
+  try {
+    const broken = await openLab();
+    await broken.page.click('.tabs button[data-tab="contributions"]');
+    await broken.page.waitForFunction(() => /Couldn’t load the checkpoint pilot’s status/.test(document.getElementById('ct-status').textContent), null, { timeout: 30000 });
+    assert.match(await broken.page.textContent('#ct-pilot-summary'), /^The pilot’s status couldn’t be read: not a eiathome-pilot-status version 1 file/);
+    assert.equal(await broken.page.$$eval('#ct-pilot-entries .entry', (es) => es.length), 0);
+    assert.deepEqual(broken.errors, []);
+    await broken.page.close();
+  } finally {
+    overrides.delete('/data/pilot_status.json');
+  }
 });
 
 // Recovery cards to seed a browser's storage with. Storage checks a card's form, not its counts,

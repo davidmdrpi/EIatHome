@@ -5,8 +5,9 @@ random slice of real data, shown on the sky map where the telescope pointed), tr
 on it in the browser, look at its predictions and hidden states, measure how language-like its radio tokens are, and run
 reproducible work units. The Recovery tab measures which weak signals two standard detectors
 find in real data, at a fixed false-alarm rate. Above both, the Observatory viewport shows each
-signal's place on the sky and zooms in on it while the computation runs. Everything computes
-locally; there is no server.
+signal's place on the sky and zooms in on it while the computation runs. The Contributions tab
+shows where every contribution stands, stage by stage, with what decided each stage. Everything
+computes locally; there is no server.
 
 ## Run it locally
 
@@ -38,6 +39,8 @@ browsers don't run module workers from `file://` URLs.
 | `js/splits.js` | Groups a real family's slices into observing sessions and keeps training and evaluation on different sessions |
 | `js/workunits.js` | Versioned work-unit specs (`track-a/v0`; the recovery and merge specs live in `js/recovery.js` and `js/merge.js`). A `track-a/v0` unit reads only the slices of its spec's families (`specSlices`), so slices of later families leave its inputs and dataset id alone |
 | `js/contributions.js` | What became of the result cards computed in this browser (computed here, saved to a file, opened on GitHub, accepted into the community results), and the rule for keeping them: a card is dropped to make room only if it's accepted or saved |
+| `js/lifecycle.js` | The Contributions tab's stages and criteria, with no DOM: each browser card (computed, submitted, validated, replicated or recomputed, counted) against the community results, each checkpoint-pilot contribution (submitted, validated, replicated, merged) and each merge from `data/pilot_status.json`, and what would help next |
+| `js/format.js` | Formatting shared by the panels: numbers that never read `-0.00`, and a family's possessive (`SETI targets’`, `Voyager 1’s`) |
 | `js/skymap.js` | The Observatory viewport: a sky map on a canvas (stereographic projection, so stars stay round at any zoom). Slews along great circles to each signal's pointing, zooms from 60° to the 2° around the telescope beam with a computation's progress (a random sample instead gets a flight: out to a 35° view of its part of the sky with the constellations showing, then into the beam, which stays framed while the tracks run; the reticle names the target and frequency, "Tau Ceti · 3.29 GHz"), and draws its live effects: wavefronts for Track A and B, and the 1,024-window grid for recovery units. Observatory mode fills the window and can keep running work units. A running job stays on the target whose data it uses, and the HUD names that data. The coordinate math has no DOM dependencies, so tests run it in Node |
 | `data/sky/` | The sky it draws (`tools/build_sky.py`): the 1,500 brightest Hipparcos stars with B−V colours, every Hipparcos star near the observed targets, constellation lines, names and IAU boundaries, and reference targets (among them the Wow! signal's two possible fields), from d3-celestial (BSD-3-Clause, notice in `LICENSE.d3-celestial.txt`) |
 | `js/recovery.js`, `js/recovery.worker.js` | The `recovery/v0` work unit (`tracks/recovery`, issue #13): injects synthetic signals into the real off-source windows in `data/recovery/`, deals them blind to the de-Doppler and energy detectors, and counts what each finds at thresholds pinned in the spec. Also checks recovery cards and adds units up |
@@ -72,7 +75,7 @@ out whole scans or sessions.
 `tests/sample.test.mjs` checks the random sky sample: it never repeats the slice shown, can
 reach every published family, draws signals and controls half the time each (blind windows and
 off-source a quarter each), prefers slices with a pointing, and writes the card from the
-manifest and Track A's callout, which says "held out" only when the family has a holdout; and that the slice pool stays within its limits, with every slice located and credited.
+manifest and Track A's callout, which says "held out in the test split" only when the family has a holdout (Track A and Track B name splits the same way); and that the slice pool stays within its limits, with every slice located and credited.
 `tests/skymap.test.mjs` checks the viewport's math and data: coordinates, galactic conversion,
 the projection and its inverse, slews and flights, the reticle's label, sidereal time, constellations from the IAU boundaries,
 and that the manifest records where every slice pointed.
@@ -93,7 +96,14 @@ when they disagree, or when trimming after the drop removes survivors), and that
 malformed value anywhere in a card is rejected, never thrown on.
 `tests/community.test.mjs` checks card validation, replication summaries and the ingestion
 script, and `tests/ingest_issues.test.mjs` runs the ingestion driver against a local git
-remote and a fake `gh`. `tests/browser.test.mjs` serves this folder and drives the Live Lab in
+remote and a fake `gh`. `tests/lifecycle.test.mjs` checks the Contributions tab's stages: a card
+from computed to submitted as the browser's marks say, recorded cards single, replicated or
+disagreeing (naming the metrics apart) as their unit's runs are, recovery cards recomputed and
+combined, the order cards are listed in, each pilot contribution's gate, replication and merge
+with their numbers (from `tests/fixtures/pilot_status.json`, whose shape a Python test checks
+against the export), and what would help next. `tests/format.test.mjs` checks that a value that
+rounds to zero never reads `-0.00`, plural possessives, and the split names Track A and Track B
+share. `tests/browser.test.mjs` serves this folder and drives the Live Lab in
 headless Chromium. It checks that:
 
 - slice metadata is always shown as text;
@@ -142,6 +152,14 @@ headless Chromium. It checks that:
 - Track B describes a real family's sessions as loaded (Voyager 1's four scans span 2016 and
   2020, two sessions, so its held-out scans share a session with training), and explains the
   control row from the run's own numbers.
+- the control note writes a plural family's possessive with the apostrophe alone ("SETI
+  targets’", "Blind windows’"), and no gain reads `-0.00`;
+- the Contributions tab lists the next steps (missing shard coverage first), each pilot
+  contribution's stages with its gate, replication and weight (unreplicated first), each merge
+  with its shard weights and a rollback, the recorded units in replication order with what
+  decides each, and this browser's cards by what they need, treating maintainers' text as text;
+  with the published status it shows the open round and its four uncovered shards, and a status
+  it can't read is reported, not shown.
 
 CI runs both on every pull request.
 
@@ -198,6 +216,38 @@ that, auto-run pauses and the review opens, so you can submit or save them. The 
 computed this session, cards awaiting submission and cards accepted. Nothing about this leaves
 the browser.
 
+## Contributions
+
+The Contributions tab shows every contribution's stages, each **done**, **now** (where it
+stands: the next step is someone's), **later**, **failed** or **not applicable**, with the
+criterion that decides it and the numbers it was decided on. It reads only the records:
+
+- **Result cards in this browser** (`track-a/v0`, `trackb-merge/v0` and `v1`, `recovery/v0`):
+  computed here; submitted (an opened issue is a draft until posted); validated, once
+  `data/community_results.json` holds the exact card, against the checks
+  `tools/ingest_result.mjs` applies to its kind; replicated, when a different volunteer's run of
+  the unit on the same data agrees within 0.02 on every metric (the tab lists the metrics that
+  don't), or for a recovery unit recomputed on the published windows; and counted. The cards
+  carry measurements, not weights, so nothing merges them into a model.
+- **Recorded result cards**, by unit: not replicated yet, disagreeing, replicated, in that order.
+- **The checkpoint pilot** (`tracks/llm/PILOT.md`), from `data/pilot_status.json`: each
+  contribution's held-out validation gate (its score, the current model's, and the margin),
+  its replication (the coordinator's run: the bits apart and the delta cosine, against 0.02 and
+  0.9), and its merge (its weight: its shard's share of the round's training targets, split
+  among the shard's contributions), or why it wasn't merged (not replicated, excluded, rolled
+  back, superseded). Each merge shows its gate, its shard weights and each volunteer's total.
+  The open round's shards are listed least covered first.
+
+**What would help next** puts the pilot's shards without a contribution first, then the
+volunteers a merge still needs, units with one volunteer's run, units whose runs disagree, and
+cards in this browser not yet submitted. Submissions refused before they were recorded aren't in
+either record; the tab links to the issues labelled `work-unit-rejected` and
+`checkpoint-rejected`, whose replies say why.
+
+`data/pilot_status.json` is made from the pilot's ledger by `python -m tracks.llm.pilot export`,
+which every command that changes the ledger also runs; CI checks it matches the ledger
+(`export --check`).
+
 ## Deploying
 
 `.github/workflows/pages.yml` deploys this folder to GitHub Pages on every push to `main`
@@ -205,6 +255,11 @@ that touches `web/`. Enable it once in the repository's **Settings → Pages →
 deployment → Source: GitHub Actions**.
 
 ## Community results
+
+Checkpoint contributions to the pilot go through the same driver with `--kind checkpoint`
+(`.github/workflows/ingest-checkpoints.yml`): `python -m tracks.llm.pilot ingest` checks each,
+and an accepted one is committed with the rewritten `data/pilot_status.json` and announced after
+a Pages deploy is requested, as result cards are.
 
 `.github/workflows/ingest-results.yml` runs when an issue titled `Work unit result: …` is
 opened, every six hours, and on demand. Each run calls `tools/ingest_issues.mjs`, which runs

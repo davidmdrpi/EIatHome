@@ -11,7 +11,9 @@ sessions none of the volunteers trained on.
 
 **Status: open, no contributions yet.** The current model is round 1, the session benchmark's
 published seed-42 base. Round 2 is open to shards 2 to 5. `python -m tracks.llm.pilot status`
-shows the live state from [pilot/v0/ledger.json](pilot/v0/ledger.json).
+shows the live state from [pilot/v0/ledger.json](pilot/v0/ledger.json), and the Live Lab's
+[Contributions tab](https://davidmdrpi.github.io/EIatHome/#contributions) shows every
+contribution's stages with the numbers that decided them.
 
 ## How to contribute
 
@@ -139,8 +141,25 @@ contribution already in the current model stays there until its round is rolled 
 | `pilot/v0/ledger.json` | every event in order: submissions (with the coordinator's scores and replication), exclusions, rounds, rollbacks |
 | `pilot/v0/submissions/<id>.json` | each recorded artifact, exactly as submitted, named by its SHA-256 |
 | `pilot/v0/rounds/<digest>.bin`, `.json` | each accepted merge's weights and header |
+| `web/data/pilot_status.json` | the Live Lab's copy of the ledger's state: each contribution's stage and the numbers each check decided it on, each merge, rollback and exclusion, and the open round's coverage |
 
 Issue cards and replies are the receipts. The ledger and the stored artifacts are the record.
+
+`python -m tracks.llm.pilot export` makes `web/data/pilot_status.json` from the ledger alone,
+rescoring nothing. `ingest`, `merge`, `rollback` and `exclude` rewrite it whenever they change the
+ledger, the workflows commit it with the ledger and request a Live Lab deploy, and
+`export --check` (in CI) fails when it isn't the ledger's. A contribution's stage there is one
+of:
+
+| Stage | Meaning |
+|---|---|
+| `eligible` | validated and replicated, for the open round: the next merge takes it |
+| `merged` | merged with a weight above 0 into a round of the current chain |
+| `not replicated` | the coordinator's run of its shard and seed missed the rule, or its replication record doesn't hold together |
+| `excluded` | kept out of later merges, with the maintainer's reason |
+| `rolled back` | merged into a round that was rolled back, and no longer for the current model |
+| `superseded` | for a round whose start is no longer the current model |
+| `not merged` | in a round that gave it no weight, with the round's reason |
 
 `python -m tracks.llm.pilot verify` (run in CI) replays the whole ledger:
 

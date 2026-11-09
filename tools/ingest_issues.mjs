@@ -5,7 +5,8 @@
 //   tools/ingest_result.mjs and appended to web/data/community_results.json; the Live Lab is
 //   redeployed (.github/workflows/ingest-results.yml);
 // - checkpoint: checkpoint contributions to the volunteer pilot, titled "Checkpoint contribution:
-//   ...", checked by `python -m tracks.llm.pilot ingest` and stored under tracks/llm/pilot
+//   ...", checked by `python -m tracks.llm.pilot ingest` and stored under tracks/llm/pilot, with
+//   the pilot's status rewritten to web/data/pilot_status.json; the Live Lab is redeployed
 //   (.github/workflows/ingest-checkpoints.yml; tracks/llm/PILOT.md).
 //
 // Each accepted submission is committed to main, and the issue gets a reply and a label. Run from
@@ -19,8 +20,9 @@
 // --pending is the retry path. It picks up issues whose run was cancelled (a full concurrency
 // queue), failed, or never started, and issues labelled work-unit-pending (checkpoint-pending)
 // because saving failed. Issues already labelled recorded or rejected are skipped, so re-running
-// is safe. A result issue is labelled work-unit only after its card is on main and a Pages deploy
-// was requested, so a run that fails after the push leaves the publication to the next run.
+// is safe. An issue is labelled recorded (work-unit or checkpoint) only after its submission is on
+// main and a Pages deploy was requested, so a run that fails after the push leaves the
+// publication to the next run.
 //
 // The issue text is untrusted. It is only written to a file for the validator to parse. gh and
 // git run without a shell, with issue numbers and fixed strings as arguments.
@@ -36,6 +38,7 @@ import { fileURLToPath } from 'node:url';
 
 const RESULTS = 'web/data/community_results.json';
 const SLICES = 'web/data/slices';
+const PILOT_STATUS = 'web/data/pilot_status.json';
 const INGEST = fileURLToPath(new URL('./ingest_result.mjs', import.meta.url));
 const SAVE_ATTEMPTS = 3;
 
@@ -58,9 +61,10 @@ const KINDS = {
     prefix: 'Checkpoint contribution:',
     // EIATHOME_PYTHON lets the tests stand in a fake validator; CI uses the job's python.
     validator: (event, comment) => [process.env.EIATHOME_PYTHON || 'python', ['-m', 'tracks.llm.pilot', 'ingest', event, comment]],
-    paths: ['tracks/llm/pilot'],
+    // The pilot's validator also rewrites the Live Lab's copy of its status (pilot_status.json).
+    paths: ['tracks/llm/pilot', PILOT_STATUS],
     commit: (n) => `Add checkpoint contribution from #${n}`,
-    deploy: false,
+    deploy: true,
     labels: {
       recorded: ['checkpoint', '1D76DB', 'Checkpoint contribution recorded by the pilot'],
       rejected: ['checkpoint-rejected', 'D93F0B', 'Checkpoint contribution that could not be accepted'],
@@ -194,7 +198,7 @@ async function main() {
   // with the card on main. Until then the issue stays open and unlabelled, so whichever run
   // comes next finds the card already stored ("recorded") and requests the deploy again.
   // (Pushes made with the workflow token don't trigger other workflows, hence the request.)
-  // Checkpoint contributions aren't shown in the Live Lab, so they're published once on main.
+  // Checkpoint contributions too: the Live Lab's Contributions tab shows the pilot's status.
   let published = !KIND.deploy;
   if (KIND.deploy && outcomes.some((o) => o.status === 'accepted' || o.status === 'recorded')) {
     try {
