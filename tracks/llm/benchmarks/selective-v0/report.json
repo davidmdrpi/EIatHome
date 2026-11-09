@@ -1,0 +1,1596 @@
+{
+ "format": "eiathome-selective-execution",
+ "version": 1,
+ "environment": {
+  "python": "3.13.17",
+  "numpy": "2.5.3",
+  "torch": "2.15.0+cpu",
+  "platform": "Linux-6.18.44-fc-v310-x86_64-with-glibc2.39",
+  "cpu": "Intel(R) Xeon(R) Processor @ 2.10GHz",
+  "cpu_count": 4,
+  "threads": 1
+ },
+ "settings": {
+  "anchor": "v3",
+  "families": [
+   "voyager",
+   "rosetta",
+   "sweep"
+  ],
+  "commit_after": [
+   8,
+   4
+  ],
+  "repeats": 25,
+  "seeds": [
+   42,
+   43,
+   44
+  ],
+  "banks": "runs/route-bank"
+ },
+ "seeds": {
+  "42": {
+   "exactness": {
+    "committed after 8": {
+     "max_abs_bits_difference": 0.0,
+     "targets_routed_differently": 0,
+     "targets": 576,
+     "test_bits": {
+      "voyager": 3.14819240280522,
+      "rosetta": 2.454761743576518,
+      "sweep": 4.716820153848519,
+      "mean": 3.439924766743419
+     }
+    },
+    "committed after 4": {
+     "max_abs_bits_difference": 1.522702758549599e-06,
+     "targets_routed_differently": 0,
+     "targets": 576,
+     "test_bits": {
+      "voyager": 3.14819243809216,
+      "rosetta": 2.4547617510265263,
+      "sweep": 4.866230803939083,
+      "mean": 3.4897283310192564
+     }
+    }
+   },
+   "arms": {
+    "bank": {
+     "sequences": 24,
+     "targets": 1152,
+     "forward_calls_per_sequence": 12.0,
+     "positions_per_target": 3.0,
+     "parameter_positions_per_target": 82752.0,
+     "per_sequence": {
+      "wall_s": 0.21647312000004604,
+      "wall_s_quartiles": [
+       0.21343259500002887,
+       0.23141426300003332
+      ],
+      "cpu_s": 0.21632145700000116,
+      "energy_j": null,
+      "ms_per_sequence": 9.019713333335252,
+      "energy_mj_per_sequence": null
+     },
+     "batched": {
+      "wall_s": 0.020496384000011858,
+      "wall_s_quartiles": [
+       0.02004024500001833,
+       0.021204781000051298
+      ],
+      "cpu_s": 0.020500015999999732,
+      "energy_j": null,
+      "sequences_per_s": 1170.938249399802,
+      "forward_calls": 6
+     },
+     "batched_per_family": {
+      "wall_s": 0.03013267400001496,
+      "wall_s_quartiles": [
+       0.029943412000022818,
+       0.030658671999958642
+      ],
+      "cpu_s": 0.03013612600000215,
+      "energy_j": null,
+      "sequences_per_s": 796.4776043436466,
+      "forward_calls": 18
+     },
+     "committed_to": null,
+     "weights_resident_bytes": 331008,
+     "weights_resident_parameters": 82752,
+     "memory": {
+      "resident": [
+       "voyager",
+       "rosetta",
+       "sweep"
+      ],
+      "before_kib": {
+       "VmHWM": 313928,
+       "VmRSS": 313928
+      },
+      "after_load_kib": {
+       "VmHWM": 314216,
+       "VmRSS": 314216
+      },
+      "after_kib": {
+       "VmHWM": 314340,
+       "VmRSS": 314340
+      },
+      "load_increase_kib": 288,
+      "run_increase_kib": 124,
+      "peak_increase_kib": 412,
+      "bits": {
+       "voyager": 3.014448368139488,
+       "rosetta": 2.4191504208482604,
+       "sweep": 4.562405888078609
+      },
+      "weights_resident_bytes": 331008
+     }
+    },
+    "committed after 8": {
+     "sequences": 24,
+     "targets": 1152,
+     "forward_calls_per_sequence": 7.0,
+     "positions_per_target": 1.4375,
+     "parameter_positions_per_target": 39652.0,
+     "per_sequence": {
+      "wall_s": 0.13675968199999033,
+      "wall_s_quartiles": [
+       0.13437494900000502,
+       0.14244039800001929
+      ],
+      "cpu_s": 0.13651607100000085,
+      "energy_j": null,
+      "ms_per_sequence": 5.698320083332931,
+      "energy_mj_per_sequence": null
+     },
+     "batched": {
+      "wall_s": 0.015628313000036087,
+      "wall_s_quartiles": [
+       0.015010555000003478,
+       0.016152291000025798
+      ],
+      "cpu_s": 0.015614428999999319,
+      "energy_j": null,
+      "sequences_per_s": 1535.6743878846412,
+      "forward_calls": 9
+     },
+     "batched_per_family": {
+      "wall_s": 0.02244381599996359,
+      "wall_s_quartiles": [
+       0.022225414000047294,
+       0.0229039160000184
+      ],
+      "cpu_s": 0.022412124999998895,
+      "energy_j": null,
+      "sequences_per_s": 1069.3368721272236,
+      "forward_calls": 17
+     },
+     "committed_to": {
+      "voyager": {
+       "voyager": 6
+      },
+      "rosetta": {
+       "rosetta": 12
+      },
+      "sweep": {
+       "voyager": 2,
+       "sweep": 4
+      }
+     },
+     "weights_resident_bytes": 331008,
+     "weights_resident_parameters": 82752,
+     "memory": {
+      "resident": [
+       "voyager",
+       "rosetta",
+       "sweep"
+      ],
+      "before_kib": {
+       "VmHWM": 314020,
+       "VmRSS": 314020
+      },
+      "after_load_kib": {
+       "VmHWM": 314308,
+       "VmRSS": 314308
+      },
+      "after_kib": {
+       "VmHWM": 314428,
+       "VmRSS": 314428
+      },
+      "load_increase_kib": 288,
+      "run_increase_kib": 120,
+      "peak_increase_kib": 408,
+      "bits": {
+       "voyager": 3.0329386063377277,
+       "rosetta": 2.4039090276837793,
+       "sweep": 4.8209002908019825
+      },
+      "weights_resident_bytes": 331008
+     }
+    },
+    "committed after 4": {
+     "sequences": 24,
+     "targets": 1152,
+     "forward_calls_per_sequence": 7.0,
+     "positions_per_target": 1.1875,
+     "parameter_positions_per_target": 32756.0,
+     "per_sequence": {
+      "wall_s": 0.1336383410000508,
+      "wall_s_quartiles": [
+       0.1292264839999575,
+       0.14097830600002226
+      ],
+      "cpu_s": 0.13351808400000031,
+      "energy_j": null,
+      "ms_per_sequence": 5.568264208335449,
+      "energy_mj_per_sequence": null
+     },
+     "batched": {
+      "wall_s": 0.014273108999987016,
+      "wall_s_quartiles": [
+       0.01389955600001258,
+       0.014579644999969332
+      ],
+      "cpu_s": 0.014257716999999559,
+      "energy_j": null,
+      "sequences_per_s": 1681.483690765749,
+      "forward_calls": 9
+     },
+     "batched_per_family": {
+      "wall_s": 0.022269344999983787,
+      "wall_s_quartiles": [
+       0.022081972000023598,
+       0.02273141199998463
+      ],
+      "cpu_s": 0.022273443000003113,
+      "energy_j": null,
+      "sequences_per_s": 1077.7146790809281,
+      "forward_calls": 19
+     },
+     "committed_to": {
+      "voyager": {
+       "voyager": 4,
+       "sweep": 2
+      },
+      "rosetta": {
+       "rosetta": 12
+      },
+      "sweep": {
+       "voyager": 3,
+       "sweep": 3
+      }
+     },
+     "weights_resident_bytes": 331008,
+     "weights_resident_parameters": 82752,
+     "memory": {
+      "resident": [
+       "voyager",
+       "rosetta",
+       "sweep"
+      ],
+      "before_kib": {
+       "VmHWM": 313980,
+       "VmRSS": 313980
+      },
+      "after_load_kib": {
+       "VmHWM": 314264,
+       "VmRSS": 314264
+      },
+      "after_kib": {
+       "VmHWM": 314384,
+       "VmRSS": 314384
+      },
+      "load_increase_kib": 284,
+      "run_increase_kib": 120,
+      "peak_increase_kib": 404,
+      "bits": {
+       "voyager": 3.6990646126417612,
+       "rosetta": 2.4039090294363703,
+       "sweep": 5.0073757194109465
+      },
+      "weights_resident_bytes": 331008
+     }
+    },
+    "one specialist": {
+     "sequences": 24,
+     "targets": 1152,
+     "forward_calls_per_sequence": 4.0,
+     "positions_per_target": 1.0,
+     "parameter_positions_per_target": 27584.0,
+     "per_sequence": {
+      "wall_s": 0.07127213499995833,
+      "wall_s_quartiles": [
+       0.06916752699999051,
+       0.07639992600002188
+      ],
+      "cpu_s": 0.07084501999999926,
+      "energy_j": null,
+      "ms_per_sequence": 2.96967229166493,
+      "energy_mj_per_sequence": null
+     },
+     "batched": {
+      "wall_s": 0.009991141000000425,
+      "wall_s_quartiles": [
+       0.009633925000002819,
+       0.010502704999964863
+      ],
+      "cpu_s": 0.009994543000001244,
+      "energy_j": null,
+      "sequences_per_s": 2402.1280452351716,
+      "forward_calls": 6
+     },
+     "batched_per_family": {
+      "wall_s": 0.009757993999983228,
+      "wall_s_quartiles": [
+       0.009677655000018603,
+       0.009984588999998323
+      ],
+      "cpu_s": 0.0097621210000014,
+      "energy_j": null,
+      "sequences_per_s": 2459.521905838562,
+      "forward_calls": 6
+     },
+     "committed_to": null,
+     "weights_resident_bytes": 331008,
+     "weights_resident_parameters": 82752,
+     "memory": {
+      "resident": [
+       "voyager",
+       "rosetta",
+       "sweep"
+      ],
+      "before_kib": {
+       "VmHWM": 313932,
+       "VmRSS": 313932
+      },
+      "after_load_kib": {
+       "VmHWM": 314216,
+       "VmRSS": 314216
+      },
+      "after_kib": {
+       "VmHWM": 314228,
+       "VmRSS": 314228
+      },
+      "load_increase_kib": 284,
+      "run_increase_kib": 12,
+      "peak_increase_kib": 296,
+      "bits": {
+       "voyager": 2.965021892350007,
+       "rosetta": 2.4039090276837793,
+       "sweep": 4.542521946259997
+      },
+      "weights_resident_bytes": 331008
+     }
+    }
+   },
+   "memory": {
+    "bank": {
+     "resident": [
+      "voyager",
+      "rosetta",
+      "sweep"
+     ],
+     "before_kib": {
+      "VmHWM": 313928,
+      "VmRSS": 313928
+     },
+     "after_load_kib": {
+      "VmHWM": 314216,
+      "VmRSS": 314216
+     },
+     "after_kib": {
+      "VmHWM": 314340,
+      "VmRSS": 314340
+     },
+     "load_increase_kib": 288,
+     "run_increase_kib": 124,
+     "peak_increase_kib": 412,
+     "bits": {
+      "voyager": 3.014448368139488,
+      "rosetta": 2.4191504208482604,
+      "sweep": 4.562405888078609
+     },
+     "weights_resident_bytes": 331008
+    },
+    "committed after 8": {
+     "resident": [
+      "voyager",
+      "rosetta",
+      "sweep"
+     ],
+     "before_kib": {
+      "VmHWM": 314020,
+      "VmRSS": 314020
+     },
+     "after_load_kib": {
+      "VmHWM": 314308,
+      "VmRSS": 314308
+     },
+     "after_kib": {
+      "VmHWM": 314428,
+      "VmRSS": 314428
+     },
+     "load_increase_kib": 288,
+     "run_increase_kib": 120,
+     "peak_increase_kib": 408,
+     "bits": {
+      "voyager": 3.0329386063377277,
+      "rosetta": 2.4039090276837793,
+      "sweep": 4.8209002908019825
+     },
+     "weights_resident_bytes": 331008
+    },
+    "committed after 4": {
+     "resident": [
+      "voyager",
+      "rosetta",
+      "sweep"
+     ],
+     "before_kib": {
+      "VmHWM": 313980,
+      "VmRSS": 313980
+     },
+     "after_load_kib": {
+      "VmHWM": 314264,
+      "VmRSS": 314264
+     },
+     "after_kib": {
+      "VmHWM": 314384,
+      "VmRSS": 314384
+     },
+     "load_increase_kib": 284,
+     "run_increase_kib": 120,
+     "peak_increase_kib": 404,
+     "bits": {
+      "voyager": 3.6990646126417612,
+      "rosetta": 2.4039090294363703,
+      "sweep": 5.0073757194109465
+     },
+     "weights_resident_bytes": 331008
+    },
+    "one specialist": {
+     "resident": [
+      "voyager",
+      "rosetta",
+      "sweep"
+     ],
+     "before_kib": {
+      "VmHWM": 313932,
+      "VmRSS": 313932
+     },
+     "after_load_kib": {
+      "VmHWM": 314216,
+      "VmRSS": 314216
+     },
+     "after_kib": {
+      "VmHWM": 314228,
+      "VmRSS": 314228
+     },
+     "load_increase_kib": 284,
+     "run_increase_kib": 12,
+     "peak_increase_kib": 296,
+     "bits": {
+      "voyager": 2.965021892350007,
+      "rosetta": 2.4039090276837793,
+      "sweep": 4.542521946259997
+     },
+     "weights_resident_bytes": 331008
+    },
+    "one family's specialist alone (memory control)": {
+     "resident": [
+      "voyager"
+     ],
+     "before_kib": {
+      "VmHWM": 313892,
+      "VmRSS": 313892
+     },
+     "after_load_kib": {
+      "VmHWM": 314056,
+      "VmRSS": 314056
+     },
+     "after_kib": {
+      "VmHWM": 314056,
+      "VmRSS": 314056
+     },
+     "load_increase_kib": 164,
+     "run_increase_kib": 0,
+     "peak_increase_kib": 164,
+     "bits": {
+      "voyager": 2.965021892350007
+     },
+     "weights_resident_bytes": 110336
+    }
+   },
+   "energy": "not measured: this machine exposes no readable RAPL counters"
+  },
+  "43": {
+   "exactness": {
+    "committed after 8": {
+     "max_abs_bits_difference": 0.0,
+     "targets_routed_differently": 0,
+     "targets": 576,
+     "test_bits": {
+      "voyager": 3.1576659494491968,
+      "rosetta": 2.4353824845260257,
+      "sweep": 4.686262126210138,
+      "mean": 3.42643685339512
+     }
+    },
+    "committed after 4": {
+     "max_abs_bits_difference": 1.5276289548893374e-06,
+     "targets_routed_differently": 0,
+     "targets": 576,
+     "test_bits": {
+      "voyager": 3.1576659716732185,
+      "rosetta": 2.435382497318464,
+      "sweep": 4.8235474467553185,
+      "mean": 3.472198638582334
+     }
+    }
+   },
+   "arms": {
+    "bank": {
+     "sequences": 24,
+     "targets": 1152,
+     "forward_calls_per_sequence": 12.0,
+     "positions_per_target": 3.0,
+     "parameter_positions_per_target": 82752.0,
+     "per_sequence": {
+      "wall_s": 0.2287661390000153,
+      "wall_s_quartiles": [
+       0.21736830999998347,
+       0.23887156500001083
+      ],
+      "cpu_s": 0.22707994399999976,
+      "energy_j": null,
+      "ms_per_sequence": 9.531922458333971,
+      "energy_mj_per_sequence": null
+     },
+     "batched": {
+      "wall_s": 0.020813555000017914,
+      "wall_s_quartiles": [
+       0.02017984700000852,
+       0.026931928999999855
+      ],
+      "cpu_s": 0.020759271999999385,
+      "energy_j": null,
+      "sequences_per_s": 1153.0947019852852,
+      "forward_calls": 6
+     },
+     "batched_per_family": {
+      "wall_s": 0.031172271999992063,
+      "wall_s_quartiles": [
+       0.030173837999996067,
+       0.032013887999994495
+      ],
+      "cpu_s": 0.031080314000000442,
+      "energy_j": null,
+      "sequences_per_s": 769.9150065162434,
+      "forward_calls": 18
+     },
+     "committed_to": null,
+     "weights_resident_bytes": 331008,
+     "weights_resident_parameters": 82752,
+     "memory": {
+      "resident": [
+       "voyager",
+       "rosetta",
+       "sweep"
+      ],
+      "before_kib": {
+       "VmHWM": 314032,
+       "VmRSS": 314032
+      },
+      "after_load_kib": {
+       "VmHWM": 314316,
+       "VmRSS": 314316
+      },
+      "after_kib": {
+       "VmHWM": 314440,
+       "VmRSS": 314440
+      },
+      "load_increase_kib": 284,
+      "run_increase_kib": 124,
+      "peak_increase_kib": 408,
+      "bits": {
+       "voyager": 3.0228740729515877,
+       "rosetta": 2.4037294233969835,
+       "sweep": 4.5334866774447455
+      },
+      "weights_resident_bytes": 331008
+     }
+    },
+    "committed after 8": {
+     "sequences": 24,
+     "targets": 1152,
+     "forward_calls_per_sequence": 7.0,
+     "positions_per_target": 1.4375,
+     "parameter_positions_per_target": 39652.0,
+     "per_sequence": {
+      "wall_s": 0.1353927089999729,
+      "wall_s_quartiles": [
+       0.13241375399996969,
+       0.14872050100001388
+      ],
+      "cpu_s": 0.13470942200000025,
+      "energy_j": null,
+      "ms_per_sequence": 5.641362874998872,
+      "energy_mj_per_sequence": null
+     },
+     "batched": {
+      "wall_s": 0.016824519000010696,
+      "wall_s_quartiles": [
+       0.01546401699999933,
+       0.020577611000021534
+      ],
+      "cpu_s": 0.016532515000001524,
+      "energy_j": null,
+      "sequences_per_s": 1426.4895180649587,
+      "forward_calls": 9
+     },
+     "batched_per_family": {
+      "wall_s": 0.02238004599996657,
+      "wall_s_quartiles": [
+       0.0220757879999951,
+       0.02353065400001242
+      ],
+      "cpu_s": 0.022341815000004317,
+      "energy_j": null,
+      "sequences_per_s": 1072.3838547979683,
+      "forward_calls": 17
+     },
+     "committed_to": {
+      "voyager": {
+       "voyager": 6
+      },
+      "rosetta": {
+       "rosetta": 12
+      },
+      "sweep": {
+       "voyager": 2,
+       "sweep": 4
+      }
+     },
+     "weights_resident_bytes": 331008,
+     "weights_resident_parameters": 82752,
+     "memory": {
+      "resident": [
+       "voyager",
+       "rosetta",
+       "sweep"
+      ],
+      "before_kib": {
+       "VmHWM": 314048,
+       "VmRSS": 314048
+      },
+      "after_load_kib": {
+       "VmHWM": 314336,
+       "VmRSS": 314336
+      },
+      "after_kib": {
+       "VmHWM": 314456,
+       "VmRSS": 314456
+      },
+      "load_increase_kib": 288,
+      "run_increase_kib": 120,
+      "peak_increase_kib": 408,
+      "bits": {
+       "voyager": 3.040394205871541,
+       "rosetta": 2.3884880302325024,
+       "sweep": 4.782050369380954
+      },
+      "weights_resident_bytes": 331008
+     }
+    },
+    "committed after 4": {
+     "sequences": 24,
+     "targets": 1152,
+     "forward_calls_per_sequence": 7.0,
+     "positions_per_target": 1.1875,
+     "parameter_positions_per_target": 32756.0,
+     "per_sequence": {
+      "wall_s": 0.13576021599999422,
+      "wall_s_quartiles": [
+       0.12937336999999616,
+       0.14854028899998184
+      ],
+      "cpu_s": 0.13370708799999775,
+      "energy_j": null,
+      "ms_per_sequence": 5.656675666666426,
+      "energy_mj_per_sequence": null
+     },
+     "batched": {
+      "wall_s": 0.015584128000000419,
+      "wall_s_quartiles": [
+       0.014387478999992709,
+       0.020351131000040823
+      ],
+      "cpu_s": 0.015578035999993745,
+      "energy_j": null,
+      "sequences_per_s": 1540.028418657711,
+      "forward_calls": 9
+     },
+     "batched_per_family": {
+      "wall_s": 0.022307509000029313,
+      "wall_s_quartiles": [
+       0.022022606999996697,
+       0.023142854000013813
+      ],
+      "cpu_s": 0.022302095000000577,
+      "energy_j": null,
+      "sequences_per_s": 1075.870909655061,
+      "forward_calls": 19
+     },
+     "committed_to": {
+      "voyager": {
+       "voyager": 4,
+       "sweep": 2
+      },
+      "rosetta": {
+       "rosetta": 12
+      },
+      "sweep": {
+       "voyager": 3,
+       "sweep": 3
+      }
+     },
+     "weights_resident_bytes": 331008,
+     "weights_resident_parameters": 82752,
+     "memory": {
+      "resident": [
+       "voyager",
+       "rosetta",
+       "sweep"
+      ],
+      "before_kib": {
+       "VmHWM": 314008,
+       "VmRSS": 314008
+      },
+      "after_load_kib": {
+       "VmHWM": 314296,
+       "VmRSS": 314296
+      },
+      "after_kib": {
+       "VmHWM": 314416,
+       "VmRSS": 314416
+      },
+      "load_increase_kib": 288,
+      "run_increase_kib": 120,
+      "peak_increase_kib": 408,
+      "bits": {
+       "voyager": 3.7279865374537846,
+       "rosetta": 2.388488031571795,
+       "sweep": 4.948951481408849
+      },
+      "weights_resident_bytes": 331008
+     }
+    },
+    "one specialist": {
+     "sequences": 24,
+     "targets": 1152,
+     "forward_calls_per_sequence": 4.0,
+     "positions_per_target": 1.0,
+     "parameter_positions_per_target": 27584.0,
+     "per_sequence": {
+      "wall_s": 0.07426781199995958,
+      "wall_s_quartiles": [
+       0.06963065299999016,
+       0.0810232160000055
+      ],
+      "cpu_s": 0.07312177999999392,
+      "energy_j": null,
+      "ms_per_sequence": 3.0944921666649825,
+      "energy_mj_per_sequence": null
+     },
+     "batched": {
+      "wall_s": 0.010418474999994487,
+      "wall_s_quartiles": [
+       0.009773510000002261,
+       0.011667547999991257
+      ],
+      "cpu_s": 0.010262421000000188,
+      "energy_j": null,
+      "sequences_per_s": 2303.600095024723,
+      "forward_calls": 6
+     },
+     "batched_per_family": {
+      "wall_s": 0.009826433999990059,
+      "wall_s_quartiles": [
+       0.009658855999987281,
+       0.01025027600002204
+      ],
+      "cpu_s": 0.009829746999997724,
+      "energy_j": null,
+      "sequences_per_s": 2442.3916142951025,
+      "forward_calls": 6
+     },
+     "committed_to": null,
+     "weights_resident_bytes": 331008,
+     "weights_resident_parameters": 82752,
+     "memory": {
+      "resident": [
+       "voyager",
+       "rosetta",
+       "sweep"
+      ],
+      "before_kib": {
+       "VmHWM": 314100,
+       "VmRSS": 314100
+      },
+      "after_load_kib": {
+       "VmHWM": 314392,
+       "VmRSS": 314392
+      },
+      "after_kib": {
+       "VmHWM": 314400,
+       "VmRSS": 314400
+      },
+      "load_increase_kib": 292,
+      "run_increase_kib": 8,
+      "peak_increase_kib": 300,
+      "bits": {
+       "voyager": 2.9734475971621066,
+       "rosetta": 2.3884880302325024,
+       "sweep": 4.513603768473839
+      },
+      "weights_resident_bytes": 331008
+     }
+    }
+   },
+   "memory": {
+    "bank": {
+     "resident": [
+      "voyager",
+      "rosetta",
+      "sweep"
+     ],
+     "before_kib": {
+      "VmHWM": 314032,
+      "VmRSS": 314032
+     },
+     "after_load_kib": {
+      "VmHWM": 314316,
+      "VmRSS": 314316
+     },
+     "after_kib": {
+      "VmHWM": 314440,
+      "VmRSS": 314440
+     },
+     "load_increase_kib": 284,
+     "run_increase_kib": 124,
+     "peak_increase_kib": 408,
+     "bits": {
+      "voyager": 3.0228740729515877,
+      "rosetta": 2.4037294233969835,
+      "sweep": 4.5334866774447455
+     },
+     "weights_resident_bytes": 331008
+    },
+    "committed after 8": {
+     "resident": [
+      "voyager",
+      "rosetta",
+      "sweep"
+     ],
+     "before_kib": {
+      "VmHWM": 314048,
+      "VmRSS": 314048
+     },
+     "after_load_kib": {
+      "VmHWM": 314336,
+      "VmRSS": 314336
+     },
+     "after_kib": {
+      "VmHWM": 314456,
+      "VmRSS": 314456
+     },
+     "load_increase_kib": 288,
+     "run_increase_kib": 120,
+     "peak_increase_kib": 408,
+     "bits": {
+      "voyager": 3.040394205871541,
+      "rosetta": 2.3884880302325024,
+      "sweep": 4.782050369380954
+     },
+     "weights_resident_bytes": 331008
+    },
+    "committed after 4": {
+     "resident": [
+      "voyager",
+      "rosetta",
+      "sweep"
+     ],
+     "before_kib": {
+      "VmHWM": 314008,
+      "VmRSS": 314008
+     },
+     "after_load_kib": {
+      "VmHWM": 314296,
+      "VmRSS": 314296
+     },
+     "after_kib": {
+      "VmHWM": 314416,
+      "VmRSS": 314416
+     },
+     "load_increase_kib": 288,
+     "run_increase_kib": 120,
+     "peak_increase_kib": 408,
+     "bits": {
+      "voyager": 3.7279865374537846,
+      "rosetta": 2.388488031571795,
+      "sweep": 4.948951481408849
+     },
+     "weights_resident_bytes": 331008
+    },
+    "one specialist": {
+     "resident": [
+      "voyager",
+      "rosetta",
+      "sweep"
+     ],
+     "before_kib": {
+      "VmHWM": 314100,
+      "VmRSS": 314100
+     },
+     "after_load_kib": {
+      "VmHWM": 314392,
+      "VmRSS": 314392
+     },
+     "after_kib": {
+      "VmHWM": 314400,
+      "VmRSS": 314400
+     },
+     "load_increase_kib": 292,
+     "run_increase_kib": 8,
+     "peak_increase_kib": 300,
+     "bits": {
+      "voyager": 2.9734475971621066,
+      "rosetta": 2.3884880302325024,
+      "sweep": 4.513603768473839
+     },
+     "weights_resident_bytes": 331008
+    },
+    "one family's specialist alone (memory control)": {
+     "resident": [
+      "voyager"
+     ],
+     "before_kib": {
+      "VmHWM": 313892,
+      "VmRSS": 313892
+     },
+     "after_load_kib": {
+      "VmHWM": 314052,
+      "VmRSS": 314052
+     },
+     "after_kib": {
+      "VmHWM": 314052,
+      "VmRSS": 314052
+     },
+     "load_increase_kib": 160,
+     "run_increase_kib": 0,
+     "peak_increase_kib": 160,
+     "bits": {
+      "voyager": 2.9734475971621066
+     },
+     "weights_resident_bytes": 110336
+    }
+   },
+   "energy": "not measured: this machine exposes no readable RAPL counters"
+  },
+  "44": {
+   "exactness": {
+    "committed after 8": {
+     "max_abs_bits_difference": 0.0,
+     "targets_routed_differently": 0,
+     "targets": 576,
+     "test_bits": {
+      "voyager": 3.166839788263045,
+      "rosetta": 2.4459790429092814,
+      "sweep": 4.691342346857749,
+      "mean": 3.4347203926766916
+     }
+    },
+    "committed after 4": {
+     "max_abs_bits_difference": 1.5998300622044326e-06,
+     "targets_routed_differently": 0,
+     "targets": 576,
+     "test_bits": {
+      "voyager": 3.1668398240744615,
+      "rosetta": 2.4459790528947627,
+      "sweep": 4.824739458154526,
+      "mean": 3.4791861117079166
+     }
+    }
+   },
+   "arms": {
+    "bank": {
+     "sequences": 24,
+     "targets": 1152,
+     "forward_calls_per_sequence": 12.0,
+     "positions_per_target": 3.0,
+     "parameter_positions_per_target": 82752.0,
+     "per_sequence": {
+      "wall_s": 0.2328284860000167,
+      "wall_s_quartiles": [
+       0.22422055399999863,
+       0.23600978700005726
+      ],
+      "cpu_s": 0.2303732189999934,
+      "energy_j": null,
+      "ms_per_sequence": 9.701186916667362,
+      "energy_mj_per_sequence": null
+     },
+     "batched": {
+      "wall_s": 0.020710102999942137,
+      "wall_s_quartiles": [
+       0.019821890000002895,
+       0.02174916100000246
+      ],
+      "cpu_s": 0.020541938999997456,
+      "energy_j": null,
+      "sequences_per_s": 1158.8546903927545,
+      "forward_calls": 6
+     },
+     "batched_per_family": {
+      "wall_s": 0.031510433999983434,
+      "wall_s_quartiles": [
+       0.030961314000023776,
+       0.03276531899996371
+      ],
+      "cpu_s": 0.031249630000004913,
+      "energy_j": null,
+      "sequences_per_s": 761.652473590577,
+      "forward_calls": 18
+     },
+     "committed_to": null,
+     "weights_resident_bytes": 331008,
+     "weights_resident_parameters": 82752,
+     "memory": {
+      "resident": [
+       "voyager",
+       "rosetta",
+       "sweep"
+      ],
+      "before_kib": {
+       "VmHWM": 314052,
+       "VmRSS": 314052
+      },
+      "after_load_kib": {
+       "VmHWM": 314336,
+       "VmRSS": 314336
+      },
+      "after_kib": {
+       "VmHWM": 314460,
+       "VmRSS": 314460
+      },
+      "load_increase_kib": 284,
+      "run_increase_kib": 124,
+      "peak_increase_kib": 408,
+      "bits": {
+       "voyager": 3.025861499821439,
+       "rosetta": 2.4094362619439442,
+       "sweep": 4.536560427738296
+      },
+      "weights_resident_bytes": 331008
+     }
+    },
+    "committed after 8": {
+     "sequences": 24,
+     "targets": 1152,
+     "forward_calls_per_sequence": 7.0,
+     "positions_per_target": 1.4375,
+     "parameter_positions_per_target": 39652.0,
+     "per_sequence": {
+      "wall_s": 0.14417010800002572,
+      "wall_s_quartiles": [
+       0.13586478800004897,
+       0.15030958399995598
+      ],
+      "cpu_s": 0.1422034870000033,
+      "energy_j": null,
+      "ms_per_sequence": 6.007087833334405,
+      "energy_mj_per_sequence": null
+     },
+     "batched": {
+      "wall_s": 0.016073184000106266,
+      "wall_s_quartiles": [
+       0.015614162999895598,
+       0.01763846000005742
+      ],
+      "cpu_s": 0.015978971999999203,
+      "energy_j": null,
+      "sequences_per_s": 1493.170239315454,
+      "forward_calls": 9
+     },
+     "batched_per_family": {
+      "wall_s": 0.02321151099999952,
+      "wall_s_quartiles": [
+       0.02257587299993702,
+       0.023712771000077737
+      ],
+      "cpu_s": 0.022849585000003003,
+      "energy_j": null,
+      "sequences_per_s": 1033.9697402724235,
+      "forward_calls": 17
+     },
+     "committed_to": {
+      "voyager": {
+       "voyager": 6
+      },
+      "rosetta": {
+       "rosetta": 12
+      },
+      "sweep": {
+       "voyager": 2,
+       "sweep": 4
+      }
+     },
+     "weights_resident_bytes": 331008,
+     "weights_resident_parameters": 82752,
+     "memory": {
+      "resident": [
+       "voyager",
+       "rosetta",
+       "sweep"
+      ],
+      "before_kib": {
+       "VmHWM": 313932,
+       "VmRSS": 313932
+      },
+      "after_load_kib": {
+       "VmHWM": 314220,
+       "VmRSS": 314220
+      },
+      "after_kib": {
+       "VmHWM": 314344,
+       "VmRSS": 314344
+      },
+      "load_increase_kib": 288,
+      "run_increase_kib": 124,
+      "peak_increase_kib": 412,
+      "bits": {
+       "voyager": 3.0453562492472557,
+       "rosetta": 2.394194868779463,
+       "sweep": 4.787000967430052
+      },
+      "weights_resident_bytes": 331008
+     }
+    },
+    "committed after 4": {
+     "sequences": 24,
+     "targets": 1152,
+     "forward_calls_per_sequence": 7.0,
+     "positions_per_target": 1.1875,
+     "parameter_positions_per_target": 32756.0,
+     "per_sequence": {
+      "wall_s": 0.13912698800004364,
+      "wall_s_quartiles": [
+       0.13294080600007874,
+       0.14395641799990244
+      ],
+      "cpu_s": 0.13754575099999755,
+      "energy_j": null,
+      "ms_per_sequence": 5.796957833335152,
+      "energy_mj_per_sequence": null
+     },
+     "batched": {
+      "wall_s": 0.014767366999990372,
+      "wall_s_quartiles": [
+       0.014213020000056531,
+       0.0160664300000235
+      ],
+      "cpu_s": 0.014770760000004657,
+      "energy_j": null,
+      "sequences_per_s": 1625.2050890328417,
+      "forward_calls": 9
+     },
+     "batched_per_family": {
+      "wall_s": 0.022937794000085887,
+      "wall_s_quartiles": [
+       0.0224962790000518,
+       0.024397604999990108
+      ],
+      "cpu_s": 0.022743406000003574,
+      "energy_j": null,
+      "sequences_per_s": 1046.308114891525,
+      "forward_calls": 19
+     },
+     "committed_to": {
+      "voyager": {
+       "voyager": 4,
+       "sweep": 2
+      },
+      "rosetta": {
+       "rosetta": 12
+      },
+      "sweep": {
+       "voyager": 3,
+       "sweep": 3
+      }
+     },
+     "weights_resident_bytes": 331008,
+     "weights_resident_parameters": 82752,
+     "memory": {
+      "resident": [
+       "voyager",
+       "rosetta",
+       "sweep"
+      ],
+      "before_kib": {
+       "VmHWM": 313956,
+       "VmRSS": 313956
+      },
+      "after_load_kib": {
+       "VmHWM": 314240,
+       "VmRSS": 314240
+      },
+      "after_kib": {
+       "VmHWM": 314364,
+       "VmRSS": 314364
+      },
+      "load_increase_kib": 284,
+      "run_increase_kib": 124,
+      "peak_increase_kib": 408,
+      "bits": {
+       "voyager": 3.721769743550158,
+       "rosetta": 2.394194865268029,
+       "sweep": 4.9518820678166255
+      },
+      "weights_resident_bytes": 331008
+     }
+    },
+    "one specialist": {
+     "sequences": 24,
+     "targets": 1152,
+     "forward_calls_per_sequence": 4.0,
+     "positions_per_target": 1.0,
+     "parameter_positions_per_target": 27584.0,
+     "per_sequence": {
+      "wall_s": 0.07323146099997757,
+      "wall_s_quartiles": [
+       0.07094964100008383,
+       0.07595781599991369
+      ],
+      "cpu_s": 0.07293893399999973,
+      "energy_j": null,
+      "ms_per_sequence": 3.0513108749990656,
+      "energy_mj_per_sequence": null
+     },
+     "batched": {
+      "wall_s": 0.010221008000030452,
+      "wall_s_quartiles": [
+       0.00980328700006794,
+       0.01064620499994362
+      ],
+      "cpu_s": 0.010223821000003852,
+      "energy_j": null,
+      "sequences_per_s": 2348.1050009870355,
+      "forward_calls": 6
+     },
+     "batched_per_family": {
+      "wall_s": 0.010001747999922372,
+      "wall_s_quartiles": [
+       0.009839467000006152,
+       0.010463208000032864
+      ],
+      "cpu_s": 0.010005740000003982,
+      "energy_j": null,
+      "sequences_per_s": 2399.580553337904,
+      "forward_calls": 6
+     },
+     "committed_to": null,
+     "weights_resident_bytes": 331008,
+     "weights_resident_parameters": 82752,
+     "memory": {
+      "resident": [
+       "voyager",
+       "rosetta",
+       "sweep"
+      ],
+      "before_kib": {
+       "VmHWM": 314004,
+       "VmRSS": 314004
+      },
+      "after_load_kib": {
+       "VmHWM": 314300,
+       "VmRSS": 314300
+      },
+      "after_kib": {
+       "VmHWM": 314308,
+       "VmRSS": 314308
+      },
+      "load_increase_kib": 296,
+      "run_increase_kib": 8,
+      "peak_increase_kib": 304,
+      "bits": {
+       "voyager": 2.9764350240319577,
+       "rosetta": 2.394194868779463,
+       "sweep": 4.516677027176044
+      },
+      "weights_resident_bytes": 331008
+     }
+    }
+   },
+   "memory": {
+    "bank": {
+     "resident": [
+      "voyager",
+      "rosetta",
+      "sweep"
+     ],
+     "before_kib": {
+      "VmHWM": 314052,
+      "VmRSS": 314052
+     },
+     "after_load_kib": {
+      "VmHWM": 314336,
+      "VmRSS": 314336
+     },
+     "after_kib": {
+      "VmHWM": 314460,
+      "VmRSS": 314460
+     },
+     "load_increase_kib": 284,
+     "run_increase_kib": 124,
+     "peak_increase_kib": 408,
+     "bits": {
+      "voyager": 3.025861499821439,
+      "rosetta": 2.4094362619439442,
+      "sweep": 4.536560427738296
+     },
+     "weights_resident_bytes": 331008
+    },
+    "committed after 8": {
+     "resident": [
+      "voyager",
+      "rosetta",
+      "sweep"
+     ],
+     "before_kib": {
+      "VmHWM": 313932,
+      "VmRSS": 313932
+     },
+     "after_load_kib": {
+      "VmHWM": 314220,
+      "VmRSS": 314220
+     },
+     "after_kib": {
+      "VmHWM": 314344,
+      "VmRSS": 314344
+     },
+     "load_increase_kib": 288,
+     "run_increase_kib": 124,
+     "peak_increase_kib": 412,
+     "bits": {
+      "voyager": 3.0453562492472557,
+      "rosetta": 2.394194868779463,
+      "sweep": 4.787000967430052
+     },
+     "weights_resident_bytes": 331008
+    },
+    "committed after 4": {
+     "resident": [
+      "voyager",
+      "rosetta",
+      "sweep"
+     ],
+     "before_kib": {
+      "VmHWM": 313956,
+      "VmRSS": 313956
+     },
+     "after_load_kib": {
+      "VmHWM": 314240,
+      "VmRSS": 314240
+     },
+     "after_kib": {
+      "VmHWM": 314364,
+      "VmRSS": 314364
+     },
+     "load_increase_kib": 284,
+     "run_increase_kib": 124,
+     "peak_increase_kib": 408,
+     "bits": {
+      "voyager": 3.721769743550158,
+      "rosetta": 2.394194865268029,
+      "sweep": 4.9518820678166255
+     },
+     "weights_resident_bytes": 331008
+    },
+    "one specialist": {
+     "resident": [
+      "voyager",
+      "rosetta",
+      "sweep"
+     ],
+     "before_kib": {
+      "VmHWM": 314004,
+      "VmRSS": 314004
+     },
+     "after_load_kib": {
+      "VmHWM": 314300,
+      "VmRSS": 314300
+     },
+     "after_kib": {
+      "VmHWM": 314308,
+      "VmRSS": 314308
+     },
+     "load_increase_kib": 296,
+     "run_increase_kib": 8,
+     "peak_increase_kib": 304,
+     "bits": {
+      "voyager": 2.9764350240319577,
+      "rosetta": 2.394194868779463,
+      "sweep": 4.516677027176044
+     },
+     "weights_resident_bytes": 331008
+    },
+    "one family's specialist alone (memory control)": {
+     "resident": [
+      "voyager"
+     ],
+     "before_kib": {
+      "VmHWM": 314016,
+      "VmRSS": 314016
+     },
+     "after_load_kib": {
+      "VmHWM": 314176,
+      "VmRSS": 314176
+     },
+     "after_kib": {
+      "VmHWM": 314176,
+      "VmRSS": 314176
+     },
+     "load_increase_kib": 160,
+     "run_increase_kib": 0,
+     "peak_increase_kib": 160,
+     "bits": {
+      "voyager": 2.9764350240319577
+     },
+     "weights_resident_bytes": 110336
+    }
+   },
+   "energy": "not measured: this machine exposes no readable RAPL counters"
+  }
+ },
+ "summary": {
+  "bank": {
+   "parameter_positions_per_target": 82752.0,
+   "forward_calls_per_sequence": 12.0,
+   "forward_calls_batched": 6.0,
+   "forward_calls_batched_per_family": 18.0,
+   "sequences_per_s_batched_per_family": 776.0150281501556,
+   "ms_per_sequence": 9.41760756944553,
+   "sequences_per_s_batched": 1160.9625472592807,
+   "cpu_s_per_sequence_stream": 0.009357980833333253,
+   "weights_resident_bytes": 331008,
+   "peak_rss_increase_kib": [
+    412,
+    408,
+    408
+   ],
+   "peak_rss_load_kib": [
+    288,
+    284,
+    284
+   ],
+   "peak_rss_run_kib": [
+    124,
+    124,
+    124
+   ],
+   "latency_vs_bank": 1.0,
+   "throughput_vs_bank": 1.0,
+   "throughput_per_family_vs_bank": 1.0,
+   "compute_vs_bank": 1.0
+  },
+  "committed after 8": {
+   "parameter_positions_per_target": 39652.0,
+   "forward_calls_per_sequence": 7.0,
+   "forward_calls_batched": 9.0,
+   "forward_calls_batched_per_family": 17.0,
+   "sequences_per_s_batched_per_family": 1058.5634890658719,
+   "ms_per_sequence": 5.782256930555403,
+   "sequences_per_s_batched": 1485.1113817550179,
+   "cpu_s_per_sequence_stream": 0.005742069166666728,
+   "weights_resident_bytes": 331008,
+   "peak_rss_increase_kib": [
+    408,
+    408,
+    412
+   ],
+   "peak_rss_load_kib": [
+    288,
+    288,
+    288
+   ],
+   "peak_rss_run_kib": [
+    120,
+    120,
+    124
+   ],
+   "latency_vs_bank": 0.6139836352191343,
+   "throughput_vs_bank": 1.2792069694762895,
+   "throughput_per_family_vs_bank": 1.3641017901280186,
+   "compute_vs_bank": 0.4791666666666667
+  },
+  "committed after 4": {
+   "parameter_positions_per_target": 32756.0,
+   "forward_calls_per_sequence": 7.0,
+   "forward_calls_batched": 9.0,
+   "forward_calls_batched_per_family": 19.0,
+   "sequences_per_s_batched_per_family": 1066.6312345425047,
+   "ms_per_sequence": 5.67396590277901,
+   "sequences_per_s_batched": 1615.572399485434,
+   "cpu_s_per_sequence_stream": 0.005621818374999939,
+   "weights_resident_bytes": 331008,
+   "peak_rss_increase_kib": [
+    404,
+    408,
+    408
+   ],
+   "peak_rss_load_kib": [
+    284,
+    288,
+    284
+   ],
+   "peak_rss_run_kib": [
+    120,
+    120,
+    124
+   ],
+   "latency_vs_bank": 0.6024848520114191,
+   "throughput_vs_bank": 1.3915801188413568,
+   "throughput_per_family_vs_bank": 1.374498168012432,
+   "compute_vs_bank": 0.3958333333333333
+  },
+  "one specialist": {
+   "parameter_positions_per_target": 27584.0,
+   "forward_calls_per_sequence": 4.0,
+   "forward_calls_batched": 6.0,
+   "forward_calls_batched_per_family": 6.0,
+   "sequences_per_s_batched_per_family": 2433.8313578238563,
+   "ms_per_sequence": 3.038491777776326,
+   "sequences_per_s_batched": 2351.277713748977,
+   "cpu_s_per_sequence_stream": 0.0030125796388887904,
+   "weights_resident_bytes": 331008,
+   "peak_rss_increase_kib": [
+    296,
+    300,
+    304
+   ],
+   "peak_rss_load_kib": [
+    284,
+    292,
+    296
+   ],
+   "peak_rss_run_kib": [
+    12,
+    8,
+    8
+   ],
+   "latency_vs_bank": 0.32263945544242084,
+   "throughput_vs_bank": 2.025283002711594,
+   "throughput_per_family_vs_bank": 3.1363198772394396,
+   "compute_vs_bank": 0.3333333333333333
+  },
+  "one family's specialist alone (memory control)": {
+   "weights_resident_bytes": 110336,
+   "peak_rss_increase_kib": [
+    164,
+    160,
+    160
+   ],
+   "peak_rss_load_kib": [
+    164,
+    160,
+    160
+   ],
+   "peak_rss_run_kib": [
+    0,
+    0,
+    0
+   ]
+  }
+ }
+}
