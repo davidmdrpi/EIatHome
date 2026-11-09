@@ -127,7 +127,14 @@ test('each pilot contribution shows its gate, its replication and its merge, wit
   assert.match(text(by[108], 'merge'), /^Eligible for round 3’s merge, which needs contributions from at least 2 volunteers: 1 so far\./);
   assert.equal(text(by[108], 'submitted'), 'Issue #108, by erin: round 3, shard 4, seed 21, a 40.0 KB delta artifact; their own run scored 1.5004 bits on validation.');
   assert.equal(states(by[109]).merge, 'failed');
-  assert.equal(text(by[109], 'merge'), 'Excluded from later merges: trained on a modified corpus.');
+  assert.equal(text(by[109], 'merge'), 'Excluded from later merges by maintainer: trained on a modified corpus.');
+
+  // Excluded after the live round merged it: still merged, and excluded, until that round is rolled back.
+  assert.deepEqual(states(by[103]), { submitted: 'done', validated: 'done', replicated: 'done', merge: 'done', excluded: 'failed' });
+  assert.match(text(by[103], 'merge'), /^In round 2, with weight 0\.250:/);
+  assert.equal(text(by[103], 'excluded'), 'Excluded from later merges by maintainer: withdrawn after corpus audit. Its weight stays in the current model until round 2 is rolled back.');
+  assert.deepEqual([by[103].stage, by[103].state], ['excluded', 'failed'], 'not complete');
+  assert.ok(by[103].rank < by[101].rank, 'listed before the complete ones');
   assert.doesNotMatch(text(by[109], 'submitted'), /their own run/, 'no score claimed, none shown');
 });
 

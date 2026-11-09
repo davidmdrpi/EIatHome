@@ -144,11 +144,13 @@ export function cardLifecycle(card, { marks = {}, index }) {
 }
 
 // Where an entry stands: its first stage that isn't done (or its last), and a rank for sorting
-// what needs doing first: the earlier the stage it's held at, the sooner; failed after current.
+// what needs doing first: the earlier the stage it's held at, the sooner; failed after current;
+// complete entries last, after any held at a later stage.
+const COMPLETE = 1000;
 function standing(stages) {
   const at = stages.findIndex((s) => s.state !== 'done');
   const stage = stages[at === -1 ? stages.length - 1 : at];
-  const rank = at === -1 ? 2 * stages.length : 2 * at + (stage.state === 'failed' ? 1 : 0);
+  const rank = at === -1 ? COMPLETE : 2 * at + (stage.state === 'failed' ? 1 : 0);
   return { stage: stage.id, state: at === -1 ? 'done' : stage.state, rank };
 }
 
@@ -227,12 +229,18 @@ export function pilotLifecycle(sub, status) {
 
   const min = rules.min_volunteers;
   const live = liveRound(status, sub.id);
-  if (sub.stage === 'merged' && !live) {
-    stage('merge', 'Merged', 'done', sub.why);
-  } else if (sub.stage === 'merged') {
-    const { total, shards } = roundShards(live.round);
-    const mine = shards.find((s) => s.shard === sub.shard);
-    stage('merge', 'Merged', 'done', `in round ${live.round.round}, with weight ${fixed(live.entry.weight, 3)}: shard ${sub.shard} holds its share of the round’s training targets (${mine.training_targets} of ${total}), split equally among the ${plural(mine.contributions, 'contribution')} merged on it`);
+  const ex = sub.exclusion;
+  const excludedBy = ex ? `excluded from later merges by ${ex.by}: ${ex.reason}` : `excluded from later merges: ${sub.why}`;
+  if (sub.stage === 'merged') {
+    if (live) {
+      const { total, shards } = roundShards(live.round);
+      const mine = shards.find((s) => s.shard === sub.shard);
+      stage('merge', 'Merged', 'done', `in round ${live.round.round}, with weight ${fixed(live.entry.weight, 3)}: shard ${sub.shard} holds its share of the round’s training targets (${mine.training_targets} of ${total}), split equally among the ${plural(mine.contributions, 'contribution')} merged on it`);
+    } else {
+      stage('merge', 'Merged', 'done', sub.why);
+    }
+    // Excluded after the merge took it: both facts hold until that round is rolled back.
+    if (ex) stage('excluded', 'Excluded', 'failed', `${excludedBy}. Its weight stays in the current model until round ${live?.round.round ?? sub.round} is rolled back`);
   } else if (sub.stage === 'eligible') {
     const waiting = status.open.volunteers;
     stage('merge', 'Merge', 'current', `eligible for round ${sub.round}’s merge, which needs contributions from at least ${min} volunteers: ${waiting} so far. The merged model must pass the same ${rules.gate_bits}-bit gate against the current one`);
@@ -240,7 +248,7 @@ export function pilotLifecycle(sub, status) {
     stage('merge', 'Merge', 'skipped', 'not offered to a merge: only replicated contributions are');
   } else {
     const names = { excluded: 'Excluded', 'rolled back': 'Rolled back', superseded: 'Superseded', 'not merged': 'Not merged' };
-    stage('merge', names[sub.stage] ?? 'Merge', 'failed', sub.stage === 'excluded' ? `excluded from later merges: ${sub.why}` : sub.why);
+    stage('merge', names[sub.stage] ?? 'Merge', 'failed', sub.stage === 'excluded' ? excludedBy : sub.why);
   }
   return { kind: 'pilot', sub, stages, ...standing(stages) };
 }

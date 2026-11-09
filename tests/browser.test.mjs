@@ -1031,8 +1031,11 @@ const stagesOf = (page, selector) => page.$$eval(`${selector} .stages li`, (lis)
 
 test('the Contributions tab shows every entry’s stages, what decided them, and what to do next', async () => {
   const pilot = await pilotFixture();
-  pilot.exclusions[0].reason = ATTACK; // maintainers' text, shown as text
-  pilot.submissions.find((s) => s.issue === 109).why = ATTACK;
+  // Maintainers' text, shown as text.
+  const frank = pilot.submissions.find((s) => s.issue === 109);
+  pilot.exclusions[0].reason = ATTACK;
+  frank.why = ATTACK;
+  frank.exclusion.reason = ATTACK;
   const [single, apart, together, unsent, opened] = await Promise.all([
     makeCard(7), makeCard(8), makeCard(9), makeCard(12, { started: '2026-10-29T00:00:00.000Z' }), makeCard(13, { started: '2026-10-30T00:00:00.000Z' }),
   ]);
@@ -1052,7 +1055,7 @@ test('the Contributions tab shows every entry’s stages, what decided them, and
     const marks = { [`${opened.spec}#${opened.unit}@${opened.started}`]: { opened: '2026-10-30T01:00:00.000Z' } };
     const { page, errors } = await openLab(seed, [[opened, unsent, single, together], marks]);
     await page.click('.tabs button[data-tab="contributions"]');
-    await page.waitForFunction(() => /5 result cards recorded/.test(document.getElementById('ct-status').textContent) && /ledger: 10 events/.test(document.getElementById('ct-status').textContent), null, { timeout: 30000 });
+    await page.waitForFunction(() => /5 result cards recorded/.test(document.getElementById('ct-status').textContent) && /ledger: 11 events/.test(document.getElementById('ct-status').textContent), null, { timeout: 30000 });
     assert.match(await page.textContent('#ct-status'), /4 result cards kept in this browser\.$/);
 
     // What would help next: missing shard coverage, then volunteers, unreplicated units, disagreeing units, unsubmitted cards.
@@ -1069,8 +1072,8 @@ test('the Contributions tab shows every entry’s stages, what decided them, and
     assert.deepEqual(await page.$$eval('#ct-shards tbody tr', (trs) => trs.map((tr) => [tr.cells[0].textContent, tr.dataset.coverage])),
       [['2', 'missing'], ['3', 'missing'], ['5', 'missing'], ['4', 'covered']]);
     assert.deepEqual(await page.$$eval('#ct-pilot-entries .entry', (es) => es.map((e) => [Number(e.dataset.issue), e.dataset.stage, e.dataset.state])),
-      [[106, 'replicated', 'failed'], [108, 'merge', 'current'], [109, 'merge', 'failed'], [101, 'merge', 'done'], [102, 'merge', 'done'], [103, 'merge', 'done']],
-      'the unreplicated contribution first, then the one waiting for a merge; merged ones last');
+      [[106, 'replicated', 'failed'], [108, 'merge', 'current'], [109, 'merge', 'failed'], [103, 'excluded', 'failed'], [101, 'merge', 'done'], [102, 'merge', 'done']],
+      'the unreplicated contribution first, then the one waiting for a merge; complete ones last');
     assert.deepEqual(await stagesOf(page, '#ct-pilot-entries .entry[data-issue="101"]'), [['submitted', 'done'], ['validated', 'done'], ['replicated', 'done'], ['merge', 'done']]);
     const alice = await page.textContent('#ct-pilot-entries .entry[data-issue="101"]');
     assert.match(alice, /1\.5500 bits per token on validation, against the current model’s 1\.6200: within the 0\.02-bit gate, with 0\.0900 to spare/);
@@ -1084,6 +1087,12 @@ test('the Contributions tab shows every entry’s stages, what decided them, and
       [['2', '2', '225 of 450', '0.500', '0.250'], ['3', '1', '225 of 450', '0.500', '0.500']], 'each shard holds its share however many contribute to it');
     assert.match(await page.textContent('#ct-rounds .entry:first-child'), /The merged model scores 1\.5200 bits per token on validation, against the current model’s 1\.6200: within the 0\.02-bit gate/);
     assert.match(await page.textContent('#ct-rounds .entry:last-child'), /Rolled back to round 1 by maintainer: a test of rollback\./);
+    // Excluded after the live round merged it: the entry and the round both keep the two facts.
+    assert.deepEqual(await stagesOf(page, '#ct-pilot-entries .entry[data-issue="103"]'),
+      [['submitted', 'done'], ['validated', 'done'], ['replicated', 'done'], ['merge', 'done'], ['excluded', 'failed']]);
+    assert.match(await page.textContent('#ct-pilot-entries .entry[data-issue="103"]'), /In round 2, with weight 0\.250.*Excluded from later merges by maintainer: withdrawn after corpus audit\. Its weight stays in the current model until round 2 is rolled back\./);
+    assert.match(await page.textContent('#ct-rounds .entry:first-child'), /Excluded from later merges since: shard 2 \(carol\), by maintainer: withdrawn after corpus audit\. It stays in this round until it’s rolled back\./);
+    assert.doesNotMatch(await page.textContent('#ct-rounds .entry:last-child'), /Excluded from later merges since/, 'a rolled-back round holds nothing now');
     assert.equal(await page.getAttribute('#ct-pilot-rejected', 'href'), 'https://github.com/davidmdrpi/EIatHome/issues?q=label%3Acheckpoint-rejected');
 
     // Recorded result cards: unreplicated first, then disagreeing, then replicated, with what decides each.
@@ -1105,7 +1114,7 @@ test('the Contributions tab shows every entry’s stages, what decided them, and
     assert.equal(await page.isVisible('#review'), true, 'the group’s button opens the review, to submit');
 
     assert.equal(await page.evaluate(() => window.__pwned), undefined);
-    assert.match(await page.textContent('#ct-pilot-entries .entry[data-issue="109"]'), /Excluded from later merges: <img/);
+    assert.match(await page.textContent('#ct-pilot-entries .entry[data-issue="109"]'), /Excluded from later merges by maintainer: <img/);
     assert.deepEqual(errors, []);
     await page.close();
   } finally {

@@ -5,7 +5,7 @@
  "ledger": {
   "path": "tracks/llm/pilot/v0/ledger.json",
   "sha256": "9999999999999999999999999999999999999999999999999999999999999999",
-  "events": 10
+  "events": 11
  },
  "rules": {
   "gate_bits": 0.02,
@@ -85,6 +85,7 @@
    },
    "stage": "merged",
    "why": "in round 2, the current chain",
+   "exclusion": null,
    "rounds": [
     {
      "event": 5,
@@ -133,6 +134,7 @@
    },
    "stage": "merged",
    "why": "in round 2, the current chain",
+   "exclusion": null,
    "rounds": [
     {
      "event": 5,
@@ -180,7 +182,12 @@
     "replicated": true
    },
    "stage": "merged",
-   "why": "in round 2, the current chain",
+   "why": "in round 2, the current chain; excluded from later merges, it stays in the current model until round 2 is rolled back",
+   "exclusion": {
+    "event": 11,
+    "reason": "withdrawn after corpus audit",
+    "by": "maintainer"
+   },
    "rounds": [
     {
      "event": 5,
@@ -229,6 +236,7 @@
    },
    "stage": "not replicated",
    "why": "the coordinator's run of its shard and seed didn't land within the rule",
+   "exclusion": null,
    "rounds": []
   },
   {
@@ -258,6 +266,7 @@
    },
    "stage": "eligible",
    "why": "waiting for round 3's merge",
+   "exclusion": null,
    "rounds": []
   },
   {
@@ -287,6 +296,11 @@
    },
    "stage": "excluded",
    "why": "trained on a modified corpus",
+   "exclusion": {
+    "event": 10,
+    "reason": "trained on a modified corpus",
+    "by": "maintainer"
+   },
    "rounds": []
   }
  ],
@@ -439,6 +453,12 @@
    "event": 10,
    "submission": "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
    "reason": "trained on a modified corpus",
+   "by": "maintainer"
+  },
+  {
+   "event": 11,
+   "submission": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+   "reason": "withdrawn after corpus audit",
    "by": "maintainer"
   }
  ]

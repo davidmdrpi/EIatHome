@@ -1759,8 +1759,14 @@ function renderPilotContributions(pilot) {
       wrap.append(table);
       const who = Object.entries(round.volunteer_weights).sort((a, b) => b[1] - a[1]).map(([v, w]) => `${v} ${fmt(w, 3)}`).join(', ');
       const outcomes = round.contributors.filter((c) => c.weight === 0).map((c) => `shard ${c.shard} (${c.volunteer ?? c.submission.slice(0, 12)}): ${c.status}${c.reason ? `, ${c.reason}` : ''}`);
+      // Excluded after this round merged them: still in it while it's live.
+      const excluded = round.live
+        ? round.contributors.filter((c) => c.weight > 0).flatMap((c) => pilot.exclusions.filter((x) => x.submission === c.submission && x.event > round.event)
+          .map((x) => `shard ${c.shard} (${c.volunteer ?? c.submission.slice(0, 12)}), by ${x.by}: ${x.reason}`))
+        : [];
+      const after = excluded.length ? ` Excluded from later merges since: ${excluded.join('; ')}. ${excluded.length === 1 ? 'It stays' : 'They stay'} in this round until it’s rolled back.` : '';
       box.append(head, element('p', roundText(round, pilot.rules)), wrap,
-        element('p', `Each volunteer’s total weight: ${who}. The cap is per shard, not per volunteer, so a volunteer on several shards holds each of their shares.${outcomes.length ? ` Not merged: ${outcomes.join('; ')}.` : ''}`, 'muted small'));
+        element('p', `Each volunteer’s total weight: ${who}. The cap is per shard, not per volunteer, so a volunteer on several shards holds each of their shares.${outcomes.length ? ` Not merged: ${outcomes.join('; ')}.` : ''}${after}`, 'muted small'));
       return box;
     })
     : [element('p', `No merge yet: round ${open.round} needs eligible contributions from at least ${rules.min_volunteers} volunteers.`, 'muted')]));

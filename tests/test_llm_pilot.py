@@ -46,7 +46,12 @@ class Scenario:
         self.submit("bob", 3, 12, 102)
         self.submit("carol", 2, 13, 103)
         self.submit("alice", 2, 14, 104)  # alice again on shard 2
-        self.submit("dave", 3, 12, 105)  # bob's shard and seed
+        # bob's shard and seed, from another machine: training is deterministic, so without a
+        # different environment (or by chance the same rounded seconds) the artifact would be
+        # bob's byte for byte, refused as a copy before the shard-and-seed rule is reached
+        here = P.environment()
+        with unittest.mock.patch.object(P, "environment", lambda: {**here, "platform": "dave's computer"}):
+            self.submit("dave", 3, 12, 105)
         self.mislabelled(106)  # mallory: a shard-2 run sent as shard 4
         self.before_merge = copy.deepcopy(self.ledger)
         self.round = P.merge(self.pilot, self.ledger, "maintainer")
@@ -199,7 +204,11 @@ class IngestTests(unittest.TestCase):
         self.assertEqual(self.s.outcomes[104][0], "duplicate")
         self.assertIn("once per shard per round", self.s.outcomes[104][1])
         self.assertEqual(self.s.outcomes[105][0], "duplicate")
-        self.assertIn("seed 12", self.s.outcomes[105][1])
+        self.assertIn("seed 12", self.s.outcomes[105][1], "a different artifact of the same run: the shard-and-seed rule")
+        # The very same artifact again is refused as a copy, whoever sends it.
+        status, comment, _ = P.ingest(self.s.pilot, self.s.issue("erin", 107, self.s.bodies[102]), copy.deepcopy(self.s.before_merge))
+        self.assertEqual(status, "duplicate")
+        self.assertIn("already recorded from #102", comment)
         self.assertNotIn(104, self.events)
         self.assertNotIn(105, self.events)
 
@@ -471,6 +480,21 @@ class ExportTests(unittest.TestCase):
         self.assertEqual(status["open"]["round"], 3)
         self.assertEqual([(c["index"], c["contributions"]) for c in status["open"]["shards"]], [(2, 0), (3, 0), (4, 0), (5, 0)])
 
+    def test_an_exclusion_after_the_merge_keeps_the_merge_and_says_so(self):
+        """Excluding a contribution a live round merged keeps it in the current model until that
+        round is rolled back: the status keeps both facts."""
+        ledger = copy.deepcopy(self.s.ledger)
+        alice = next(e for e in ledger["events"] if e.get("issue") == 101)
+        P.exclude(ledger, alice["id"], "withdrawn after corpus audit", "maintainer")
+        status = P.export(self.s.pilot, ledger)
+        s = self.by_issue(status)[101]
+        self.assertEqual(s["stage"], "merged")
+        self.assertEqual(s["why"], "in round 2, the current chain; excluded from later merges, it stays in the current model until round 2 is rolled back")
+        self.assertEqual(s["exclusion"], {"event": len(ledger["events"]), "reason": "withdrawn after corpus audit", "by": "maintainer"})
+        self.assertEqual(s["rounds"][0]["live"], True)
+        self.assertEqual(self.by_issue(status)[102]["exclusion"], None)
+        self.assertEqual([x["submission"] for x in status["exclusions"]], [alice["id"]])
+
     def test_rollback_exclusion_and_a_superseded_contribution_each_say_why(self):
         ledger = copy.deepcopy(self.s.ledger)
         # A replicated contribution to round 3, from round 2's weights (bob's, renamed)...
@@ -485,6 +509,7 @@ class ExportTests(unittest.TestCase):
         status = P.export(self.s.pilot, ledger)
         subs = self.by_issue(status)
         self.assertEqual((subs[101]["stage"], subs[101]["why"]), ("excluded", "a test of exclusion"))
+        self.assertEqual((subs[101]["exclusion"]["reason"], subs[101]["exclusion"]["by"]), ("a test of exclusion", "maintainer"))
         self.assertEqual(subs[102]["stage"], "eligible", "merged into a rolled-back round: eligible again")
         self.assertEqual(subs[102]["rounds"][0]["live"], False)
         self.assertEqual((subs[107]["stage"], subs[107]["why"]), ("superseded", "round 3's start is no longer the current model"))

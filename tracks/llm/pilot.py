@@ -827,10 +827,15 @@ def export(pilot, ledger=None):
         elif event["event"] == "exclusion":
             exclusions.append({"event": n, **{k: event[k] for k in ("submission", "reason", "by")}})
 
+    excluded = {x["submission"]: x for x in exclusions}
+
     def stage(i, s):
-        """Where a recorded contribution stands, and why."""
+        """Where a recorded contribution stands, and why. A contribution excluded after a merge took
+        it stays merged: it's in the current model until that round is rolled back, and its
+        `exclusion` says it's out of later merges."""
         if i in state.merged:
-            return "merged", f"in round {state.merged[i]}, the current chain"
+            later = f"; excluded from later merges, it stays in the current model until round {state.merged[i]} is rolled back" if i in state.excluded else ""
+            return "merged", f"in round {state.merged[i]}, the current chain{later}"
         if i in state.excluded:
             return "excluded", state.excluded[i]
         problem = replication_problem(s)
@@ -861,6 +866,7 @@ def export(pilot, ledger=None):
             "evaluation": {k: evaluation.get(k) for k in ("status", "reason", "validation_bits", "start_validation_bits", "max_abs_delta")},
             "replication": None if replication is None else {k: replication.get(k) for k in ("validation_bits", "cosine", "best_epoch", "replicated")},
             "stage": where, "why": why,
+            "exclusion": None if i not in excluded else {k: excluded[i][k] for k in ("event", "reason", "by")},
             "rounds": [{"event": r["event"], "round": r["round"], "decision": r["decision"], "live": r["live"],
                         **{k: c[k] for k in ("status", "reason", "weight")}}
                        for r in rounds for c in r["contributors"] if c["submission"] == i],

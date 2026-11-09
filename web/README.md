@@ -235,7 +235,10 @@ criterion that decides it and the numbers it was decided on. It reads only the r
   its replication (the coordinator's run: the bits apart and the delta cosine, against 0.02 and
   0.9), and its merge (its weight: its shard's share of the round's training targets, split
   among the shard's contributions), or why it wasn't merged (not replicated, excluded, rolled
-  back, superseded). Each merge shows its gate, its shard weights and each volunteer's total.
+  back, superseded). A contribution excluded after a live round merged it shows both: merged,
+  and excluded (by whom and why) with its weight in the current model until that round is
+  rolled back. Each merge shows its gate, its shard weights, each volunteer's total, and any
+  contribution excluded since.
   The open round's shards are listed least covered first.
 
 **What would help next** puts the pilot's shards without a contribution first, then the

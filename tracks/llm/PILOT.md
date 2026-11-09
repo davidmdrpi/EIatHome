@@ -154,7 +154,7 @@ of:
 | Stage | Meaning |
 |---|---|
 | `eligible` | validated and replicated, for the open round: the next merge takes it |
-| `merged` | merged with a weight above 0 into a round of the current chain |
+| `merged` | merged with a weight above 0 into a round of the current chain. If a maintainer excluded it after that merge, its `exclusion` (reason and maintainer) says so: it's out of later merges but stays in the current model until that round is rolled back |
 | `not replicated` | the coordinator's run of its shard and seed missed the rule, or its replication record doesn't hold together |
 | `excluded` | kept out of later merges, with the maintainer's reason |
 | `rolled back` | merged into a round that was rolled back, and no longer for the current model |
