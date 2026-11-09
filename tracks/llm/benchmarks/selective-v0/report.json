@@ -63,39 +63,51 @@
      "positions_per_target": 3.0,
      "parameter_positions_per_target": 82752.0,
      "per_sequence": {
-      "wall_s": 0.1813009449999754,
+      "wall_s": 0.18784261300004346,
       "wall_s_quartiles": [
-       0.17251513600001545,
-       0.1972476400000005
+       0.18455972099997098,
+       0.19378177900000537
       ],
-      "cpu_s": 0.18106006699999977,
+      "cpu_s": 0.18740883099999905,
       "energy_j": null,
-      "ms_per_sequence": 7.554206041665641,
+      "ms_per_sequence": 7.826775541668478,
       "energy_mj_per_sequence": null
      },
      "batched": {
-      "wall_s": 0.0301642519999632,
+      "wall_s": 0.017087077999974554,
       "wall_s_quartiles": [
-       0.02943288999995275,
-       0.03238852100002987
+       0.01671639400001368,
+       0.017723466999996162
       ],
-      "cpu_s": 0.030124730999999016,
+      "cpu_s": 0.01709052500000041,
       "energy_j": null,
-      "sequences_per_s": 795.6437971685583,
+      "sequences_per_s": 1404.5701670019732,
+      "forward_calls": 6
+     },
+     "batched_per_family": {
+      "wall_s": 0.025587753999957386,
+      "wall_s_quartiles": [
+       0.024900027000001046,
+       0.026537383999993835
+      ],
+      "cpu_s": 0.025326274000001092,
+      "energy_j": null,
+      "sequences_per_s": 937.9486765442551,
       "forward_calls": 18
      },
+     "committed_to": null,
      "weights_resident_bytes": 331008,
      "weights_resident_parameters": 82752,
      "memory": {
-      "before_kb": {
-       "VmHWM": 314952,
-       "VmRSS": 314952
+      "before_kib": {
+       "VmHWM": 313868,
+       "VmRSS": 313868
       },
-      "after_kb": {
-       "VmHWM": 315256,
-       "VmRSS": 315256
+      "after_kib": {
+       "VmHWM": 314196,
+       "VmRSS": 314196
       },
-      "peak_increase_kb": 304
+      "peak_increase_kib": 328
      }
     },
     "committed after 8": {
@@ -105,39 +117,62 @@
      "positions_per_target": 1.4375,
      "parameter_positions_per_target": 39652.0,
      "per_sequence": {
-      "wall_s": 0.11424893499997779,
+      "wall_s": 0.11663545900000827,
       "wall_s_quartiles": [
-       0.10732590700001765,
-       0.1222482419999551
+       0.11363013400000455,
+       0.12059950200000458
       ],
-      "cpu_s": 0.1142415790000002,
+      "cpu_s": 0.11653114699999989,
       "energy_j": null,
-      "ms_per_sequence": 4.760372291665742,
+      "ms_per_sequence": 4.8598107916670115,
       "energy_mj_per_sequence": null
      },
      "batched": {
-      "wall_s": 0.021653764999996383,
+      "wall_s": 0.012373340999999982,
       "wall_s_quartiles": [
-       0.02122349400008261,
-       0.02260232300000098
+       0.012307822999957807,
+       0.012579597000012654
       ],
-      "cpu_s": 0.021635357000000965,
+      "cpu_s": 0.012369366999999798,
       "energy_j": null,
-      "sequences_per_s": 1108.3522888515697,
+      "sequences_per_s": 1939.653970580786,
+      "forward_calls": 9
+     },
+     "batched_per_family": {
+      "wall_s": 0.017861519999996744,
+      "wall_s_quartiles": [
+       0.01761784100000341,
+       0.018681720000017776
+      ],
+      "cpu_s": 0.01775412799999998,
+      "energy_j": null,
+      "sequences_per_s": 1343.6706394531022,
       "forward_calls": 17
+     },
+     "committed_to": {
+      "voyager": {
+       "voyager": 6
+      },
+      "rosetta": {
+       "rosetta": 12
+      },
+      "sweep": {
+       "voyager": 2,
+       "sweep": 4
+      }
      },
      "weights_resident_bytes": 331008,
      "weights_resident_parameters": 82752,
      "memory": {
-      "before_kb": {
-       "VmHWM": 315016,
-       "VmRSS": 315016
+      "before_kib": {
+       "VmHWM": 313964,
+       "VmRSS": 313964
       },
-      "after_kb": {
-       "VmHWM": 315324,
-       "VmRSS": 315324
+      "after_kib": {
+       "VmHWM": 314300,
+       "VmRSS": 314300
       },
-      "peak_increase_kb": 308
+      "peak_increase_kib": 336
      }
     },
     "committed after 4": {
@@ -147,39 +182,63 @@
      "positions_per_target": 1.1875,
      "parameter_positions_per_target": 32756.0,
      "per_sequence": {
-      "wall_s": 0.11214273600000979,
+      "wall_s": 0.11447651800000358,
       "wall_s_quartiles": [
-       0.1024863479999567,
-       0.12487168300003759
+       0.11266732799998636,
+       0.12056315800003858
       ],
-      "cpu_s": 0.11186335799999991,
+      "cpu_s": 0.11429227800000064,
       "energy_j": null,
-      "ms_per_sequence": 4.672614000000408,
+      "ms_per_sequence": 4.769854916666816,
       "energy_mj_per_sequence": null
      },
      "batched": {
-      "wall_s": 0.022073670000054335,
+      "wall_s": 0.011379181999984667,
       "wall_s_quartiles": [
-       0.02062610699999823,
-       0.022850007999977606
+       0.011281881999991583,
+       0.011593789000016841
       ],
-      "cpu_s": 0.022019058999999785,
+      "cpu_s": 0.011381559000000152,
       "energy_j": null,
-      "sequences_per_s": 1087.2682249911738,
+      "sequences_per_s": 2109.1146973510345,
+      "forward_calls": 9
+     },
+     "batched_per_family": {
+      "wall_s": 0.018314700000019002,
+      "wall_s_quartiles": [
+       0.017427209000004495,
+       0.02063442599995824
+      ],
+      "cpu_s": 0.017770601999998803,
+      "energy_j": null,
+      "sequences_per_s": 1310.4227751464725,
       "forward_calls": 19
+     },
+     "committed_to": {
+      "voyager": {
+       "voyager": 4,
+       "sweep": 2
+      },
+      "rosetta": {
+       "rosetta": 12
+      },
+      "sweep": {
+       "voyager": 3,
+       "sweep": 3
+      }
      },
      "weights_resident_bytes": 331008,
      "weights_resident_parameters": 82752,
      "memory": {
-      "before_kb": {
-       "VmHWM": 314884,
-       "VmRSS": 314884
+      "before_kib": {
+       "VmHWM": 313908,
+       "VmRSS": 313908
       },
-      "after_kb": {
-       "VmHWM": 315188,
-       "VmRSS": 315188
+      "after_kib": {
+       "VmHWM": 314232,
+       "VmRSS": 314232
       },
-      "peak_increase_kb": 304
+      "peak_increase_kib": 324
      }
     },
     "one specialist": {
@@ -189,39 +248,51 @@
      "positions_per_target": 1.0,
      "parameter_positions_per_target": 27584.0,
      "per_sequence": {
-      "wall_s": 0.05782336699996904,
+      "wall_s": 0.05939576500003341,
       "wall_s_quartiles": [
-       0.05307067500007179,
-       0.06051140199997462
+       0.057656988999951864,
+       0.06121611000003213
       ],
-      "cpu_s": 0.057829004999999434,
+      "cpu_s": 0.05934640999999985,
       "energy_j": null,
-      "ms_per_sequence": 2.4093069583320434,
+      "ms_per_sequence": 2.4748235416680586,
       "energy_mj_per_sequence": null
      },
      "batched": {
-      "wall_s": 0.009626030999925206,
+      "wall_s": 0.00820279100003063,
       "wall_s_quartiles": [
-       0.009308439000051294,
-       0.010171615999979622
+       0.008073911999986194,
+       0.008280375999959233
       ],
-      "cpu_s": 0.009631337000000073,
+      "cpu_s": 0.00820591100000101,
       "energy_j": null,
-      "sequences_per_s": 2493.2394254897454,
+      "sequences_per_s": 2925.833414493967,
       "forward_calls": 6
      },
+     "batched_per_family": {
+      "wall_s": 0.008457813000006809,
+      "wall_s_quartiles": [
+       0.00805045700002438,
+       0.009114517999989857
+      ],
+      "cpu_s": 0.008172346000002051,
+      "energy_j": null,
+      "sequences_per_s": 2837.6129857660226,
+      "forward_calls": 6
+     },
+     "committed_to": null,
      "weights_resident_bytes": 110336,
      "weights_resident_parameters": 27584,
      "memory": {
-      "before_kb": {
-       "VmHWM": 314940,
-       "VmRSS": 314940
+      "before_kib": {
+       "VmHWM": 313916,
+       "VmRSS": 313916
       },
-      "after_kb": {
-       "VmHWM": 315052,
-       "VmRSS": 315052
+      "after_kib": {
+       "VmHWM": 314032,
+       "VmRSS": 314032
       },
-      "peak_increase_kb": 112
+      "peak_increase_kib": 116
      }
     }
    },
@@ -260,39 +331,51 @@
      "positions_per_target": 3.0,
      "parameter_positions_per_target": 82752.0,
      "per_sequence": {
-      "wall_s": 0.16771798899992518,
+      "wall_s": 0.18340907699996478,
       "wall_s_quartiles": [
-       0.16167896399997517,
-       0.17393108299995674
+       0.17582230800002208,
+       0.186449572000015
       ],
-      "cpu_s": 0.16694263900000195,
+      "cpu_s": 0.18332097500000089,
       "energy_j": null,
-      "ms_per_sequence": 6.988249541663549,
+      "ms_per_sequence": 7.642044874998533,
       "energy_mj_per_sequence": null
      },
      "batched": {
-      "wall_s": 0.026680568999950083,
+      "wall_s": 0.019619855000030384,
       "wall_s_quartiles": [
-       0.026399074999972072,
-       0.027499992999992173
+       0.018299990999992133,
+       0.0210726010000144
       ],
-      "cpu_s": 0.0266420949999997,
+      "cpu_s": 0.019517237000002297,
       "energy_j": null,
-      "sequences_per_s": 899.5310407377332,
+      "sequences_per_s": 1223.250630545579,
+      "forward_calls": 6
+     },
+     "batched_per_family": {
+      "wall_s": 0.03065959399998519,
+      "wall_s_quartiles": [
+       0.03022743500002889,
+       0.031104411000001164
+      ],
+      "cpu_s": 0.030665313000000083,
+      "energy_j": null,
+      "sequences_per_s": 782.7892306731652,
       "forward_calls": 18
      },
+     "committed_to": null,
      "weights_resident_bytes": 331008,
      "weights_resident_parameters": 82752,
      "memory": {
-      "before_kb": {
-       "VmHWM": 314944,
-       "VmRSS": 314944
+      "before_kib": {
+       "VmHWM": 314068,
+       "VmRSS": 314068
       },
-      "after_kb": {
-       "VmHWM": 315252,
-       "VmRSS": 315252
+      "after_kib": {
+       "VmHWM": 314396,
+       "VmRSS": 314396
       },
-      "peak_increase_kb": 308
+      "peak_increase_kib": 328
      }
     },
     "committed after 8": {
@@ -302,39 +385,62 @@
      "positions_per_target": 1.4375,
      "parameter_positions_per_target": 39652.0,
      "per_sequence": {
-      "wall_s": 0.10615862400004517,
+      "wall_s": 0.11675916600000846,
       "wall_s_quartiles": [
-       0.10192848500003038,
-       0.10965732399995431
+       0.10433513599997468,
+       0.11890836699996044
       ],
-      "cpu_s": 0.10610124800000165,
+      "cpu_s": 0.11654038200000016,
       "energy_j": null,
-      "ms_per_sequence": 4.423276000001882,
+      "ms_per_sequence": 4.864965250000353,
       "energy_mj_per_sequence": null
      },
      "batched": {
-      "wall_s": 0.01902402300004269,
+      "wall_s": 0.013412517999995544,
       "wall_s_quartiles": [
-       0.018721792000064852,
-       0.01958707400001458
+       0.012595332000046255,
+       0.016283818999966115
       ],
-      "cpu_s": 0.018959252000001925,
+      "cpu_s": 0.013285973000002116,
       "energy_j": null,
-      "sequences_per_s": 1261.5628145501162,
+      "sequences_per_s": 1789.3731810841166,
+      "forward_calls": 9
+     },
+     "batched_per_family": {
+      "wall_s": 0.02175729600003251,
+      "wall_s_quartiles": [
+       0.0215006379999636,
+       0.022323051999990184
+      ],
+      "cpu_s": 0.021705077000000017,
+      "energy_j": null,
+      "sequences_per_s": 1103.0782501632618,
       "forward_calls": 17
+     },
+     "committed_to": {
+      "voyager": {
+       "voyager": 6
+      },
+      "rosetta": {
+       "rosetta": 12
+      },
+      "sweep": {
+       "voyager": 2,
+       "sweep": 4
+      }
      },
      "weights_resident_bytes": 331008,
      "weights_resident_parameters": 82752,
      "memory": {
-      "before_kb": {
-       "VmHWM": 314996,
-       "VmRSS": 314996
+      "before_kib": {
+       "VmHWM": 313880,
+       "VmRSS": 313880
       },
-      "after_kb": {
-       "VmHWM": 315304,
-       "VmRSS": 315304
+      "after_kib": {
+       "VmHWM": 314212,
+       "VmRSS": 314212
       },
-      "peak_increase_kb": 308
+      "peak_increase_kib": 332
      }
     },
     "committed after 4": {
@@ -344,39 +450,63 @@
      "positions_per_target": 1.1875,
      "parameter_positions_per_target": 32756.0,
      "per_sequence": {
-      "wall_s": 0.10138235699992038,
+      "wall_s": 0.11360997200000611,
       "wall_s_quartiles": [
-       0.09890049000000545,
-       0.10419472700004917
+       0.11040425900000628,
+       0.11584969299997283
       ],
-      "cpu_s": 0.10121861700000068,
+      "cpu_s": 0.11345605500000033,
       "energy_j": null,
-      "ms_per_sequence": 4.224264874996682,
+      "ms_per_sequence": 4.733748833333588,
       "energy_mj_per_sequence": null
      },
      "batched": {
-      "wall_s": 0.018971824000004744,
+      "wall_s": 0.013014491999967959,
       "wall_s_quartiles": [
-       0.018617037000012715,
-       0.019418821000044773
+       0.01230159299996103,
+       0.014928571000041302
       ],
-      "cpu_s": 0.01897571900000017,
+      "cpu_s": 0.012748785000002982,
       "energy_j": null,
-      "sequences_per_s": 1265.0338733900335,
+      "sequences_per_s": 1844.098102335388,
+      "forward_calls": 9
+     },
+     "batched_per_family": {
+      "wall_s": 0.021788532000016403,
+      "wall_s_quartiles": [
+       0.02132685499998388,
+       0.02204788900002086
+      ],
+      "cpu_s": 0.02179406399999806,
+      "energy_j": null,
+      "sequences_per_s": 1101.4968791831377,
       "forward_calls": 19
+     },
+     "committed_to": {
+      "voyager": {
+       "voyager": 4,
+       "sweep": 2
+      },
+      "rosetta": {
+       "rosetta": 12
+      },
+      "sweep": {
+       "voyager": 3,
+       "sweep": 3
+      }
      },
      "weights_resident_bytes": 331008,
      "weights_resident_parameters": 82752,
      "memory": {
-      "before_kb": {
-       "VmHWM": 314940,
-       "VmRSS": 314940
+      "before_kib": {
+       "VmHWM": 313880,
+       "VmRSS": 313880
       },
-      "after_kb": {
-       "VmHWM": 315244,
-       "VmRSS": 315244
+      "after_kib": {
+       "VmHWM": 314200,
+       "VmRSS": 314200
       },
-      "peak_increase_kb": 304
+      "peak_increase_kib": 320
      }
     },
     "one specialist": {
@@ -386,39 +516,51 @@
      "positions_per_target": 1.0,
      "parameter_positions_per_target": 27584.0,
      "per_sequence": {
-      "wall_s": 0.05345314999999573,
+      "wall_s": 0.05922793700000284,
       "wall_s_quartiles": [
-       0.05175512899995738,
-       0.055496068000024934
+       0.05448939699999755,
+       0.0602200569999809
       ],
-      "cpu_s": 0.05311196799999962,
+      "cpu_s": 0.05918651300000022,
       "energy_j": null,
-      "ms_per_sequence": 2.2272145833331556,
+      "ms_per_sequence": 2.4678307083334516,
       "energy_mj_per_sequence": null
      },
      "batched": {
-      "wall_s": 0.008621213999958854,
+      "wall_s": 0.009371262000001934,
       "wall_s_quartiles": [
-       0.008427943000015148,
-       0.00881774000004043
+       0.008776097000009031,
+       0.011124517000041578
       ],
-      "cpu_s": 0.008623922999998257,
+      "cpu_s": 0.008951045999999963,
       "energy_j": null,
-      "sequences_per_s": 2783.830676296232,
+      "sequences_per_s": 2561.0211303445626,
       "forward_calls": 6
      },
+     "batched_per_family": {
+      "wall_s": 0.009825994999971499,
+      "wall_s_quartiles": [
+       0.009661186000016642,
+       0.009923783000033382
+      ],
+      "cpu_s": 0.009826177000000769,
+      "energy_j": null,
+      "sequences_per_s": 2442.5007340294405,
+      "forward_calls": 6
+     },
+     "committed_to": null,
      "weights_resident_bytes": 110336,
      "weights_resident_parameters": 27584,
      "memory": {
-      "before_kb": {
-       "VmHWM": 314816,
-       "VmRSS": 314816
+      "before_kib": {
+       "VmHWM": 313976,
+       "VmRSS": 313976
       },
-      "after_kb": {
-       "VmHWM": 314928,
-       "VmRSS": 314928
+      "after_kib": {
+       "VmHWM": 314092,
+       "VmRSS": 314092
       },
-      "peak_increase_kb": 112
+      "peak_increase_kib": 116
      }
     }
    },
@@ -457,39 +599,51 @@
      "positions_per_target": 3.0,
      "parameter_positions_per_target": 82752.0,
      "per_sequence": {
-      "wall_s": 0.17271253100000195,
+      "wall_s": 0.16556168699997897,
       "wall_s_quartiles": [
-       0.15346072200009075,
-       0.18389003700008288
+       0.16238960599997654,
+       0.16709206500001983
       ],
-      "cpu_s": 0.17260239099999808,
+      "cpu_s": 0.1651607869999978,
       "energy_j": null,
-      "ms_per_sequence": 7.196355458333414,
+      "ms_per_sequence": 6.898403624999124,
       "energy_mj_per_sequence": null
      },
      "batched": {
-      "wall_s": 0.025963840999907006,
+      "wall_s": 0.017151892000015323,
       "wall_s_quartiles": [
-       0.02522607900004914,
-       0.028035357000021577
+       0.016727250000030836,
+       0.01762122599996019
       ],
-      "cpu_s": 0.025918605999997624,
+      "cpu_s": 0.017000408000001244,
       "energy_j": null,
-      "sequences_per_s": 924.3624623986088,
+      "sequences_per_s": 1399.262541997032,
+      "forward_calls": 6
+     },
+     "batched_per_family": {
+      "wall_s": 0.025505571999985932,
+      "wall_s_quartiles": [
+       0.025314861000026667,
+       0.02583345300001838
+      ],
+      "cpu_s": 0.02550912299999908,
+      "energy_j": null,
+      "sequences_per_s": 940.970859230808,
       "forward_calls": 18
      },
+     "committed_to": null,
      "weights_resident_bytes": 331008,
      "weights_resident_parameters": 82752,
      "memory": {
-      "before_kb": {
-       "VmHWM": 314872,
-       "VmRSS": 314872
+      "before_kib": {
+       "VmHWM": 313888,
+       "VmRSS": 313888
       },
-      "after_kb": {
-       "VmHWM": 315180,
-       "VmRSS": 315180
+      "after_kib": {
+       "VmHWM": 314216,
+       "VmRSS": 314216
       },
-      "peak_increase_kb": 308
+      "peak_increase_kib": 328
      }
     },
     "committed after 8": {
@@ -499,39 +653,62 @@
      "positions_per_target": 1.4375,
      "parameter_positions_per_target": 39652.0,
      "per_sequence": {
-      "wall_s": 0.10866594900005566,
+      "wall_s": 0.10340904000003093,
       "wall_s_quartiles": [
-       0.09468377500002134,
-       0.11666878999994879
+       0.10190487500000245,
+       0.10579237799998964
       ],
-      "cpu_s": 0.10837577800000275,
+      "cpu_s": 0.10341497900000007,
       "energy_j": null,
-      "ms_per_sequence": 4.527747875002319,
+      "ms_per_sequence": 4.308710000001288,
       "energy_mj_per_sequence": null
      },
      "batched": {
-      "wall_s": 0.018659763999949064,
+      "wall_s": 0.012509260000001632,
       "wall_s_quartiles": [
-       0.01792463599997518,
-       0.022065968999982033
+       0.012264446000017415,
+       0.0126892289999887
       ],
-      "cpu_s": 0.018661860000001695,
+      "cpu_s": 0.012511809000002927,
       "energy_j": null,
-      "sequences_per_s": 1286.1899003688104,
+      "sequences_per_s": 1918.5787168862803,
+      "forward_calls": 9
+     },
+     "batched_per_family": {
+      "wall_s": 0.018087634000039543,
+      "wall_s_quartiles": [
+       0.017789915999969708,
+       0.018433735000030538
+      ],
+      "cpu_s": 0.018090680999996778,
+      "energy_j": null,
+      "sequences_per_s": 1326.8733765813445,
       "forward_calls": 17
+     },
+     "committed_to": {
+      "voyager": {
+       "voyager": 6
+      },
+      "rosetta": {
+       "rosetta": 12
+      },
+      "sweep": {
+       "voyager": 2,
+       "sweep": 4
+      }
      },
      "weights_resident_bytes": 331008,
      "weights_resident_parameters": 82752,
      "memory": {
-      "before_kb": {
-       "VmHWM": 314964,
-       "VmRSS": 314964
+      "before_kib": {
+       "VmHWM": 314004,
+       "VmRSS": 314004
       },
-      "after_kb": {
-       "VmHWM": 315280,
-       "VmRSS": 315280
+      "after_kib": {
+       "VmHWM": 314332,
+       "VmRSS": 314332
       },
-      "peak_increase_kb": 316
+      "peak_increase_kib": 328
      }
     },
     "committed after 4": {
@@ -541,39 +718,63 @@
      "positions_per_target": 1.1875,
      "parameter_positions_per_target": 32756.0,
      "per_sequence": {
-      "wall_s": 0.10647895799991147,
+      "wall_s": 0.10129339099995605,
       "wall_s_quartiles": [
-       0.09435436399996888,
-       0.11403750300007687
+       0.09914449199999353,
+       0.10380091100000755
       ],
-      "cpu_s": 0.10648550900000231,
+      "cpu_s": 0.10116084799999925,
       "energy_j": null,
-      "ms_per_sequence": 4.436623249996312,
+      "ms_per_sequence": 4.220557958331502,
       "energy_mj_per_sequence": null
      },
      "batched": {
-      "wall_s": 0.019215389999999388,
+      "wall_s": 0.011507662999974855,
       "wall_s_quartiles": [
-       0.01788263400010237,
-       0.020406075999972018
+       0.011361651000015627,
+       0.011667079999995167
       ],
-      "cpu_s": 0.01921790999999473,
+      "cpu_s": 0.011510080999997285,
       "energy_j": null,
-      "sequences_per_s": 1248.9988493598498,
+      "sequences_per_s": 2085.5668088344646,
+      "forward_calls": 9
+     },
+     "batched_per_family": {
+      "wall_s": 0.01810969699999987,
+      "wall_s_quartiles": [
+       0.017918980000047213,
+       0.01847834700004114
+      ],
+      "cpu_s": 0.01811298799999861,
+      "energy_j": null,
+      "sequences_per_s": 1325.256849962767,
       "forward_calls": 19
+     },
+     "committed_to": {
+      "voyager": {
+       "voyager": 4,
+       "sweep": 2
+      },
+      "rosetta": {
+       "rosetta": 12
+      },
+      "sweep": {
+       "voyager": 3,
+       "sweep": 3
+      }
      },
      "weights_resident_bytes": 331008,
      "weights_resident_parameters": 82752,
      "memory": {
-      "before_kb": {
-       "VmHWM": 314912,
-       "VmRSS": 314912
+      "before_kib": {
+       "VmHWM": 313908,
+       "VmRSS": 313908
       },
-      "after_kb": {
-       "VmHWM": 315216,
-       "VmRSS": 315216
+      "after_kib": {
+       "VmHWM": 314228,
+       "VmRSS": 314228
       },
-      "peak_increase_kb": 304
+      "peak_increase_kib": 320
      }
     },
     "one specialist": {
@@ -583,39 +784,51 @@
      "positions_per_target": 1.0,
      "parameter_positions_per_target": 27584.0,
      "per_sequence": {
-      "wall_s": 0.05580081599998721,
+      "wall_s": 0.05225902000000815,
       "wall_s_quartiles": [
-       0.05083216499997434,
-       0.0588480650000065
+       0.05178206300001875,
+       0.053170375000036074
       ],
-      "cpu_s": 0.05575759099999544,
+      "cpu_s": 0.05215508499999544,
       "energy_j": null,
-      "ms_per_sequence": 2.325033999999467,
+      "ms_per_sequence": 2.1774591666670062,
       "energy_mj_per_sequence": null
      },
      "batched": {
-      "wall_s": 0.008249954000007165,
+      "wall_s": 0.008263294000016685,
       "wall_s_quartiles": [
-       0.007800449999990633,
-       0.010229213000002346
+       0.008066947999964214,
+       0.008415345999992496
       ],
-      "cpu_s": 0.008253094999993493,
+      "cpu_s": 0.008210091999998781,
       "energy_j": null,
-      "sequences_per_s": 2909.1071295644992,
+      "sequences_per_s": 2904.410759190165,
       "forward_calls": 6
      },
+     "batched_per_family": {
+      "wall_s": 0.00819270299996333,
+      "wall_s_quartiles": [
+       0.008015782000029503,
+       0.008350473999996666
+      ],
+      "cpu_s": 0.00819560299999722,
+      "energy_j": null,
+      "sequences_per_s": 2929.4361091946603,
+      "forward_calls": 6
+     },
+     "committed_to": null,
      "weights_resident_bytes": 110336,
      "weights_resident_parameters": 27584,
      "memory": {
-      "before_kb": {
-       "VmHWM": 314892,
-       "VmRSS": 314892
+      "before_kib": {
+       "VmHWM": 313856,
+       "VmRSS": 313856
       },
-      "after_kb": {
-       "VmHWM": 315004,
-       "VmRSS": 315004
+      "after_kib": {
+       "VmHWM": 313972,
+       "VmRSS": 313972
       },
-      "peak_increase_kb": 112
+      "peak_increase_kib": 116
      }
     }
    },
@@ -626,65 +839,81 @@
   "bank": {
    "parameter_positions_per_target": 82752.0,
    "forward_calls_per_sequence": 12.0,
-   "ms_per_sequence": 7.246270347220868,
-   "sequences_per_s_batched": 873.1791001016335,
-   "cpu_s_per_sequence_stream": 0.007230626347222219,
+   "forward_calls_batched": 6.0,
+   "forward_calls_batched_per_family": 18.0,
+   "sequences_per_s_batched_per_family": 887.2362554827428,
+   "ms_per_sequence": 7.455741347222045,
+   "sequences_per_s_batched": 1342.361113181528,
+   "cpu_s_per_sequence_stream": 0.007442924902777746,
    "weights_resident_bytes": 331008,
-   "peak_rss_increase_kb": [
-    304,
-    308,
-    308
+   "peak_rss_increase_kib": [
+    328,
+    328,
+    328
    ],
    "latency_vs_bank": 1.0,
    "throughput_vs_bank": 1.0,
+   "throughput_per_family_vs_bank": 1.0,
    "compute_vs_bank": 1.0
   },
   "committed after 8": {
    "parameter_positions_per_target": 39652.0,
    "forward_calls_per_sequence": 7.0,
-   "ms_per_sequence": 4.570465388889981,
-   "sequences_per_s_batched": 1218.7016679234987,
-   "cpu_s_per_sequence_stream": 0.004565536180555619,
+   "forward_calls_batched": 9.0,
+   "forward_calls_batched_per_family": 17.0,
+   "sequences_per_s_batched_per_family": 1257.8740887325696,
+   "ms_per_sequence": 4.6778286805562175,
+   "sequences_per_s_batched": 1882.535289517061,
+   "cpu_s_per_sequence_stream": 0.004673423722222223,
    "weights_resident_bytes": 331008,
-   "peak_rss_increase_kb": [
-    308,
-    308,
-    316
+   "peak_rss_increase_kib": [
+    336,
+    332,
+    328
    ],
-   "latency_vs_bank": 0.6307334904559382,
-   "throughput_vs_bank": 1.3957064109546922,
+   "latency_vs_bank": 0.6274129510003915,
+   "throughput_vs_bank": 1.4024060076168827,
+   "throughput_per_family_vs_bank": 1.4177442377489002,
    "compute_vs_bank": 0.4791666666666667
   },
   "committed after 4": {
    "parameter_positions_per_target": 32756.0,
    "forward_calls_per_sequence": 7.0,
-   "ms_per_sequence": 4.444500708331134,
-   "sequences_per_s_batched": 1200.433649247019,
-   "cpu_s_per_sequence_stream": 0.004438437277777818,
+   "forward_calls_batched": 9.0,
+   "forward_calls_batched_per_family": 19.0,
+   "sequences_per_s_batched_per_family": 1245.7255014307923,
+   "ms_per_sequence": 4.5747205694439685,
+   "sequences_per_s_batched": 2012.9265361736288,
+   "cpu_s_per_sequence_stream": 0.0045681830694444476,
    "weights_resident_bytes": 331008,
-   "peak_rss_increase_kb": [
-    304,
-    304,
-    304
+   "peak_rss_increase_kib": [
+    324,
+    320,
+    320
    ],
-   "latency_vs_bank": 0.6133501091407271,
-   "throughput_vs_bank": 1.3747851375591729,
+   "latency_vs_bank": 0.6135835936889732,
+   "throughput_vs_bank": 1.4995417525190333,
+   "throughput_per_family_vs_bank": 1.4040516195463593,
    "compute_vs_bank": 0.3958333333333333
   },
   "one specialist": {
    "parameter_positions_per_target": 27584.0,
    "forward_calls_per_sequence": 4.0,
-   "ms_per_sequence": 2.320518513888222,
-   "sequences_per_s_batched": 2728.7257437834924,
-   "cpu_s_per_sequence_stream": 0.0023152578333332573,
+   "forward_calls_batched": 6.0,
+   "forward_calls_batched_per_family": 6.0,
+   "sequences_per_s_batched_per_family": 2736.5166096633743,
+   "ms_per_sequence": 2.3733711388895053,
+   "sequences_per_s_batched": 2797.088434676232,
+   "cpu_s_per_sequence_stream": 0.0023706667777777155,
    "weights_resident_bytes": 110336,
-   "peak_rss_increase_kb": [
-    112,
-    112,
-    112
+   "peak_rss_increase_kib": [
+    116,
+    116,
+    116
    ],
-   "latency_vs_bank": 0.32023625985445064,
-   "throughput_vs_bank": 3.125047018951648,
+   "latency_vs_bank": 0.318327987568105,
+   "throughput_vs_bank": 2.0837078839738266,
+   "throughput_per_family_vs_bank": 3.084315584212058,
    "compute_vs_bank": 0.3333333333333333
   }
  }

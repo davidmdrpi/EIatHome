@@ -94,6 +94,18 @@ class CommittedTests(unittest.TestCase):
         sel.bank(self.models, self.logfreq, sequences([49]), batched=False, works=works)
         self.assertEqual(([w.calls for w in works], sum(w.positions for w in works)), ([4, 4, 4], 144))
 
+    def test_windows_the_evidence_completed_are_not_run_again(self):
+        """The committed specialist resumes at the window its first target falls in: windows of
+        15 targets, a 49-token sequence (48 targets)."""
+        for n, extra in ((8, 7), (16, 0), (20, 4)):  # evidence ends inside window 1, at its end, inside window 2
+            works = [sel.Work() for _ in self.models]
+            (bits, _), = sel.committed(self.models, self.logfreq, sequences([49], seed=2), n, batched=False, works=works)
+            evidence = n - 1
+            with self.subTest(n=n):
+                self.assertEqual(len(bits), 48)
+                self.assertEqual(sum(w.positions for w in works), 3 * evidence + (48 - evidence) + extra)
+                self.assertEqual(max(w.positions for w in works) - evidence, 48 - evidence + extra)
+
     def test_a_sequence_shorter_than_the_evidence_never_commits(self):
         works = [sel.Work() for _ in self.models]
         (bits, choice), = sel.committed(self.models, self.logfreq, sequences([5]), 8, works=works)
@@ -130,7 +142,7 @@ class MeasurementTests(unittest.TestCase):
 
     @unittest.skipUnless(Path("/proc/self/status").exists(), "Linux only")
     def test_peak_memory_is_read(self):
-        memory = sel.peak_memory_kb()
+        memory = sel.peak_memory_kib()
         self.assertGreater(memory["VmHWM"], 0)
         self.assertGreaterEqual(memory["VmHWM"], memory["VmRSS"])
 
@@ -148,6 +160,12 @@ class PublishedReportTests(unittest.TestCase):
             self.assertEqual(arms["bank"]["forward_calls_per_sequence"], 12)
             self.assertAlmostEqual(arms["committed after 8"]["positions_per_target"], 69 / 48)
             self.assertEqual(arms["committed after 8"]["weights_resident_bytes"], arms["bank"]["weights_resident_bytes"])
+            # batched: one call per (specialist, window length) in each batch
+            self.assertEqual([arms[a]["batched"]["forward_calls"] for a in sel.ARMS], [6, 9, 9, 6])
+            self.assertEqual(arms["bank"]["batched_per_family"]["forward_calls"], 18)
+            for arm in ("committed after 8", "committed after 4"):
+                groups = sum(len(to) for to in arms[arm]["committed_to"].values())  # (family, specialist) pairs
+                self.assertEqual(arms[arm]["batched_per_family"]["forward_calls"], 9 + 2 * groups)
         self.assertTrue(report["summary"]["committed after 8"]["latency_vs_bank"] < 1)
 
 

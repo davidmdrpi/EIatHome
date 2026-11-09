@@ -16,8 +16,9 @@ the bank, the committed routers and a single specialist cost:
   per target are counted, not projected (the committed specialist reruns the prefix: the model has
   no key-value cache, so its first window starts from the sequence's start);
 - **latency:** seconds per sequence one at a time (batch 1, as a stream would arrive), and
-  sequences per second with every window of one length in one batch, on one CPU thread, the
-  median of repeated runs;
+  sequences per second batched: every family's sequences together, as a router that doesn't
+  know the family would get them, and each family's apart. Within a batch, the windows run as one
+  call per (specialist, window length). One CPU thread, the median of repeated runs;
 - **memory:** the weights each arm must keep resident, and each arm's peak resident memory in a
   fresh process (/proc/self/status VmHWM), above the same process's before it loads a model;
 - **energy:** RAPL package energy (/sys/class/powercap) where the machine exposes it; otherwise
@@ -127,10 +128,16 @@ def committed(models, logfreq, sequences, n, batched=True, works=None):
         decided.append((bits[choice, np.arange(bits.shape[1])], choice, commit))
         if len(s) - 1 > everyone[i]:
             rest.setdefault(commit, []).append(i)
+    # Windows are scored independently, each from its own start, so the committed specialist
+    # resumes at the window holding its first target after the evidence. Windows the evidence
+    # completed aren't run again; only the one it ends inside is (there's no key-value cache).
+    context = next(m for m in models if m is not None).config["context"]
     tails = {}
     for k, members in rest.items():  # each committed specialist runs once, on its own sequences
-        for i, b in zip(members, window_bits(models[k], [sequences[i] for i in members], batched, works[k])):
-            tails[i] = b[everyone[i]:]
+        starts = [everyone[i] // context * context for i in members]
+        suffixes = [sequences[i][start:] for i, start in zip(members, starts)]
+        for i, start, b in zip(members, starts, window_bits(models[k], suffixes, batched, works[k])):
+            tails[i] = b[everyone[i] - start:]
     out = []
     for i, s in enumerate(sequences):
         bits, choice, commit = decided[i]
@@ -237,7 +244,8 @@ def timed(fns, repeats=REPEATS, domains=None):
             for name, s in samples.items()}
 
 
-def peak_memory_kb():
+def peak_memory_kib():
+    """This process's peak and current resident memory, in KiB (what /proc calls kB)."""
     status = Path("/proc/self/status").read_text()
     return {k: int(v.split()[0]) for k, v in (line.split(":", 1) for line in status.splitlines()) if k in ("VmHWM", "VmRSS")}
 
@@ -258,14 +266,14 @@ def memory_probe(folder, arm, family_index, data):
             window_bits(warm, sequences[f])
         del warm
         gc.collect()
-        before = peak_memory_kb()
+        before = peak_memory_kib()
         needed = [family_index] if arm == "one specialist" else list(range(len(FAMILIES)))
         loaded = {k: model_from(anchor, load_checkpoint(folder / f"warm-{FAMILIES[k]}" / "real.pt", anchor)["model"]) for k in needed}
         models = [loaded.get(k) for k in range(len(FAMILIES))]
         for f in FAMILIES:
             run_arm(arm, models, logfreq, sequences[f], family_index)
-        after = peak_memory_kb()
-    return {"before_kb": before, "after_kb": after, "peak_increase_kb": after["VmHWM"] - before["VmHWM"]}
+        after = peak_memory_kib()
+    return {"before_kib": before, "after_kib": after, "peak_increase_kib": after["VmHWM"] - before["VmHWM"]}
 
 
 def exactness(models, logfreq, sequences):
@@ -304,27 +312,46 @@ def measure_seed(folder, repeats=REPEATS, memory=True):
         test = {f: sequences["validation"][f] + sequences["test"][f] for f in FAMILIES}
         count = sum(len(test[f]) for f in FAMILIES)
         targets = sum(len(s) - 1 for f in FAMILIES for s in test[f])
-        stream = lambda arm: lambda: [run_arm(arm, models, logfreq, [s], k, batched=False) for k, f in enumerate(FAMILIES) for s in test[f]]
-        batch = lambda arm: lambda: [run_arm(arm, models, logfreq, test[f], k, batched=True) for k, f in enumerate(FAMILIES)]
-        streamed = timed({arm: stream(arm) for arm in ARMS}, repeats, domains)
-        batched = timed({arm: batch(arm) for arm in ARMS}, repeats, domains)
+        mixed = [s for f in FAMILIES for s in test[f]]
+        # Three ways to run an arm over the held-out sequences:
+        # - stream: one sequence at a time;
+        # - mixed: every family's sequences in one batch, as a router that doesn't know the
+        #   family would get them (dispatch by label still sends each family to its specialist);
+        # - per family: each family's sequences in a batch of their own.
+        # Within a batch, windows run grouped by (specialist, window length): one call per group.
+        def plan(arm, mode):
+            if mode == "stream":
+                return [(arm, [s], k, False) for k, f in enumerate(FAMILIES) for s in test[f]]
+            if mode == "mixed" and arm != "one specialist":
+                return [(arm, mixed, 0, True)]
+            return [(arm, test[f], k, True) for k, f in enumerate(FAMILIES)]
+        runner = lambda arm, mode: lambda: [run_arm(a, models, logfreq, seqs, k, batched=b) for a, seqs, k, b in plan(arm, mode)]
+        timings = {mode: timed({arm: runner(arm, mode) for arm in ARMS}, repeats, domains) for mode in ("stream", "mixed", "per family")}
         for arm in ARMS:
             counted = {}
-            for mode in (False, True):
+            for mode in ("stream", "mixed", "per family"):
                 works = [Work() for _ in models]
-                for k, f in enumerate(FAMILIES):
-                    run_arm(arm, models, logfreq, test[f], k, batched=mode, works=works)
+                for a, seqs, k, b in plan(arm, mode):
+                    run_arm(a, models, logfreq, seqs, k, batched=b, works=works)
                 counted[mode] = (sum(w.calls for w in works), sum(w.positions for w in works))
-            calls, positions = counted[False]
+            calls, positions = counted["stream"]
             resident = (1 if arm == "one specialist" else len(models)) * single
-            s, b = streamed[arm], batched[arm]
+            s, b, bf = timings["stream"][arm], timings["mixed"][arm], timings["per family"][arm]
+            committed_to = None
+            if arm.startswith("committed after"):  # where each family's sequences go, which sets the batched calls
+                committed_to = {}
+                for f in FAMILIES:
+                    picks = [int(c[-1]) for _, c in committed(models, logfreq, test[f], int(arm.split()[-1]))]
+                    committed_to[f] = {FAMILIES[k]: picks.count(k) for k in sorted(set(picks))}
             out["arms"][arm] = {
                 "sequences": count, "targets": targets,
                 "forward_calls_per_sequence": calls / count, "positions_per_target": positions / targets,
                 "parameter_positions_per_target": positions * single / targets,
                 "per_sequence": {**s, "ms_per_sequence": 1000 * s["wall_s"] / count,
                                  "energy_mj_per_sequence": None if s["energy_j"] is None else 1000 * s["energy_j"] / count},
-                "batched": {**b, "sequences_per_s": count / b["wall_s"], "forward_calls": counted[True][0]},
+                "batched": {**b, "sequences_per_s": count / b["wall_s"], "forward_calls": counted["mixed"][0]},
+                "batched_per_family": {**bf, "sequences_per_s": count / bf["wall_s"], "forward_calls": counted["per family"][0]},
+                "committed_to": committed_to,
                 "weights_resident_bytes": resident * 4, "weights_resident_parameters": resident,
             }
     if memory:
@@ -353,15 +380,19 @@ def summarize(seeds):
         mean = lambda f: statistics.fmean(f(r) for r in rows)
         out[arm] = {"parameter_positions_per_target": mean(lambda r: r["parameter_positions_per_target"]),
                     "forward_calls_per_sequence": mean(lambda r: r["forward_calls_per_sequence"]),
+                    "forward_calls_batched": mean(lambda r: r["batched"]["forward_calls"]),
+                    "forward_calls_batched_per_family": mean(lambda r: r["batched_per_family"]["forward_calls"]),
+                    "sequences_per_s_batched_per_family": mean(lambda r: r["batched_per_family"]["sequences_per_s"]),
                     "ms_per_sequence": mean(lambda r: r["per_sequence"]["ms_per_sequence"]),
                     "sequences_per_s_batched": mean(lambda r: r["batched"]["sequences_per_s"]),
                     "cpu_s_per_sequence_stream": mean(lambda r: r["per_sequence"]["cpu_s"] / r["sequences"]),
-                    "weights_resident_bytes": rows[0]["weights_resident_bytes"],
-                    "peak_rss_increase_kb": [r["memory"]["peak_increase_kb"] for r in rows if "memory" in r]}
+                    "weights_resident_bytes": rows[0]["weights_resident_bytes"],  # exact: parameters × 4 bytes
+                    "peak_rss_increase_kib": [r["memory"]["peak_increase_kib"] for r in rows if "memory" in r]}  # measured
     bank = out["bank"]
     for arm, row in out.items():
         row["latency_vs_bank"] = row["ms_per_sequence"] / bank["ms_per_sequence"]
         row["throughput_vs_bank"] = row["sequences_per_s_batched"] / bank["sequences_per_s_batched"]
+        row["throughput_per_family_vs_bank"] = row["sequences_per_s_batched_per_family"] / bank["sequences_per_s_batched_per_family"]
         row["compute_vs_bank"] = row["parameter_positions_per_target"] / bank["parameter_positions_per_target"]
     return out
 
