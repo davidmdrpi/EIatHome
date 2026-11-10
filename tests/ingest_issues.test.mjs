@@ -193,7 +193,7 @@ test('a card saved before a later step failed is still published and announced b
 });
 
 // A stand-in for `python -m tracks.llm.pilot ingest <event> <comment>`: a body saying VALID is
-// stored under tracks/llm/pilot, anything else rejected.
+// stored under tracks/llm/pilot (and the pilot's status rewritten), anything else rejected.
 const FAKE_PILOT = `#!/usr/bin/env node
 const fs = require('node:fs');
 const path = require('node:path');
@@ -204,13 +204,15 @@ let status = 'rejected';
 if (issue.body.includes('VALID')) {
   fs.mkdirSync('tracks/llm/pilot/v0/submissions', { recursive: true });
   fs.writeFileSync(path.join('tracks/llm/pilot/v0/submissions', issue.number + '.json'), issue.body);
+  fs.mkdirSync('web/data', { recursive: true });
+  fs.writeFileSync('web/data/pilot_status.json', JSON.stringify({ submissions: [issue.number] }));
   status = 'accepted';
 }
 fs.writeFileSync(comment, status === 'accepted' ? 'Receipt for #' + issue.number : 'Not accepted.');
 console.log(JSON.stringify({ status }));
 `;
 
-test('checkpoint contributions go to the pilot\'s validator, are stored under tracks/llm/pilot, and need no Live Lab deploy', async () => {
+test('checkpoint contributions go to the pilot\'s validator, are stored under tracks/llm/pilot, and redeploy the Live Lab\'s pilot status', async () => {
   const t = await setup();
   try {
     const bin = join(t.dir, 'bin');
@@ -231,11 +233,12 @@ test('checkpoint contributions go to the pilot\'s validator, are stored under tr
     const s = t.load();
     assert.equal(git(t.origin, 'show', 'main:tracks/llm/pilot/v0/submissions/20.json'), 'VALID artifact');
     assert.match(git(t.origin, 'log', '-1', '--format=%s', 'main'), /Add checkpoint contribution from #20/);
+    assert.deepEqual(JSON.parse(git(t.origin, 'show', 'main:web/data/pilot_status.json')), { submissions: [20] }, 'committed with the submission');
     assert.deepEqual([s.issues[20].state, s.issues[20].labels], ['closed', ['checkpoint']]);
     assert.deepEqual([s.issues[21].state, s.issues[21].labels], ['open', ['checkpoint-rejected']]);
     assert.deepEqual(s.issues[22].labels, [], 'result cards are left to the result kind');
     assert.deepEqual(s.comments, [[20, 'Receipt for #20'], [21, 'Not accepted.']]);
-    assert.equal(s.deploys, 0, 'no Live Lab deploy for checkpoints');
+    assert.equal(s.deploys, 1, 'the Live Lab is redeployed with the new status before the receipt');
 
     const unknown = spawnSync(process.execPath, [join(ROOT, 'tools', 'ingest_issues.mjs'), '--kind', 'other', '--pending'], { cwd: t.work, env, encoding: 'utf8' });
     assert.equal(unknown.status, 1);

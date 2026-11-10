@@ -129,12 +129,15 @@ export function agree(a, b, tolerance = AGREEMENT_TOLERANCE) {
   return keys.length === Object.keys(vb).length && keys.every((key) => key in vb && Math.abs(va[key] - vb[key]) <= tolerance);
 }
 
+// The group a card's run is replicated within: its spec, unit and dataset.
+export const unitKey = (card) => `${card.spec}#${card.unit}|${cardDataset(card) ?? 'synthetic'}`;
+
 // Replication status per unit, and per-volunteer counts, for the units that are replicated
 // (not recovery units). results: [{ issue, submitted_by, submitted_at, card }]
 export function summarize(results) {
   const byUnit = new Map();
   for (const r of results.filter((r) => !isRecoveryCard(r.card))) {
-    const key = `${r.card.spec}#${r.card.unit}|${cardDataset(r.card) ?? 'synthetic'}`;
+    const key = unitKey(r.card);
     if (!byUnit.has(key)) byUnit.set(key, []);
     byUnit.get(key).push(r);
   }

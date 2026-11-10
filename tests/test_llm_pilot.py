@@ -46,7 +46,12 @@ class Scenario:
         self.submit("bob", 3, 12, 102)
         self.submit("carol", 2, 13, 103)
         self.submit("alice", 2, 14, 104)  # alice again on shard 2
-        self.submit("dave", 3, 12, 105)  # bob's shard and seed
+        # bob's shard and seed, from another machine: training is deterministic, so without a
+        # different environment (or by chance the same rounded seconds) the artifact would be
+        # bob's byte for byte, refused as a copy before the shard-and-seed rule is reached
+        here = P.environment()
+        with unittest.mock.patch.object(P, "environment", lambda: {**here, "platform": "dave's computer"}):
+            self.submit("dave", 3, 12, 105)
         self.mislabelled(106)  # mallory: a shard-2 run sent as shard 4
         self.before_merge = copy.deepcopy(self.ledger)
         self.round = P.merge(self.pilot, self.ledger, "maintainer")
@@ -199,7 +204,11 @@ class IngestTests(unittest.TestCase):
         self.assertEqual(self.s.outcomes[104][0], "duplicate")
         self.assertIn("once per shard per round", self.s.outcomes[104][1])
         self.assertEqual(self.s.outcomes[105][0], "duplicate")
-        self.assertIn("seed 12", self.s.outcomes[105][1])
+        self.assertIn("seed 12", self.s.outcomes[105][1], "a different artifact of the same run: the shard-and-seed rule")
+        # The very same artifact again is refused as a copy, whoever sends it.
+        status, comment, _ = P.ingest(self.s.pilot, self.s.issue("erin", 107, self.s.bodies[102]), copy.deepcopy(self.s.before_merge))
+        self.assertEqual(status, "duplicate")
+        self.assertIn("already recorded from #102", comment)
         self.assertNotIn(104, self.events)
         self.assertNotIn(105, self.events)
 
@@ -419,6 +428,137 @@ class VerifyTests(unittest.TestCase):
         self.assertEqual(P.head_checkpoint(pilot, state.head)["merge"]["weights_sha256"], P.START_SHA256)
         self.assertEqual(P.verify(pilot, ledger), len(ledger["events"]))
 
+
+
+class ExportTests(unittest.TestCase):
+    """The Live Lab's copy of the pilot's status (web/data/pilot_status.json): each stage and the
+    numbers behind it, from the ledger alone."""
+
+    @classmethod
+    def setUpClass(cls):
+        cls.s = Scenario.get()
+
+    def by_issue(self, status):
+        return {s["issue"]: s for s in status["submissions"]}
+
+    def test_each_contribution_shows_its_stage_and_the_numbers_each_check_decided_it_on(self):
+        status = P.export(self.s.pilot, self.s.ledger)
+        self.assertEqual((status["format"], status["version"], status["pilot"]), (P.STATUS_FORMAT, P.STATUS_VERSION, P.PILOT))
+        self.assertEqual(status["ledger"]["sha256"], P.digest(P.ledger_text(self.s.ledger).encode()))
+        self.assertEqual(status["ledger"]["events"], len(self.s.ledger["events"]))
+        self.assertEqual(status["rules"]["gate_bits"], P.RULE["tolerance_bits"])
+        self.assertEqual(status["rules"]["replication"], P.REPLICATION)
+        self.assertEqual(status["rules"]["min_volunteers"], 2)
+        self.assertEqual(status["rules"]["seeds"], [0, 2**31 - 1])
+        subs = self.by_issue(status)
+        self.assertEqual(sorted(subs), [101, 102, 103, 106], "duplicates are refused before the ledger, so they aren't in it")
+        for n in (101, 102, 103):
+            s = subs[n]
+            self.assertEqual(s["stage"], "merged")
+            self.assertEqual(s["evaluation"]["status"], "validated")
+            self.assertLessEqual(s["evaluation"]["validation_bits"], s["evaluation"]["start_validation_bits"] + P.RULE["tolerance_bits"])
+            self.assertTrue(s["replication"]["replicated"])
+            self.assertEqual(s["rounds"], [{"event": len(self.s.ledger["events"]), "round": 2, "decision": "accepted", "live": True,
+                                            "status": "accepted", "reason": None, "weight": {101: 0.25, 102: 0.5, 103: 0.25}[n]}])
+        mallory = subs[106]
+        self.assertEqual((mallory["stage"], mallory["volunteer"], mallory["shard"]), ("not replicated", "mallory", 4))
+        self.assertLess(mallory["replication"]["cosine"], P.REPLICATION["cosine"])
+        self.assertEqual(mallory["rounds"], [], "never offered to a merge")
+
+    def test_a_round_shows_its_gate_its_shard_weights_and_who_holds_them(self):
+        status = P.export(self.s.pilot, self.s.ledger)
+        (r,) = status["rounds"]
+        record = self.s.round["record"]
+        self.assertEqual((r["round"], r["decision"], r["live"], r["rolled_back"]), (2, "accepted", True, None))
+        self.assertEqual(r["gate_bits"], 0.02)
+        self.assertEqual((r["start_validation_bits"], r["merged_validation_bits"]), (record["start"]["validation_bits"], record["merged"]["validation_bits"]))
+        self.assertEqual(r["volunteer_weights"], {"alice": 0.25, "bob": 0.5, "carol": 0.25})
+        self.assertEqual({c["volunteer"]: (c["shard"], c["training_targets"], c["weight"]) for c in r["contributors"]},
+                         {"alice": (2, 225, 0.25), "bob": (3, 225, 0.5), "carol": (2, 225, 0.25)})
+        self.assertEqual(r["checkpoint"], f"tracks/llm/pilot/v0/{self.s.round['checkpoint']}")
+        self.assertEqual(status["current"]["round"], 2)
+        self.assertEqual(status["open"]["round"], 3)
+        self.assertEqual([(c["index"], c["contributions"]) for c in status["open"]["shards"]], [(2, 0), (3, 0), (4, 0), (5, 0)])
+
+    def test_an_exclusion_after_the_merge_keeps_the_merge_and_says_so(self):
+        """Excluding a contribution a live round merged keeps it in the current model until that
+        round is rolled back: the status keeps both facts."""
+        ledger = copy.deepcopy(self.s.ledger)
+        alice = next(e for e in ledger["events"] if e.get("issue") == 101)
+        P.exclude(ledger, alice["id"], "withdrawn after corpus audit", "maintainer")
+        status = P.export(self.s.pilot, ledger)
+        s = self.by_issue(status)[101]
+        self.assertEqual(s["stage"], "merged")
+        self.assertEqual(s["why"], "in round 2, the current chain; excluded from later merges, it stays in the current model until round 2 is rolled back")
+        self.assertEqual(s["exclusion"], {"event": len(ledger["events"]), "reason": "withdrawn after corpus audit", "by": "maintainer"})
+        self.assertEqual(s["rounds"][0]["live"], True)
+        self.assertEqual(self.by_issue(status)[102]["exclusion"], None)
+        self.assertEqual([x["submission"] for x in status["exclusions"]], [alice["id"]])
+
+    def test_rollback_exclusion_and_a_superseded_contribution_each_say_why(self):
+        ledger = copy.deepcopy(self.s.ledger)
+        # A replicated contribution to round 3, from round 2's weights (bob's, renamed)...
+        bob = next(e for e in ledger["events"] if e.get("issue") == 102)
+        ledger["events"].append({**copy.deepcopy(bob), "id": "f" * 64, "issue": 107, "volunteer": "erin", "round": 3,
+                                 "start_sha256": self.s.round["weights_sha256"]})
+        self.assertEqual(self.by_issue(P.export(self.s.pilot, ledger))[107]["stage"], "eligible")
+        # ...then round 2 is rolled back, and alice's contribution excluded.
+        P.rollback(ledger, 1, "a test of rollback", "maintainer")
+        alice = next(e for e in ledger["events"] if e.get("issue") == 101)
+        P.exclude(ledger, alice["id"], "a test of exclusion", "maintainer")
+        status = P.export(self.s.pilot, ledger)
+        subs = self.by_issue(status)
+        self.assertEqual((subs[101]["stage"], subs[101]["why"]), ("excluded", "a test of exclusion"))
+        self.assertEqual((subs[101]["exclusion"]["reason"], subs[101]["exclusion"]["by"]), ("a test of exclusion", "maintainer"))
+        self.assertEqual(subs[102]["stage"], "eligible", "merged into a rolled-back round: eligible again")
+        self.assertEqual(subs[102]["rounds"][0]["live"], False)
+        self.assertEqual((subs[107]["stage"], subs[107]["why"]), ("superseded", "round 3's start is no longer the current model"))
+        self.assertEqual(subs[106]["stage"], "not replicated")
+        (r,) = status["rounds"]
+        self.assertEqual((r["live"], r["rolled_back"]["to_round"], r["rolled_back"]["reason"]), (False, 1, "a test of rollback"))
+        self.assertEqual([x["to_round"] for x in status["rollbacks"]], [1])
+        self.assertEqual([x["submission"] for x in status["exclusions"]], [alice["id"]])
+        self.assertEqual((status["current"]["round"], status["open"]["round"]), (1, 2))
+        self.assertEqual({c["index"]: (c["contributions"], c["volunteers"]) for c in status["open"]["shards"]},
+                         {2: (1, 1), 3: (1, 1), 4: (0, 0), 5: (0, 0)})
+
+    def test_the_live_labs_test_fixture_has_the_exports_shape(self):
+        """tests/fixtures/pilot_status.json (the Live Lab tests' populated status) keeps every field
+        the export writes, nested as it writes them."""
+        ledger = copy.deepcopy(self.s.ledger)
+        P.rollback(ledger, 1, "a test", "maintainer")
+        P.exclude(ledger, next(e for e in ledger["events"] if e.get("issue") == 101)["id"], "a test", "maintainer")
+        exported = P.export(self.s.pilot, ledger)
+        fixture = json.loads((Path(__file__).parent / "fixtures" / "pilot_status.json").read_text())
+
+        def shape(value):
+            if isinstance(value, dict):
+                return {k: shape(v) for k, v in value.items() if k not in ("volunteer_weights",)}
+            if isinstance(value, list):
+                return [shape(value[0])] if value and isinstance(value[0], (dict, list)) else []
+            return None
+        def merged(entries):  # one entry with every key any of them has (rolled_back is null on a live round)
+            out = {}
+            for e in entries:
+                for k, v in e.items():
+                    out[k] = v if out.get(k) is None else out[k]
+            return out
+        for key in ("submissions", "rounds"):
+            exported[key], fixture[key] = [merged(exported[key])], [merged(fixture[key])]
+        self.assertEqual(shape(fixture), shape(exported))
+
+    def test_a_published_copy_that_isnt_the_ledgers_is_refused(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "pilot_status.json"
+            self.assertIn("missing", P.status_problem(self.s.pilot, self.s.ledger, path))
+            P.write_status(self.s.pilot, self.s.ledger, path)
+            self.assertIsNone(P.status_problem(self.s.pilot, self.s.ledger, path))
+            path.write_text(path.read_text().replace('"merged"', '"eligible"', 1))
+            self.assertIn("isn't the ledger's", P.status_problem(self.s.pilot, self.s.ledger, path))
+
+    def test_the_live_labs_copy_is_the_published_ledgers(self):
+        pilot = P.Pilot()
+        self.assertIsNone(P.status_problem(pilot, P.load_ledger(pilot.folder)))
 
 if __name__ == "__main__":
     unittest.main()

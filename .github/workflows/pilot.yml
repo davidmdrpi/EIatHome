@@ -3,8 +3,10 @@ name: Checkpoint pilot round
 # Maintainers' actions on the checkpoint pilot (tracks/llm/PILOT.md): merge the open round's
 # contributions, roll back to an earlier round, or exclude a contribution from later merges.
 # Each is recorded in tracks/llm/pilot/v0/ledger.json, the whole ledger is replayed, and the
-# change is committed to main. Only people with write access can run a workflow; their inputs
-# reach the commands as environment variables, never interpolated into the script.
+# change is committed to main, with the pilot's status for the Live Lab's Contributions tab
+# (web/data/pilot_status.json), which is then redeployed. Only people with write access can run
+# a workflow; their inputs reach the commands as environment variables, never interpolated into
+# the script.
 
 on:
   workflow_dispatch:
@@ -23,6 +25,7 @@ on:
 
 permissions:
   contents: write
+  actions: write # to request the Pages deploy (pushes with the workflow token don't trigger it)
 
 concurrency:
   group: ingest-results
@@ -49,6 +52,7 @@ jobs:
           TARGET: ${{ inputs.target }}
           REASON: ${{ inputs.reason }}
           ACTOR: ${{ github.actor }}
+          GH_TOKEN: ${{ github.token }}
         run: |
           case "$ACTION" in
             merge) python -m tracks.llm.pilot merge --by "$ACTOR" ;;
@@ -57,9 +61,11 @@ jobs:
             *) echo "unknown action" >&2; exit 2 ;;
           esac
           python -m tracks.llm.pilot verify
+          python -m tracks.llm.pilot export --check
           python -m tracks.llm.pilot status
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add tracks/llm/pilot
+          git add tracks/llm/pilot web/data/pilot_status.json
           git commit --quiet -m "Checkpoint pilot: $ACTION, by $ACTOR"
           git push --quiet origin HEAD:main
+          gh workflow run pages.yml --repo "$GITHUB_REPOSITORY" --ref main

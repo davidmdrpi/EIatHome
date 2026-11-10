@@ -1,0 +1,465 @@
+{
+ "format": "eiathome-pilot-status",
+ "version": 1,
+ "pilot": "signal-lm-pilot/v0",
+ "ledger": {
+  "path": "tracks/llm/pilot/v0/ledger.json",
+  "sha256": "9999999999999999999999999999999999999999999999999999999999999999",
+  "events": 11
+ },
+ "rules": {
+  "gate_bits": 0.02,
+  "max_abs_delta": 10.0,
+  "merge": "average",
+  "replication": {
+   "validation_bits": 0.02,
+   "cosine": 0.9
+  },
+  "min_volunteers": 2,
+  "seeds": [
+   0,
+   2147483647
+  ],
+  "influence": "each shard weighs its share of the merged shards' training targets, split equally among its contributions"
+ },
+ "current": {
+  "round": 2,
+  "weights_sha256": "2222222222222222222222222222222222222222222222222222222222222222",
+  "checkpoint": "tracks/llm/pilot/v0/rounds/2222222222222222222222222222222222222222222222222222222222222222.bin"
+ },
+ "open": {
+  "round": 3,
+  "volunteers": 1,
+  "shards": [
+   {
+    "index": 2,
+    "training_targets": 225,
+    "contributions": 0,
+    "volunteers": 0
+   },
+   {
+    "index": 3,
+    "training_targets": 225,
+    "contributions": 0,
+    "volunteers": 0
+   },
+   {
+    "index": 4,
+    "training_targets": 225,
+    "contributions": 1,
+    "volunteers": 1
+   },
+   {
+    "index": 5,
+    "training_targets": 225,
+    "contributions": 0,
+    "volunteers": 0
+   }
+  ]
+ },
+ "submissions": [
+  {
+   "id": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+   "issue": 101,
+   "volunteer": "alice",
+   "submitted_at": "2026-11-07T08:00:00Z",
+   "round": 2,
+   "start_sha256": "ffbaa49dd11479e9f6b8baac10aa349bff86334b54dcb1f6c1e88564931e11da",
+   "shard": 2,
+   "seed": 11,
+   "bytes": 40960,
+   "artifact": "tracks/llm/pilot/v0/submissions/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa.json",
+   "volunteer_validation_bits": 1.5502,
+   "evaluation": {
+    "status": "validated",
+    "reason": null,
+    "validation_bits": 1.55,
+    "start_validation_bits": 1.62,
+    "max_abs_delta": 0.41
+   },
+   "replication": {
+    "validation_bits": 1.551,
+    "cosine": 0.99995,
+    "best_epoch": 37,
+    "replicated": true
+   },
+   "stage": "merged",
+   "why": "in round 2, the current chain",
+   "exclusion": null,
+   "rounds": [
+    {
+     "event": 5,
+     "round": 2,
+     "decision": "accepted",
+     "live": false,
+     "status": "accepted",
+     "reason": null,
+     "weight": 0.25
+    },
+    {
+     "event": 7,
+     "round": 2,
+     "decision": "accepted",
+     "live": true,
+     "status": "accepted",
+     "reason": null,
+     "weight": 0.25
+    }
+   ]
+  },
+  {
+   "id": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+   "issue": 102,
+   "volunteer": "bob",
+   "submitted_at": "2026-11-07T08:00:00Z",
+   "round": 2,
+   "start_sha256": "ffbaa49dd11479e9f6b8baac10aa349bff86334b54dcb1f6c1e88564931e11da",
+   "shard": 3,
+   "seed": 12,
+   "bytes": 40960,
+   "artifact": "tracks/llm/pilot/v0/submissions/bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb.json",
+   "volunteer_validation_bits": 1.5801,
+   "evaluation": {
+    "status": "validated",
+    "reason": null,
+    "validation_bits": 1.58,
+    "start_validation_bits": 1.62,
+    "max_abs_delta": 0.41
+   },
+   "replication": {
+    "validation_bits": 1.579,
+    "cosine": 0.99993,
+    "best_epoch": 37,
+    "replicated": true
+   },
+   "stage": "merged",
+   "why": "in round 2, the current chain",
+   "exclusion": null,
+   "rounds": [
+    {
+     "event": 5,
+     "round": 2,
+     "decision": "accepted",
+     "live": false,
+     "status": "accepted",
+     "reason": null,
+     "weight": 0.5
+    },
+    {
+     "event": 7,
+     "round": 2,
+     "decision": "accepted",
+     "live": true,
+     "status": "accepted",
+     "reason": null,
+     "weight": 0.5
+    }
+   ]
+  },
+  {
+   "id": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+   "issue": 103,
+   "volunteer": "carol",
+   "submitted_at": "2026-11-07T08:00:00Z",
+   "round": 2,
+   "start_sha256": "ffbaa49dd11479e9f6b8baac10aa349bff86334b54dcb1f6c1e88564931e11da",
+   "shard": 2,
+   "seed": 13,
+   "bytes": 40960,
+   "artifact": "tracks/llm/pilot/v0/submissions/cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc.json",
+   "volunteer_validation_bits": 1.5598,
+   "evaluation": {
+    "status": "validated",
+    "reason": null,
+    "validation_bits": 1.56,
+    "start_validation_bits": 1.62,
+    "max_abs_delta": 0.41
+   },
+   "replication": {
+    "validation_bits": 1.561,
+    "cosine": 0.99996,
+    "best_epoch": 37,
+    "replicated": true
+   },
+   "stage": "merged",
+   "why": "in round 2, the current chain; excluded from later merges, it stays in the current model until round 2 is rolled back",
+   "exclusion": {
+    "event": 11,
+    "reason": "withdrawn after corpus audit",
+    "by": "maintainer"
+   },
+   "rounds": [
+    {
+     "event": 5,
+     "round": 2,
+     "decision": "accepted",
+     "live": false,
+     "status": "accepted",
+     "reason": null,
+     "weight": 0.25
+    },
+    {
+     "event": 7,
+     "round": 2,
+     "decision": "accepted",
+     "live": true,
+     "status": "accepted",
+     "reason": null,
+     "weight": 0.25
+    }
+   ]
+  },
+  {
+   "id": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+   "issue": 106,
+   "volunteer": "mallory",
+   "submitted_at": "2026-11-07T08:00:00Z",
+   "round": 2,
+   "start_sha256": "ffbaa49dd11479e9f6b8baac10aa349bff86334b54dcb1f6c1e88564931e11da",
+   "shard": 4,
+   "seed": 15,
+   "bytes": 40960,
+   "artifact": "tracks/llm/pilot/v0/submissions/dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd.json",
+   "volunteer_validation_bits": 1.7,
+   "evaluation": {
+    "status": "validated",
+    "reason": null,
+    "validation_bits": 1.6,
+    "start_validation_bits": 1.62,
+    "max_abs_delta": 0.41
+   },
+   "replication": {
+    "validation_bits": 1.595,
+    "cosine": 0.13,
+    "best_epoch": 37,
+    "replicated": false
+   },
+   "stage": "not replicated",
+   "why": "the coordinator's run of its shard and seed didn't land within the rule",
+   "exclusion": null,
+   "rounds": []
+  },
+  {
+   "id": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+   "issue": 108,
+   "volunteer": "erin",
+   "submitted_at": "2026-11-07T08:00:00Z",
+   "round": 3,
+   "start_sha256": "2222222222222222222222222222222222222222222222222222222222222222",
+   "shard": 4,
+   "seed": 21,
+   "bytes": 40960,
+   "artifact": "tracks/llm/pilot/v0/submissions/eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee.json",
+   "volunteer_validation_bits": 1.5004,
+   "evaluation": {
+    "status": "validated",
+    "reason": null,
+    "validation_bits": 1.5,
+    "start_validation_bits": 1.52,
+    "max_abs_delta": 0.41
+   },
+   "replication": {
+    "validation_bits": 1.5004,
+    "cosine": 0.9999,
+    "best_epoch": 37,
+    "replicated": true
+   },
+   "stage": "eligible",
+   "why": "waiting for round 3's merge",
+   "exclusion": null,
+   "rounds": []
+  },
+  {
+   "id": "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+   "issue": 109,
+   "volunteer": "frank",
+   "submitted_at": "2026-11-07T08:00:00Z",
+   "round": 3,
+   "start_sha256": "2222222222222222222222222222222222222222222222222222222222222222",
+   "shard": 2,
+   "seed": 22,
+   "bytes": 40960,
+   "artifact": "tracks/llm/pilot/v0/submissions/ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff.json",
+   "volunteer_validation_bits": null,
+   "evaluation": {
+    "status": "validated",
+    "reason": null,
+    "validation_bits": 1.49,
+    "start_validation_bits": 1.52,
+    "max_abs_delta": 0.41
+   },
+   "replication": {
+    "validation_bits": 1.4901,
+    "cosine": 0.9998,
+    "best_epoch": 37,
+    "replicated": true
+   },
+   "stage": "excluded",
+   "why": "trained on a modified corpus",
+   "exclusion": {
+    "event": 10,
+    "reason": "trained on a modified corpus",
+    "by": "maintainer"
+   },
+   "rounds": []
+  }
+ ],
+ "rounds": [
+  {
+   "event": 5,
+   "round": 2,
+   "by": "maintainer",
+   "decision": "accepted",
+   "reason": null,
+   "volunteers": [
+    "alice",
+    "bob",
+    "carol"
+   ],
+   "volunteer_weights": {
+    "alice": 0.25,
+    "bob": 0.5,
+    "carol": 0.25
+   },
+   "weights_sha256": "2222222222222222222222222222222222222222222222222222222222222222",
+   "checkpoint": "tracks/llm/pilot/v0/rounds/2222222222222222222222222222222222222222222222222222222222222222.bin",
+   "gate_bits": 0.02,
+   "start_validation_bits": 1.62,
+   "merged_validation_bits": 1.52,
+   "best_worker": {
+    "submission": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "validation_bits": 1.55
+   },
+   "contributors": [
+    {
+     "submission": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+     "volunteer": "alice",
+     "shard": 2,
+     "seed": 11,
+     "training_targets": 225,
+     "status": "accepted",
+     "reason": null,
+     "validation_bits": 1.55,
+     "weight": 0.25
+    },
+    {
+     "submission": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+     "volunteer": "bob",
+     "shard": 3,
+     "seed": 12,
+     "training_targets": 225,
+     "status": "accepted",
+     "reason": null,
+     "validation_bits": 1.58,
+     "weight": 0.5
+    },
+    {
+     "submission": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+     "volunteer": "carol",
+     "shard": 2,
+     "seed": 13,
+     "training_targets": 225,
+     "status": "accepted",
+     "reason": null,
+     "validation_bits": 1.56,
+     "weight": 0.25
+    }
+   ],
+   "live": false,
+   "rolled_back": {
+    "event": 6,
+    "to_round": 1,
+    "reason": "a test of rollback",
+    "by": "maintainer"
+   }
+  },
+  {
+   "event": 7,
+   "round": 2,
+   "by": "maintainer",
+   "decision": "accepted",
+   "reason": null,
+   "volunteers": [
+    "alice",
+    "bob",
+    "carol"
+   ],
+   "volunteer_weights": {
+    "alice": 0.25,
+    "bob": 0.5,
+    "carol": 0.25
+   },
+   "weights_sha256": "2222222222222222222222222222222222222222222222222222222222222222",
+   "checkpoint": "tracks/llm/pilot/v0/rounds/2222222222222222222222222222222222222222222222222222222222222222.bin",
+   "gate_bits": 0.02,
+   "start_validation_bits": 1.62,
+   "merged_validation_bits": 1.52,
+   "best_worker": {
+    "submission": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "validation_bits": 1.55
+   },
+   "contributors": [
+    {
+     "submission": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+     "volunteer": "alice",
+     "shard": 2,
+     "seed": 11,
+     "training_targets": 225,
+     "status": "accepted",
+     "reason": null,
+     "validation_bits": 1.55,
+     "weight": 0.25
+    },
+    {
+     "submission": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+     "volunteer": "bob",
+     "shard": 3,
+     "seed": 12,
+     "training_targets": 225,
+     "status": "accepted",
+     "reason": null,
+     "validation_bits": 1.58,
+     "weight": 0.5
+    },
+    {
+     "submission": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+     "volunteer": "carol",
+     "shard": 2,
+     "seed": 13,
+     "training_targets": 225,
+     "status": "accepted",
+     "reason": null,
+     "validation_bits": 1.56,
+     "weight": 0.25
+    }
+   ],
+   "live": true,
+   "rolled_back": null
+  }
+ ],
+ "rollbacks": [
+  {
+   "event": 6,
+   "to_round": 1,
+   "reason": "a test of rollback",
+   "by": "maintainer",
+   "rolled_back": [
+    2
+   ]
+  }
+ ],
+ "exclusions": [
+  {
+   "event": 10,
+   "submission": "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+   "reason": "trained on a modified corpus",
+   "by": "maintainer"
+  },
+  {
+   "event": 11,
+   "submission": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+   "reason": "withdrawn after corpus audit",
+   "by": "maintainer"
+  }
+ ]
+}

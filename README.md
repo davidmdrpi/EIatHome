@@ -272,7 +272,9 @@ how results are checked. Signals come either from in-browser generators or from 
 nobody downloads a multi-gigabyte file. Results are small JSON cards that volunteers download or
 submit as a pre-filled GitHub issue. A GitHub Action checks each card against its spec and
 adds it to the community results shown in the Live Lab, where a unit counts as replicated once
-two volunteers' runs agree. There's no server to run or pay for.
+two volunteers' runs agree. The Live Lab's Contributions tab shows where each contribution
+stands and why: the checks it passed or failed, its replication, and for the checkpoint pilot
+its merge. There's no server to run or pay for.
 
 The first browser work unit, `track-a/v0`, replicates the Hello, Voyager notebook. The second,
 `recovery/v0`, hides synthetic signals in real off-source data and measures which ones the
@@ -364,6 +366,7 @@ EIatHome/
 - [x] Merging volunteer runs: DARE-TIES with a validation gate and DiLoCo, a mixture of experts upcycled from family specialists, and a sequence router over the specialists, with the full benchmark ([MERGE_RESULTS.md](tracks/llm/MERGE_RESULTS.md); issue #20, milestones 2 to 5)
 - [x] A frozen benchmark across observing sessions: 57 Green Bank sessions (2016–2024), volunteers' workers on disjoint sessions merged and tested on later ones, with the split, the full report and reusable worker checkpoints published ([BENCHMARK.md](tracks/llm/BENCHMARK.md))
 - [x] A volunteer checkpoint pilot, open for contributions: volunteers' training runs on the session benchmark's shards, sent as versioned delta artifacts, independently evaluated and replicated, merged with each shard's influence capped, with a replayable ledger and rollback ([PILOT.md](tracks/llm/PILOT.md))
+- [x] A Contributions tab in the Live Lab: every result card and pilot contribution stage by stage (submitted, validated, replicated, evaluated for merge or counted), with the criterion and the numbers that decided each stage, and what would help next: missing shard coverage and unreplicated units first
 - [ ] The pilot's first merge from different volunteers' checkpoints
 - [ ] Heavier work units on BOINC, if needed (for example via [BOINC Central](https://boinc.berkeley.edu/central/scientist.php))
 

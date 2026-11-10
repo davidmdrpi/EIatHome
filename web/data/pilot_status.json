@@ -1,0 +1,64 @@
+{
+ "format": "eiathome-pilot-status",
+ "version": 1,
+ "pilot": "signal-lm-pilot/v0",
+ "ledger": {
+  "path": "tracks/llm/pilot/v0/ledger.json",
+  "sha256": "4f7e44246539aa041eaefda7badc021ad8d2329a83ee3543ef2ddcbe93ac33ce",
+  "events": 0
+ },
+ "rules": {
+  "gate_bits": 0.02,
+  "max_abs_delta": 10.0,
+  "merge": "average",
+  "replication": {
+   "validation_bits": 0.02,
+   "cosine": 0.9
+  },
+  "min_volunteers": 2,
+  "seeds": [
+   0,
+   2147483647
+  ],
+  "influence": "each shard weighs its share of the merged shards' training targets, split equally among its contributions"
+ },
+ "current": {
+  "round": 1,
+  "weights_sha256": "ffbaa49dd11479e9f6b8baac10aa349bff86334b54dcb1f6c1e88564931e11da",
+  "checkpoint": "tracks/llm/benchmarks/sessions-v0/checkpoints/seed42/base.bin"
+ },
+ "open": {
+  "round": 2,
+  "volunteers": 0,
+  "shards": [
+   {
+    "index": 2,
+    "training_targets": 225,
+    "contributions": 0,
+    "volunteers": 0
+   },
+   {
+    "index": 3,
+    "training_targets": 225,
+    "contributions": 0,
+    "volunteers": 0
+   },
+   {
+    "index": 4,
+    "training_targets": 225,
+    "contributions": 0,
+    "volunteers": 0
+   },
+   {
+    "index": 5,
+    "training_targets": 225,
+    "contributions": 0,
+    "volunteers": 0
+   }
+  ]
+ },
+ "submissions": [],
+ "rounds": [],
+ "rollbacks": [],
+ "exclusions": []
+}

@@ -34,6 +34,7 @@
     <button role="tab" data-tab="lab" aria-selected="true">Live Lab</button>
     <button role="tab" data-tab="units" aria-selected="false">Work units</button>
     <button role="tab" data-tab="recovery" aria-selected="false">Recovery</button>
+    <button role="tab" data-tab="contributions" aria-selected="false">Contributions</button>
     <button role="tab" data-tab="data" aria-selected="false">Data</button>
     <button role="tab" data-tab="about" aria-selected="false">About</button>
   </nav>
@@ -90,7 +91,7 @@
           <h2>3. Training</h2>
           <canvas id="loss" data-height="170" aria-label="Training loss by epoch"></canvas>
           <h3>Prediction gain on held-out snippets</h3>
-          <p class="muted small">1 − error ÷ error of always guessing the average frame. 0 = learned nothing. Higher is better.</p>
+          <p class="muted small">1 − error ÷ error of always guessing the average frame. 0 = learned nothing. Higher is better. A real family the model trains on is scored on its test split: the latest 30% of its observing sessions, held out from training. Track B splits its frames into training, validation and test parts of its own, so one sample can sit in different splits of the two tracks.</p>
           <div class="table-wrap">
             <table id="gains">
               <thead><tr><th scope="col">Signal</th><th scope="col">Persistence</th><th scope="col">Linear</th><th scope="col" id="gains-model">GRU</th><th scope="col" title="The same trained model, scored on time-shuffled snippets">Frames shuffled</th></tr></thead>
@@ -318,6 +319,48 @@
         <div id="rc-combined-charts" class="multiples recovery-charts"></div>
         <div class="table-wrap"><table id="rc-combined-table"></table></div>
         <p id="rc-empty-note" class="muted small"></p>
+      </div>
+    </section>
+
+    <!-- ================= Contributions ================= -->
+    <section id="tab-contributions" class="tab" role="tabpanel" hidden>
+      <div class="panel">
+        <h2>Where every contribution stands</h2>
+        <p>A contribution counts only after independent checks. It is <b>submitted</b>, <b>validated</b> against its spec, <b>replicated</b> by a second, independent run, and last <b>evaluated for merge</b> or, for a result card, counted. Each entry below shows every stage, what decides it, and the numbers it was decided on. They’re read from the records themselves: this browser’s cards from this browser, recorded cards from <a href="data/community_results.json">the community results</a>, and the checkpoint pilot from <a href="data/pilot_status.json">its status</a>, made from the pilot’s ledger.</p>
+        <p class="muted small">Result cards (Track A work units, merge units and recovery units) carry measurements, never weights, so nothing merges them into a model: their last stage is being counted in the community results. Checkpoint contributions to the pilot carry weights, and their last stage is the merge.</p>
+        <p id="ct-status" class="status" role="status" aria-live="polite">Loading the records…</p>
+      </div>
+
+      <div class="panel">
+        <h2>What would help next</h2>
+        <ol id="ct-next" class="next-steps"></ol>
+        <p id="ct-next-empty" class="muted small" hidden>Nothing is waiting: every recorded unit is replicated, every open pilot shard has a contribution, and every card in this browser is submitted.</p>
+      </div>
+
+      <div class="panel" id="ct-pilot-panel">
+        <h2>Checkpoint pilot: volunteers’ delta artifacts</h2>
+        <p id="ct-pilot-summary"></p>
+        <p id="ct-pilot-rules" class="muted small"></p>
+        <h3 id="ct-shards-title">Shard coverage</h3>
+        <div class="table-wrap"><table id="ct-shards"></table></div>
+        <h3>Contributions</h3>
+        <div id="ct-pilot-entries" class="entries"></div>
+        <h3>Merges</h3>
+        <div id="ct-rounds" class="entries"></div>
+        <p class="muted small">A contribution refused before it was recorded (one that doesn’t decode, names another round, repeats a volunteer’s shard or a shard and seed, or fails the gate) isn’t in the ledger. The coordinator’s reply on its issue says why, and the issue is labelled <a id="ct-pilot-rejected" target="_blank" rel="noopener">checkpoint-rejected</a>. <a href="https://github.com/davidmdrpi/EIatHome/blob/main/tracks/llm/PILOT.md" target="_blank" rel="noopener">How to contribute</a>.</p>
+      </div>
+
+      <div class="panel">
+        <h2>Recorded result cards</h2>
+        <p id="ct-units-summary"></p>
+        <div class="table-wrap"><table id="ct-units"></table></div>
+        <p class="muted small">A card the automatic check couldn’t record isn’t in the community results: its issue gets a reply listing what didn’t match the spec, and the label <a id="ct-cards-rejected" target="_blank" rel="noopener">work-unit-rejected</a>.</p>
+      </div>
+
+      <div class="panel">
+        <h2>Your result cards in this browser</h2>
+        <p id="ct-cards-summary"></p>
+        <div id="ct-cards"></div>
       </div>
     </section>
 

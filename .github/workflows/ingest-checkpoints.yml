@@ -4,8 +4,10 @@ name: Ingest checkpoint contributions
 # "Checkpoint contribution: ...". tools/ingest_issues.mjs --kind checkpoint runs
 # `python -m tracks.llm.pilot ingest` on each. That checks the artifact's identities, evaluates
 # it independently, retrains its shard to see whether it replicates, and stores what it accepts
-# under tracks/llm/pilot on main; the issue gets a receipt and a label. The issue text is
-# untrusted: it's only parsed as JSON and checked, never interpolated into a shell command.
+# under tracks/llm/pilot on main, with the pilot's status rewritten to web/data/pilot_status.json
+# for the Live Lab's Contributions tab, which is redeployed; the issue gets a receipt and a
+# label. The issue text is untrusted: it's only parsed as JSON and checked, never interpolated
+# into a shell command.
 #
 # Runs share ingest-results.yml's concurrency group, since both commit to main. A run that's
 # cancelled or fails leaves its issue unlabelled or labelled checkpoint-pending, and the
@@ -21,6 +23,7 @@ on:
 permissions:
   contents: write
   issues: write
+  actions: write # to request the Pages deploy (pushes with the workflow token don't trigger it)
 
 concurrency:
   group: ingest-results
