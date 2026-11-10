@@ -13,8 +13,11 @@ validation only, and every pick is published as an edit artifact that `verify` r
 search controls and the specialist bank have been run. The LLM editor is implemented and tested
 against a scripted client, but it has not run yet: this environment has no API key of the
 experimenter's own (below). Its rows say "not run", and nothing here should be read as a result
-for it. The fresh cohort that gives the real comparison is cut only after the editor is final
-([What's next](#whats-next-the-fresh-cohort)).
+for it.
+
+The protocol is now frozen as it stands, editor included, and the fresh cohort that gives the real
+comparison, sessions-v1, is cut and published ([What's next](#whats-next-the-fresh-cohort)). Every
+arm is scored on it once, in one run, when the editor can run.
 
 ## Summary (v0, development)
 
@@ -172,26 +175,37 @@ v0 refuses any other protocol, and `verify` refuses a publication made with any 
 v0's test sessions have been looked at, so v0 can only rank methods during development. The real
 comparison scores a frozen protocol on sessions nobody has looked at, once:
 
-1. **Develop the editor on v0.** This needs the experimenter's API key. Each change to the prompt,
-   tools or context moves `PROTOCOL_SHA256`, and the test makes every move deliberate.
-2. **Freeze.** Commit and push the final pin before any new session is drawn.
-3. **Cut sessions-v1.** Draw new sessions, never one v0 drew. Draw more than v0's 60 if the index
-   allows: more independent sessions, not more seeds, are what narrow the uncertainty. Then cut
-   them, split them, pin the split and publish the cohort:
+1. **Develop the editor on v0.** *Skipped.* The editor was frozen as implemented: tested against a
+   scripted client, never run against the API on v0. Its v1 score is that of a first, untuned
+   design.
+2. **Freeze.** *Done.* `PROTOCOL_SHA256` (`868d40e6…`) was pinned on `main` (f2bf314) before any
+   new session was drawn. A run on v1 refuses any other protocol, so changing the editor, its
+   prompt or the scoring code it calls now needs a new cohort.
+3. **Cut sessions-v1.** *Done.* 120 new sessions were drawn, none of v0's, twice v0's 60. More
+   independent sessions, not more seeds, are what narrow the uncertainty. They were cut, split
+   (44 training, 15 validation and 15 test sessions with hits) and the split pinned before anything
+   trained on it. Then the session benchmark ran on them and published the cohort
+   ([BENCHMARK.md](BENCHMARK.md#v1-the-fresh-cohort), [data/sessions-v1](data/sessions-v1/README.md)):
 
    ```bash
    python -m tracks.llm.sessions_corpus draw --output tracks/llm/data/sessions-v1/pool.json \
-     --seed 20261108 --id llm-sessions/v2 --exclude tracks/llm/data/sessions/pool.json
+     --sessions 120 --seed 20261108 --id llm-sessions/v2 --exclude tracks/llm/data/sessions/pool.json
    python tools/extract_slices.py --pool tracks/llm/data/sessions-v1/pool.json \
      --out tracks/llm/data/sessions-v1 --width 64 --product fine_resolution
-   python -m tracks.llm.session_bench split --benchmark v1 --write   # then pin SPLIT_SHA256_V1
+   python -m tracks.llm.session_bench split --benchmark v1 --write   # pinned as SPLIT_SHA256_V1
    python -m tracks.llm.session_bench run --benchmark v1 --output runs/sessions-v1 --publish
    ```
 
-4. **Score every arm once** with `wsp_bench run --benchmark v1 --methods random coordinate
-   specialist llm llm-anonymized --publish`, and publish what it shows, better or worse.
+4. **Score every arm once.** *Waiting for the experimenter's API key.* This is one run with every
+   method, since publishing writes the whole report:
 
-Until step 2, `session_bench` refuses v1: it has no split.
+   ```bash
+   python -m tracks.llm.wsp_bench run --benchmark v1 --output runs/wsp-v1 \
+     --methods random coordinate specialist llm llm-anonymized --publish
+   ```
+
+   Publish what it shows, better or worse. The controls aren't scored on v1 before then, so all
+   arms are scored together, once.
 
 ## Not done here
 
