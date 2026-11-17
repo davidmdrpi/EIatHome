@@ -55,7 +55,9 @@ Bits per token on the 7 test sessions (lower is better): the mean over seeds 42,
 So the gap is not "merging can't work". The plain merges here can't tell a volunteer's useful
 sessions from unhelpful ones, and the shard that helps on average isn't the one that helps on
 every new session. That leaves room for selective, layer-wise or routed combination, which the
-next benchmark ([WSP_RESULTS.md](WSP_RESULTS.md)) tests against these baselines.
+next benchmark ([WSP_RESULTS.md](WSP_RESULTS.md)) tests against these baselines. The chains
+themselves are taken further in [AGGREGATION_RESULTS.md](AGGREGATION_RESULTS.md): a greedy soup in
+every round scores 1.335 here, against 1.358 for plain rounds.
 
 **What v0 is for now.** Its test scores have been seen, and its training budget was revised after
 the first run (below). So v0 is a public development and replay benchmark: methods can be
@@ -89,7 +91,7 @@ two middle columns split the test sessions by frequency (see below). The last co
 | — greedy soup (keeps all four: the plain average) | 1.120 | 1.370 | 0.828 | 1.322 | 31 / 14 |
 | — TIES, keeping 20% | 1.126 | 1.355 | 0.859 | 1.348 | 28 / 17 |
 | 10 rounds of the 4 workers: plain average | **1.107** | 1.358 | 0.813 | 1.313 | **37 / 8** |
-| — average + DiLoCo | 1.135 | 1.407 | 0.818 | 1.317 | 31 / 14 |
+| — average + DiLoCo (one round accepted, nine refused: see below) | 1.135 | 1.407 | 0.818 | 1.317 | 31 / 14 |
 | one model on all 44 training sessions, from θ₀ | **1.092** | 1.351 | 0.790 | 1.308 | 40 / 5 |
 | — from the base | **1.092** | 1.353 | 0.787 | 1.303 | 36 / 9 |
 
@@ -105,8 +107,13 @@ two middle columns split the test sessions by frequency (see below). The last co
 - **The workers are closer in value than v0's.** On test they score 1.12 to 1.23, against v0's 1.34
   to 1.66, where one shard did most of the work. With every worker useful, a plain average that
   weighs them equally has little to lose, and the greedy soup keeps all four.
-- **TIES and DiLoCo add nothing over the plain average here.** TIES scores 1.126 and DiLoCo's
-  rounds 1.135, against 1.120 and 1.107. DiLoCo is again worse on test than plain rounds, as on v0.
+- **TIES adds nothing over the plain average here.** It scores 1.126 against 1.120.
+- **The DiLoCo row is one outer step, not ten rounds.** On every seed its first round was
+  accepted and the gate refused all nine later merges. A refused round leaves the incumbent with
+  the momentum that made the step overshoot, so every later round overshoots too. Its 1.135 is the
+  score after that one step. With the momentum cleared when a merge is refused, the chain runs all
+  ten rounds and scores 1.109, level with plain rounds
+  ([AGGREGATION_RESULTS.md](AGGREGATION_RESULTS.md)). On v0 no DiLoCo round was refused.
 - **Selection on validation is imperfect.** On seed 42 the best worker by validation (shard 4,
   1.151 on test) isn't the best on test (shard 5, 1.129).
 

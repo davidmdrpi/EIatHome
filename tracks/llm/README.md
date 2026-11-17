@@ -317,6 +317,20 @@ python -m tracks.llm.session_bench materialize --output runs/sessions-v0-checkpo
 python -m tracks.llm.session_bench run --output runs/sessions-bench   # about 5 minutes on a CPU
 ```
 
+### Aggregating rounds: restarts, soups and the best round
+
+[aggregate_bench.py](aggregate_bench.py) (results in [AGGREGATION_RESULTS.md](AGGREGATION_RESULTS.md))
+reruns the session benchmark's ten-round chains from its published bases, with `merge.py`'s rules
+and gate unchanged. It adds a restart of DiLoCo's outer momentum when the gate refuses a merge
+(without it, one refusal ended every DiLoCo chain on sessions-v1 after its first round), a greedy
+soup in every round, and each chain's best round by validation beside its last
+([benchmarks/aggregation-v0](benchmarks/aggregation-v0), [aggregation-v1](benchmarks/aggregation-v1)).
+
+```bash
+python -m tracks.llm.aggregate_bench verify [--benchmark v1]   # the published report against the session benchmark's
+python -m tracks.llm.aggregate_bench run --output runs/aggregation-v0   # about 8 minutes on a CPU
+```
+
 ### Weight-space programming: editing the workers' weights
 
 [wsp_bench.py](wsp_bench.py) (results in [WSP_RESULTS.md](WSP_RESULTS.md)) starts from the session

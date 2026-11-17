@@ -45,6 +45,10 @@ jobs:
       - run: python -m tracks.llm.session_bench verify
       # The same for the fresh cohort, sessions-v1 (its split pinned before anything trained on it).
       - run: python -m tracks.llm.session_bench verify --benchmark v1
+      - run: python -m unittest discover -s tests -p 'test_llm_aggregate.py' -v
+      # The aggregation benchmark's published chains: the references are the session benchmark's, and each pick is its rule's.
+      - run: python -m tracks.llm.aggregate_bench verify
+      - run: python -m tracks.llm.aggregate_bench verify --benchmark v1
       - run: python -m unittest discover -s tests -p 'test_llm_wsp.py' -v
       # The WSP benchmark's published picks: every edit program and query replayed from the cohort, and rescored.
       - run: python -m tracks.llm.wsp_bench verify
