@@ -75,9 +75,11 @@ It has twice v0's independent sessions: 44 training, 15 validation and 15 test s
 
 Bits per token on the 15 test sessions (lower is better), the mean over seeds 42, 43 and 44. The
 two middle columns split the test sessions by frequency (see below). The last column counts the
-45 session scores (15 sessions × 3 seeds) where the arm does better or worse than the best worker.
+45 session scores (15 sessions × 3 seeds) where the arm does better or worse than the worker chosen
+on validation, the baseline the protocol fixed in advance. "Plain average" is FedAvg: each worker
+weighted by its shard's training targets (here 0.277, 0.189, 0.264 and 0.270 for workers 2 to 5).
 
-| Arm | Test | 10 sessions, 1–11.6 GHz | 5 sessions, 12.3 and 22.6 GHz | Validation | Better / worse than the best worker |
+| Arm | Test | 10 sessions, 1–11.6 GHz | 5 sessions, 12.3 and 22.6 GHz | Validation | Better / worse than the worker chosen on validation |
 |---|---:|---:|---:|---:|---:|
 | θ₀, untrained | 5.302 | 5.470 | 5.107 | 5.276 | |
 | token frequencies (unigram), fitted on the training sessions | 1.837 | 2.148 | 1.475 | 2.109 | |
@@ -85,8 +87,9 @@ two middle columns split the test sessions by frequency (see below). The last co
 | base (shard 1, 9 sessions) | 1.296 | 1.457 | 1.109 | 1.530 | |
 | one worker (a volunteer's 8 or 9 new sessions, from the base): mean of 4 | 1.172 | 1.418 | 0.885 | 1.375 | |
 | best worker, chosen on validation | 1.170 | 1.436 | 0.860 | 1.361 | — |
-| one-shot merges of the 4 workers: plain average | 1.120 | 1.370 | 0.828 | 1.322 | 31 / 14 |
-| — greedy soup (keeps all four: the plain average) | 1.120 | 1.370 | 0.828 | 1.322 | 31 / 14 |
+| *for reference: the worker best on test, in hindsight (shard 5 on every seed)* | *1.123* | *1.353* | *0.855* | *1.371* | |
+| one-shot merges of the 4 workers: plain average (FedAvg, weighted by training targets) | 1.120 | 1.370 | 0.828 | 1.322 | 31 / 14 |
+| — greedy soup (keeps all four: the same weighted average) | 1.120 | 1.370 | 0.828 | 1.322 | 31 / 14 |
 | — TIES, keeping 20% | 1.126 | 1.355 | 0.859 | 1.348 | 28 / 17 |
 | 10 rounds of the 4 workers: plain average | **1.107** | 1.358 | 0.813 | 1.313 | **37 / 8** |
 | — average + DiLoCo | 1.135 | 1.407 | 0.818 | 1.317 | 31 / 14 |
@@ -95,31 +98,39 @@ two middle columns split the test sessions by frequency (see below). The last co
 
 **What it shows:**
 
-- **On fresh sessions, merging the four volunteers beats the best one.** The plain average scores
-  1.120 against the best worker's 1.170. It's better on every seed (by 0.026, 0.092 and 0.033
-  bits), on 13 of the 15 sessions averaged over seeds, and on 31 of the 45 session scores. On v0 it
-  was the other way round: 1.500 against 1.344, better on 8 of 21.
+- **On fresh sessions, every merge beats the worker chosen on validation.** That's the
+  baseline the protocol fixed in advance: the model a volunteer project would pick without the
+  test. The plain average scores 1.120 against that worker's 1.170. It's better on every seed (by
+  0.026, 0.092 and 0.033 bits), on 13 of the 15 sessions averaged over seeds, and on 31 of the 45
+  session scores. On v0 it was the other way round: 1.500 against 1.344, better on 8 of 21.
+- **Against the worker that turned out best on test, the margins are small.** That's shard 5 on
+  every seed, at 1.123, though validation never picked it. The plain average is ahead on every
+  seed, but by only 0.003 bits on average (0.002 to 0.005). Ten rounds are ahead on every seed by
+  0.017. TIES (1.126) is behind on two seeds of three and DiLoCo (1.135) on all three. So not every
+  merge beats every single worker.
 - **Ten rounds of averaging come within 0.015 bits of pooling all the data.** They score 1.107,
-  against 1.092 for one model trained on every training session. They beat the best worker on 37
-  of 45 session scores.
+  against 1.092 for one model trained on every training session. They beat the worker chosen on
+  validation on 37 of 45 session scores.
 - **The workers are closer in value than v0's.** On test they score 1.12 to 1.23, against v0's 1.34
-  to 1.66, where one shard did most of the work. With every worker useful, a plain average that
-  weighs them equally has little to lose, and the greedy soup keeps all four.
+  to 1.66, where one shard did most of the work. With every worker useful, the training-target
+  weighted average has little to lose, and the greedy soup keeps all four.
 - **TIES and DiLoCo add nothing over the plain average here.** TIES scores 1.126 and DiLoCo's
   rounds 1.135, against 1.120 and 1.107. DiLoCo is again worse on test than plain rounds, as on v0.
-- **Selection on validation is imperfect.** On seed 42 the best worker by validation (shard 4,
-  1.151 on test) isn't the best on test (shard 5, 1.129).
+- **Selection on validation is imperfect.** It picked shard 4 on seeds 42 and 44 and shard 2 on
+  seed 43, never shard 5, which was best on test every time. That gap (1.170 against 1.123) is most
+  of the merges' lead over the chosen worker.
 
 v1 differs from v0 in more than freshness, so these results don't say why the ranking changed.
 Its workers have twice the sessions, and v0's ranking may have hinged on one unusually valuable
-shard. What v1 does establish is that, on sessions nobody had looked at, the plain merges were
-not beaten by any single volunteer's model.
+shard. What v1 does establish is narrower. On sessions nobody had looked at, every merge beat the
+worker a volunteer project would have chosen on validation. The weighted average and the ten
+rounds were also at least level with the best worker in hindsight.
 
 **Frequencies.** Five test sessions (four at about 12.3 GHz, one at 22.6 GHz) are at
 frequencies no training session covers: the split is chronological and those receivers appear
 in the archive's recent years. These turn out to be the easier sessions, not the harder ones:
-every arm scores lower on them. Within each group, every merge still beats the best worker, and
-pooling all the data is still best, though the order among the merges shifts. v0 had the same
+every arm scores lower on them. Within each group, every merge still beats the worker chosen on
+validation, and pooling all the data is still best, though the order among the merges shifts. v0 had the same
 pattern: three of its seven test sessions were at 12.3 GHz.
 
 **The worst session.** Every model's worst test session is the same one: a single slice (15
