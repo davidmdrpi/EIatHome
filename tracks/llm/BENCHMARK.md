@@ -9,6 +9,10 @@ none of them is evidence of generalization. Those benchmarks stay as they are, a
 This one is frozen on 57 Green Bank sessions from 2016 to 2024, and it publishes the checkpoints
 the next milestone's merge methods start from (weight-space programming among them).
 
+**Two versions.** v0 (below) is the development benchmark: its test scores have been seen.
+**v1** ([the fresh cohort](#v1-the-fresh-cohort)) runs the same protocol on 120 new sessions,
+drawn after the merge methods it scores were frozen. Its first scores are below.
+
 ## Summary
 
 Bits per token on the 7 test sessions (lower is better): the mean over seeds 42, 43 and 44.
@@ -56,9 +60,91 @@ next benchmark ([WSP_RESULTS.md](WSP_RESULTS.md)) tests against these baselines.
 **What v0 is for now.** Its test scores have been seen, and its training budget was revised after
 the first run (below). So v0 is a public development and replay benchmark: methods can be
 built and compared on it, and its checkpoints reused. A method's claim to generalize needs
-sessions nobody has looked at yet. For the next milestone, its editor and selection procedure
-should be frozen first, then scored once on a fresh cohort of sessions (a new draw from the
-pipeline index, a new split and a new benchmark version).
+sessions nobody has looked at yet: that's v1.
+
+## v1: the fresh cohort
+
+`signal-lm-sessions-bench/v1` runs the same protocol, unchanged, on a second draw of 120 Green
+Bank sessions, none of them v0's ([data/sessions-v1](data/sessions-v1/README.md)). The order of
+events kept it fresh. The WSP protocol ([WSP_RESULTS.md](WSP_RESULTS.md)) was pinned on `main`
+before the draw, the draw was committed before the cut, and the split was pinned before anything
+trained on it. These are the first scores anyone has seen on it.
+
+It has twice v0's independent sessions: 44 training, 15 validation and 15 test sessions with hits
+(v0: 23, 7 and 7), so each shard has 8 or 9 sessions instead of 4 or 5.
+
+Bits per token on the 15 test sessions (lower is better), the mean over seeds 42, 43 and 44. The
+two middle columns split the test sessions by frequency (see below). The last column counts the
+45 session scores (15 sessions × 3 seeds) where the arm does better or worse than the worker chosen
+on validation, the baseline the protocol fixed in advance. "Plain average" is FedAvg: each worker
+weighted by its shard's training targets (here 0.277, 0.189, 0.264 and 0.270 for workers 2 to 5).
+
+| Arm | Test | 10 sessions, 1–11.6 GHz | 5 sessions, 12.3 and 22.6 GHz | Validation | Better / worse than the worker chosen on validation |
+|---|---:|---:|---:|---:|---:|
+| θ₀, untrained | 5.302 | 5.470 | 5.107 | 5.276 | |
+| token frequencies (unigram), fitted on the training sessions | 1.837 | 2.148 | 1.475 | 2.109 | |
+| first-order Markov chain, fitted on the training sessions | 1.245 | 1.456 | 0.999 | 1.424 | |
+| base (shard 1, 9 sessions) | 1.296 | 1.457 | 1.109 | 1.530 | |
+| one worker (a volunteer's 8 or 9 new sessions, from the base): mean of 4 | 1.172 | 1.418 | 0.885 | 1.375 | |
+| best worker, chosen on validation | 1.170 | 1.436 | 0.860 | 1.361 | — |
+| *for reference: the worker best on test, in hindsight (shard 5 on every seed)* | *1.123* | *1.353* | *0.855* | *1.371* | |
+| one-shot merges of the 4 workers: plain average (FedAvg, weighted by training targets) | 1.120 | 1.370 | 0.828 | 1.322 | 31 / 14 |
+| — greedy soup (keeps all four: the same weighted average) | 1.120 | 1.370 | 0.828 | 1.322 | 31 / 14 |
+| — TIES, keeping 20% | 1.126 | 1.355 | 0.859 | 1.348 | 28 / 17 |
+| 10 rounds of the 4 workers: plain average | **1.107** | 1.358 | 0.813 | 1.313 | **37 / 8** |
+| — average + DiLoCo | 1.135 | 1.407 | 0.818 | 1.317 | 31 / 14 |
+| one model on all 44 training sessions, from θ₀ | **1.092** | 1.351 | 0.790 | 1.308 | 40 / 5 |
+| — from the base | **1.092** | 1.353 | 0.787 | 1.303 | 36 / 9 |
+
+**What it shows:**
+
+- **On fresh sessions, every merge beats the worker chosen on validation.** That's the
+  baseline the protocol fixed in advance: the model a volunteer project would pick without the
+  test. The plain average scores 1.120 against that worker's 1.170. It's better on every seed (by
+  0.026, 0.092 and 0.033 bits), on 13 of the 15 sessions averaged over seeds, and on 31 of the 45
+  session scores. On v0 it was the other way round: 1.500 against 1.344, better on 8 of 21.
+- **Against the worker that turned out best on test, the margins are small.** That's shard 5 on
+  every seed, at 1.123, though validation never picked it. The plain average is ahead on every
+  seed, but by only 0.003 bits on average (0.002 to 0.005). Ten rounds are ahead on every seed by
+  0.017. TIES (1.126) is behind on two seeds of three and DiLoCo (1.135) on all three. So not every
+  merge beats every single worker.
+- **Ten rounds of averaging come within 0.015 bits of pooling all the data.** They score 1.107,
+  against 1.092 for one model trained on every training session. They beat the worker chosen on
+  validation on 37 of 45 session scores.
+- **The workers are closer in value than v0's.** On test they score 1.12 to 1.23, against v0's 1.34
+  to 1.66, where one shard did most of the work. With every worker useful, the training-target
+  weighted average has little to lose, and the greedy soup keeps all four.
+- **TIES and DiLoCo add nothing over the plain average here.** TIES scores 1.126 and DiLoCo's
+  rounds 1.135, against 1.120 and 1.107. DiLoCo is again worse on test than plain rounds, as on v0.
+- **Selection on validation is imperfect.** It picked shard 4 on seeds 42 and 44 and shard 2 on
+  seed 43, never shard 5, which was best on test every time. That gap (1.170 against 1.123) is most
+  of the merges' lead over the chosen worker.
+
+v1 differs from v0 in more than freshness, so these results don't say why the ranking changed.
+Its workers have twice the sessions, and v0's ranking may have hinged on one unusually valuable
+shard. What v1 does establish is narrower. On sessions nobody had looked at, every merge beat the
+worker a volunteer project would have chosen on validation. The weighted average and the ten
+rounds were also at least level with the best worker in hindsight.
+
+**Frequencies.** Five test sessions (four at about 12.3 GHz, one at 22.6 GHz) are at
+frequencies no training session covers: the split is chronological and those receivers appear
+in the archive's recent years. These turn out to be the easier sessions, not the harder ones:
+every arm scores lower on them. Within each group, every merge still beats the worker chosen on
+validation, and pooling all the data is still best, though the order among the merges shifts. v0 had the same
+pattern: three of its seven test sessions were at 12.3 GHz.
+
+**The worst session.** Every model's worst test session is the same one: a single slice (15
+targets) from 2025-03-17 (HIP 52283, 1.9 GHz). Every trained model scores 6.3 to 7.2 bits on it,
+against 4.83 for the Markov chain. With one slice, the worst-session score says little on v1. `report.json`
+has it for every arm, with every other session's score.
+
+**Costs**, per seed, on one CPU thread: the base takes 5 s; the four workers 10 s together; each
+10-round chain about 66 s; one full-data model 6 to 11 s; a one-shot merge with its gate 0.8 s.
+Contributions are the same 110 KB float32 deltas as v0's. The whole run took 8.5 minutes.
+
+**What v1 is for.** Scoring every WSP arm once ([WSP_RESULTS.md](WSP_RESULTS.md#whats-next-the-fresh-cohort)),
+the LLM editor included, with the protocol pinned before the draw. That run waits for the
+experimenter's API key. Until it's published, v1's WSP scores are unseen too.
 
 ## The data and the split
 
@@ -141,11 +227,13 @@ A seed changes only dropout and the order of a few batches, so the three seeds a
 0.05 bits. They show that the result reproduces, not that it would hold on other sessions. The
 uncertainty that matters is the 7 test sessions: the per-session scores in `report.json` vary by
 more than a factor of 10, from 0.08 to 3.5 bits. More seeds can't substitute for more sessions;
-a larger corpus can (the draw takes `--sessions`).
+a larger corpus can (the draw takes `--sessions`). v1 drew 120 for that reason, and has 15 test
+sessions.
 
 ## What's published
 
-[benchmarks/sessions-v0](benchmarks/sessions-v0):
+[benchmarks/sessions-v0](benchmarks/sessions-v0), and the same for v1 in
+[benchmarks/sessions-v1](benchmarks/sessions-v1) (`--benchmark v1` on every command below):
 
 - `split.json`, pinned: every session and slice of each split, the control's, and the cohort's
   shards.
@@ -195,4 +283,5 @@ published weights.
   trajectories in new sessions, not whether it would find a signal from elsewhere. The recovery
   benchmark ([tracks/recovery](../recovery/RESULTS.md)) is where detection is measured: no learned
   detector there beats de-Doppler yet.
-- **One telescope.** Green Bank only, 2016 to 2024, four bands.
+- **One telescope.** Green Bank only: v0 from 2016 to 2024, v1 from 2016 to 2025, from about
+  0.7 to 22.6 GHz.

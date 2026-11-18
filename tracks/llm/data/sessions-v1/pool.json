@@ -1,0 +1,1340 @@
+{
+  "id": "llm-sessions/v2",
+  "about": "The sessions corpus (tracks/llm/sessions_corpus.py): 120 Green Bank observing sessions drawn at random (seed 20261108) from the 1164 in bldata.berkeley.edu's pipeline index with a Hipparcos or Gliese target and not drawn before (60 excluded), one on-target fine-resolution scan each. From each scan: up to `hits` on-target hits (family stars) and `blind` blind windows (family blind-window), 64 channels by 16 time steps, as the Live Lab's pool cuts them.",
+  "seed": 20261108,
+  "draw": {
+    "index": "https://bldata.berkeley.edu/pipeline/",
+    "candidates": 1164,
+    "sessions": 120,
+    "star_targets": "^(HIP\\d+|GJ\\d+[A-Z]?)$",
+    "excluded_sessions": 60
+  },
+  "threshold": 10,
+  "limits": {
+    "max_slices": 960,
+    "max_bytes": 3932160,
+    "max_targets": 0
+  },
+  "targets": [
+    {
+      "key": "agbt19a-999-70",
+      "name": "HIP 85090",
+      "about": "HIP 85090, Green Bank session AGBT19A_999_70: the first fine-resolution on-target scan its directory lists.",
+      "session": "AGBT19A_999_70",
+      "urls": [
+        "https://bldata.berkeley.edu/pipeline/AGBT19A_999_70/blp22/blc62_guppi_58692_85615_HIP85090_0108.gpuspec.0000.h5"
+      ],
+      "hits": 6,
+      "blind": 2
+    },
+    {
+      "key": "agbt21b-999-53",
+      "name": "HIP 24125",
+      "about": "HIP 24125, Green Bank session AGBT21B_999_53: the first fine-resolution on-target scan its directory lists.",
+      "session": "AGBT21B_999_53",
+      "urls": [
+        "https://bldata.berkeley.edu/pipeline/AGBT21B_999_53/blc40_blp00/blc40_guppi_59611_77943_HIP24125_0018.rawspec.0000.h5"
+      ],
+      "hits": 6,
+      "blind": 2
+    },
+    {
+      "key": "agbt18a-999-115",
+      "name": "HIP 26505",
+      "about": "HIP 26505, Green Bank session AGBT18A_999_115: the first fine-resolution on-target scan its directory lists.",
+      "session": "AGBT18A_999_115",
+      "urls": [
+        "https://bldata.berkeley.edu/pipeline/AGBT18A_999_115/collate0/spliced_blc00010203040506o7o0111213141516o7o021222324252627_guppi_58319_58249_HIP26505_0008.gpuspec.0000.h5"
+      ],
+      "hits": 6,
+      "blind": 2
+    },
+    {
+      "key": "agbt18b-999-99",
+      "name": "HIP 58001",
+      "about": "HIP 58001, Green Bank session AGBT18B_999_99: the first fine-resolution on-target scan its directory lists.",
+      "session": "AGBT18B_999_99",
+      "urls": [
+        "https://bldata.berkeley.edu/pipeline/AGBT18B_999_99/blc00/blc00_guppi_58505_16997_HIP58001_0055.gpuspec.0000.h5"
+      ],
+      "hits": 6,
+      "blind": 2
+    },
+    {
+      "key": "agbt20b-999-08",
+      "name": "HIP 101462",
+      "about": "HIP 101462, Green Bank session AGBT20B_999_08: the first fine-resolution on-target scan its directory lists.",
+      "session": "AGBT20B_999_08",
+      "urls": [
+        "https://bldata.berkeley.edu/pipeline/AGBT20B_999_08/blc01_blp01/blc01_guppi_59083_72800_HIP101462_0011.rawspec.0000.h5"
+      ],
+      "hits": 6,
+      "blind": 2
+    },
+    {
+      "key": "agbt24b-999-21",
+      "name": "HIP 19106",
+      "about": "HIP 19106, Green Bank session AGBT24B_999_21: the first fine-resolution on-target scan its directory lists.",
+      "session": "AGBT24B_999_21",
+      "urls": [
+        "https://bldata.berkeley.edu/pipeline/AGBT24B_999_21/blc00_blp00/blc00_guppi_60652_03003_HIP19106_0021.rawspec.0000.h5"
+      ],
+      "hits": 6,
+      "blind": 2
+    },
+    {
+      "key": "agbt16a-999-146",
+      "name": "HIP 20641",
+      "about": "HIP 20641, Green Bank session AGBT16A_999_146: the first fine-resolution on-target scan its directory lists.",
+      "session": "AGBT16A_999_146",
+      "urls": [
+        "https://bldata.berkeley.edu/pipeline/AGBT16A_999_146/collate/spliced_blc02030405_2bit_guppi_57493_81442_HIP20641_0014.gpuspec.0000.h5"
+      ],
+      "hits": 6,
+      "blind": 2
+    },
+    {
+      "key": "agbt24b-999-06",
+      "name": "HIP 18794",
+      "about": "HIP 18794, Green Bank session AGBT24B_999_06: the first fine-resolution on-target scan its directory lists.",
+      "session": "AGBT24B_999_06",
+      "urls": [
+        "https://bldata.berkeley.edu/pipeline/AGBT24B_999_06/blc10_blp00/blc10_guppi_60596_03326_HIP18794_0018.rawspec.0000.h5"
+      ],
+      "hits": 6,
+      "blind": 2
+    },
+    {
+      "key": "agbt21a-996-53",
+      "name": "HIP 20722",
+      "about": "HIP 20722, Green Bank session AGBT21A_996_53: the first fine-resolution on-target scan its directory lists.",
+      "session": "AGBT21A_996_53",
+      "urls": [
+        "https://bldata.berkeley.edu/pipeline/AGBT21A_996_53/blc00/blc00_guppi_59420_34937_HIP20722_0011.rawspec.0000.h5"
+      ],
+      "hits": 6,
+      "blind": 2
+    },
+    {
+      "key": "agbt16b-999-101",
+      "name": "HIP 42173",
+      "about": "HIP 42173, Green Bank session AGBT16B_999_101: the first fine-resolution on-target scan its directory lists.",
+      "session": "AGBT16B_999_101",
+      "urls": [
+        "https://bldata.berkeley.edu/pipeline/AGBT16B_999_101/holding/spliced_blc0001020304050607_guppi_57749_29642_HIP42173_0003.gpuspec.0000.h5"
+      ],
+      "hits": 6,
+      "blind": 2
+    },
+    {
+      "key": "agbt21a-996-52",
+      "name": "HIP 97071",
+      "about": "HIP 97071, Green Bank session AGBT21A_996_52: the first fine-resolution on-target scan its directory lists.",
+      "session": "AGBT21A_996_52",
+      "urls": [
+        "https://bldata.berkeley.edu/pipeline/AGBT21A_996_52/blc00/blc00_guppi_59418_80044_HIP97071_0018.rawspec.0000.h5"
+      ],
+      "hits": 6,
+      "blind": 2
+    },
+    {
+      "key": "agbt16b-999-44",
+      "name": "HIP 108028",
+      "about": "HIP 108028, Green Bank session AGBT16B_999_44: the first fine-resolution on-target scan its directory lists.",
+      "session": "AGBT16B_999_44",
+      "urls": [
+        "https://bldata.berkeley.edu/pipeline/AGBT16B_999_44/collate/spliced_blc0001020304050607_guppi_57676_06573_HIP108028_0003.gpuspec.0000.h5"
+      ],
+      "hits": 6,
+      "blind": 2
+    },
+    {
+      "key": "agbt16a-999-103",
+      "name": "HIP 28267",
+      "about": "HIP 28267, Green Bank session AGBT16A_999_103: the first fine-resolution on-target scan its directory lists.",
+      "session": "AGBT16A_999_103",
+      "urls": [
+        "https://bldata.berkeley.edu/pipeline/AGBT16A_999_103/collate/spliced_blc02030405_2bit_guppi_57470_03872_HIP28267_0008.gpuspec.0000.h5"
+      ],
+      "hits": 6,
+      "blind": 2
+    },
+    {
+      "key": "agbt20a-999-49",
+      "name": "HIP 98733",
+      "about": "HIP 98733, Green Bank session AGBT20A_999_49: the first fine-resolution on-target scan its directory lists.",
+      "session": "AGBT20A_999_49",
+      "urls": [
+        "https://bldata.berkeley.edu/pipeline/AGBT20A_999_49/blc00_blp00/blc00_guppi_59032_01559_HIP98733_0013.rawspec.0000.h5"
+      ],
+      "hits": 6,
+      "blind": 2
+    },
+    {
+      "key": "agbt18b-999-97",
+      "name": "HIP 56157",
+      "about": "HIP 56157, Green Bank session AGBT18B_999_97: the first fine-resolution on-target scan its directory lists.",
+      "session": "AGBT18B_999_97",
+      "urls": [
+        "https://bldata.berkeley.edu/pipeline/AGBT18B_999_97/blc40/blc40_guppi_58501_36475_HIP56157_0008.gpuspec.0000.h5"
+      ],
+      "hits": 6,
+      "blind": 2
+    },
+    {
+      "key": "agbt20b-999-53",
+      "name": "HIP 51837",
+      "about": "HIP 51837, Green Bank session AGBT20B_999_53: the first fine-resolution on-target scan its directory lists.",
+      "session": "AGBT20B_999_53",
+      "urls": [
+        "https://bldata.berkeley.edu/pipeline/AGBT20B_999_53/blc10_blp00/blc10_guppi_59211_41909_HIP51837_0012.rawspec.0000.h5"
+      ],
+      "hits": 6,
+      "blind": 2
+    },
+    {
+      "key": "agbt22a-999-36",
+      "name": "HIP 21369",
+      "about": "HIP 21369, Green Bank session AGBT22A_999_36: the first fine-resolution on-target scan its directory lists.",
+      "session": "AGBT22A_999_36",
+      "urls": [
+        "https://bldata.berkeley.edu/pipeline/AGBT22A_999_36/blc01_blp01/blc01_guppi_59748_44627_HIP21369_0017.rawspec.0000.h5"
+      ],
+      "hits": 6,
+      "blind": 2
+    },
+    {
+      "key": "agbt16b-999-103",
+      "name": "HIP 52316",
+      "about": "HIP 52316, Green Bank session AGBT16B_999_103: the first fine-resolution on-target scan its directory lists.",
+      "session": "AGBT16B_999_103",
+      "urls": [
+        "https://bldata.berkeley.edu/pipeline/AGBT16B_999_103/holding/spliced_blc0001020304050607_guppi_57751_29584_HIP52316_0003.gpuspec.0000.h5"
+      ],
+      "hits": 6,
+      "blind": 2
+    },
+    {
+      "key": "agbt18b-999-12",
+      "name": "HIP 78241",
+      "about": "HIP 78241, Green Bank session AGBT18B_999_12: the first fine-resolution on-target scan its directory lists.",
+      "session": "AGBT18B_999_12",
+      "urls": [
+        "https://bldata.berkeley.edu/pipeline/AGBT18B_999_12/holding/spliced_blc00010203040506o7o0111213141516o7o0212223242526o7o031323334353637_guppi_58361_84741_HIP78241_0053.gpuspec.0000.h5"
+      ],
+      "hits": 6,
+      "blind": 2
+    },
+    {
+      "key": "agbt20a-999-52",
+      "name": "HIP 16621",
+      "about": "HIP 16621, Green Bank session AGBT20A_999_52: the first fine-resolution on-target scan its directory lists.",
+      "session": "AGBT20A_999_52",
+      "urls": [
+        "https://bldata.berkeley.edu/pipeline/AGBT20A_999_52/holding/spliced_blc00010203040506o7o011121314151617o02223242526o7o031323334353637_guppi_59038_29347_HIP16621_0122.rawspec.0000.h5"
+      ],
+      "hits": 6,
+      "blind": 2
+    },
+    {
+      "key": "agbt25a-999-10",
+      "name": "HIP 52283",
+      "about": "HIP 52283, Green Bank session AGBT25A_999_10: the first fine-resolution on-target scan its directory lists.",
+      "session": "AGBT25A_999_10",
+      "urls": [
+        "https://bldata.berkeley.edu/pipeline/AGBT25A_999_10/blc41_blp01/blc41_guppi_60751_23412_HIP52283_0011.rawspec.0000.h5"
+      ],
+      "hits": 6,
+      "blind": 2
+    },
+    {
+      "key": "agbt16a-999-08",
+      "name": "HIP 113357",
+      "about": "HIP 113357, Green Bank session AGBT16A_999_08: the first fine-resolution on-target scan its directory lists.",
+      "session": "AGBT16A_999_08",
+      "urls": [
+        "https://bldata.berkeley.edu/pipeline/AGBT16A_999_08/holding/spliced_blc0001020304050607_2bit_guppi_57388_82516_HIP113357_0010.gpuspec.0000.h5"
+      ],
+      "hits": 6,
+      "blind": 2
+    },
+    {
+      "key": "agbt24b-999-30",
+      "name": "HIP 86282",
+      "about": "HIP 86282, Green Bank session AGBT24B_999_30: the first fine-resolution on-target scan its directory lists.",
+      "session": "AGBT24B_999_30",
+      "urls": [
+        "https://bldata.berkeley.edu/pipeline/AGBT24B_999_30/blc01_blp01/blc01_guppi_60695_40161_HIP86282_0007.rawspec.0000.h5"
+      ],
+      "hits": 6,
+      "blind": 2
+    },
+    {
+      "key": "agbt19b-999-109",
+      "name": "HIP 114818",
+      "about": "HIP 114818, Green Bank session AGBT19B_999_109: the first fine-resolution on-target scan its directory lists.",
+      "session": "AGBT19B_999_109",
+      "urls": [
+        "https://bldata.berkeley.edu/pipeline/AGBT19B_999_109/blc00_blp00/blc00_guppi_58804_77572_HIP114818_0102.gpuspec.0000.h5"
+      ],
+      "hits": 6,
+      "blind": 2
+    },
+    {
+      "key": "agbt21b-999-13",
+      "name": "HIP 47628",
+      "about": "HIP 47628, Green Bank session AGBT21B_999_13: the first fine-resolution on-target scan its directory lists.",
+      "session": "AGBT21B_999_13",
+      "urls": [
+        "https://bldata.berkeley.edu/pipeline/AGBT21B_999_13/blc00/blc00_guppi_59469_67880_HIP47628_0018.rawspec.0000.h5"
+      ],
+      "hits": 6,
+      "blind": 2
+    },
+    {
+      "key": "agbt20b-999-25",
+      "name": "HIP 3273",
+      "about": "HIP 3273, Green Bank session AGBT20B_999_25: the first fine-resolution on-target scan its directory lists.",
+      "session": "AGBT20B_999_25",
+      "urls": [
+        "https://bldata.berkeley.edu/pipeline/AGBT20B_999_25/blc01_blp01/blc01_guppi_59132_17239_HIP3273_0017.rawspec.0000.h5"
+      ],
+      "hits": 6,
+      "blind": 2
+    },
+    {
+      "key": "agbt22b-999-33",
+      "name": "HIP 99376",
+      "about": "HIP 99376, Green Bank session AGBT22B_999_33: the first fine-resolution on-target scan its directory lists.",
+      "session": "AGBT22B_999_33",
+      "urls": [
+        "https://bldata.berkeley.edu/pipeline/AGBT22B_999_33/blc41_blp01/blc41_guppi_59922_48996_HIP99376_0022.rawspec.0000.h5"
+      ],
+      "hits": 6,
+      "blind": 2
+    },
+    {
+      "key": "agbt17b-999-111",
+      "name": "HIP 46843",
+      "about": "HIP 46843, Green Bank session AGBT17B_999_111: the first fine-resolution on-target scan its directory lists.",
+      "session": "AGBT17B_999_111",
+      "urls": [
+        "https://bldata.berkeley.edu/pipeline/AGBT17B_999_111/collate0/spliced_blc00010203040506o7o0111213141516o7o0212223242526o7o031323334353637_guppi_58140_24137_HIP46843_0008.gpuspec.0000.h5"
+      ],
+      "hits": 6,
+      "blind": 2
+    },
+    {
+      "key": "agbt16a-999-141",
+      "name": "HIP 109474",
+      "about": "HIP 109474, Green Bank session AGBT16A_999_141: the first fine-resolution on-target scan its directory lists.",
+      "session": "AGBT16A_999_141",
+      "urls": [
+        "https://bldata.berkeley.edu/pipeline/AGBT16A_999_141/collate/spliced_blc020304_2bit_guppi_57491_51138_HIP109474_0005.gpuspec.0000.h5"
+      ],
+      "hits": 6,
+      "blind": 2
+    },
+    {
+      "key": "agbt20b-999-45",
+      "name": "HIP 10245",
+      "about": "HIP 10245, Green Bank session AGBT20B_999_45: the first fine-resolution on-target scan its directory lists.",
+      "session": "AGBT20B_999_45",
+      "urls": [
+        "https://bldata.berkeley.edu/pipeline/AGBT20B_999_45/blc12_blp02/blc12_guppi_59188_04622_HIP10245_0011.rawspec.0000.h5"
+      ],
+      "hits": 6,
+      "blind": 2
+    },
+    {
+      "key": "agbt23a-999-12",
+      "name": "HIP 19877",
+      "about": "HIP 19877, Green Bank session AGBT23A_999_12: the first fine-resolution on-target scan its directory lists.",
+      "session": "AGBT23A_999_12",
+      "urls": [
+        "https://bldata.berkeley.edu/pipeline/AGBT23A_999_12/blc21_blp01/blc21_guppi_60104_40173_HIP19877_0012.rawspec.0000.h5"
+      ],
+      "hits": 6,
+      "blind": 2
+    },
+    {
+      "key": "agbt21b-999-54",
+      "name": "HIP 21443",
+      "about": "HIP 21443, Green Bank session AGBT21B_999_54: the first fine-resolution on-target scan its directory lists.",
+      "session": "AGBT21B_999_54",
+      "urls": [
+        "https://bldata.berkeley.edu/pipeline/AGBT21B_999_54/blc31_blp01/blc31_guppi_59876_57496_HIP21443_0012.rawspec.0000.h5"
+      ],
+      "hits": 6,
+      "blind": 2
+    },
+    {
+      "key": "agbt22a-999-17",
+      "name": "HIP 7488",
+      "about": "HIP 7488, Green Bank session AGBT22A_999_17: the first fine-resolution on-target scan its directory lists.",
+      "session": "AGBT22A_999_17",
+      "urls": [
+        "https://bldata.berkeley.edu/pipeline/AGBT22A_999_17/blc40_blp00/blc40_guppi_59684_54776_HIP7488_0012.rawspec.0000.h5"
+      ],
+      "hits": 6,
+      "blind": 2
+    },
+    {
+      "key": "agbt23a-999-05",
+      "name": "HIP 103672",
+      "about": "HIP 103672, Green Bank session AGBT23A_999_05: the first fine-resolution on-target scan its directory lists.",
+      "session": "AGBT23A_999_05",
+      "urls": [
+        "https://bldata.berkeley.edu/pipeline/AGBT23A_999_05/blc41_blp01/blc41_guppi_60091_42831_HIP103672_0011.rawspec.0000.h5"
+      ],
+      "hits": 6,
+      "blind": 2
+    },
+    {
+      "key": "agbt20b-999-10",
+      "name": "HIP 57509",
+      "about": "HIP 57509, Green Bank session AGBT20B_999_10: the first fine-resolution on-target scan its directory lists.",
+      "session": "AGBT20B_999_10",
+      "urls": [
+        "https://bldata.berkeley.edu/pipeline/AGBT20B_999_10/blc40_blp00/blc40_guppi_59090_73234_HIP57509_0025.rawspec.0000.h5"
+      ],
+      "hits": 6,
+      "blind": 2
+    },
+    {
+      "key": "agbt23a-999-47",
+      "name": "HIP 106297",
+      "about": "HIP 106297, Green Bank session AGBT23A_999_47: the first fine-resolution on-target scan its directory lists.",
+      "session": "AGBT23A_999_47",
+      "urls": [
+        "https://bldata.berkeley.edu/pipeline/AGBT23A_999_47/blc41_blp01/blc41_guppi_60243_78449_HIP106297_0011.rawspec.0000.h5"
+      ],
+      "hits": 6,
+      "blind": 2
+    },
+    {
+      "key": "agbt16b-999-110",
+      "name": "HIP 34414",
+      "about": "HIP 34414, Green Bank session AGBT16B_999_110: the first fine-resolution on-target scan its directory lists.",
+      "session": "AGBT16B_999_110",
+      "urls": [
+        "https://bldata.berkeley.edu/pipeline/AGBT16B_999_110/holding/spliced_blc0001020304050607_guppi_57756_17315_HIP34414_0003.gpuspec.0000.h5"
+      ],
+      "hits": 6,
+      "blind": 2
+    },
+    {
+      "key": "agbt16a-999-233",
+      "name": "GJ 768",
+      "about": "GJ 768, Green Bank session AGBT16A_999_233: the first fine-resolution on-target scan its directory lists.",
+      "session": "AGBT16A_999_233",
+      "urls": [
+        "https://bldata.berkeley.edu/pipeline/AGBT16A_999_233/holding/spliced_blc0001020304050607_guppi_57574_22825_GJ768_0003.gpuspec.0000.h5"
+      ],
+      "hits": 6,
+      "blind": 2
+    },
+    {
+      "key": "agbt18b-999-42",
+      "name": "HIP 4557",
+      "about": "HIP 4557, Green Bank session AGBT18B_999_42: the first fine-resolution on-target scan its directory lists.",
+      "session": "AGBT18B_999_42",
+      "urls": [
+        "https://bldata.berkeley.edu/pipeline/AGBT18B_999_42/holding/spliced_blc2021222324252627_guppi_58412_16468_HIP4557_0012.gpuspec.0000.h5"
+      ],
+      "hits": 6,
+      "blind": 2
+    },
+    {
+      "key": "agbt24b-999-13",
+      "name": "HIP 11569",
+      "about": "HIP 11569, Green Bank session AGBT24B_999_13: the first fine-resolution on-target scan its directory lists.",
+      "session": "AGBT24B_999_13",
+      "urls": [
+        "https://bldata.berkeley.edu/pipeline/AGBT24B_999_13/blc00_blp00/blc00_guppi_60624_12696_HIP11569_0021.rawspec.0000.h5"
+      ],
+      "hits": 6,
+      "blind": 2
+    },
+    {
+      "key": "agbt17a-999-41",
+      "name": "HIP 4436",
+      "about": "HIP 4436, Green Bank session AGBT17A_999_41: the first fine-resolution on-target scan its directory lists.",
+      "session": "AGBT17A_999_41",
+      "urls": [
+        "https://bldata.berkeley.edu/pipeline/AGBT17A_999_41/holding/spliced_blc0001020304050607_guppi_57850_59753_HIP4436_0002.gpuspec.0000.h5"
+      ],
+      "hits": 6,
+      "blind": 2
+    },
+    {
+      "key": "agbt16a-999-133",
+      "name": "HIP 51547",
+      "about": "HIP 51547, Green Bank session AGBT16A_999_133: the first fine-resolution on-target scan its directory lists.",
+      "session": "AGBT16A_999_133",
+      "urls": [
+        "https://bldata.berkeley.edu/pipeline/AGBT16A_999_133/collate/spliced_blc02030405_2bit_guppi_57486_09326_HIP51547_0003.gpuspec.0000.h5"
+      ],
+      "hits": 6,
+      "blind": 2
+    },
+    {
+      "key": "agbt18a-999-90",
+      "name": "HIP 60965",
+      "about": "HIP 60965, Green Bank session AGBT18A_999_90: the first fine-resolution on-target scan its directory lists.",
+      "session": "AGBT18A_999_90",
+      "urls": [
+        "https://bldata.berkeley.edu/pipeline/AGBT18A_999_90/collate/spliced_blc00010203040506o7o0111213141516o7o021222324252627_guppi_58297_86000_HIP60965_0030.gpuspec.0000.h5"
+      ],
+      "hits": 6,
+      "blind": 2
+    },
+    {
+      "key": "agbt23b-999-16",
+      "name": "HIP 76779",
+      "about": "HIP 76779, Green Bank session AGBT23B_999_16: the first fine-resolution on-target scan its directory lists.",
+      "session": "AGBT23B_999_16",
+      "urls": [
+        "https://bldata.berkeley.edu/pipeline/AGBT23B_999_16/blc40_blp00/blc40_guppi_60294_45065_HIP76779_0016.rawspec.0000.h5"
+      ],
+      "hits": 6,
+      "blind": 2
+    },
+    {
+      "key": "agbt20b-999-31",
+      "name": "HIP 4683",
+      "about": "HIP 4683, Green Bank session AGBT20B_999_31: the first fine-resolution on-target scan its directory lists.",
+      "session": "AGBT20B_999_31",
+      "urls": [
+        "https://bldata.berkeley.edu/pipeline/AGBT20B_999_31/blc00_blp00/blc00_guppi_59152_12356_HIP4683_0012.rawspec.0000.h5"
+      ],
+      "hits": 6,
+      "blind": 2
+    },
+    {
+      "key": "agbt16b-999-31",
+      "name": "HIP 105932",
+      "about": "HIP 105932, Green Bank session AGBT16B_999_31: the first fine-resolution on-target scan its directory lists.",
+      "session": "AGBT16B_999_31",
+      "urls": [
+        "https://bldata.berkeley.edu/pipeline/AGBT16B_999_31/holding/spliced_blc0001020304050607_guppi_57659_84951_HIP105932_0003.gpuspec.0000.h5"
+      ],
+      "hits": 6,
+      "blind": 2
+    },
+    {
+      "key": "agbt18a-999-78",
+      "name": "HIP 104782",
+      "about": "HIP 104782, Green Bank session AGBT18A_999_78: the first fine-resolution on-target scan its directory lists.",
+      "session": "AGBT18A_999_78",
+      "urls": [
+        "https://bldata.berkeley.edu/pipeline/AGBT18A_999_78/collate/spliced_blc0001020304050607_guppi_58279_14321_HIP104782_0004.gpuspec.0000.h5"
+      ],
+      "hits": 6,
+      "blind": 2
+    },
+    {
+      "key": "agbt20b-999-48",
+      "name": "HIP 31956",
+      "about": "HIP 31956, Green Bank session AGBT20B_999_48: the first fine-resolution on-target scan its directory lists.",
+      "session": "AGBT20B_999_48",
+      "urls": [
+        "https://bldata.berkeley.edu/pipeline/AGBT20B_999_48/blc10_blp00/blc10_guppi_59196_03159_HIP31956_0012.rawspec.0000.h5"
+      ],
+      "hits": 6,
+      "blind": 2
+    },
+    {
+      "key": "agbt17b-999-93",
+      "name": "HIP 94083",
+      "about": "HIP 94083, Green Bank session AGBT17B_999_93: the first fine-resolution on-target scan its directory lists.",
+      "session": "AGBT17B_999_93",
+      "urls": [
+        "https://bldata.berkeley.edu/pipeline/AGBT17B_999_93/holding/spliced_blc1011121314151617_guppi_58110_62684_HIP94083_0037.gpuspec.0000.h5"
+      ],
+      "hits": 6,
+      "blind": 2
+    },
+    {
+      "key": "agbt16a-999-213",
+      "name": "GJ 411",
+      "about": "GJ 411, Green Bank session AGBT16A_999_213: the first fine-resolution on-target scan its directory lists.",
+      "session": "AGBT16A_999_213",
+      "urls": [
+        "https://bldata.berkeley.edu/pipeline/AGBT16A_999_213/holding/spliced_blc0001020304050607_guppi_57542_84369_GJ411_0003.gpuspec.0000.h5"
+      ],
+      "hits": 6,
+      "blind": 2
+    },
+    {
+      "key": "agbt16a-999-116",
+      "name": "HIP 75101",
+      "about": "HIP 75101, Green Bank session AGBT16A_999_116: the first fine-resolution on-target scan its directory lists.",
+      "session": "AGBT16A_999_116",
+      "urls": [
+        "https://bldata.berkeley.edu/pipeline/AGBT16A_999_116/collate/spliced_blc02030405_2bit_guppi_57477_37574_HIP75101_0015.gpuspec.0000.h5"
+      ],
+      "hits": 6,
+      "blind": 2
+    },
+    {
+      "key": "agbt23a-999-43",
+      "name": "HIP 15919",
+      "about": "HIP 15919, Green Bank session AGBT23A_999_43: the first fine-resolution on-target scan its directory lists.",
+      "session": "AGBT23A_999_43",
+      "urls": [
+        "https://bldata.berkeley.edu/pipeline/AGBT23A_999_43/blc41_blp01/blc41_guppi_60233_36475_HIP15919_0010.rawspec.0000.h5"
+      ],
+      "hits": 6,
+      "blind": 2
+    },
+    {
+      "key": "agbt20a-999-38",
+      "name": "HIP 17042",
+      "about": "HIP 17042, Green Bank session AGBT20A_999_38: the first fine-resolution on-target scan its directory lists.",
+      "session": "AGBT20A_999_38",
+      "urls": [
+        "https://bldata.berkeley.edu/pipeline/AGBT20A_999_38/blc11_blp01/blc11_guppi_58998_49447_HIP17042_0012.rawspec.0000.h5"
+      ],
+      "hits": 6,
+      "blind": 2
+    },
+    {
+      "key": "agbt24b-999-16",
+      "name": "HIP 98649",
+      "about": "HIP 98649, Green Bank session AGBT24B_999_16: the first fine-resolution on-target scan its directory lists.",
+      "session": "AGBT24B_999_16",
+      "urls": [
+        "https://bldata.berkeley.edu/pipeline/AGBT24B_999_16/blc01_blp01/blc01_guppi_60632_56055_HIP98649_0012.rawspec.0000.h5"
+      ],
+      "hits": 6,
+      "blind": 2
+    },
+    {
+      "key": "agbt17a-999-48",
+      "name": "HIP 76952",
+      "about": "HIP 76952, Green Bank session AGBT17A_999_48: the first fine-resolution on-target scan its directory lists.",
+      "session": "AGBT17A_999_48",
+      "urls": [
+        "https://bldata.berkeley.edu/pipeline/AGBT17A_999_48/holding/spliced_blc0001020304050607_guppi_57862_13836_HIP76952_0002.gpuspec.0000.h5"
+      ],
+      "hits": 6,
+      "blind": 2
+    },
+    {
+      "key": "agbt19a-999-27",
+      "name": "HIP 51502",
+      "about": "HIP 51502, Green Bank session AGBT19A_999_27: the first fine-resolution on-target scan its directory lists.",
+      "session": "AGBT19A_999_27",
+      "urls": [
+        "https://bldata.berkeley.edu/pipeline/AGBT19A_999_27/blc40/blc40_guppi_58586_53159_HIP51502_0016.gpuspec.0000.h5"
+      ],
+      "hits": 6,
+      "blind": 2
+    },
+    {
+      "key": "agbt22b-999-45",
+      "name": "HIP 102318",
+      "about": "HIP 102318, Green Bank session AGBT22B_999_45: the first fine-resolution on-target scan its directory lists.",
+      "session": "AGBT22B_999_45",
+      "urls": [
+        "https://bldata.berkeley.edu/pipeline/AGBT22B_999_45/blc41_blp01/blc41_guppi_60070_51719_HIP102318_0011.rawspec.0000.h5"
+      ],
+      "hits": 6,
+      "blind": 2
+    },
+    {
+      "key": "agbt19b-999-100",
+      "name": "HIP 97223",
+      "about": "HIP 97223, Green Bank session AGBT19B_999_100: the first fine-resolution on-target scan its directory lists.",
+      "session": "AGBT19B_999_100",
+      "urls": [
+        "https://bldata.berkeley.edu/pipeline/AGBT19B_999_100/collate/spliced_blc40414243444546o7o0515253545556o7o061626364656667_guppi_58779_14897_HIP97223_0012.gpuspec.0000.h5"
+      ],
+      "hits": 6,
+      "blind": 2
+    },
+    {
+      "key": "agbt16b-999-88",
+      "name": "HIP 89348",
+      "about": "HIP 89348, Green Bank session AGBT16B_999_88: the first fine-resolution on-target scan its directory lists.",
+      "session": "AGBT16B_999_88",
+      "urls": [
+        "https://bldata.berkeley.edu/pipeline/AGBT16B_999_88/collate/spliced_blc00010203040607_guppi_57732_75414_HIP89348_0063.gpuspec.0000.h5"
+      ],
+      "hits": 6,
+      "blind": 2
+    },
+    {
+      "key": "agbt23b-999-26",
+      "name": "HIP 105341",
+      "about": "HIP 105341, Green Bank session AGBT23B_999_26: the first fine-resolution on-target scan its directory lists.",
+      "session": "AGBT23B_999_26",
+      "urls": [
+        "https://bldata.berkeley.edu/pipeline/AGBT23B_999_26/blc01_blp01/blc01_guppi_60322_71303_HIP105341_0011.rawspec.0000.h5"
+      ],
+      "hits": 6,
+      "blind": 2
+    },
+    {
+      "key": "agbt22a-999-32",
+      "name": "HIP 1932",
+      "about": "HIP 1932, Green Bank session AGBT22A_999_32: the first fine-resolution on-target scan its directory lists.",
+      "session": "AGBT22A_999_32",
+      "urls": [
+        "https://bldata.berkeley.edu/pipeline/AGBT22A_999_32/blc40_blp00/blc40_guppi_59735_83094_HIP1932_0012.rawspec.0000.h5"
+      ],
+      "hits": 6,
+      "blind": 2
+    },
+    {
+      "key": "agbt20a-999-39",
+      "name": "HIP 21607",
+      "about": "HIP 21607, Green Bank session AGBT20A_999_39: the first fine-resolution on-target scan its directory lists.",
+      "session": "AGBT20A_999_39",
+      "urls": [
+        "https://bldata.berkeley.edu/pipeline/AGBT20A_999_39/holding/spliced_blc0001020304050607_guppi_59005_01938_HIP21607_0035.rawspec.0000.h5"
+      ],
+      "hits": 6,
+      "blind": 2
+    },
+    {
+      "key": "agbt16b-999-49",
+      "name": "HIP 14576",
+      "about": "HIP 14576, Green Bank session AGBT16B_999_49: the first fine-resolution on-target scan its directory lists.",
+      "session": "AGBT16B_999_49",
+      "urls": [
+        "https://bldata.berkeley.edu/pipeline/AGBT16B_999_49/holding/spliced_blc0001020304050607_guppi_57681_24218_HIP14576_0003.gpuspec.0000.h5"
+      ],
+      "hits": 6,
+      "blind": 2
+    },
+    {
+      "key": "agbt22a-999-21",
+      "name": "HIP 26611",
+      "about": "HIP 26611, Green Bank session AGBT22A_999_21: the first fine-resolution on-target scan its directory lists.",
+      "session": "AGBT22A_999_21",
+      "urls": [
+        "https://bldata.berkeley.edu/pipeline/AGBT22A_999_21/blc40_blp00/blc40_guppi_59692_61063_HIP26611_0012.rawspec.0000.h5"
+      ],
+      "hits": 6,
+      "blind": 2
+    },
+    {
+      "key": "agbt20b-996-08",
+      "name": "HIP 20936",
+      "about": "HIP 20936, Green Bank session AGBT20B_996_08: the first fine-resolution on-target scan its directory lists.",
+      "session": "AGBT20B_996_08",
+      "urls": [
+        "https://bldata.berkeley.edu/pipeline/AGBT20B_996_08/blc00_blp00/blc00_guppi_59241_76802_HIP20936_0012.rawspec.0000.h5"
+      ],
+      "hits": 6,
+      "blind": 2
+    },
+    {
+      "key": "agbt16a-999-114",
+      "name": "HIP 57274",
+      "about": "HIP 57274, Green Bank session AGBT16A_999_114: the first fine-resolution on-target scan its directory lists.",
+      "session": "AGBT16A_999_114",
+      "urls": [
+        "https://bldata.berkeley.edu/pipeline/AGBT16A_999_114/collate/spliced_blc02030405_2bit_guppi_57476_28935_HIP57274_0022.gpuspec.0000.h5"
+      ],
+      "hits": 6,
+      "blind": 2
+    },
+    {
+      "key": "agbt18a-999-61",
+      "name": "HIP 101027",
+      "about": "HIP 101027, Green Bank session AGBT18A_999_61: the first fine-resolution on-target scan its directory lists.",
+      "session": "AGBT18A_999_61",
+      "urls": [
+        "https://bldata.berkeley.edu/pipeline/AGBT18A_999_61/blc10/blc10_guppi_58252_41101_HIP101027_0009.gpuspec.0000.h5"
+      ],
+      "hits": 6,
+      "blind": 2
+    },
+    {
+      "key": "agbt17b-999-95",
+      "name": "HIP 14668",
+      "about": "HIP 14668, Green Bank session AGBT17B_999_95: the first fine-resolution on-target scan its directory lists.",
+      "session": "AGBT17B_999_95",
+      "urls": [
+        "https://bldata.berkeley.edu/pipeline/AGBT17B_999_95/collate0/spliced_blc00010203040506o7o0111213141516o7o0212223242526o7o031323334353637_guppi_58116_13732_HIP14668_0021.gpuspec.0000.h5"
+      ],
+      "hits": 6,
+      "blind": 2
+    },
+    {
+      "key": "agbt18a-999-69",
+      "name": "HIP 23147",
+      "about": "HIP 23147, Green Bank session AGBT18A_999_69: the first fine-resolution on-target scan its directory lists.",
+      "session": "AGBT18A_999_69",
+      "urls": [
+        "https://bldata.berkeley.edu/pipeline/AGBT18A_999_69/collate0/spliced_blc00010203040506o7o0111213141516o7o0212223242526o7o031323334353637_guppi_58264_59153_HIP23147_0008.gpuspec.0000.h5"
+      ],
+      "hits": 6,
+      "blind": 2
+    },
+    {
+      "key": "agbt22b-999-08",
+      "name": "HIP 47112",
+      "about": "HIP 47112, Green Bank session AGBT22B_999_08: the first fine-resolution on-target scan its directory lists.",
+      "session": "AGBT22B_999_08",
+      "urls": [
+        "https://bldata.berkeley.edu/pipeline/AGBT22B_999_08/blc31_blp01/blc31_guppi_59830_67985_HIP47112_0011.rawspec.0000.h5"
+      ],
+      "hits": 6,
+      "blind": 2
+    },
+    {
+      "key": "agbt19a-999-51",
+      "name": "HIP 63510",
+      "about": "HIP 63510, Green Bank session AGBT19A_999_51: the first fine-resolution on-target scan its directory lists.",
+      "session": "AGBT19A_999_51",
+      "urls": [
+        "https://bldata.berkeley.edu/pipeline/AGBT19A_999_51/blp00/blc30_guppi_58632_12555_HIP63510_0010.gpuspec.0000.h5"
+      ],
+      "hits": 6,
+      "blind": 2
+    },
+    {
+      "key": "agbt22a-999-31",
+      "name": "HIP 42506",
+      "about": "HIP 42506, Green Bank session AGBT22A_999_31: the first fine-resolution on-target scan its directory lists.",
+      "session": "AGBT22A_999_31",
+      "urls": [
+        "https://bldata.berkeley.edu/pipeline/AGBT22A_999_31/blc40_blp00/blc40_guppi_59734_40756_HIP42506_0018.rawspec.0000.h5"
+      ],
+      "hits": 6,
+      "blind": 2
+    },
+    {
+      "key": "agbt16a-999-77",
+      "name": "HIP 19719",
+      "about": "HIP 19719, Green Bank session AGBT16A_999_77: the first fine-resolution on-target scan its directory lists.",
+      "session": "AGBT16A_999_77",
+      "urls": [
+        "https://bldata.berkeley.edu/pipeline/AGBT16A_999_77/holding/spliced_blc02030405_2bit_guppi_57454_80453_HIP19719_0003.gpuspec.0000.h5"
+      ],
+      "hits": 6,
+      "blind": 2
+    },
+    {
+      "key": "agbt17b-999-25",
+      "name": "HIP 103650",
+      "about": "HIP 103650, Green Bank session AGBT17B_999_25: the first fine-resolution on-target scan its directory lists.",
+      "session": "AGBT17B_999_25",
+      "urls": [
+        "https://bldata.berkeley.edu/pipeline/AGBT17B_999_25/blc18_blp17/blc17_guppi_58003_24294_HIP103650_0007.gpuspec.0000.h5"
+      ],
+      "hits": 6,
+      "blind": 2
+    },
+    {
+      "key": "agbt16b-999-122",
+      "name": "HIP 21272",
+      "about": "HIP 21272, Green Bank session AGBT16B_999_122: the first fine-resolution on-target scan its directory lists.",
+      "session": "AGBT16B_999_122",
+      "urls": [
+        "https://bldata.berkeley.edu/pipeline/AGBT16B_999_122/blc03/blc03_guppi_57774_05074_HIP21272_0008.gpuspec.0000.h5"
+      ],
+      "hits": 6,
+      "blind": 2
+    },
+    {
+      "key": "agbt18b-999-27",
+      "name": "HIP 4557",
+      "about": "HIP 4557, Green Bank session AGBT18B_999_27: the first fine-resolution on-target scan its directory lists.",
+      "session": "AGBT18B_999_27",
+      "urls": [
+        "https://bldata.berkeley.edu/pipeline/AGBT18B_999_27/holding/spliced_blc0001020304050607_guppi_58385_19247_HIP4557_0003.gpuspec.0000.h5"
+      ],
+      "hits": 6,
+      "blind": 2
+    },
+    {
+      "key": "agbt22a-999-23",
+      "name": "HIP 21227",
+      "about": "HIP 21227, Green Bank session AGBT22A_999_23: the first fine-resolution on-target scan its directory lists.",
+      "session": "AGBT22A_999_23",
+      "urls": [
+        "https://bldata.berkeley.edu/pipeline/AGBT22A_999_23/blc41_blp01/blc41_guppi_59705_53718_HIP21227_0011.rawspec.0000.h5"
+      ],
+      "hits": 6,
+      "blind": 2
+    },
+    {
+      "key": "agbt19a-999-64",
+      "name": "HIP 55210",
+      "about": "HIP 55210, Green Bank session AGBT19A_999_64: the first fine-resolution on-target scan its directory lists.",
+      "session": "AGBT19A_999_64",
+      "urls": [
+        "https://bldata.berkeley.edu/pipeline/AGBT19A_999_64/blc40/blc40_guppi_58669_83395_HIP55210_0016.gpuspec.0000.h5"
+      ],
+      "hits": 6,
+      "blind": 2
+    },
+    {
+      "key": "agbt22a-999-29",
+      "name": "HIP 43349",
+      "about": "HIP 43349, Green Bank session AGBT22A_999_29: the first fine-resolution on-target scan its directory lists.",
+      "session": "AGBT22A_999_29",
+      "urls": [
+        "https://bldata.berkeley.edu/pipeline/AGBT22A_999_29/blc41_blp01/blc41_guppi_59722_06825_HIP43349_0011.rawspec.0000.h5"
+      ],
+      "hits": 6,
+      "blind": 2
+    },
+    {
+      "key": "agbt18b-999-85",
+      "name": "HIP 112870",
+      "about": "HIP 112870, Green Bank session AGBT18B_999_85: the first fine-resolution on-target scan its directory lists.",
+      "session": "AGBT18B_999_85",
+      "urls": [
+        "https://bldata.berkeley.edu/pipeline/AGBT18B_999_85/blc40/blc40_guppi_58474_85758_HIP112870_0008.gpuspec.0000.h5"
+      ],
+      "hits": 6,
+      "blind": 2
+    },
+    {
+      "key": "agbt16a-999-184",
+      "name": "HIP 29067",
+      "about": "HIP 29067, Green Bank session AGBT16A_999_184: the first fine-resolution on-target scan its directory lists.",
+      "session": "AGBT16A_999_184",
+      "urls": [
+        "https://bldata.berkeley.edu/pipeline/AGBT16A_999_184/collate/spliced_blc00010204050607_guppi_57519_75124_HIP29067_0003.gpuspec.0000.h5"
+      ],
+      "hits": 6,
+      "blind": 2
+    },
+    {
+      "key": "agbt17b-999-60",
+      "name": "HIP 106106",
+      "about": "HIP 106106, Green Bank session AGBT17B_999_60: the first fine-resolution on-target scan its directory lists.",
+      "session": "AGBT17B_999_60",
+      "urls": [
+        "https://bldata.berkeley.edu/pipeline/AGBT17B_999_60/blc00/blc00_guppi_58076_04986_HIP106106_0030.gpuspec.0000.h5"
+      ],
+      "hits": 6,
+      "blind": 2
+    },
+    {
+      "key": "agbt25a-999-16",
+      "name": "HIP 43618",
+      "about": "HIP 43618, Green Bank session AGBT25A_999_16: the first fine-resolution on-target scan its directory lists.",
+      "session": "AGBT25A_999_16",
+      "urls": [
+        "https://bldata.berkeley.edu/pipeline/AGBT25A_999_16/blc11_blp01/blc11_guppi_60786_15020_HIP43618_0011.rawspec.0000.h5"
+      ],
+      "hits": 6,
+      "blind": 2
+    },
+    {
+      "key": "agbt18a-999-19",
+      "name": "HIP 17609",
+      "about": "HIP 17609, Green Bank session AGBT18A_999_19: the first fine-resolution on-target scan its directory lists.",
+      "session": "AGBT18A_999_19",
+      "urls": [
+        "https://bldata.berkeley.edu/pipeline/AGBT18A_999_19/collate0/spliced_blc00010203040506o7o0111213141516o7o0212223242526o7o031323334353637_guppi_58184_81846_HIP17609_0020.gpuspec.0000.h5"
+      ],
+      "hits": 6,
+      "blind": 2
+    },
+    {
+      "key": "agbt18a-999-28",
+      "name": "HIP 111888",
+      "about": "HIP 111888, Green Bank session AGBT18A_999_28: the first fine-resolution on-target scan its directory lists.",
+      "session": "AGBT18A_999_28",
+      "urls": [
+        "https://bldata.berkeley.edu/pipeline/AGBT18A_999_28/collate/spliced_blc00010203040506o7o0111213141516o7o0212223242526o7o031323334353637_guppi_58200_71688_HIP111888_0034.gpuspec.0000.h5"
+      ],
+      "hits": 6,
+      "blind": 2
+    },
+    {
+      "key": "agbt21b-999-06",
+      "name": "HIP 59236",
+      "about": "HIP 59236, Green Bank session AGBT21B_999_06: the first fine-resolution on-target scan its directory lists.",
+      "session": "AGBT21B_999_06",
+      "urls": [
+        "https://bldata.berkeley.edu/pipeline/AGBT21B_999_06/blc00/blc00_guppi_59448_72272_HIP59236_0018.rawspec.0000.h5"
+      ],
+      "hits": 6,
+      "blind": 2
+    },
+    {
+      "key": "agbt16a-999-154",
+      "name": "HIP 49986",
+      "about": "HIP 49986, Green Bank session AGBT16A_999_154: the first fine-resolution on-target scan its directory lists.",
+      "session": "AGBT16A_999_154",
+      "urls": [
+        "https://bldata.berkeley.edu/pipeline/AGBT16A_999_154/collate/spliced_blc02030405_2bit_guppi_57499_16029_HIP49986_0053.gpuspec.0000.h5"
+      ],
+      "hits": 6,
+      "blind": 2
+    },
+    {
+      "key": "agbt21a-996-06",
+      "name": "HIP 30500",
+      "about": "HIP 30500, Green Bank session AGBT21A_996_06: the first fine-resolution on-target scan its directory lists.",
+      "session": "AGBT21A_996_06",
+      "urls": [
+        "https://bldata.berkeley.edu/pipeline/AGBT21A_996_06/blc00_blp00/blc00_guppi_59263_14948_HIP30500_0012.rawspec.0000.h5"
+      ],
+      "hits": 6,
+      "blind": 2
+    },
+    {
+      "key": "agbt20b-999-18",
+      "name": "HIP 26799",
+      "about": "HIP 26799, Green Bank session AGBT20B_999_18: the first fine-resolution on-target scan its directory lists.",
+      "session": "AGBT20B_999_18",
+      "urls": [
+        "https://bldata.berkeley.edu/pipeline/AGBT20B_999_18/holding/spliced_blc0001020304050607_guppi_59109_60323_HIP26799_0138.rawspec.0000.h5"
+      ],
+      "hits": 6,
+      "blind": 2
+    },
+    {
+      "key": "agbt16a-999-166",
+      "name": "HIP 68682",
+      "about": "HIP 68682, Green Bank session AGBT16A_999_166: the first fine-resolution on-target scan its directory lists.",
+      "session": "AGBT16A_999_166",
+      "urls": [
+        "https://bldata.berkeley.edu/pipeline/AGBT16A_999_166/holding/spliced_blc0001020304050607_guppi_57508_15079_HIP68682_0003.gpuspec.0000.h5"
+      ],
+      "hits": 6,
+      "blind": 2
+    },
+    {
+      "key": "agbt16a-999-168",
+      "name": "HIP 83000",
+      "about": "HIP 83000, Green Bank session AGBT16A_999_168: the first fine-resolution on-target scan its directory lists.",
+      "session": "AGBT16A_999_168",
+      "urls": [
+        "https://bldata.berkeley.edu/pipeline/AGBT16A_999_168/holding/spliced_blc0001020304050607_guppi_57509_27092_HIP83000_0003.gpuspec.0000.h5"
+      ],
+      "hits": 6,
+      "blind": 2
+    },
+    {
+      "key": "agbt18a-999-48",
+      "name": "HIP 113718",
+      "about": "HIP 113718, Green Bank session AGBT18A_999_48: the first fine-resolution on-target scan its directory lists.",
+      "session": "AGBT18A_999_48",
+      "urls": [
+        "https://bldata.berkeley.edu/pipeline/AGBT18A_999_48/holding/spliced_blc00010203040506o7o0111213141516o7o0212223242526o7o031323334353637_guppi_58231_56157_HIP113718_0030.gpuspec.0000.h5"
+      ],
+      "hits": 6,
+      "blind": 2
+    },
+    {
+      "key": "agbt19b-999-30",
+      "name": "HIP 40375",
+      "about": "HIP 40375, Green Bank session AGBT19B_999_30: the first fine-resolution on-target scan its directory lists.",
+      "session": "AGBT19B_999_30",
+      "urls": [
+        "https://bldata.berkeley.edu/pipeline/AGBT19B_999_30/blc00/blc00_guppi_58754_50214_HIP40375_0121.gpuspec.0000.h5"
+      ],
+      "hits": 6,
+      "blind": 2
+    },
+    {
+      "key": "agbt19a-999-68",
+      "name": "HIP 21864",
+      "about": "HIP 21864, Green Bank session AGBT19A_999_68: the first fine-resolution on-target scan its directory lists.",
+      "session": "AGBT19A_999_68",
+      "urls": [
+        "https://bldata.berkeley.edu/pipeline/AGBT19A_999_68/blp01/blc41_guppi_58690_48525_HIP21864_0057.gpuspec.0000.h5"
+      ],
+      "hits": 6,
+      "blind": 2
+    },
+    {
+      "key": "agbt17b-999-61",
+      "name": "HIP 56157",
+      "about": "HIP 56157, Green Bank session AGBT17B_999_61: the first fine-resolution on-target scan its directory lists.",
+      "session": "AGBT17B_999_61",
+      "urls": [
+        "https://bldata.berkeley.edu/pipeline/AGBT17B_999_61/holding/spliced_blc0001020304050607_guppi_58077_37989_HIP56157_0002.gpuspec.0000.h5"
+      ],
+      "hits": 6,
+      "blind": 2
+    },
+    {
+      "key": "agbt19a-999-65",
+      "name": "HIP 93917",
+      "about": "HIP 93917, Green Bank session AGBT19A_999_65: the first fine-resolution on-target scan its directory lists.",
+      "session": "AGBT19A_999_65",
+      "urls": [
+        "https://bldata.berkeley.edu/pipeline/AGBT19A_999_65/blc40/blc40_guppi_58677_81891_HIP93917_0020.gpuspec.0000.h5"
+      ],
+      "hits": 6,
+      "blind": 2
+    },
+    {
+      "key": "agbt22a-999-08",
+      "name": "HIP 46068",
+      "about": "HIP 46068, Green Bank session AGBT22A_999_08: the first fine-resolution on-target scan its directory lists.",
+      "session": "AGBT22A_999_08",
+      "urls": [
+        "https://bldata.berkeley.edu/pipeline/AGBT22A_999_08/blc41_blp01/blc41_guppi_59632_28892_HIP46068_0011.rawspec.0000.h5"
+      ],
+      "hits": 6,
+      "blind": 2
+    },
+    {
+      "key": "agbt17b-999-59",
+      "name": "HIP 79762",
+      "about": "HIP 79762, Green Bank session AGBT17B_999_59: the first fine-resolution on-target scan its directory lists.",
+      "session": "AGBT17B_999_59",
+      "urls": [
+        "https://bldata.berkeley.edu/pipeline/AGBT17B_999_59/collate0/spliced_blc00010203040506o7o0111213141516o720o12223242526o7o031323334353637_guppi_58071_62717_HIP79762_0008.gpuspec.0000.h5"
+      ],
+      "hits": 6,
+      "blind": 2
+    },
+    {
+      "key": "agbt18a-999-43",
+      "name": "HIP 108972",
+      "about": "HIP 108972, Green Bank session AGBT18A_999_43: the first fine-resolution on-target scan its directory lists.",
+      "session": "AGBT18A_999_43",
+      "urls": [
+        "https://bldata.berkeley.edu/pipeline/AGBT18A_999_43/blc02/blc02_guppi_58223_63456_HIP108972_0053.gpuspec.0000.h5"
+      ],
+      "hits": 6,
+      "blind": 2
+    },
+    {
+      "key": "agbt21a-996-30",
+      "name": "HIP 38018",
+      "about": "HIP 38018, Green Bank session AGBT21A_996_30: the first fine-resolution on-target scan its directory lists.",
+      "session": "AGBT21A_996_30",
+      "urls": [
+        "https://bldata.berkeley.edu/pipeline/AGBT21A_996_30/blc40/blc40_guppi_59330_56273_HIP38018_0012.rawspec.0000.h5"
+      ],
+      "hits": 6,
+      "blind": 2
+    },
+    {
+      "key": "agbt17b-999-52",
+      "name": "HIP 88227",
+      "about": "HIP 88227, Green Bank session AGBT17B_999_52: the first fine-resolution on-target scan its directory lists.",
+      "session": "AGBT17B_999_52",
+      "urls": [
+        "https://bldata.berkeley.edu/pipeline/AGBT17B_999_52/collate0/spliced_blc00010203040506o7o0111213141516o720o12223242526o031323334353637_guppi_58062_76807_HIP88227_0048.gpuspec.0000.h5"
+      ],
+      "hits": 6,
+      "blind": 2
+    },
+    {
+      "key": "agbt16a-999-226",
+      "name": "HIP 71799",
+      "about": "HIP 71799, Green Bank session AGBT16A_999_226: the first fine-resolution on-target scan its directory lists.",
+      "session": "AGBT16A_999_226",
+      "urls": [
+        "https://bldata.berkeley.edu/pipeline/AGBT16A_999_226/collate/spliced_blc00010203040507_guppi_57563_15561_HIP71799_0048.gpuspec.0000.h5"
+      ],
+      "hits": 6,
+      "blind": 2
+    },
+    {
+      "key": "agbt16b-999-22",
+      "name": "HIP 24819",
+      "about": "HIP 24819, Green Bank session AGBT16B_999_22: the first fine-resolution on-target scan its directory lists.",
+      "session": "AGBT16B_999_22",
+      "urls": [
+        "https://bldata.berkeley.edu/pipeline/AGBT16B_999_22/holding/spliced_blc0001020304050607_guppi_57641_33288_HIP24819_0003.gpuspec.0000.h5"
+      ],
+      "hits": 6,
+      "blind": 2
+    },
+    {
+      "key": "agbt18b-999-36",
+      "name": "HIP 4557",
+      "about": "HIP 4557, Green Bank session AGBT18B_999_36: the first fine-resolution on-target scan its directory lists.",
+      "session": "AGBT18B_999_36",
+      "urls": [
+        "https://bldata.berkeley.edu/pipeline/AGBT18B_999_36/holding/spliced_blc3031323334353637_guppi_58406_07230_HIP4557_0048.gpuspec.0000.h5"
+      ],
+      "hits": 6,
+      "blind": 2
+    },
+    {
+      "key": "agbt16a-999-202",
+      "name": "HIP 78459",
+      "about": "HIP 78459, Green Bank session AGBT16A_999_202: the first fine-resolution on-target scan its directory lists.",
+      "session": "AGBT16A_999_202",
+      "urls": [
+        "https://bldata.berkeley.edu/pipeline/AGBT16A_999_202/collate/spliced_blc00010203040507_guppi_57533_19369_HIP78459_0002.gpuspec.0000.h5"
+      ],
+      "hits": 6,
+      "blind": 2
+    },
+    {
+      "key": "agbt16a-999-68",
+      "name": "HIP 88771",
+      "about": "HIP 88771, Green Bank session AGBT16A_999_68: the first fine-resolution on-target scan its directory lists.",
+      "session": "AGBT16A_999_68",
+      "urls": [
+        "https://bldata.berkeley.edu/pipeline/AGBT16A_999_68/collate/spliced_blc02030405_2bit_guppi_57447_59660_HIP88771_0003.gpuspec.0000.h5"
+      ],
+      "hits": 6,
+      "blind": 2
+    },
+    {
+      "key": "agbt18a-999-46",
+      "name": "HIP 53229",
+      "about": "HIP 53229, Green Bank session AGBT18A_999_46: the first fine-resolution on-target scan its directory lists.",
+      "session": "AGBT18A_999_46",
+      "urls": [
+        "https://bldata.berkeley.edu/pipeline/AGBT18A_999_46/collate0/spliced_blc00010203040506o7o0111213141516o7o0212223242526o7o031323334353637_guppi_58227_03763_HIP53229_0008.gpuspec.0000.h5"
+      ],
+      "hits": 6,
+      "blind": 2
+    },
+    {
+      "key": "agbt19b-999-133",
+      "name": "HIP 92247",
+      "about": "HIP 92247, Green Bank session AGBT19B_999_133: the first fine-resolution on-target scan its directory lists.",
+      "session": "AGBT19B_999_133",
+      "urls": [
+        "https://bldata.berkeley.edu/pipeline/AGBT19B_999_133/blc10_blp00/blc10_guppi_58868_67226_HIP92247_0104.gpuspec.0000.h5"
+      ],
+      "hits": 6,
+      "blind": 2
+    },
+    {
+      "key": "agbt19a-999-48",
+      "name": "HIP 113357",
+      "about": "HIP 113357, Green Bank session AGBT19A_999_48: the first fine-resolution on-target scan its directory lists.",
+      "session": "AGBT19A_999_48",
+      "urls": [
+        "https://bldata.berkeley.edu/pipeline/AGBT19A_999_48/blc13/blc13_guppi_58629_60967_HIP113357_0030.gpuspec.0000.h5"
+      ],
+      "hits": 6,
+      "blind": 2
+    },
+    {
+      "key": "agbt16b-999-62",
+      "name": "HIP 79796",
+      "about": "HIP 79796, Green Bank session AGBT16B_999_62: the first fine-resolution on-target scan its directory lists.",
+      "session": "AGBT16B_999_62",
+      "urls": [
+        "https://bldata.berkeley.edu/pipeline/AGBT16B_999_62/holding/spliced_blc0001020304050607_guppi_57697_63320_HIP79796_0003.gpuspec.0000.h5"
+      ],
+      "hits": 6,
+      "blind": 2
+    },
+    {
+      "key": "agbt23b-999-12",
+      "name": "HIP 95893",
+      "about": "HIP 95893, Green Bank session AGBT23B_999_12: the first fine-resolution on-target scan its directory lists.",
+      "session": "AGBT23B_999_12",
+      "urls": [
+        "https://bldata.berkeley.edu/pipeline/AGBT23B_999_12/blc00_blp00/blc00_guppi_60287_77223_HIP95893_0008.rawspec.0000.h5"
+      ],
+      "hits": 6,
+      "blind": 2
+    },
+    {
+      "key": "agbt20a-999-58",
+      "name": "HIP 11436",
+      "about": "HIP 11436, Green Bank session AGBT20A_999_58: the first fine-resolution on-target scan its directory lists.",
+      "session": "AGBT20A_999_58",
+      "urls": [
+        "https://bldata.berkeley.edu/pipeline/AGBT20A_999_58/blc02_blp02/blc02_guppi_59061_33768_HIP11436_0011.rawspec.0000.h5"
+      ],
+      "hits": 6,
+      "blind": 2
+    },
+    {
+      "key": "agbt19b-999-25",
+      "name": "HIP 68682",
+      "about": "HIP 68682, Green Bank session AGBT19B_999_25: the first fine-resolution on-target scan its directory lists.",
+      "session": "AGBT19B_999_25",
+      "urls": [
+        "https://bldata.berkeley.edu/pipeline/AGBT19B_999_25/collate/spliced_blc4041424344454647_guppi_58743_79851_HIP68682_0010.gpuspec.0000.h5"
+      ],
+      "hits": 6,
+      "blind": 2
+    },
+    {
+      "key": "agbt23a-999-08",
+      "name": "HIP 10695",
+      "about": "HIP 10695, Green Bank session AGBT23A_999_08: the first fine-resolution on-target scan its directory lists.",
+      "session": "AGBT23A_999_08",
+      "urls": [
+        "https://bldata.berkeley.edu/pipeline/AGBT23A_999_08/blc41_blp01/blc41_guppi_60098_40432_HIP10695_0013.rawspec.0000.h5"
+      ],
+      "hits": 6,
+      "blind": 2
+    },
+    {
+      "key": "agbt23b-999-14",
+      "name": "HIP 8543",
+      "about": "HIP 8543, Green Bank session AGBT23B_999_14: the first fine-resolution on-target scan its directory lists.",
+      "session": "AGBT23B_999_14",
+      "urls": [
+        "https://bldata.berkeley.edu/pipeline/AGBT23B_999_14/blc40_blp00/blc40_guppi_60291_01790_HIP8543_0011.rawspec.0000.h5"
+      ],
+      "hits": 6,
+      "blind": 2
+    },
+    {
+      "key": "agbt18b-999-75",
+      "name": "HIP 23786",
+      "about": "HIP 23786, Green Bank session AGBT18B_999_75: the first fine-resolution on-target scan its directory lists.",
+      "session": "AGBT18B_999_75",
+      "urls": [
+        "https://bldata.berkeley.edu/pipeline/AGBT18B_999_75/blc00/blc00_guppi_58457_24421_HIP23786_0008.gpuspec.0000.h5"
+      ],
+      "hits": 6,
+      "blind": 2
+    },
+    {
+      "key": "agbt16a-999-167",
+      "name": "HIP 24454",
+      "about": "HIP 24454, Green Bank session AGBT16A_999_167: the first fine-resolution on-target scan its directory lists.",
+      "session": "AGBT16A_999_167",
+      "urls": [
+        "https://bldata.berkeley.edu/pipeline/AGBT16A_999_167/holding/spliced_blc0001020304050607_guppi_57508_69521_HIP24454_0003.gpuspec.0000.h5"
+      ],
+      "hits": 6,
+      "blind": 2
+    },
+    {
+      "key": "agbt18b-999-04",
+      "name": "HIP 65477",
+      "about": "HIP 65477, Green Bank session AGBT18B_999_04: the first fine-resolution on-target scan its directory lists.",
+      "session": "AGBT18B_999_04",
+      "urls": [
+        "https://bldata.berkeley.edu/pipeline/AGBT18B_999_04/blc40/blc00_guppi_58345_78770_HIP65477_0007.gpuspec.0000.h5"
+      ],
+      "hits": 6,
+      "blind": 2
+    },
+    {
+      "key": "agbt22a-999-48",
+      "name": "HIP 99899",
+      "about": "HIP 99899, Green Bank session AGBT22A_999_48: the first fine-resolution on-target scan its directory lists.",
+      "session": "AGBT22A_999_48",
+      "urls": [
+        "https://bldata.berkeley.edu/pipeline/AGBT22A_999_48/blc10_blp00/blc10_guppi_59802_82018_HIP99899_0018.rawspec.0000.h5"
+      ],
+      "hits": 6,
+      "blind": 2
+    },
+    {
+      "key": "agbt17a-999-50",
+      "name": "HIP 46239",
+      "about": "HIP 46239, Green Bank session AGBT17A_999_50: the first fine-resolution on-target scan its directory lists.",
+      "session": "AGBT17A_999_50",
+      "urls": [
+        "https://bldata.berkeley.edu/pipeline/AGBT17A_999_50/blc15/blc15_guppi_57866_71955_HIP46239_0047.gpuspec.0000.h5"
+      ],
+      "hits": 6,
+      "blind": 2
+    }
+  ]
+}

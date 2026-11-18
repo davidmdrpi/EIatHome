@@ -16,10 +16,11 @@ first such file by name. `draw` writes the pool file `tools/extract_slices.py --
         --out tracks/llm/data/sessions --width 64 --product fine_resolution
 
 A later draw for a fresh benchmark version excludes every session an earlier pool drew (whether or
-not it was cut), so no session is in two versions:
+not it was cut), so no session is in two versions. sessions-v1 (data/sessions-v1/README.md) was
+drawn so, with twice v0's sessions:
 
     python -m tracks.llm.sessions_corpus draw --output tracks/llm/data/sessions-v1/pool.json \
-        --seed 20261108 --id llm-sessions/v2 --exclude tracks/llm/data/sessions/pool.json
+        --sessions 120 --seed 20261108 --id llm-sessions/v2 --exclude tracks/llm/data/sessions/pool.json
 
 The listings are parsed as text, nothing fetched is executed, and the pool records each file's
 URL, so the draw and the cut can both be repeated and checked.

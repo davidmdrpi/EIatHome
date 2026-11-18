@@ -103,12 +103,13 @@ CHAINS = {
 # split.json's SHA-256: the frozen split. A different split is a new benchmark version.
 SPLIT_SHA256 = "4023ba4f1795914b34aced6b093da765a2680554d8bb74f62dcd4fb32decc418"
 # v1: the same protocol on a second draw of sessions (sessions_corpus.py --exclude the first's),
-# for scoring merge methods frozen on v0 (wsp_bench.py) on sessions nobody has looked at. It is
-# cut only once the methods it scores are frozen (WSP_RESULTS.md); until then it has no split.
+# for scoring merge methods frozen on v0 (wsp_bench.py) on sessions nobody has looked at. It was
+# cut only once the methods it scores were frozen (WSP_RESULTS.md): drawn after wsp_bench.py's
+# PROTOCOL_SHA256 was pinned on main, and split and pinned here before anything trained on it.
 BENCHMARK_V1 = "signal-lm-sessions-bench/v1"
 MANIFEST_V1 = ROOT / "tracks/llm/data/sessions-v1/index.json"
 FOLDER_V1 = Path(__file__).resolve().parent / "benchmarks" / "sessions-v1"
-SPLIT_SHA256_V1 = None
+SPLIT_SHA256_V1 = "df8ceba04c06ba04843d043e6ed699f168587dd57a9d9239bb7af86f4ccd38c5"
 
 
 class Benchmark(NamedTuple):

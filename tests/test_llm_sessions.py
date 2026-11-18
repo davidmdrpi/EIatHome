@@ -294,6 +294,42 @@ class FrozenSplitTests(unittest.TestCase):
         shards = split["cohort"]["shard_sessions"]
         self.assertEqual(sorted(s for v in shards.values() for s in v), sorted(sessions["train"]), "the shards are the training sessions")
 
+    def test_v1_is_a_fresh_draw_split_the_same_way_and_pinned(self):
+        """sessions-v1: drawn after the WSP protocol was pinned, from sessions v0 never drew, split by
+        the same rule, its split pinned like v0's."""
+        v1 = bench.benchmark("v1")
+        split = bench.check_split(bench=v1)
+        self.assertEqual((split["benchmark"], split["family"], split["evaluation"]), (bench.BENCHMARK_V1, bench.FAMILY, bench.EVALUATION))
+        sessions = {name: [s["start_mjd"] for s in part["sessions"]] for name, part in split["splits"].items()}
+        self.assertLess(max(sessions["train"]), min(sessions["validation"]))
+        self.assertLess(max(sessions["validation"]), min(sessions["test"]))
+        self.assertGreater(len(sessions["test"]), len(bench.check_split()["splits"]["test"]["sessions"]),
+                           "more independent test sessions than v0's: the point of drawing more")
+        shards = split["cohort"]["shard_sessions"]
+        self.assertEqual(sorted(s for v in shards.values() for s in v), sorted(sessions["train"]))
+
+        # Nothing of v0's: no session drawn, no slice, no scan.
+        pool = lambda folder: json.loads((Path(bench.ROOT) / folder / "pool.json").read_text())
+        p0, p1 = pool("tracks/llm/data/sessions"), pool("tracks/llm/data/sessions-v1")
+        self.assertEqual((p1["id"], p1["draw"]["excluded_sessions"]), ("llm-sessions/v2", len(p0["targets"])))
+        self.assertFalse({t["session"] for t in p0["targets"]} & {t["session"] for t in p1["targets"]})
+        r0, r1 = load_slices(bench.MANIFEST), load_slices(v1.manifest)
+        self.assertFalse({r["sha256"] for r in r0} & {r["sha256"] for r in r1})
+        self.assertFalse({r["entry"]["source"]["url"] for r in r0} & {r["entry"]["source"]["url"] for r in r1})
+        self.assertEqual({r["entry"]["source"]["pool"]["id"] for r in r1}, {"llm-sessions/v2"})
+        # Every session v1 is scored on (validation, test, the control's) is another observing session
+        # than every one of v0's, by the corpus's own rule (more than 0.5 days apart). Only training
+        # sessions may share a night with v0's: v1 trains its own cohort from θ₀, so that leaks nothing.
+        def starts(split):
+            return ([s["start_mjd"] for part in split["splits"].values() for s in part["sessions"]]
+                    + [s["start_mjd"] for name in ("selection", "reporting") for s in split["control"][name]["sessions"]])
+        v0 = starts(bench.check_split())
+        held_out = {"validation": sessions["validation"], "test": sessions["test"],
+                    **{f"control {name}": [s["start_mjd"] for s in split["control"][name]["sessions"]] for name in ("selection", "reporting")}}
+        for name, part in held_out.items():
+            for start in part:
+                self.assertGreater(min(abs(start - s) for s in v0), SESSION_GAP_DAYS, f"v1 {name} session at MJD {start}")
+
 
 if __name__ == "__main__":
     unittest.main()
