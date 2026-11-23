@@ -1,10 +1,15 @@
 """Run and check the complete frozen sessions-v1 comparison, without changing its protocol.
 
-python -m tools.wsp_publication run --output runs/wsp-v1-attempt-001
-python -m tools.wsp_publication check --folder runs/wsp-v1-attempt-001/results
+python -m tools.wsp_publication run --output runs/wsp-v1-attempt-002
+python -m tools.wsp_publication check --folder runs/wsp-v1-attempt-002/results   # an attempt's results
+python -m tools.wsp_publication check                                            # the publication
+
+`check` without --folder checks the publication under tracks/llm/benchmarks/wsp-v1 and requires a
+verified attempt record under tracks/llm/wsp-attempts/ naming its report.
 """
 import argparse
 from datetime import datetime, timezone
+import hashlib
 import json
 import os
 from pathlib import Path
@@ -12,16 +17,23 @@ from types import SimpleNamespace
 
 METHODS = ["random", "coordinate", "specialist", "llm", "llm-anonymized"]
 SEEDS = [42, 43, 44]
-PUBLICATION = Path("tracks/llm/benchmarks/wsp-v1")
+V1 = "signal-lm-sessions-bench/v1"
+ROOT = Path(__file__).resolve().parents[1]
+PUBLICATION = ROOT / "tracks/llm/benchmarks/wsp-v1"
+ATTEMPTS = ROOT / "tracks/llm/wsp-attempts"
 
 
-def complete(folder):
+def report_sha256(folder):
+    return hashlib.sha256((folder / "report.json").read_bytes()).hexdigest()
+
+
+def complete(folder, benchmark=V1):
     """Check coverage before the existing numerical replay; no model/API imports."""
     report = json.loads((folder / "report.json").read_text())
-    if report["sessions_benchmark"] != "signal-lm-sessions-bench/v1":
-        raise ValueError("Expected sessions-v1")
+    if report["sessions_benchmark"] != benchmark:
+        raise ValueError(f"Expected {benchmark}")
     if report["settings"]["methods"] != METHODS or report["settings"]["seeds"] != SEEDS:
-        raise ValueError("Expected all five methods and seeds 42, 43, 44 in frozen order")
+        raise ValueError(f"Expected all five methods and seeds {', '.join(map(str, SEEDS))} in frozen order")
     if set(report["seeds"]) != set(map(str, SEEDS)):
         raise ValueError("Missing or extra seed results")
     for seed in SEEDS:
@@ -53,6 +65,38 @@ def check(folder):
     wsp_bench.verify("v1", folder=folder)
 
 
+def attested(folder, attempts=ATTEMPTS):
+    """The verified attempt record that names this report: a publication is one attempt's results."""
+    digest = report_sha256(folder)
+    for path in sorted(attempts.glob("*.json")):
+        record = json.loads(path.read_text())
+        if record.get("state") == "verified" and record.get("report_sha256") == digest:
+            return path
+    raise ValueError(f"No verified attempt record in {attempts} names this report (SHA-256 {digest[:12]}...)")
+
+
+def check_publication(folder=PUBLICATION, attempts=ATTEMPTS):
+    check(folder)
+    return attested(folder, attempts)
+
+
+def preflight_problem():
+    """Why the frozen run would stop before any arm executes, checked first so the attempt record
+    says preflight (wsp_bench.anthropic_send refuses the same things)."""
+    if not os.environ.get("ANTHROPIC_API_KEY"):
+        return "ANTHROPIC_API_KEY unavailable; no arms executed"
+    if os.environ.get("ANTHROPIC_AUTH_TOKEN"):
+        return "ANTHROPIC_AUTH_TOKEN is set; the frozen editor authenticates with ANTHROPIC_API_KEY only; no arms executed"
+    try:
+        import anthropic  # noqa: F401
+    except ImportError:
+        return "the anthropic package isn't installed; no arms executed"
+    from tracks.llm import wsp_bench
+    if wsp_bench.protocol_sha256() != wsp_bench.PROTOCOL_SHA256:
+        return "this code's protocol isn't the frozen one; no arms executed"
+    return None
+
+
 def run(output):
     # Reserve the directory even on preflight failure. Never overwrite or auto-retry an attempt.
     output.mkdir(parents=True, exist_ok=False)
@@ -64,12 +108,11 @@ def run(output):
 
     record()
     try:
-        if not os.environ.get("ANTHROPIC_API_KEY"):
-            status["reason"] = "ANTHROPIC_API_KEY unavailable; no arms executed"
-            raise RuntimeError(status["reason"])
+        problem = preflight_problem()
+        if problem:
+            status["reason"] = problem
+            raise RuntimeError(problem)
         from tracks.llm import wsp_bench
-        if wsp_bench.protocol_sha256() != wsp_bench.PROTOCOL_SHA256:
-            raise RuntimeError("Frozen protocol mismatch")
         status["protocol_sha256"] = wsp_bench.PROTOCOL_SHA256
         status["state"] = "running"
         record()
@@ -78,6 +121,7 @@ def run(output):
         status["state"] = "verifying"
         record()
         check(output / "results")
+        status["report_sha256"] = report_sha256(output / "results")
         status["state"] = "verified"
     except BaseException as error:
         status["failed_stage"] = status["state"]
@@ -91,21 +135,24 @@ def run(output):
 
 
 def main():
-    parser = argparse.ArgumentParser(description=__doc__)
+    parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     commands = parser.add_subparsers(dest="command", required=True)
     execute = commands.add_parser("run")
     execute.add_argument("--output", type=Path, required=True)
     verify = commands.add_parser("check")
-    verify.add_argument("--folder", type=Path, default=PUBLICATION)
+    verify.add_argument("--folder", type=Path, default=None,
+                        help="an attempt's results; default: the publication, which also needs its verified attempt record")
     verify.add_argument("--allow-absent", action="store_true",
                         help="CI before publication: absence is pending, never a successful experiment")
     args = parser.parse_args()
     if args.command == "run":
         run(args.output)
-    elif args.allow_absent and not args.folder.exists():
+    elif args.folder is not None:
+        check(args.folder)
+    elif args.allow_absent and not PUBLICATION.exists():
         print("PENDING: wsp-v1 publication absent; no experimental result claimed")
     else:
-        check(args.folder)
+        print(f"verified, and published from {check_publication().relative_to(ROOT)}")
 
 
 if __name__ == "__main__":

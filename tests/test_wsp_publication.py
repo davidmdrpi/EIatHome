@@ -1,8 +1,12 @@
 """Publication coverage and attempt preservation; no API calls."""
+import contextlib
 import copy
+import io
 import json
 from pathlib import Path
+import sys
 import tempfile
+from types import SimpleNamespace
 import unittest
 from unittest.mock import patch
 from tools import wsp_publication as publication
@@ -81,10 +85,40 @@ class PublicationTests(unittest.TestCase):
             publication.run(output)
         self.assertEqual(status, json.loads((output / "attempt.json").read_text()))
 
+    def test_preflight_refuses_what_the_frozen_run_would_refuse_before_any_arm(self):
+        cases = [({"ANTHROPIC_API_KEY": "fixture", "ANTHROPIC_AUTH_TOKEN": "other"}, {}, "ANTHROPIC_AUTH_TOKEN is set"),
+                 ({"ANTHROPIC_API_KEY": "fixture"}, {"anthropic": None}, "anthropic package isn't installed")]
+        for i, (env, modules, reason) in enumerate(cases):
+            output = Path(self.temp.name) / f"preflight-{i}"
+            with self.subTest(reason=reason), patch.dict("os.environ", env, clear=True), patch.dict(sys.modules, modules):
+                with self.assertRaisesRegex(RuntimeError, reason):
+                    publication.run(output)
+                status = json.loads((output / "attempt.json").read_text())
+                self.assertEqual((status["state"], status["failed_stage"]), ("incomplete", "preflight"))
+                self.assertNotIn("other", json.dumps(status), "no secret recorded")
+
+    def test_a_publication_needs_its_verified_attempt_record(self):
+        attempts = Path(self.temp.name) / "attempts"
+        attempts.mkdir()
+        with patch.object(publication, "check"):
+            with self.assertRaisesRegex(ValueError, "No verified attempt record"):
+                publication.check_publication(self.folder, attempts)
+            digest = publication.report_sha256(self.folder)
+            (attempts / "preflight-001.json").write_text(json.dumps({"state": "incomplete"}))
+            (attempts / "attempt-002.json").write_text(json.dumps({"state": "incomplete", "report_sha256": digest}))
+            with self.assertRaisesRegex(ValueError, "No verified attempt record"):
+                publication.check_publication(self.folder, attempts)
+            (attempts / "attempt-003.json").write_text(json.dumps({"state": "verified", "report_sha256": digest}))
+            self.assertEqual(publication.check_publication(self.folder, attempts).name, "attempt-003.json")
+            self.write("report.json", {**self.report, "edited": True})
+            with self.assertRaisesRegex(ValueError, "No verified attempt record"):
+                publication.check_publication(self.folder, attempts)
+
     def test_failed_run_preserves_attempt_and_does_not_publish(self):
         from tracks.llm import wsp_bench
         output = Path(self.temp.name) / "failed-api"
         with patch.dict("os.environ", {"ANTHROPIC_API_KEY": "fixture"}), \
+             patch.object(publication, "preflight_problem", return_value=None), \
              patch.object(wsp_bench, "run", side_effect=RuntimeError("private detail")), \
              patch.object(publication, "check") as check:
             with self.assertRaises(RuntimeError):
@@ -99,6 +133,7 @@ class PublicationTests(unittest.TestCase):
         from tracks.llm import wsp_bench
         output = Path(self.temp.name) / "failed-replay"
         with patch.dict("os.environ", {"ANTHROPIC_API_KEY": "fixture"}), \
+             patch.object(publication, "preflight_problem", return_value=None), \
              patch.object(wsp_bench, "run"), \
              patch.object(publication, "check", side_effect=ValueError("mismatch")):
             with self.assertRaises(ValueError):
@@ -106,3 +141,45 @@ class PublicationTests(unittest.TestCase):
         status = json.loads((output / "attempt.json").read_text())
         self.assertEqual(status["state"], "incomplete")
         self.assertEqual(status["failed_stage"], "verifying")
+
+
+def scripted_send():
+    """A stand-in for the API: evaluates one program, then finishes. No request leaves the machine."""
+    turns = []
+
+    def message(*blocks):
+        usage = SimpleNamespace(input_tokens=1000, cache_creation_input_tokens=0, cache_read_input_tokens=0, output_tokens=200)
+        return SimpleNamespace(content=list(blocks), stop_reason="tool_use", model="claude-opus-5-5", usage=usage)
+
+    def send(request):
+        turns.append(request)
+        if len(turns) % 2:
+            call = SimpleNamespace(type="tool_use", id=f"e{len(turns)}", name="evaluate_program",
+                                   input={"program": {"start": "average", "ops": []}})
+        else:
+            call = SimpleNamespace(type="tool_use", id=f"f{len(turns)}", name="finish", input={"summary": "scripted"})
+        return message(call)
+    return send
+
+
+class ContractTests(unittest.TestCase):
+    """The completeness check on a real wsp_bench run's output, not a hand-built fixture. On v0 only:
+    a run on v1 would compute the controls' v1 test scores before the frozen experiment."""
+
+    def test_a_real_run_passes_the_completeness_check(self):
+        from tracks.llm import session_bench, wsp_bench
+        with tempfile.TemporaryDirectory() as tmp:
+            out = Path(tmp) / "results"
+            args = SimpleNamespace(benchmark="v0", output=out, methods=publication.METHODS, seeds=[42], publish=False)
+            with patch.object(wsp_bench, "anthropic_send", scripted_send), contextlib.redirect_stdout(io.StringIO()):
+                wsp_bench.run(args)
+            with patch.object(publication, "SEEDS", [42]):
+                report = publication.complete(out, benchmark=session_bench.benchmark("v0").id)
+            self.assertEqual(sorted(report["seeds"]["42"]["methods"]), sorted(publication.METHODS))
+            # and the check refuses the same run once a transcript no longer matches the report
+            path = out / "transcripts" / "seed42" / "llm.json"
+            transcript = json.loads(path.read_text())
+            transcript["turns"] += 1
+            path.write_text(json.dumps(transcript))
+            with patch.object(publication, "SEEDS", [42]), self.assertRaisesRegex(ValueError, "turns mismatch"):
+                publication.complete(out, benchmark=session_bench.benchmark("v0").id)

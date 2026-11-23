@@ -22,7 +22,12 @@ never overwrites one, never retries the experiment automatically, and does not p
 The Anthropic SDK's existing transport retry behavior is unchanged. Budget and API charges
 remain those of the frozen editor, not a new dollar cap imposed by this wrapper.
 
-`attempt.json` records start/end, stage and outcome. Exceptions record their type, not potentially
+Before any arm runs, the runner refuses what the frozen harness would refuse: no
+`ANTHROPIC_API_KEY`, an `ANTHROPIC_AUTH_TOKEN` set, no `anthropic` package, or a protocol other
+than the pinned one. Each is recorded as a preflight failure.
+
+`attempt.json` records start/end, stage and outcome, and once verified the SHA-256 of the run's
+`report.json`. Exceptions record their type, not potentially
 sensitive exception messages. A killed process may leave `running` or `verifying`; this means
 interrupted, not successful. Preserve every attempt directory and review failures before any
 restart. The frozen harness saves completed editor sessions only: an exception inside a session
@@ -48,11 +53,13 @@ It uses no API key. It does not attest that an API transcript is authentic or re
 reasoning; it checks recorded artifacts and numerical selections.
 
 Copy the verified `results` directory to `tracks/llm/benchmarks/wsp-v1` (which must not already
-exist), and retain the attempt record under `tracks/llm/wsp-attempts/`. Include records of failed
-attempts and all available completed artifacts/transcripts, reviewed for accidental secrets.
-Run `python -m tools.wsp_publication check` again from the repository root. CI uses the same
-check, allowing only the entire publication directory to be absent while this PR is pending.
-An existing but partial directory fails. Remove `--allow-absent` from CI when publishing results.
+exist), and its `attempt.json` to `tracks/llm/wsp-attempts/<attempt>.json`. Include records of
+failed attempts and all available completed artifacts/transcripts, reviewed for accidental
+secrets. Then run `python -m tools.wsp_publication check` (no `--folder`). It checks the
+publication as above, and also requires a verified attempt record naming its `report.json` by
+SHA-256, so the published files are one verified attempt's, unedited. CI uses the same check,
+allowing only the entire publication directory to be absent while this PR is pending. An existing
+but partial or unattested directory fails. Remove `--allow-absent` from CI when publishing results.
 
 ## Results to report
 
