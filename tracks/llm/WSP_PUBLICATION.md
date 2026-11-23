@@ -1,7 +1,8 @@
 # Frozen WSP v1 publication
 
-Status: **pending**, not an experimental result. The first preflight attempt found no
-`ANTHROPIC_API_KEY`; no arm ran. Its [record](wsp-attempts/preflight-001.json) is retained.
+Status: **pending**, not an experimental result. An agent-environment dry run found no
+`ANTHROPIC_API_KEY`; no arm ran. Its [record](wsp-attempts/dry-run-001.json) is retained
+as a preflight check, not an experimenter run or a verified publication attempt.
 The editor remains the untuned design frozen before sessions-v1 was drawn. This work changes
 neither the protocol nor the cohort, and does not promote WSP into the live volunteer pilot.
 
@@ -10,6 +11,12 @@ neither the protocol nor the cohort, and does not promote WSP into the live volu
 From the repository root, install the CPU PyTorch build, `tracks/llm/requirements.txt`, and
 `anthropic`. Provide an experimenter-owned `ANTHROPIC_API_KEY` through the process environment;
 do not put credentials in git or in transcripts. Unset `ANTHROPIC_AUTH_TOKEN`.
+
+In Claude Code cloud, configure `ANTHROPIC_API_KEY` in the environment settings, where
+sessions and commands using that environment can read it; network secrets are not injected
+into requests to `api.anthropic.com` ([cloud environment documentation](https://code.claude.com/docs/en/cloud-environments#requests-that-never-get-the-secret)).
+Alternatively, run from your own machine. The frozen client pins the public API URL and
+refuses `ANTHROPIC_AUTH_TOKEN`; it does not use the session's `ANTHROPIC_BASE_URL`.
 
 ```bash
 OMP_NUM_THREADS=1 MKL_NUM_THREADS=1 python -m tools.wsp_publication run \
