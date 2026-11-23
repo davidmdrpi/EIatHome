@@ -196,7 +196,9 @@ comparison scores a frozen protocol on sessions nobody has looked at, once:
    python -m tracks.llm.session_bench run --benchmark v1 --output runs/sessions-v1 --publish
    ```
 
-4. **Score every arm once.** *Waiting for the experimenter's API key.* This is one run with every
+4. **Score every arm once.** *Waiting for the experimenter's API key.*
+   The [publication runbook](WSP_PUBLICATION.md) provides a guarded runner and completeness
+   checks. The first preflight attempt stopped before any arm ran because the key was unavailable. This is one run with every
    method, since publishing writes the whole report:
 
    ```bash
