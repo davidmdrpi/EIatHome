@@ -48,6 +48,9 @@ jobs:
       - run: python -m unittest discover -s tests -p 'test_llm_wsp.py' -v
       # The WSP benchmark's published picks: every edit program and query replayed from the cohort, and rescored.
       - run: python -m tracks.llm.wsp_bench verify
+      - run: python -m unittest discover -s tests -p 'test_wsp_publication.py' -v
+      # Pending until the complete frozen experiment is published; partial publications fail.
+      - run: python -m tools.wsp_publication check --allow-absent
       - run: python -m unittest discover -s tests -p 'test_llm_pilot.py' -v
       # The checkpoint pilot's ledger: every stored contribution and merge replayed.
       - run: python -m tracks.llm.pilot verify
