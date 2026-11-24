@@ -248,8 +248,8 @@ def strictly_equal(a, b):
     return json.dumps(a, sort_keys=True) == json.dumps(b, sort_keys=True)
 
 
-def whole(x, low=0):
-    return type(x) is int and x >= low
+def whole(x, low=0, high=None):
+    return type(x) is int and x >= low and (high is None or x <= high)
 
 
 def training_problem(training):
@@ -259,9 +259,12 @@ def training_problem(training):
     if not valid_seed(training["seed"]):
         return f"its seed isn't an integer from 0 to {SEEDS.stop - 1}"
     seconds, env = training["seconds"], training["environment"]
-    if (not whole(training["best_epoch"]) or not whole(training["epochs_run"]) or type(seconds) not in (int, float)
-            or not math.isfinite(seconds) or seconds < 0):
-        return "its best epoch, epochs run and seconds aren't non-negative numbers"
+    # `contribute` writes seconds as a float. An integer isn't accepted: math.isfinite would
+    # convert it, and one like 10**400 overflows.
+    if (not whole(training["best_epoch"], high=TRAINING["epochs"]) or not whole(training["epochs_run"], high=TRAINING["epochs"])
+            or type(seconds) is not float or not math.isfinite(seconds) or seconds < 0):
+        return (f"its best epoch and epochs run aren't whole numbers from 0 to {TRAINING['epochs']}, or its seconds "
+                "aren't a non-negative decimal number")
     if (not isinstance(env, dict) or set(env) != ENVIRONMENT_KEYS
             or not all(isinstance(v, str) and len(v) <= ENVIRONMENT_CHARS for v in env.values())):
         return f"its environment isn't {len(ENVIRONMENT_KEYS)} strings of at most {ENVIRONMENT_CHARS} characters"
@@ -609,10 +612,15 @@ def ingest(pilot, issue, ledger):
         artifact, tau = decode_artifact(pilot.anchor, text)
     except (ValueError, RecursionError) as err:
         return "rejected", f"This contribution couldn't be read: {err}.{how}", None
-    problems = identity_problems(pilot, artifact, state.head)
-    if not problems and not strictly_equal([card["round"], card["shard"], card["seed"]],
-                                           [artifact["round"]["number"], artifact["shard"]["index"], artifact["training"]["seed"]]):
-        problems.append("the card's round, shard or seed isn't the artifact's")
+    try:
+        problems = identity_problems(pilot, artifact, state.head)
+        if not problems and not strictly_equal([card["round"], card["shard"], card["seed"]],
+                                               [artifact["round"]["number"], artifact["shard"]["index"], artifact["training"]["seed"]]):
+            problems.append("the card's round, shard or seed isn't the artifact's")
+    except (ArithmeticError, ValueError, TypeError, RecursionError):
+        # These checks only read the submission. Whatever it holds that they can't handle is a
+        # rejection, never an error the scheduled run would retry forever.
+        problems = ["its fields aren't well-formed"]
     if not problems and all(float(v.abs().max()) == 0 for v in tau.values()):
         problems.append("its delta is all zeros, so it changes nothing")
     if problems:

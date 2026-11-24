@@ -303,6 +303,9 @@ class IngestTests(unittest.TestCase):
             "a long environment": (self.body_with(lambda a: a["training"]["environment"].update(platform="x" * 5000)), "environment"),
             "an environment field of its own": (self.body_with(lambda a: a["training"]["environment"].update(gpu="none")), "environment"),
             "negative seconds": (self.body_with(lambda a: a["training"].update(seconds=-1.0)), "seconds"),
+            "whole-number seconds": (self.body_with(lambda a: a["training"].update(seconds=5)), "seconds"),
+            "seconds too large for a float": (self.body_with(lambda a: a["training"].update(seconds=10**400)), "seconds"),
+            "more epochs than the settings allow": (self.body_with(lambda a: a["training"].update(epochs_run=10**400)), "epochs run"),
             "artifact bytes as a float": (self.body_with(change_card=lambda c: c.update(artifact_bytes=float(c["artifact_bytes"]))),
                                           "digest or size"),
             "a card field of its own": (self.body_with(change_card=lambda c: c.update(note="hello")), "card's fields"),
@@ -320,14 +323,22 @@ class IngestTests(unittest.TestCase):
                 self.assertEqual((status, text), ("rejected", None))
                 self.assertIn(why, comment)
         self.assertEqual(ledger["events"], [])
-        # Through the command line, as the driver runs it: rejected (labelled, not retried), never an error.
-        with tempfile.TemporaryDirectory() as tmp:
-            event, comment = Path(tmp) / "event.json", Path(tmp) / "comment.md"
-            event.write_text(json.dumps({"issue": self.s.issue("eve", 501, cases["a card nested too deeply to parse"][0])}))
-            out = io.StringIO()
-            with contextlib.redirect_stdout(out):
-                P.main(["ingest", str(event), str(comment)])
-            self.assertEqual(json.loads(out.getvalue().strip().splitlines()[-1]), {"status": "rejected"})
+        # Through the command line, as the driver runs it on the published pilot: rejected (labelled,
+        # not retried), never an error, before any training, and the ledger untouched.
+        ledger_file = P.FOLDER / "ledger.json"
+        stored = sorted(p.name for p in P.FOLDER.rglob("*"))
+        before = ledger_file.read_bytes()
+        for name in ("a card nested too deeply to parse", "seconds too large for a float"):
+            with tempfile.TemporaryDirectory() as tmp, self.subTest(name):
+                event, comment = Path(tmp) / "event.json", Path(tmp) / "comment.md"
+                event.write_text(json.dumps({"issue": self.s.issue("eve", 501, cases[name][0])}))
+                out = io.StringIO()
+                with contextlib.redirect_stdout(out), unittest.mock.patch.object(P, "train_worker", side_effect=AssertionError("trained")):
+                    P.main(["ingest", str(event), str(comment)])
+                self.assertEqual(json.loads(out.getvalue().strip().splitlines()[-1]), {"status": "rejected"})
+                self.assertNotIn("retried", comment.read_text())
+        self.assertEqual(ledger_file.read_bytes(), before)
+        self.assertEqual(sorted(p.name for p in P.FOLDER.rglob("*")), stored)
 
     def test_a_volunteer_can_send_another_run_after_one_that_wasnt_replicated_but_only_one_is_kept(self):
         """mallory's #106 (a shard-2 run sent as shard 4) wasn't replicated, so it doesn't count as
