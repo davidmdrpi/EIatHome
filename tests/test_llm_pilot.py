@@ -276,6 +276,107 @@ class IngestTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "seed must be"):
             P.contribute(self.s.pilot, self.s.root / "bad-seed", shard=2, seed=-5, ledger=P.new_ledger())
 
+    def body_with(self, change_artifact=lambda a: None, change_card=lambda c: None, number=102):
+        """Issue body `number`'s with its artifact and then its card changed, the card's digest and
+        size following the changed artifact."""
+        card, text = P.parse_issue(self.s.bodies[number])
+        artifact = json.loads(text)
+        change_artifact(artifact)
+        changed = json.dumps(artifact, separators=(",", ":"), sort_keys=True)
+        card = {**card, "artifact_sha256": P.digest(changed.encode()), "artifact_bytes": len(changed.encode())}
+        change_card(card)
+        return f"```eiathome-checkpoint-card\n{json.dumps(card)}\n```\n\n```eiathome-delta\n{changed}\n```\n"
+
+    def test_fields_and_their_types_are_checked_exactly_before_any_training(self):
+        deep = "[" * 100_000 + "]" * 100_000
+
+        def zero(artifact):
+            q = np.zeros(len(base64.b64decode(artifact["values"])), np.int8)
+            artifact["values"] = base64.b64encode(q.tobytes()).decode()
+            artifact["delta_sha256"] = P.delta_digest(P.rebuild(P.layout_of(self.s.pilot.anchor), q, artifact["scales"]))
+
+        cases = {
+            "round 2.0": (self.body_with(lambda a: a["round"].update(number=2.0)), "next round"),
+            "threads true": (self.body_with(lambda a: a["training"].update(threads=True)), "pilot's settings"),
+            "a field of its own": (self.body_with(lambda a: a.update(note="x" * 5000)), "fields aren't exactly an artifact's"),
+            "a training field of its own": (self.body_with(lambda a: a["training"].update(extra=1)), "pilot's settings"),
+            "a long environment": (self.body_with(lambda a: a["training"]["environment"].update(platform="x" * 5000)), "environment"),
+            "an environment field of its own": (self.body_with(lambda a: a["training"]["environment"].update(gpu="none")), "environment"),
+            "negative seconds": (self.body_with(lambda a: a["training"].update(seconds=-1.0)), "seconds"),
+            "whole-number seconds": (self.body_with(lambda a: a["training"].update(seconds=5)), "seconds"),
+            "seconds too large for a float": (self.body_with(lambda a: a["training"].update(seconds=10**400)), "seconds"),
+            "more epochs than the settings allow": (self.body_with(lambda a: a["training"].update(epochs_run=10**400)), "epochs run"),
+            "artifact bytes as a float": (self.body_with(change_card=lambda c: c.update(artifact_bytes=float(c["artifact_bytes"]))),
+                                          "digest or size"),
+            "a card field of its own": (self.body_with(change_card=lambda c: c.update(note="hello")), "card's fields"),
+            "a nested card value": (self.body_with(change_card=lambda c: c.update(validation_bits=[1.0])), "card's fields"),
+            "a card nested too deeply to parse": (self.s.bodies[102].replace("```eiathome-checkpoint-card\n",
+                                                                             f"```eiathome-checkpoint-card\n{deep}\n", 1), "card isn't JSON"),
+            "an artifact nested too deeply to parse": (self.s.bodies[102].replace("```eiathome-delta\n", f"```eiathome-delta\n{deep}", 1),
+                                                       "digest or size"),
+            "an all-zero delta": (self.body_with(zero), "all zeros"),
+        }
+        ledger = copy.deepcopy(P.new_ledger())
+        for name, (body, why) in cases.items():
+            with self.subTest(name), unittest.mock.patch.object(P, "train_worker", side_effect=AssertionError("trained")):
+                status, comment, text = P.ingest(self.s.pilot, self.s.issue("eve", 500, body), ledger)
+                self.assertEqual((status, text), ("rejected", None))
+                self.assertIn(why, comment)
+        self.assertEqual(ledger["events"], [])
+        # Through the command line, as the driver runs it on the published pilot: rejected (labelled,
+        # not retried), never an error, before any training, and the ledger untouched.
+        ledger_file = P.FOLDER / "ledger.json"
+        stored = sorted(p.name for p in P.FOLDER.rglob("*"))
+        before = ledger_file.read_bytes()
+        for name in ("a card nested too deeply to parse", "seconds too large for a float"):
+            with tempfile.TemporaryDirectory() as tmp, self.subTest(name):
+                event, comment = Path(tmp) / "event.json", Path(tmp) / "comment.md"
+                event.write_text(json.dumps({"issue": self.s.issue("eve", 501, cases[name][0])}))
+                out = io.StringIO()
+                with contextlib.redirect_stdout(out), unittest.mock.patch.object(P, "train_worker", side_effect=AssertionError("trained")):
+                    P.main(["ingest", str(event), str(comment)])
+                self.assertEqual(json.loads(out.getvalue().strip().splitlines()[-1]), {"status": "rejected"})
+                self.assertNotIn("retried", comment.read_text())
+        self.assertEqual(ledger_file.read_bytes(), before)
+        self.assertEqual(sorted(p.name for p in P.FOLDER.rglob("*")), stored)
+
+    def test_a_volunteer_can_send_another_run_after_one_that_wasnt_replicated_but_only_one_is_kept(self):
+        """mallory's #106 (a shard-2 run sent as shard 4) wasn't replicated, so it doesn't count as
+        her shard-4 run or as that shard and seed. The coordinator's evaluation is stubbed: the
+        rules decide before and after it."""
+        ledger = copy.deepcopy(self.s.before_merge)
+        mallory = next(e for e in ledger["events"] if e.get("issue") == 106)
+        _, tau = P.decode_artifact(self.s.pilot.anchor, P.parse_issue(self.s.bodies[106])[1])
+        head = P.state_of(ledger).head
+        training = P.decode_artifact(self.s.pilot.anchor, P.parse_issue(self.s.bodies[106])[1])[0]["training"]
+
+        def body(shard, seed, platform="mallory's computer"):
+            environment = {**training["environment"], "platform": platform}
+            text, artifact_id = P.encode_artifact(self.s.pilot, head, shard, {**training, "seed": seed, "environment": environment}, tau)
+            return P.issue_text(P.card_of(artifact_id, text, P.decode_artifact(self.s.pilot.anchor, text)[0], 1.7), text)[1]
+
+        def evaluated(replicated):
+            evaluation = {**mallory["evaluation"]}
+            replication = {**mallory["replication"], "cosine": 0.99 if replicated else 0.1, "replicated": replicated}
+            return unittest.mock.patch.object(P, "evaluate_contribution", return_value=(evaluation, replication))
+
+        # A second unreplicated contribution in the round is rejected and not stored.
+        with evaluated(False):
+            status, comment, text = P.ingest(self.s.pilot, self.s.issue("mallory", 600, body(5, 16)), ledger)
+        self.assertEqual((status, text), ("rejected", None))
+        self.assertIn("#106 in this round wasn't replicated either", comment)
+        self.assertEqual(len(ledger["events"]), len(self.s.before_merge["events"]))
+        # Another run of shard 4 is hers to send; and shard 4 with seed 15 is anyone's again.
+        for login, number, seed in (("mallory", 601, 16), ("grace", 602, 15)):
+            with self.subTest(login), evaluated(True):
+                status, _, text = P.ingest(self.s.pilot, self.s.issue(login, number, body(4, seed, f"{login}'s computer")), ledger)
+                self.assertEqual(status, "accepted")
+                self.assertIsNotNone(text)
+        # Once a replicated one is in, the rules apply as before.
+        with evaluated(True):
+            self.assertEqual(P.ingest(self.s.pilot, self.s.issue("mallory", 603, body(4, 17)), ledger)[0], "duplicate")
+        self.assertIn("you can send another", self.s.outcomes[106][1])
+
     def test_the_command_line_ingest_reports_a_status_and_never_crashes(self):
         with tempfile.TemporaryDirectory() as tmp:
             event, comment = Path(tmp) / "event.json", Path(tmp) / "comment.md"

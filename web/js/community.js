@@ -1,7 +1,7 @@
 // Community results: validation of submitted result cards, and replication summaries.
 // Used by tools/ingest_result.mjs (in a GitHub Action) and by the Live Lab's Work units tab.
 
-import { isMergeCard, validateMergeCard } from './merge.js';
+import { MERGE_SPEC, MERGE_SPEC_V1, isMergeCard, validateMergeCard } from './merge.js';
 import { RECOVERY_SPEC, validateRecoveryCard } from './recovery.js';
 import { REAL_FAMILIES } from './signals.js';
 import { MAX_UNIT, RESULT_CARD_VERSION, ROSETTA_CORPUS, SPEC, SPEC_FAMILIES, workUnitConfig } from './workunits.js';
@@ -12,6 +12,18 @@ export const MAX_CARD_BYTES = 16 * 1024;
 // Different backends (WebAssembly, WebGPU, WebGL) take different floating-point paths.
 export const AGREEMENT_TOLERANCE = 0.02;
 const BACKENDS = ['wasm', 'webgpu', 'webgl', 'cpu'];
+
+// The top-level fields of each kind of card: exactly what the Live Lab writes (engine.worker.js
+// for track-a, merge.js and recovery.js for the others). A card is stored and published as it
+// is, so one with any other field is refused.
+const COMMON_FIELDS = ['format', 'version', 'spec', 'unit', 'config', 'inputs', 'app', 'seconds', 'started'];
+const RUN_FIELDS = [...COMMON_FIELDS, 'backend', 'tfjs', 'parameters', 'metrics'];
+export const CARD_FIELDS = {
+  [SPEC]: [...RUN_FIELDS, 'families'],
+  [MERGE_SPEC]: [...RUN_FIELDS, 'targets', 'best_epochs', 'best_seed', 'payload_bytes'],
+  [MERGE_SPEC_V1]: [...RUN_FIELDS, 'targets', 'warm_best_epoch', 'arms'],
+  [RECOVERY_SPEC]: [...COMMON_FIELDS, 'results'],
+};
 const isNumberOrNull = (v) => v === null || Number.isFinite(v);
 
 // GitHub refuses longer request URLs ("Whoa there! Your request URL is too long"): 8,180
@@ -27,10 +39,11 @@ export const submissionText = (card) => JSON.stringify(card);
 
 // A link that opens a new result issue in repo, with the card's submission text in the body.
 // prefilled is false when that's too long for a link: the body then has an empty json block to
-// paste the submission text into.
+// paste the submission text into. It applies no label: ingestion finds result issues by title,
+// and labels them itself once they're recorded or rejected (tools/ingest_issues.mjs).
 export function issueLink(card, repo) {
   const title = `Work unit result: ${card.spec} #${card.unit}`;
-  const link = (body) => `${repo}/issues/new?${new URLSearchParams({ title, body, labels: 'work-unit' })}`;
+  const link = (body) => `${repo}/issues/new?${new URLSearchParams({ title, body })}`;
   const url = link(`${ISSUE_INTRO}\n\n\`\`\`json\n${submissionText(card)}\n\`\`\`\n`);
   return url.length <= MAX_ISSUE_URL ? { url, prefilled: true } : { url: link(PASTE_BODY), prefilled: false };
 }
@@ -61,6 +74,10 @@ export function validateCard(card, { published = null } = {}) {
   const errors = [];
   const fail = (message) => errors.push(message);
   if (!card || typeof card !== 'object' || Array.isArray(card)) return ['The card is not a JSON object.'];
+  // Only a known spec is named back, and no field: the reply never repeats strings from the card.
+  const fields = typeof card.spec === 'string' && Object.hasOwn(CARD_FIELDS, card.spec) ? CARD_FIELDS[card.spec] : null;
+  const extra = fields ? Object.keys(card).filter((key) => !fields.includes(key)).length : 0;
+  if (extra) return [`The card has ${extra} field(s) that a \`${card.spec}\` card doesn't. Re-run the unit in the current Live Lab.`];
   if (isRecoveryCard(card)) return validateRecoveryCard(card);
   if (isMergeCard(card)) return validateMergeCard(card);
   if (card.format !== 'eiathome-result') fail('`format` must be "eiathome-result".');

@@ -49,6 +49,17 @@ test('a card on the published slices must cover each of their families', async (
   assert.match(validateCard(missing, { published }).join(' '), /families.*offsource/);
 });
 
+test('a card with a field the Live Lab doesn’t write is refused, without naming it', async () => {
+  const extra = await makeCard(7);
+  extra.note = '<script>alert(1)</script>';
+  const errors = validateCard(extra);
+  assert.deepEqual(errors, ['The card has 1 field(s) that a `track-a/v0` card doesn\'t. Re-run the unit in the current Live Lab.']);
+  // A spec that names a property every object has is just an unknown spec.
+  const odd = { ...(await makeCard(7)), spec: 'constructor' };
+  assert.doesNotThrow(() => validateCard(odd));
+  assert.match(validateCard(odd).join(' '), /spec. must be/);
+});
+
 test('result cards are read from the first json block of an issue', async () => {
   const card = await makeCard(3);
   assert.deepEqual(extractCard(`Result card.\n\n\`\`\`json\n${JSON.stringify(card)}\n\`\`\`\n`), card);
@@ -82,7 +93,7 @@ test('the submit link carries a card on the published slices, and ingestion read
   assert.ok(url.length <= MAX_ISSUE_URL, `${url.length} characters`);
   const params = new URL(url).searchParams;
   assert.equal(params.get('title'), `Work unit result: ${card.spec} #4`);
-  assert.equal(params.get('labels'), 'work-unit');
+  assert.equal(params.get('labels'), null, 'no label: ingestion labels an issue once it is recorded');
   assert.deepEqual(extractCard(params.get('body')), card);
   assert.deepEqual(validateCard(extractCard(params.get('body')), { published }), []);
 });

@@ -108,20 +108,23 @@ test('result issues are recorded once, and cancelled or failed ones are retried'
     const invalid = await makeCard(4);
     invalid.config.epochs = 99;
     await t.issue(10, 'alice', 'Work unit result: unit 4', await makeCard(4));
-    await t.issue(11, 'bob', 'Work unit result: unit 4', await makeCard(4, { shift: 0.01 }), ['work-unit']); // already recorded
+    await t.issue(11, 'bob', 'Work unit result: unit 4', await makeCard(4, { shift: 0.01 }), ['work-unit-recorded']); // already recorded
     await t.issue(12, 'carol', 'Work unit result: unit 4', invalid);
     await t.issue(13, 'dave', 'The Live Lab is slow on my phone', await makeCard(6));
+    // Opened with the label the submit link once applied (honoured for people with triage access).
+    await t.issue(15, 'frank', 'Work unit result: unit 6', await makeCard(6), ['work-unit']);
 
     // A scheduled run picks up every open result issue that no run recorded (say, a cancelled one).
     const first = t.ingest('--pending');
     assert.equal(first.status, 0, first.stderr);
     let s = t.load();
-    assert.deepEqual(t.recorded(), [10]);
-    assert.deepEqual([s.issues[10].state, s.issues[10].labels], ['closed', ['work-unit']]);
+    assert.deepEqual(t.recorded(), [10, 15]);
+    assert.deepEqual([s.issues[10].state, s.issues[10].labels], ['closed', ['work-unit-recorded']]);
     assert.deepEqual([s.issues[12].state, s.issues[12].labels], ['open', ['work-unit-rejected']]);
-    assert.deepEqual(s.issues[11].labels, ['work-unit'], 'an issue already recorded is left alone');
+    assert.deepEqual([s.issues[15].state, s.issues[15].labels], ['closed', ['work-unit', 'work-unit-recorded']], 'a label from the submitter settles nothing');
+    assert.deepEqual(s.issues[11].labels, ['work-unit-recorded'], 'an issue already recorded is left alone');
     assert.deepEqual(s.issues[13].labels, [], 'other issues are left alone');
-    assert.deepEqual(s.comments.map(([n]) => n), [10, 12]);
+    assert.deepEqual(s.comments.map(([n]) => n), [10, 12, 15]);
     assert.equal(s.deploys, 1);
 
     // Saving fails: the issue is told once that it will be retried, and nothing unpushed is left behind.
@@ -140,8 +143,8 @@ test('result issues are recorded once, and cancelled or failed ones are retried'
     const retried = t.ingest('--pending');
     assert.equal(retried.status, 0, retried.stderr);
     s = t.load();
-    assert.deepEqual(t.recorded(), [10, 14]);
-    assert.deepEqual([s.issues[14].state, s.issues[14].labels], ['closed', ['work-unit']]);
+    assert.deepEqual(t.recorded(), [10, 14, 15]);
+    assert.deepEqual([s.issues[14].state, s.issues[14].labels], ['closed', ['work-unit-recorded']]);
     assert.match(commentsOn(14)[1][1], /Unit 5 .* is recorded/);
     assert.equal(commentsOn(10).length, 1, 'recorded issues are never processed twice');
     assert.equal(s.deploys, 2);
@@ -182,7 +185,7 @@ test('a card saved before a later step failed is still published and announced b
     const s = t.load();
     assert.ok(s.deploys > deploysBefore, 'the retry requests a deploy although it added no new card');
     for (const [n, unit] of [[20, 4], [21, 5]]) {
-      assert.deepEqual([s.issues[n].state, s.issues[n].labels], ['closed', ['work-unit']]);
+      assert.deepEqual([s.issues[n].state, s.issues[n].labels], ['closed', ['work-unit-recorded']]);
       assert.equal(commentsOn(n).length, 1);
       assert.match(commentsOn(n)[0][1], new RegExp(`Unit ${unit} .* is recorded[\\s\\S]*1 run\\(s\\) from 1 volunteer`));
     }
@@ -234,7 +237,7 @@ test('checkpoint contributions go to the pilot\'s validator, are stored under tr
     assert.equal(git(t.origin, 'show', 'main:tracks/llm/pilot/v0/submissions/20.json'), 'VALID artifact');
     assert.match(git(t.origin, 'log', '-1', '--format=%s', 'main'), /Add checkpoint contribution from #20/);
     assert.deepEqual(JSON.parse(git(t.origin, 'show', 'main:web/data/pilot_status.json')), { submissions: [20] }, 'committed with the submission');
-    assert.deepEqual([s.issues[20].state, s.issues[20].labels], ['closed', ['checkpoint']]);
+    assert.deepEqual([s.issues[20].state, s.issues[20].labels], ['closed', ['checkpoint-recorded']]);
     assert.deepEqual([s.issues[21].state, s.issues[21].labels], ['open', ['checkpoint-rejected']]);
     assert.deepEqual(s.issues[22].labels, [], 'result cards are left to the result kind');
     assert.deepEqual(s.comments, [[20, 'Receipt for #20'], [21, 'Not accepted.']]);

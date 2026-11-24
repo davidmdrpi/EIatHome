@@ -1,0 +1,9 @@
+# Exact versions for the jobs whose numbers are replayed to 1e-6 bits or committed to main: the
+# pilot's coordinator (ingest-checkpoints.yml, pilot.yml) and the signal-lm checks in tests.yml.
+# A new torch or NumPy release can move scores slightly, which would change replication
+# outcomes and fail the replays, so these move only when this file does.
+#
+#   python -m pip install -c tracks/llm/constraints.txt torch --index-url https://download.pytorch.org/whl/cpu
+#   python -m pip install -c tracks/llm/constraints.txt -r tracks/llm/requirements.txt
+torch==2.15.0
+numpy==2.5.5

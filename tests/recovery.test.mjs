@@ -139,6 +139,7 @@ test('cards that would not reproduce are rejected, by their form or by recomputa
     return c;
   };
   assert.match(validateCard(tampered((c) => (c.config.per_cell = 20))).join(' '), /config/);
+  assert.match(validateCard(tampered((c) => (c.extra = {}))).join(' '), /1 field\(s\) that a `recovery\/v0` card doesn't/);
   assert.match(validateCard(tampered((c) => (c.config.thresholds.dedoppler['0.01'] = 4))).join(' '), /config/);
   assert.match(validateCard(tampered((c) => (c.inputs.windows_sha256 = '0'.repeat(64)))).join(' '), /background windows/);
   assert.match(validateCard(tampered((c) => (c.results.recovery.energy['0.01'].fsk[2] = 19))).join(' '), /recovery/);

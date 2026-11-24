@@ -200,8 +200,8 @@ comparison scores a frozen protocol on sessions nobody has looked at, once:
    method, since publishing writes the whole report. Run it through the guarded runner, never
    `wsp_bench run --publish` directly: the runner keeps every attempt, checks that the run is
    complete before the offline replay, and never overwrites a publication
-   ([the runbook](WSP_PUBLICATION.md)). The first preflight attempt stopped before any arm ran,
-   because no key was available.
+   ([the runbook](WSP_PUBLICATION.md)). A dry run in an agent's environment
+   (`wsp-attempts/dry-run-001.json`) stopped before any arm ran, because no key was available.
 
    ```bash
    python -m tools.wsp_publication run --output runs/wsp-v1-attempt-002
