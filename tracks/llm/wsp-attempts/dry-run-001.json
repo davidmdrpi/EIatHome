@@ -1,0 +1,21 @@
+{
+  "format": "eiathome-wsp-attempt/v1",
+  "started": "2026-11-23T01:54:41.294310+00:00",
+  "methods": [
+    "random",
+    "coordinate",
+    "specialist",
+    "llm",
+    "llm-anonymized"
+  ],
+  "seeds": [
+    42,
+    43,
+    44
+  ],
+  "state": "incomplete",
+  "reason": "ANTHROPIC_API_KEY unavailable; no arms executed",
+  "failed_stage": "preflight",
+  "error_type": "RuntimeError",
+  "finished": "2026-11-23T01:54:41.294429+00:00"
+}

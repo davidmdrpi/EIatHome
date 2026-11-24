@@ -197,11 +197,14 @@ comparison scores a frozen protocol on sessions nobody has looked at, once:
    ```
 
 4. **Score every arm once.** *Waiting for the experimenter's API key.* This is one run with every
-   method, since publishing writes the whole report:
+   method, since publishing writes the whole report. Run it through the guarded runner, never
+   `wsp_bench run --publish` directly: the runner keeps every attempt, checks that the run is
+   complete before the offline replay, and never overwrites a publication
+   ([the runbook](WSP_PUBLICATION.md)). The first preflight attempt stopped before any arm ran,
+   because no key was available.
 
    ```bash
-   python -m tracks.llm.wsp_bench run --benchmark v1 --output runs/wsp-v1 \
-     --methods random coordinate specialist llm llm-anonymized --publish
+   python -m tools.wsp_publication run --output runs/wsp-v1-attempt-002
    ```
 
    Publish what it shows, better or worse. The controls aren't scored on v1 before then, so all
