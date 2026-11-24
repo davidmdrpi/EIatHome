@@ -290,6 +290,7 @@ test('a v1 merge card validates, fits an issue link, and is rejected when it doe
     return validateCard(c).join(' ');
   };
   assert.match(broken((c) => (c.config.warm.epochs = 5)), /config/);
+  assert.match(broken((c) => (c.note = 'hello')), /1 field\(s\) that a `trackb-merge\/v1` card doesn't/);
   assert.match(broken((c) => (c.config.arms.shards.seeds[0] += 1)), /config/);
   assert.match(broken((c) => (c.targets.shards = [623, 623, 623, 640])), /targets/);
   assert.match(broken((c) => (c.warm_best_epoch = 4)), /warm_best_epoch/);
@@ -343,6 +344,7 @@ test('merge cards that don’t match their spec are rejected', () => {
     return validateMergeCard(card).join(' ');
   };
   assert.match(broken((c) => (c.config.dare.p = 0.5)), /config/);
+  assert.match(validateCard({ ...makeMergeCard(7), extra: [1] }).join(' '), /1 field\(s\) that a `trackb-merge\/v0` card doesn't/);
   assert.match(broken((c) => (c.config.seeds[0] += 1)), /config/);
   assert.match(broken((c) => (c.inputs.anchor.theta0_sha256 = '0'.repeat(64))), /anchor/);
   assert.match(broken((c) => (c.inputs.rosetta_corpus.sha256 = '0'.repeat(64))), /Rosetta corpus/);

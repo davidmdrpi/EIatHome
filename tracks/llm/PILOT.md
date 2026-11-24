@@ -76,13 +76,18 @@ calls `python -m tracks.llm.pilot ingest` on each new issue titled "Checkpoint c
 Nothing in the issue is executed. The artifact and card are parsed as JSON and checked:
 
 1. **It decodes.** The artifact rebuilds the delta its digest names, and the card names this
-   artifact (its id and size) and the same round, shard and seed.
+   artifact (its id and size) and the same round, shard and seed. Both hold exactly the fields
+   `contribute` writes, compared as JSON with their types (round `2.0` isn't round 2, and
+   `threads: true` isn't one thread). The environment is four strings of at most 200
+   characters, and the card's fields are plain values. A delta of all zeros is refused.
 2. **Its identities are the pilot's next round.** That means the same anchor, tokenizer, dataset
    and split, the next round's number and start, an open shard with that shard's slices and
    training targets, the pilot's training settings, and a seed from 0 to 2^31 − 1. A contribution trained from an older
    round is refused: pull and run `contribute` again.
 3. **It counts once.** Each volunteer counts once per shard per round. An artifact recorded
    before, or a run of the same shard with the same seed as one already recorded, is a duplicate.
+   A contribution that wasn't replicated (step 5) doesn't count here, so an honest run that
+   missed the rule can be sent again.
 4. **It is independently evaluated.** The coordinator rebuilds the worker (the current model plus
    the delta) as a checkpoint and runs [merge.py](merge.py)'s own round on it alone. That checks
    the round, the start, the shard's training slices and target count, and the bound on the
@@ -93,7 +98,8 @@ Nothing in the issue is executed. The artifact and card are parsed as JSON and c
    their deltas' cosine is at least 0.9.
 
 A contribution that passes 1 to 4 is stored and recorded, whether or not it replicates. Only
-replicated ones are merged.
+replicated ones are merged. Each volunteer keeps at most one unreplicated contribution per round:
+a second is rejected, with the coordinator's numbers in the reply, and not stored.
 
 Retraining every contribution is only affordable because the model is tiny. A larger model would
 need spot checks or quorum, as BOINC does.

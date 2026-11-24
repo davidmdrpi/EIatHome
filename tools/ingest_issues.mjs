@@ -20,9 +20,13 @@
 // --pending is the retry path. It picks up issues whose run was cancelled (a full concurrency
 // queue), failed, or never started, and issues labelled work-unit-pending (checkpoint-pending)
 // because saving failed. Issues already labelled recorded or rejected are skipped, so re-running
-// is safe. An issue is labelled recorded (work-unit or checkpoint) only after its submission is on
-// main and a Pages deploy was requested, so a run that fails after the push leaves the
-// publication to the next run.
+// is safe. An issue is labelled recorded (work-unit-recorded or checkpoint-recorded) only after
+// its submission is on main and a Pages deploy was requested, so a run that fails after the push
+// leaves the publication to the next run.
+//
+// Only this driver applies those labels. They're distinct from any label a submitter can put on
+// a new issue (the Live Lab's submit link once applied work-unit, and GitHub honours that for
+// people with triage access), so an issue opened with a label is still recorded.
 //
 // The issue text is untrusted. It is only written to a file for the validator to parse. gh and
 // git run without a shell, with issue numbers and fixed strings as arguments.
@@ -52,7 +56,7 @@ const KINDS = {
     commit: (n) => `Add work-unit result from #${n}`,
     deploy: true,
     labels: {
-      recorded: ['work-unit', '1D76DB', 'Work-unit result card'],
+      recorded: ['work-unit-recorded', '1D76DB', 'Work-unit result card recorded in the community results'],
       rejected: ['work-unit-rejected', 'D93F0B', 'Result card that could not be recorded'],
       pending: ['work-unit-pending', 'FBCA04', 'Valid result card waiting to be saved; retried automatically'],
     },
@@ -66,7 +70,7 @@ const KINDS = {
     commit: (n) => `Add checkpoint contribution from #${n}`,
     deploy: true,
     labels: {
-      recorded: ['checkpoint', '1D76DB', 'Checkpoint contribution recorded by the pilot'],
+      recorded: ['checkpoint-recorded', '1D76DB', 'Checkpoint contribution recorded by the pilot'],
       rejected: ['checkpoint-rejected', 'D93F0B', 'Checkpoint contribution that could not be accepted'],
       pending: ['checkpoint-pending', 'FBCA04', 'Checkpoint contribution waiting to be checked or saved; retried automatically'],
     },

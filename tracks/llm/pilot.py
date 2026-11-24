@@ -37,11 +37,19 @@ bits). Last, it retrains the claimed shard with the claimed seed itself. The con
 is at least 0.9. Only validated and replicated contributions are merged. (Retraining every
 contribution is affordable only because the model is tiny; at scale, it would be spot checks.)
 
+**What an artifact may hold.** Exactly the fields `contribute` writes, compared as JSON with their
+types (so `2.0` isn't round 2, and `true` isn't one thread); its environment is four short strings.
+A delta of all zeros, which would change nothing, is refused before it's evaluated. The card is
+the same fields `contribute` writes, each a plain value.
+
 **Influence.** Each volunteer counts once per shard per round; a second contribution, an identical
-artifact, or the same shard and seed again is a duplicate. In a merge, merge.py's shard weights
-give each shard its share of the training targets, split equally among the contributions on it,
-so ten volunteers on one shard weigh what one would. A merge needs contributions from at least two
-volunteers, and the merged model must pass the same gate against the current one.
+artifact, or the same shard and seed again is a duplicate. A contribution that wasn't replicated
+doesn't count, so its volunteer can send another run of that shard. It's still recorded, but only
+one unreplicated contribution per volunteer per round is kept: a second is rejected, not stored.
+In a merge, merge.py's shard weights give each shard its share of the training targets, split
+equally among the contributions on it, so ten volunteers on one shard weigh what one would. A
+merge needs contributions from at least two volunteers, and the merged model must pass the same
+gate against the current one.
 
 **Storage, rollback and replay.** Accepted artifacts are stored by id under `pilot/v0/submissions`,
 merged models under `pilot/v0/rounds` (raw float32, as the session benchmark publishes them), and
@@ -102,6 +110,15 @@ SEEDS = range(0, 2**31)  # what NumPy's and PyTorch's generators all take (train
 SCORE_TOLERANCE = 1e-6  # bits, between environments (session_bench.py's)
 ARTIFACT_FORMAT, ARTIFACT_VERSION = "eiathome-signal-lm-delta", 2
 CARD_FORMAT, CARD_VERSION = "eiathome-checkpoint-card", 1
+# What an artifact and its card hold: exactly the fields encode_artifact and card_of write.
+ARTIFACT_KEYS = frozenset({"format", "version", "pilot", "anchor", "tokenizer", "dataset", "round", "shard", "training", "encoding",
+                           "tensors", "scales", "values", "delta_sha256"})
+ENCODING = {"values": "int8", "scales": "float32, one per tensor", "order": "the anchor's parameters"}
+TRAINING_KEYS = frozenset({"seed", *TRAINING, "best_epoch", "epochs_run", "seconds", "environment"})
+ENVIRONMENT_KEYS = frozenset({"python", "numpy", "torch", "platform"})
+ENVIRONMENT_CHARS = 200
+CARD_KEYS = frozenset({"format", "version", "pilot", "round", "shard", "seed", "artifact_sha256", "artifact_bytes", "training_targets",
+                       "best_epoch", "validation_bits"})
 LEDGER_FORMAT, LEDGER_VERSION = "eiathome-checkpoint-ledger", 1
 BLOCK = re.compile(r"```(eiathome-checkpoint-card|eiathome-delta)[ \t]*\r?\n(.*?)\r?\n```", re.S)
 
@@ -182,7 +199,7 @@ def encode_artifact(pilot, head, shard, training, tau):
         "format": ARTIFACT_FORMAT, "version": ARTIFACT_VERSION, **pilot.identities(),
         "round": {"number": head.round + 1, "start_sha256": head.weights_sha256},
         "shard": pilot.shard(shard), "training": training,
-        "encoding": {"values": "int8", "scales": "float32, one per tensor", "order": "the anchor's parameters"},
+        "encoding": ENCODING,
         "tensors": [[t["name"], list(t["shape"])] for t in layout],
         "scales": scales, "values": base64.b64encode(q.tobytes()).decode(),
         "delta_sha256": delta_digest(rebuild(layout, q, scales)),
@@ -196,12 +213,15 @@ def decode_artifact(anchor, text):
     doesn't rebuild the delta its digest names."""
     try:
         artifact = json.loads(text)
-    except ValueError as err:
+    except (ValueError, RecursionError) as err:  # RecursionError: nested too deeply to parse
         raise ValueError("the artifact isn't JSON") from err
-    if not isinstance(artifact, dict) or artifact.get("format") != ARTIFACT_FORMAT or artifact.get("version") != ARTIFACT_VERSION:
+    if (not isinstance(artifact, dict) or not strictly_equal(artifact.get("format"), ARTIFACT_FORMAT)
+            or not strictly_equal(artifact.get("version"), ARTIFACT_VERSION)):
         raise ValueError(f"it isn't a version-{ARTIFACT_VERSION} {ARTIFACT_FORMAT} artifact")
+    if set(artifact) != ARTIFACT_KEYS or not strictly_equal(artifact["encoding"], ENCODING):
+        raise ValueError("its fields aren't exactly an artifact's")
     layout = layout_of(anchor)
-    if artifact.get("tensors") != [[t["name"], list(t["shape"])] for t in layout]:
+    if not strictly_equal(artifact.get("tensors"), [[t["name"], list(t["shape"])] for t in layout]):
         raise ValueError("its tensors aren't anchor v4's parameters")
     scales = artifact.get("scales")
     if (not isinstance(scales, list) or len(scales) != len(layout)
@@ -223,24 +243,47 @@ def valid_seed(seed):
     return type(seed) is int and seed in SEEDS
 
 
+def strictly_equal(a, b):
+    """Equal as JSON, types included: 2.0 isn't 2 and true isn't 1, as they would be under ==."""
+    return json.dumps(a, sort_keys=True) == json.dumps(b, sort_keys=True)
+
+
+def whole(x, low=0):
+    return type(x) is int and x >= low
+
+
+def training_problem(training):
+    """Why an artifact's training record isn't one `contribute` writes (None if it is)."""
+    if not isinstance(training, dict) or set(training) != TRAINING_KEYS or any(not strictly_equal(training[k], v) for k, v in TRAINING.items()):
+        return "it wasn't trained with the pilot's settings"
+    if not valid_seed(training["seed"]):
+        return f"its seed isn't an integer from 0 to {SEEDS.stop - 1}"
+    seconds, env = training["seconds"], training["environment"]
+    if (not whole(training["best_epoch"]) or not whole(training["epochs_run"]) or type(seconds) not in (int, float)
+            or not math.isfinite(seconds) or seconds < 0):
+        return "its best epoch, epochs run and seconds aren't non-negative numbers"
+    if (not isinstance(env, dict) or set(env) != ENVIRONMENT_KEYS
+            or not all(isinstance(v, str) and len(v) <= ENVIRONMENT_CHARS for v in env.values())):
+        return f"its environment isn't {len(ENVIRONMENT_KEYS)} strings of at most {ENVIRONMENT_CHARS} characters"
+    return None
+
+
 def identity_problems(pilot, artifact, head):
     """How an artifact's identities differ from what the pilot's next round needs (empty: none)."""
     expected = pilot.identities()
-    problems = [f"its {name} isn't the pilot's" for name in ("pilot", "anchor", "tokenizer", "dataset") if artifact.get(name) != expected[name]]
-    if artifact.get("round") != {"number": head.round + 1, "start_sha256": head.weights_sha256}:
+    problems = [f"its {name} isn't the pilot's" for name in ("pilot", "anchor", "tokenizer", "dataset")
+                if not strictly_equal(artifact.get(name), expected[name])]
+    if not strictly_equal(artifact.get("round"), {"number": head.round + 1, "start_sha256": head.weights_sha256}):
         problems.append(f"it isn't for the pilot's next round, round {head.round + 1} from the current model: "
                         "pull the repository and run `contribute` again")
     shard = artifact.get("shard")
     index = shard.get("index") if isinstance(shard, dict) else None
     if type(index) is not int or index not in OPEN_SHARDS:
         problems.append(f"its shard isn't one of the open shards ({', '.join(map(str, OPEN_SHARDS))})")
-    elif shard != pilot.shard(index):
+    elif not strictly_equal(shard, pilot.shard(index)):
         problems.append(f"its shard's slices or training targets aren't shard {index}'s")
-    training = artifact.get("training")
-    if not isinstance(training, dict) or any(training.get(k) != v for k, v in TRAINING.items()):
-        problems.append("it wasn't trained with the pilot's settings")
-    elif not valid_seed(training.get("seed")):
-        problems.append(f"its seed isn't an integer from 0 to {SEEDS.stop - 1}")
+    if (problem := training_problem(artifact.get("training"))) is not None:
+        problems.append(problem)
     return problems
 
 
@@ -465,10 +508,13 @@ def parse_issue(body):
     found = dict(blocks)
     try:
         card = json.loads(found["eiathome-checkpoint-card"])
-    except ValueError as err:
+    except (ValueError, RecursionError) as err:  # RecursionError: nested too deeply to parse
         raise ValueError("its card isn't JSON") from err
-    if not isinstance(card, dict) or (card.get("format"), card.get("version"), card.get("pilot")) != (CARD_FORMAT, CARD_VERSION, PILOT):
+    if not isinstance(card, dict) or not strictly_equal([card.get("format"), card.get("version"), card.get("pilot")],
+                                                        [CARD_FORMAT, CARD_VERSION, PILOT]):
         raise ValueError(f"its card isn't a version-{CARD_VERSION} {CARD_FORMAT} for {PILOT}")
+    if set(card) != CARD_KEYS or not all(v is None or type(v) in (str, int, float, bool) for v in card.values()):
+        raise ValueError("its card's fields aren't exactly a checkpoint card's")
     return card, found["eiathome-delta"].strip()
 
 
@@ -531,7 +577,8 @@ def receipt(event, state):
     replication = event["replication"]
     replicated = ("**replicated**" if replication["replicated"] else
                   f"**not replicated** (that needs a run within {REPLICATION['validation_bits']} bits and a cosine of at least "
-                  f"{REPLICATION['cosine']}), so it won't be merged")
+                  f"{REPLICATION['cosine']}), so it won't be merged. It doesn't count as your run of this shard, so you can send "
+                  "another")
     return (f"Thanks for contributing a checkpoint! Here's your receipt.\n\n"
             f"- **Stored:** artifact `{event['id'][:16]}…` ({event['bytes']:,} bytes) at "
             f"[`tracks/llm/pilot/v0/{event['artifact']}`](https://github.com/{REPOSITORY}/blob/main/tracks/llm/pilot/v0/{event['artifact']}).\n"
@@ -557,19 +604,25 @@ def ingest(pilot, issue, ledger):
     try:
         card, text = parse_issue(issue.get("body"))
         artifact_id = digest(text.encode())
-        if card.get("artifact_sha256") != artifact_id or card.get("artifact_bytes") != len(text.encode()):
+        if card["artifact_sha256"] != artifact_id or not strictly_equal(card["artifact_bytes"], len(text.encode())):
             raise ValueError("the card's artifact digest or size isn't the artifact's")
         artifact, tau = decode_artifact(pilot.anchor, text)
-    except ValueError as err:
+    except (ValueError, RecursionError) as err:
         return "rejected", f"This contribution couldn't be read: {err}.{how}", None
     problems = identity_problems(pilot, artifact, state.head)
-    if not problems and (card.get("round"), card.get("shard"), card.get("seed")) != (
-            artifact["round"]["number"], artifact["shard"]["index"], artifact["training"]["seed"]):
+    if not problems and not strictly_equal([card["round"], card["shard"], card["seed"]],
+                                           [artifact["round"]["number"], artifact["shard"]["index"], artifact["training"]["seed"]]):
         problems.append("the card's round, shard or seed isn't the artifact's")
+    if not problems and all(float(v.abs().max()) == 0 for v in tau.values()):
+        problems.append("its delta is all zeros, so it changes nothing")
     if problems:
         return "rejected", "This contribution couldn't be accepted:\n\n" + "\n".join(f"- {p}" for p in problems) + how, None
     shard, seed = artifact["shard"]["index"], artifact["training"]["seed"]
-    same = lambda s: s["round"] == state.head.round + 1 and s["start_sha256"] == state.head.weights_sha256 and s["shard"] == shard
+    this_round = lambda s: s["round"] == state.head.round + 1 and s["start_sha256"] == state.head.weights_sha256
+    # A contribution that wasn't replicated doesn't count against its volunteer or its seed: an
+    # honest run can be sent again.
+    replicated = lambda s: bool((s.get("replication") or {}).get("replicated"))
+    same = lambda s: this_round(s) and s["shard"] == shard and replicated(s)
     if artifact_id in state.submissions:
         return "duplicate", f"This artifact was already recorded from #{state.submissions[artifact_id]['issue']}, so it wasn't counted again.", None
     mine = next((s for s in state.submissions.values() if same(s) and s["volunteer"] == login), None)
@@ -583,6 +636,12 @@ def ingest(pilot, issue, ledger):
     evaluation, replication = evaluate_contribution(pilot, state.head, artifact, tau)
     if evaluation["status"] != "validated":
         return "rejected", f"The coordinator's evaluation didn't accept this contribution: {evaluation['reason']}.{how}", None
+    unreplicated = next((s for s in state.submissions.values() if this_round(s) and s["volunteer"] == login and not replicated(s)), None)
+    if not replication["replicated"] and unreplicated is not None:
+        return "rejected", (f"The coordinator retrained shard {shard} with seed {seed}: {replication['validation_bits']:.4f} bits, cosine "
+                            f"{replication['cosine']:.3f} with yours, so this contribution isn't replicated. Your #{unreplicated['issue']} "
+                            "in this round wasn't replicated either, and one unreplicated contribution per volunteer per round is kept, "
+                            f"so this one wasn't stored.{how}"), None
     event = {"event": "submission", "id": artifact_id, "issue": number, "volunteer": login, "submitted_at": issue.get("created_at"),
              "round": artifact["round"]["number"], "start_sha256": artifact["round"]["start_sha256"], "shard": shard, "seed": seed,
              "artifact": f"submissions/{artifact_id}.json", "bytes": len(text.encode()), "card_sha256": digest(json.dumps(card, sort_keys=True).encode()),

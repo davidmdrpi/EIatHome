@@ -25,11 +25,12 @@ It's meant to be a fun, hackable open-source project:
 > today. It trains GRU, LSTM and causal-attention models on signals in your browser, measures
 > how language-like their radio tokens are, trains a token language model, and runs
 > reproducible work units whose results are collected and checked for replication
-> automatically. Real Voyager 1 slices from a 2020 Green Bank observation are published, with
-> off-source slices from the same cadence as a real-noise control. They all come from one
-> observing session, so a score on the real family a model trained on is reconstruction, not
-> held out, until a second session is added. Not yet: that second session, the full notebook run on the
-> real observation, and VQ-VAE tokenizers. The experiment protocol is in
+> automatically. Real Voyager 1 slices from two Green Bank sessions (2016 and 2020) are
+> published, with off-source slices from the 2020 cadence as a real-noise control, and slices of
+> SETI targets and blind windows from many other sessions. Two Voyager sessions are few: a
+> Voyager score can come from a session the model also trained on (Track B's held-out Voyager
+> scans do), so it says more about reconstruction than about new observations. Not yet: the full
+> notebook run on the real observation, and VQ-VAE tokenizers. The experiment protocol is in
 > [`docs/experiments.md`](docs/experiments.md).
 
 ## Quick start

@@ -273,16 +273,22 @@ labels it:
 
 | Label | Meaning |
 |---|---|
-| `work-unit` | Recorded and a Live Lab deploy requested (or a duplicate); the issue is closed |
+| `work-unit-recorded` | Recorded and a Live Lab deploy requested (or a duplicate); the issue is closed |
 | `work-unit-rejected` | The card doesn't match its spec; the issue stays open |
 | `work-unit-pending` | The card couldn't be saved yet; the next run retries it |
+
+Only the driver applies these labels, and the submit link applies none. A label a submitter adds
+settles nothing. (The submit link used to apply `work-unit`, which was then also the recorded
+label, so cards that collaborators with triage access submitted were skipped.) Checkpoint
+contributions use `checkpoint-recorded`, `checkpoint-rejected` and `checkpoint-pending` in the
+same way.
 
 Things to know as a maintainer:
 
 - Runs share one concurrency group so their commits can't compete, with `queue: max` so
   waiting runs aren't cancelled. The queue holds 100 runs. Anything a cancelled or failed run
   missed is recorded by the next scheduled run, which processes every open result issue
-  without a `work-unit` or `work-unit-rejected` label. Run the workflow by hand to catch up
+  without a `work-unit-recorded` or `work-unit-rejected` label. Run the workflow by hand to catch up
   sooner.
 - A card is announced, and its issue labelled and closed, only after it's on `main` and a
   Pages deploy was requested. If a run fails after the push (the deploy request or the reply),
@@ -295,6 +301,10 @@ Things to know as a maintainer:
   get GitHub's failed-workflow notice.
 - Anyone can open an issue, so the stored results are claims. The page only calls a unit
   replicated when different volunteers agree, comparing runs only on the same slice dataset.
+  "Different volunteers" means different GitHub accounts. Track A and merge cards report their
+  own metrics and nothing recomputes them, so one person with two accounts could make such a
+  unit look replicated. Recovery cards (recomputed below) and checkpoint contributions to the
+  pilot (retrained by the coordinator) don't rely on accounts that way.
 - Recovery cards (`recovery/v0`) are different: `tools/ingest_result.mjs` reruns the unit on
   the published windows (`data/recovery/`) and records the card only if its counts match. The
   Recovery tab adds up the recorded units, counting each unit number once.
